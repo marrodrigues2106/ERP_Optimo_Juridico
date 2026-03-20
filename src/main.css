@@ -1,180 +1,72 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 215 28% 17%;
+    --background: 0 0% 100%;
+    --foreground: 223 38% 16%;
 
     --card: 0 0% 100%;
-    --card-foreground: 215 28% 17%;
+    --card-foreground: 223 38% 16%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 28% 17%;
+    --popover-foreground: 223 38% 16%;
 
-    /* Navy Blue */
-    --primary: 222 47% 11%;
+    --primary: 223 38% 16%; /* Navy Blue #1A233A */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 39 46% 56%; /* Champagne Gold #C5A059 */
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
 
-    /* Champagne Gold */
-    --accent: 40 48% 56%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 39 46% 56%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 40 48% 56%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 223 38% 16%;
 
-    --radius: 0.25rem;
+    --radius: 0.5rem;
   }
 
-  .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 20% 98%;
-
-    --card: 215 28% 17%;
-    --card-foreground: 210 20% 98%;
-
-    --popover: 215 28% 17%;
-    --popover-foreground: 210 20% 98%;
-
-    --primary: 210 20% 98%;
-    --primary-foreground: 222 47% 11%;
-
-    --secondary: 215 28% 17%;
-    --secondary-foreground: 210 20% 98%;
-
-    --muted: 215 28% 17%;
-    --muted-foreground: 214 32% 91%;
-
-    --accent: 40 48% 56%;
-    --accent-foreground: 222 47% 11%;
-
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 215 28% 17%;
-    --input: 215 28% 17%;
-    --ring: 40 48% 56%;
+  html {
+    scroll-behavior: smooth;
   }
 
-  section[aria-label='Notifications alt+T'] {
-    padding: 0 !important;
-    margin: 0 !important;
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-serif;
   }
 }
 
-@layer utilities {
-  @keyframes accordion-down {
-    from {
-      height: 0;
-    }
-    to {
-      height: var(--radix-accordion-content-height);
-    }
-  }
+.heading-lg {
+  @apply text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-primary mb-6 leading-tight;
+}
 
-  @keyframes accordion-up {
-    from {
-      height: var(--radix-accordion-content-height);
-    }
-    to {
-      height: 0;
-    }
-  }
+.heading-md {
+  @apply text-3xl md:text-4xl font-serif font-bold text-primary mb-4;
+}
 
-  @keyframes fade-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  @keyframes fade-out {
-    from {
-      opacity: 1;
-    }
-    to {
-      opacity: 0;
-    }
-  }
-
-  @keyframes fade-in-up {
-    from {
-      transform: translateY(20px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
-  }
-
-  @keyframes fade-in-down {
-    from {
-      transform: translateY(-20px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
-  }
-
-  @keyframes slide-up {
-    from {
-      transform: translateY(10px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
-  }
-
-  @keyframes float {
-    0%,
-    100% {
-      transform: translateY(0);
-    }
-    50% {
-      transform: translateY(-10px);
-    }
-  }
-
-  .animate-accordion-down {
-    animation: accordion-down 0.2s ease-out;
-  }
-  .animate-accordion-up {
-    animation: accordion-up 0.2s ease-out;
-  }
-  .animate-fade-in {
-    animation: fade-in 0.5s ease-out;
-  }
-  .animate-fade-out {
-    animation: fade-out 0.5s ease-out;
-  }
-  .animate-fade-in-up {
-    animation: fade-in-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-  .animate-fade-in-down {
-    animation: fade-in-down 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-  .animate-slide-up {
-    animation: slide-up 0.6s ease-out forwards;
-  }
-  .animate-float {
-    animation: float 6s ease-in-out infinite;
-  }
+.body-text {
+  @apply text-base md:text-lg text-muted-foreground leading-relaxed;
 }

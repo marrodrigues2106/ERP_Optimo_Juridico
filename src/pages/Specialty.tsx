@@ -1,123 +1,73 @@
-import { useParams, Navigate, Link } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, ChevronRight } from 'lucide-react'
+import { useParams, Link, Navigate } from 'react-router-dom'
+import { ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { specialtiesData } from '@/data/content'
-import { ScrollReveal } from '@/components/ScrollReveal'
 
 export default function Specialty() {
-  const { id } = useParams<{ id: string }>()
+  const { id } = useParams()
   const specialty = specialtiesData.find((s) => s.id === id)
 
   if (!specialty) {
     return <Navigate to="/404" />
   }
 
-  const Icon = specialty.icon
-
   return (
-    <div className="min-h-screen pt-24 pb-16 flex flex-col bg-background">
-      {/* Header */}
-      <div className="bg-muted/30 py-16 border-b border-border">
-        <div className="container px-4">
-          <Button
-            variant="ghost"
-            className="mb-8 -ml-4 text-muted-foreground hover:text-primary transition-colors"
-            asChild
+    <div className="pt-24 pb-16 min-h-screen bg-slate-50">
+      {/* Specialty Hero */}
+      <div className="bg-primary text-white py-20 mb-16 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('https://img.usecurling.com/p/1920/600?q=law%20books&color=black')] opacity-20 bg-cover bg-center mix-blend-overlay"></div>
+        <div className="container relative z-10">
+          <Link
+            to="/"
+            className="inline-flex items-center text-secondary hover:text-white transition-colors mb-8 text-sm uppercase tracking-wider font-semibold"
           >
-            <Link to="/#especialidades">
-              <ArrowLeft className="w-4 h-4 mr-2" /> Voltar para Especialidades
-            </Link>
-          </Button>
-
-          <ScrollReveal>
-            <div className="flex flex-col md:flex-row md:items-center gap-6 mb-6">
-              <div className="w-16 h-16 rounded-xl bg-primary/5 flex items-center justify-center text-accent shrink-0 shadow-sm border border-border/50">
-                <Icon className="w-8 h-8" />
-              </div>
-              <h1 className="text-4xl md:text-5xl font-serif font-bold text-primary leading-tight">
-                {specialty.fullTitle || specialty.title}
-              </h1>
-            </div>
-            <p className="text-xl text-muted-foreground max-w-4xl leading-relaxed">
-              {specialty.description}
-            </p>
-          </ScrollReveal>
+            <ArrowLeft size={16} className="mr-2" /> Voltar para o início
+          </Link>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold mb-6 text-white">
+            {specialty.title}
+          </h1>
+          <p className="text-xl md:text-2xl max-w-4xl text-gray-300 font-light leading-relaxed">
+            {specialty.intro}
+          </p>
         </div>
       </div>
 
-      <div className="container px-4 py-16 flex-grow">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-16">
-          <div className="lg:col-span-2 space-y-12">
-            <ScrollReveal>
-              <h2 className="text-3xl font-serif font-bold mb-8 text-primary">
-                Nossas Soluções e Áreas de Atuação
-              </h2>
-              <div className="grid grid-cols-1 gap-6">
-                {specialty.subsections.map((sub, idx) => (
-                  <div
-                    key={idx}
-                    className="flex flex-col sm:flex-row items-start bg-card p-6 sm:p-8 rounded-lg border border-border/60 shadow-subtle hover:shadow-md transition-all duration-300 gap-5 group"
-                  >
-                    <div className="bg-accent/10 p-2 rounded-full mt-0.5 flex-shrink-0 group-hover:scale-110 transition-transform">
-                      <CheckCircle2 className="w-6 h-6 text-accent" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-card-foreground mb-3 font-serif">
-                        {sub.title}
-                      </h3>
-                      <p className="text-muted-foreground text-base leading-relaxed">
-                        {sub.description}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollReveal>
-
-            {specialty.conclusion && (
-              <ScrollReveal>
-                <div className="bg-primary/5 border-l-4 border-accent p-6 sm:p-8 rounded-r-lg shadow-sm">
-                  <p className="text-lg text-primary font-medium italic leading-relaxed">
-                    "{specialty.conclusion}"
-                  </p>
+      <div className="container">
+        <div className="max-w-4xl mx-auto">
+          <div className="grid gap-6 md:gap-8">
+            {specialty.subSections.map((sub, idx) => (
+              <div
+                key={idx}
+                className="bg-white p-8 md:p-10 rounded-2xl shadow-sm border border-border flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow"
+              >
+                <div className="bg-secondary/10 w-16 h-16 rounded-full flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="text-secondary" size={32} />
                 </div>
-              </ScrollReveal>
-            )}
+                <div>
+                  <h3 className="text-2xl font-serif font-semibold text-primary mb-4">
+                    {sub.title}
+                  </h3>
+                  <p className="text-muted-foreground text-lg leading-relaxed">{sub.content}</p>
+                </div>
+              </div>
+            ))}
           </div>
 
-          <div className="lg:col-span-1">
-            <ScrollReveal>
-              <div className="bg-primary text-primary-foreground p-8 rounded-xl sticky top-32 shadow-elevation border border-primary-foreground/10">
-                <h3 className="text-2xl font-serif font-bold mb-4">
-                  Precisa de assessoria nesta área?
-                </h3>
-                <div className="w-12 h-1 bg-accent mb-6" />
-                <p className="text-primary-foreground/80 mb-8 leading-relaxed text-base">
-                  Nossa equipe de especialistas está pronta para analisar profundamente o seu caso e
-                  propor as melhores e mais seguras estratégias jurídicas voltadas ao seu patrimônio
-                  e negócio.
-                </p>
-                <div className="space-y-4">
-                  <Button
-                    className="w-full bg-accent text-primary hover:bg-accent/90 h-14 text-base font-bold shadow-md transition-transform hover:-translate-y-0.5"
-                    asChild
-                  >
-                    <Link to="/contato">
-                      Agendar Reunião <ChevronRight className="w-5 h-5 ml-2" />
-                    </Link>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 h-14 text-base font-medium transition-colors"
-                    asChild
-                  >
-                    <a href="https://wa.me/5521974398218" target="_blank" rel="noopener noreferrer">
-                      Falar no WhatsApp
-                    </a>
-                  </Button>
-                </div>
-              </div>
-            </ScrollReveal>
+          <div className="mt-20 text-center bg-white p-12 rounded-2xl shadow-sm border border-border">
+            <h4 className="text-3xl font-serif font-bold text-primary mb-6">
+              Precisa de assessoria nesta área?
+            </h4>
+            <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
+              Nossa equipe de especialistas está pronta para analisar seu caso e propor as melhores
+              estratégias jurídicas.
+            </p>
+            <Button
+              size="lg"
+              className="bg-secondary hover:bg-secondary/90 text-white rounded-full px-10 py-6 text-lg shadow-lg hover:shadow-xl transition-all"
+              asChild
+            >
+              <a href="#contato">Fale com um Especialista Agora</a>
+            </Button>
           </div>
         </div>
       </div>

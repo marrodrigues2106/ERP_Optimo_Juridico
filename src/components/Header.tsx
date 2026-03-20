@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Menu, Scale } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetClose } from '@/components/ui/sheet'
+import { Menu, X, Instagram, Facebook, Phone as WhatsappIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { specialtiesData } from '@/data/content'
+import { firmData, specialtiesData } from '@/data/content'
+import logoImg from '../assets/logo-mr-advocacia-mk39e5yk0rfrezeo-007ff.png'
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -12,95 +11,79 @@ import {
   NavigationMenuLink,
   NavigationMenuList,
   NavigationMenuTrigger,
+  navigationMenuTriggerStyle,
 } from '@/components/ui/navigation-menu'
 
-export function Header() {
-  const [scrolled, setScrolled] = useState(false)
-  const location = useLocation()
+export default function Header() {
+  const [isScrolled, setIsScrolled] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { pathname } = useLocation()
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20)
+    const handleScroll = () => setIsScrolled(window.scrollY > 20)
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const isHome = location.pathname === '/'
-
-  const headerClass = cn(
-    'fixed top-0 left-0 right-0 z-50 transition-all duration-300 border-b',
-    scrolled
-      ? 'bg-background/95 backdrop-blur-md border-border py-4 shadow-sm'
-      : isHome
-        ? 'bg-transparent border-transparent py-6 text-white'
-        : 'bg-background border-border py-6 text-foreground',
-  )
-
-  const linkClass = cn(
-    'text-sm font-medium hover:text-accent transition-colors',
-    !scrolled && isHome ? 'text-white/90 hover:text-white' : 'text-foreground/80',
-  )
+  const closeMenu = () => setMobileMenuOpen(false)
 
   return (
-    <header className={headerClass}>
-      <div className="container px-4 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-3 group">
-          <Scale
-            className={cn(
-              'w-8 h-8 transition-colors',
-              !scrolled && isHome ? 'text-white' : 'text-primary group-hover:text-accent',
-            )}
-          />
-          <div className="flex flex-col">
-            <span
-              className={cn(
-                'font-serif font-bold text-lg leading-none tracking-wide',
-                !scrolled && isHome ? 'text-white' : 'text-primary',
-              )}
-            >
-              MORAES RODRIGUES
-            </span>
-            <span
-              className={cn(
-                'text-[0.65rem] uppercase tracking-[0.2em] font-medium mt-1',
-                !scrolled && isHome ? 'text-white/70' : 'text-muted-foreground',
-              )}
-            >
-              Advocacia Especializada
-            </span>
+    <header
+      className={cn(
+        'fixed top-0 w-full z-50 transition-all duration-300 border-b',
+        isScrolled
+          ? 'bg-white/95 backdrop-blur-md shadow-sm border-gray-200 py-2'
+          : 'bg-[#F9F9F9] border-transparent py-4',
+      )}
+    >
+      <div className="container mx-auto px-4 flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-2" onClick={closeMenu}>
+          <div className="bg-[#4B4B4B] p-2 rounded-sm flex items-center justify-center">
+            <img src={logoImg} alt={firmData.name} className="h-12 w-auto object-contain" />
           </div>
         </Link>
 
         {/* Desktop Nav */}
         <div className="hidden lg:flex items-center gap-8">
-          <Link to="/" className={linkClass}>
-            Início
-          </Link>
-
           <NavigationMenu>
             <NavigationMenuList>
               <NavigationMenuItem>
+                <Link to="/">
+                  <NavigationMenuLink
+                    active={pathname === '/'}
+                    className={cn(
+                      navigationMenuTriggerStyle(),
+                      'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
+                      pathname === '/' && 'border-b-2 border-secondary rounded-none text-secondary',
+                    )}
+                  >
+                    Início
+                  </NavigationMenuLink>
+                </Link>
+              </NavigationMenuItem>
+              <NavigationMenuItem>
                 <NavigationMenuTrigger
                   className={cn(
-                    'bg-transparent hover:bg-transparent focus:bg-transparent data-[state=open]:bg-transparent data-[active]:bg-transparent h-auto p-0 font-medium',
-                    linkClass,
+                    'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
+                    pathname.includes('/especialidade') && 'text-secondary',
                   )}
                 >
-                  Especialidades
+                  Nossas Especialidades
                 </NavigationMenuTrigger>
                 <NavigationMenuContent>
-                  <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
+                  <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px] bg-white">
                     {specialtiesData.map((spec) => (
                       <li key={spec.id}>
                         <NavigationMenuLink asChild>
                           <Link
-                            to={`/especialidades/${spec.id}`}
-                            className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent/10 hover:text-accent focus:bg-accent/10 focus:text-accent"
+                            to={`/especialidade/${spec.id}`}
+                            className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-slate-50 hover:text-secondary focus:bg-slate-50 focus:text-secondary"
                           >
-                            <div className="text-sm font-medium leading-none mb-2">
+                            <div className="text-sm font-medium leading-none font-serif text-primary">
                               {spec.title}
                             </div>
-                            <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-                              {spec.shortDesc}
+                            <p className="line-clamp-2 text-sm leading-snug text-muted-foreground mt-2">
+                              {spec.shortDescription}
                             </p>
                           </Link>
                         </NavigationMenuLink>
@@ -109,90 +92,120 @@ export function Header() {
                   </ul>
                 </NavigationMenuContent>
               </NavigationMenuItem>
+              <NavigationMenuItem>
+                <Link to="/artigos">
+                  <NavigationMenuLink
+                    className={cn(
+                      navigationMenuTriggerStyle(),
+                      'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
+                    )}
+                  >
+                    Artigos
+                  </NavigationMenuLink>
+                </Link>
+              </NavigationMenuItem>
+              <NavigationMenuItem>
+                <a href="#contato">
+                  <NavigationMenuLink
+                    className={cn(
+                      navigationMenuTriggerStyle(),
+                      'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
+                    )}
+                  >
+                    Contato
+                  </NavigationMenuLink>
+                </a>
+              </NavigationMenuItem>
             </NavigationMenuList>
           </NavigationMenu>
 
-          <Link to="/equipe" className={linkClass}>
-            Equipe
-          </Link>
-          <Link to="/contato" className={linkClass}>
-            Contato
-          </Link>
-
-          <Button
-            className="bg-green-600 hover:bg-green-700 text-white border-0 shadow-[0_0_15px_rgba(22,163,74,0.3)] ml-4 group transition-all"
-            asChild
-          >
-            <a href="https://wa.me/5511999999999" target="_blank" rel="noopener noreferrer">
-              Consulta via WhatsApp
+          <div className="flex items-center gap-5 text-primary/80">
+            <a
+              href={firmData.socials.whatsapp}
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-secondary transition-colors"
+            >
+              <WhatsappIcon size={20} />
             </a>
-          </Button>
+            <a
+              href={firmData.socials.facebook}
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-secondary transition-colors"
+            >
+              <Facebook size={20} />
+            </a>
+            <a
+              href={firmData.socials.instagram}
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-secondary transition-colors"
+            >
+              <Instagram size={20} />
+            </a>
+          </div>
         </div>
 
-        {/* Mobile Nav */}
-        <div className="lg:hidden">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  !scrolled && isHome
-                    ? 'text-white hover:bg-white/10'
-                    : 'text-primary hover:bg-primary/5',
-                )}
-              >
-                <Menu className="w-6 h-6" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-[300px] bg-background border-l-border">
-              <SheetTitle className="font-serif text-xl mb-8 mt-4 text-primary">
-                Menu Principal
-              </SheetTitle>
-              <div className="flex flex-col gap-6">
-                <SheetClose asChild>
-                  <Link to="/" className="text-lg font-medium">
-                    Início
-                  </Link>
-                </SheetClose>
-                <div className="text-lg font-medium border-b pb-2 text-primary">Especialidades</div>
-                <div className="flex flex-col gap-4 pl-4 border-l-2 border-accent/20">
-                  {specialtiesData.map((spec) => (
-                    <SheetClose key={spec.id} asChild>
-                      <Link
-                        to={`/especialidades/${spec.id}`}
-                        className="text-muted-foreground hover:text-accent font-medium"
-                      >
-                        {spec.title}
-                      </Link>
-                    </SheetClose>
-                  ))}
-                </div>
-                <SheetClose asChild>
-                  <Link to="/equipe" className="text-lg font-medium">
-                    Equipe
-                  </Link>
-                </SheetClose>
-                <SheetClose asChild>
-                  <Link to="/contato" className="text-lg font-medium">
-                    Contato
-                  </Link>
-                </SheetClose>
-                <SheetClose asChild>
-                  <Button
-                    className="w-full bg-green-600 hover:bg-green-700 text-white mt-4 h-12 text-base"
-                    asChild
-                  >
-                    <a href="https://wa.me/5511999999999" target="_blank" rel="noopener noreferrer">
-                      Falar no WhatsApp
-                    </a>
-                  </Button>
-                </SheetClose>
-              </div>
-            </SheetContent>
-          </Sheet>
-        </div>
+        {/* Mobile Toggle */}
+        <button
+          className="lg:hidden p-2 text-primary"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+        >
+          {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
       </div>
+
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden absolute top-full left-0 w-full bg-white border-t shadow-lg py-4 px-4 flex flex-col gap-4 animate-in slide-in-from-top-2">
+          <Link
+            to="/"
+            className="text-lg font-medium py-2 border-b text-primary"
+            onClick={closeMenu}
+          >
+            Início
+          </Link>
+          <div className="py-2 border-b">
+            <span className="text-lg font-medium mb-2 block text-primary">
+              Nossas Especialidades
+            </span>
+            <div className="flex flex-col gap-2 pl-4">
+              {specialtiesData.map((spec) => (
+                <Link
+                  key={spec.id}
+                  to={`/especialidade/${spec.id}`}
+                  className="text-muted-foreground py-1 hover:text-secondary"
+                  onClick={closeMenu}
+                >
+                  {spec.title}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <Link
+            to="/artigos"
+            className="text-lg font-medium py-2 border-b text-primary"
+            onClick={closeMenu}
+          >
+            Artigos
+          </Link>
+          <a href="#contato" className="text-lg font-medium py-2 text-primary" onClick={closeMenu}>
+            Contato
+          </a>
+          <div className="flex items-center gap-6 mt-4 justify-center text-primary/80">
+            <a href={firmData.socials.whatsapp}>
+              <WhatsappIcon size={24} />
+            </a>
+            <a href={firmData.socials.facebook}>
+              <Facebook size={24} />
+            </a>
+            <a href={firmData.socials.instagram}>
+              <Instagram size={24} />
+            </a>
+          </div>
+        </div>
+      )}
     </header>
   )
 }

@@ -1,32 +1,26 @@
-import { Outlet, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
-import { Header } from '@/components/Header'
-import { Footer } from '@/components/Footer'
-import { WhatsAppFAB } from '@/components/WhatsAppFAB'
+import { Outlet, useLocation } from 'react-router-dom'
+import Header from './Header'
+import Footer from './Footer'
+import WhatsAppFAB from './WhatsAppFAB'
+import { Toaster } from '@/components/ui/toaster'
 
-function ScrollToTop() {
+export default function Layout() {
   const { pathname } = useLocation()
 
   useEffect(() => {
-    // Small timeout to ensure layout updates before scrolling
-    setTimeout(() => {
-      window.scrollTo(0, 0)
-    }, 0)
+    window.scrollTo(0, 0)
   }, [pathname])
 
-  return null
-}
-
-export default function Layout() {
   return (
-    <div className="flex flex-col min-h-screen selection:bg-accent selection:text-primary bg-background">
-      <ScrollToTop />
+    <div className="min-h-screen flex flex-col font-sans bg-background">
       <Header />
-      <main className="flex-grow flex flex-col">
+      <main className="flex-1 w-full">
         <Outlet />
       </main>
       <Footer />
       <WhatsAppFAB />
+      <Toaster />
     </div>
   )
 }
