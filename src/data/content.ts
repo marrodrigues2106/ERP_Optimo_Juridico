@@ -4,132 +4,162 @@ export const specialtiesData = [
   {
     id: 'direito-tributario',
     title: 'Direito Tributário',
+    fullTitle: 'O contencioso tributário',
     shortDesc: 'Estratégias avançadas para otimização e defesa fiscal.',
     icon: Landmark,
     description:
-      'Atuamos com precisão na estruturação fiscal e defesa em litígios tributários, visando a preservação do seu patrimônio e a eficiência do seu negócio.',
-    services: [
-      'Consultoria e Planejamento Tributário Nacional e Internacional',
-      'Contencioso Administrativo e Judicial Tributário',
-      'Recuperação de Créditos Fiscais',
-      'Due Diligence Tributária em Fusões e Aquisições',
-    ],
-    faqs: [
+      'No complexo cenário fiscal do Rio de Janeiro, o contencioso tributário exige uma atuação técnica, estratégica e combativa. Enfrentar autuações fiscais, execuções e exigências indevidas demanda profundo conhecimento da legislação estadual, municipal e federal.',
+    subsections: [
       {
-        question: 'Como a consultoria tributária pode ajudar minha empresa?',
-        answer:
-          'Através da análise detalhada das operações, identificamos oportunidades legais para reduzir a carga tributária e melhorar o fluxo de caixa.',
+        title: 'Consultoria e Planejamento Tributário',
+        description:
+          'Atuamos na minimização da carga tributária de forma lícita, analisando a estrutura do negócio e propondo alternativas seguras para redução de custos e otimização fiscal.',
       },
       {
-        question: 'É possível recuperar impostos pagos indevidamente?',
-        answer:
-          'Sim, realizamos uma auditoria minuciosa e estruturamos as medidas legais cabíveis para identificar e recuperar valores recolhidos a maior nos últimos anos.',
-      },
-    ],
-  },
-  {
-    id: 'planejamento-patrimonial',
-    title: 'Planejamento Patrimonial e Sucessório',
-    shortDesc: 'Proteção de ativos e sucessão familiar estruturada.',
-    icon: Briefcase,
-    description:
-      'Desenvolvemos estruturas jurídicas sofisticadas e seguras para proteger o patrimônio familiar e garantir uma sucessão tranquila, eficiente e com menor impacto tributário.',
-    services: [
-      'Constituição de Holdings Familiares e Patrimoniais',
-      'Elaboração de Testamentos e Planejamento Sucessório',
-      'Acordos de Sócios e Protocolos de Governança Familiar',
-      'Proteção e Blindagem Patrimonial Lícita',
-    ],
-    faqs: [
-      {
-        question: 'O que é uma Holding Familiar?',
-        answer:
-          'É uma empresa constituída especificamente para administrar o patrimônio de uma família, facilitando a sucessão, evitando inventários morosos e oferecendo diversos benefícios fiscais.',
+        title: 'Defesa em Processos Administrativos',
+        description:
+          'Elaboração de defesas técnicas e recursos consistentes perante os conselhos de contribuintes, visando o cancelamento de autuações antes da fase de execução fiscal.',
       },
       {
-        question: 'Quando devo começar a pensar em planejamento sucessório?',
-        answer:
-          'O quanto antes. O planejamento preventivo evita conflitos familiares, reduz custos exorbitantes no processo de inventário e assegura que suas vontades sejam respeitadas.',
-      },
-    ],
-  },
-  {
-    id: 'direito-imobiliario',
-    title: 'Direito Imobiliário',
-    shortDesc: 'Segurança jurídica em transações e negócios imobiliários.',
-    icon: Building2,
-    description:
-      'Assessoria completa em negócios imobiliários, garantindo total segurança desde a aquisição de bens até a estruturação de grandes empreendimentos imobiliários e fundos.',
-    services: [
-      'Due Diligence Imobiliária e Análise de Riscos',
-      'Contratos de Compra, Venda, Locação e Built to Suit',
-      'Regularização de Imóveis (Usucapião, Adjudicação)',
-      'Estruturação de Empreendimentos e Incorporações',
-    ],
-    faqs: [
-      {
-        question: 'Por que realizar uma Due Diligence Imobiliária antes de comprar?',
-        answer:
-          'A due diligence analisa todas as certidões e histórico do imóvel e vendedores para identificar passivos trabalhistas, fiscais ou ambientais que podem anular o negócio no futuro.',
+        title: 'Atuação em Contencioso Judicial',
+        description:
+          'Propositura de ações judiciais e recursos estratégicos para proteger os direitos do contribuinte, anular débitos indevidos e recuperar valores pagos a maior.',
       },
       {
-        question: 'Como posso regularizar um imóvel do qual não tenho a escritura?',
-        answer:
-          'Existem diversos caminhos legais, como a Ação de Usucapião ou a Adjudicação Compulsória, a depender das provas de posse e contratos existentes.',
+        title: 'Benefícios de uma Boa Assessoria Jurídica',
+        description:
+          'Garantimos a prevenção de perdas financeiras significativas, protegendo o patrimônio dos sócios e oferecendo segurança jurídica total para as operações da sua empresa.',
       },
     ],
-  },
-  {
-    id: 'contratos-responsabilidade',
-    title: 'Contratos e Resp. Civil',
-    shortDesc: 'Mitigação de riscos e defesa de interesses contratuais.',
-    icon: FileSignature,
-    description:
-      'Elaboração, revisão e negociação de contratos complexos, além de atuação assertiva em litígios envolvendo responsabilidade civil corporativa e profissional.',
-    services: [
-      'Elaboração e Revisão de Contratos Complexos',
-      'Resolução Estratégica de Conflitos Contratuais',
-      'Ações de Indenização e Reparação de Danos',
-      'Gestão Preventiva de Risco Contratual',
-    ],
-    faqs: [
-      {
-        question: 'Qual a real importância de um contrato bem redigido?',
-        answer:
-          'Um contrato sob medida previne litígios, estabelece regras claras para os cenários adversos e protege fortemente os interesses jurídicos e financeiros da sua empresa.',
-      },
-      {
-        question: 'O que caracteriza a responsabilidade civil?',
-        answer:
-          'É o dever legal de reparar um dano causado a terceiros, seja de natureza material ou moral, originado por ação, omissão, negligência ou imperícia.',
-      },
-    ],
+    conclusion:
+      'Conclusão: Ter um suporte especializado no Rio de Janeiro é fundamental para navegar com segurança no emaranhado de leis e regulamentos fiscais, assegurando a competitividade e a saúde financeira do seu negócio.',
   },
   {
     id: 'direito-financeiro',
     title: 'Direito Financeiro',
-    shortDesc: 'Assessoria jurídica em operações financeiras e bancárias.',
+    fullTitle: 'Direito Financeiro',
+    shortDesc: 'Assessoria jurídica na gestão de recursos públicos e privados.',
     icon: Coins,
     description:
-      'Suporte altamente especializado em transações financeiras corporativas, regulação bancária, fintechs e operações no mercado de capitais.',
-    services: [
-      'Estruturação de Operações de Crédito e Financiamento',
-      'Reestruturação de Dívidas Corporativas',
-      'Assessoria Regulatória (Bacen e CVM)',
-      'Compliance Financeiro e Prevenção à Lavagem de Dinheiro',
-    ],
-    faqs: [
+      'A gestão responsável dos recursos públicos é o pilar da administração eficiente. O Direito Financeiro, com foco na Lei de Responsabilidade Fiscal (LRF), estabelece as regras para o planejamento, a execução e o controle dos orçamentos públicos, garantindo a transparência e a sustentabilidade das contas.',
+    subsections: [
       {
-        question: 'Como o escritório atua na renegociação de dívidas corporativas?',
-        answer:
-          'Realizamos análises contratuais aprofundadas para expurgar encargos abusivos e estruturamos negociações estratégicas diretas com os credores.',
+        title: 'Consultoria Estratégica em Lei de Responsabilidade Fiscal (LRF)',
+        description:
+          'Orientação detalhada sobre os limites de gastos, despesas com pessoal e endividamento, atuando de forma preventiva para evitar atos de improbidade administrativa.',
       },
       {
-        question: 'Quais os cuidados em operações de crédito estruturadas?',
-        answer:
-          'É essencial avaliar profundamente o pacote de garantias, os covenants financeiros estabelecidos e o impacto regulatório para mitigar o risco de default cruzado.',
+        title: 'Análise e Orientação Orçamentária (PPA, LDO e LOA)',
+        description:
+          'Suporte especializado na elaboração e interpretação das leis orçamentárias, assegurando a otimização legal dos recursos públicos e a conformidade legal.',
+      },
+      {
+        title: 'Pareceres Jurídicos sobre Despesa Pública e Licitações',
+        description:
+          'Avaliação técnica da legalidade das despesas e dos atos administrativos atrelados a licitações, garantindo estrita conformidade com os princípios da administração pública.',
+      },
+      {
+        title: 'Prevenção de Improbidade Administrativa',
+        description:
+          'Mapeamento contínuo de riscos e adequação de procedimentos aos rígidos princípios legais que regem a administração pública.',
       },
     ],
+    conclusion:
+      'Uma Visão Única para uma Gestão Segura: Ao unir a expertise em Direito Tributário e Financeiro, oferecemos uma assessoria 360º que protege não apenas as finanças corporativas, mas também a integridade da gestão pública e privada.',
+  },
+  {
+    id: 'contratos-responsabilidade',
+    title: 'Contratos e Resp. Civil',
+    fullTitle: 'Introdução aos Serviços Jurídicos em Contratos e Área Cível',
+    shortDesc: 'Mitigação de riscos e defesa de interesses contratuais.',
+    icon: FileSignature,
+    description:
+      'As relações negociais contemporâneas exigem segurança e previsibilidade. A atuação em Contratos e Responsabilidade Civil visa proteger os interesses de nossos clientes por meio da elaboração de instrumentos sólidos e da defesa vigorosa em casos de danos.',
+    subsections: [
+      {
+        title: 'Redação e Revisão de Contratos',
+        description:
+          'Criação de documentos claros, precisos e com plena eficácia vinculante, blindando o seu negócio contra ambiguidades e disputas futuras indesejadas.',
+      },
+      {
+        title: 'Consultoria em Direito Contratual',
+        description:
+          'Assessoria completa em negociações, análise aprofundada de riscos e orientação estratégica para a formação, execução e rescisão segura de contratos.',
+      },
+      {
+        title: 'Representação em Litígios Cíveis',
+        description:
+          'Atuação firme e diligente perante os tribunais na resolução de conflitos, casos de quebra contratual e ações de responsabilidade civil.',
+      },
+    ],
+    conclusion:
+      'Conclusão: A mitigação de riscos por meio de contratos bem elaborados e a orientação profissional contínua são os melhores investimentos para evitar litígios dispendiosos e proteger a reputação do seu negócio.',
+  },
+  {
+    id: 'direito-imobiliario',
+    title: 'Direito Imobiliário',
+    fullTitle: 'Consultoria Jurídica Imobiliária',
+    shortDesc: 'Segurança jurídica em transações e negócios imobiliários.',
+    icon: Building2,
+    description:
+      'O mercado imobiliário envolve transações de alto valor e complexidade documental. Nossa consultoria visa garantir total segurança jurídica desde a análise prévia até a efetiva transferência e regularização da propriedade.',
+    subsections: [
+      {
+        title: 'Assessoria em Compra e Venda de Imóveis',
+        description:
+          'Verificação minuciosa de toda a documentação pertinente, análise detalhada de certidões e histórico das partes para evitar fraudes e passivos.',
+      },
+      {
+        title: 'Regularização de Imóveis',
+        description:
+          'Condução ágil de processos de retificação de área, ações de usucapião, adjudicação compulsória e regularização fundiária perante os órgãos competentes.',
+      },
+      {
+        title: 'Planejamento Sucessório Imobiliário',
+        description:
+          'Estruturação de testamentos e doações em vida para evitar conflitos futuros e garantir a transferência harmoniosa do patrimônio imobiliário.',
+      },
+      {
+        title: 'Assessoria em Direito Registral',
+        description:
+          'Orientação segura e acompanhamento de procedimentos essenciais junto aos cartórios, promovendo a máxima segurança jurídica nos atos registrais.',
+      },
+    ],
+    conclusion:
+      'Conclusão: A segurança do seu patrimônio imobiliário depende de uma análise jurídica criteriosa. Nossa atuação técnica previne litígios e garante a solidez incontestável dos seus negócios no setor.',
+  },
+  {
+    id: 'planejamento-patrimonial',
+    title: 'Planejamento Patrimonial',
+    fullTitle: 'Planejamento Patrimonial e Sucessório',
+    shortDesc: 'Proteção de ativos e sucessão familiar estruturada.',
+    icon: Briefcase,
+    description:
+      'A preservação do legado familiar e empresarial exige antecipação e inteligência jurídica. Desenvolvemos estruturas sofisticadas para proteger o patrimônio e garantir que a sucessão ocorra de forma pacífica, eficiente e econômica.',
+    subsections: [
+      {
+        title: 'Consultoria em Planejamento Patrimonial',
+        description:
+          'Criação e estruturação estratégica de holdings familiares, administradoras de bens e trusts, segregando riscos e otimizando a gestão do patrimônio.',
+      },
+      {
+        title: 'Estratégias de Proteção de Bens',
+        description:
+          'Implementação de mecanismos lícitos e eficientes para blindar o patrimônio acumulado contra os mais diversos riscos empresariais e credores eventuais.',
+      },
+      {
+        title: 'Planejamento Sucessório',
+        description:
+          'Estruturação da transferência harmoniosa de bens para as próximas gerações, valendo-se de testamentos, doações e eficientes acordos de sócios.',
+      },
+      {
+        title: 'Benefícios de um Planejamento Adequado',
+        description:
+          'Promoção da harmonia familiar, expressiva redução de impostos na sucessão e a prevenção contra morosos processos de inventário judicial.',
+      },
+    ],
+    conclusion:
+      'Conclusão: O planejamento patrimonial é um ato de grande responsabilidade e amor que assegura a transição geracional tranquila, a perenidade dos negócios e a estabilidade financeira de sua família ao longo das décadas.',
   },
 ]
 

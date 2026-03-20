@@ -1,12 +1,6 @@
 import { useParams, Navigate, Link } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion'
 import { specialtiesData } from '@/data/content'
 import { ScrollReveal } from '@/components/ScrollReveal'
 
@@ -27,7 +21,7 @@ export default function Specialty() {
         <div className="container px-4">
           <Button
             variant="ghost"
-            className="mb-8 -ml-4 text-muted-foreground hover:text-primary"
+            className="mb-8 -ml-4 text-muted-foreground hover:text-primary transition-colors"
             asChild
           >
             <Link to="/#especialidades">
@@ -36,15 +30,15 @@ export default function Specialty() {
           </Button>
 
           <ScrollReveal>
-            <div className="flex items-center gap-6 mb-6">
-              <div className="w-16 h-16 rounded-xl bg-primary/5 flex items-center justify-center text-accent shrink-0">
+            <div className="flex flex-col md:flex-row md:items-center gap-6 mb-6">
+              <div className="w-16 h-16 rounded-xl bg-primary/5 flex items-center justify-center text-accent shrink-0 shadow-sm border border-border/50">
                 <Icon className="w-8 h-8" />
               </div>
-              <h1 className="text-4xl md:text-5xl font-serif font-bold text-primary">
-                {specialty.title}
+              <h1 className="text-4xl md:text-5xl font-serif font-bold text-primary leading-tight">
+                {specialty.fullTitle || specialty.title}
               </h1>
             </div>
-            <p className="text-xl text-muted-foreground max-w-3xl leading-relaxed">
+            <p className="text-xl text-muted-foreground max-w-4xl leading-relaxed">
               {specialty.description}
             </p>
           </ScrollReveal>
@@ -53,74 +47,68 @@ export default function Specialty() {
 
       <div className="container px-4 py-16 flex-grow">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-16">
-          <div className="lg:col-span-2 space-y-16">
+          <div className="lg:col-span-2 space-y-12">
             <ScrollReveal>
               <h2 className="text-3xl font-serif font-bold mb-8 text-primary">
-                Serviços Oferecidos
+                Nossas Soluções e Áreas de Atuação
               </h2>
-              <div className="grid sm:grid-cols-2 gap-6">
-                {specialty.services.map((service, idx) => (
+              <div className="grid grid-cols-1 gap-6">
+                {specialty.subsections.map((sub, idx) => (
                   <div
                     key={idx}
-                    className="flex items-start bg-card p-6 rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow"
+                    className="flex flex-col sm:flex-row items-start bg-card p-6 sm:p-8 rounded-lg border border-border/60 shadow-subtle hover:shadow-md transition-all duration-300 gap-5 group"
                   >
-                    <CheckCircle2 className="w-6 h-6 text-accent mr-4 flex-shrink-0 mt-0.5" />
-                    <span className="text-base font-medium text-card-foreground">{service}</span>
+                    <div className="bg-accent/10 p-2 rounded-full mt-0.5 flex-shrink-0 group-hover:scale-110 transition-transform">
+                      <CheckCircle2 className="w-6 h-6 text-accent" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-card-foreground mb-3 font-serif">
+                        {sub.title}
+                      </h3>
+                      <p className="text-muted-foreground text-base leading-relaxed">
+                        {sub.description}
+                      </p>
+                    </div>
                   </div>
                 ))}
               </div>
             </ScrollReveal>
 
-            <ScrollReveal>
-              <h2 className="text-3xl font-serif font-bold mb-8 text-primary">
-                Perguntas Frequentes
-              </h2>
-              <Accordion
-                type="single"
-                collapsible
-                className="w-full bg-card rounded-lg border border-border px-6"
-              >
-                {specialty.faqs.map((faq, idx) => (
-                  <AccordionItem
-                    key={idx}
-                    value={`item-${idx}`}
-                    className="border-b-border last:border-0 py-2"
-                  >
-                    <AccordionTrigger className="text-left text-lg font-medium hover:text-accent hover:no-underline">
-                      {faq.question}
-                    </AccordionTrigger>
-                    <AccordionContent className="text-muted-foreground text-base leading-relaxed pb-4">
-                      {faq.answer}
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-            </ScrollReveal>
+            {specialty.conclusion && (
+              <ScrollReveal>
+                <div className="bg-primary/5 border-l-4 border-accent p-6 sm:p-8 rounded-r-lg shadow-sm">
+                  <p className="text-lg text-primary font-medium italic leading-relaxed">
+                    "{specialty.conclusion}"
+                  </p>
+                </div>
+              </ScrollReveal>
+            )}
           </div>
 
           <div className="lg:col-span-1">
             <ScrollReveal>
-              <div className="bg-primary text-primary-foreground p-8 rounded-xl sticky top-32 shadow-elevation">
+              <div className="bg-primary text-primary-foreground p-8 rounded-xl sticky top-32 shadow-elevation border border-primary-foreground/10">
                 <h3 className="text-2xl font-serif font-bold mb-4">
                   Precisa de assessoria nesta área?
                 </h3>
                 <div className="w-12 h-1 bg-accent mb-6" />
-                <p className="text-primary-foreground/80 mb-8 leading-relaxed">
+                <p className="text-primary-foreground/80 mb-8 leading-relaxed text-base">
                   Nossa equipe de especialistas está pronta para analisar profundamente o seu caso e
-                  propor as melhores e mais seguras estratégias jurídicas.
+                  propor as melhores e mais seguras estratégias jurídicas voltadas ao seu patrimônio
+                  e negócio.
                 </p>
                 <div className="space-y-4">
                   <Button
-                    className="w-full bg-accent text-primary hover:bg-accent/90 h-14 text-base font-semibold"
+                    className="w-full bg-accent text-primary hover:bg-accent/90 h-14 text-base font-bold shadow-md transition-transform hover:-translate-y-0.5"
                     asChild
                   >
                     <Link to="/contato">
-                      Agendar Reunião <ChevronRight className="w-4 h-4 ml-2" />
+                      Agendar Reunião <ChevronRight className="w-5 h-5 ml-2" />
                     </Link>
                   </Button>
                   <Button
                     variant="outline"
-                    className="w-full border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 h-14 text-base"
+                    className="w-full border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 h-14 text-base font-medium transition-colors"
                     asChild
                   >
                     <a href="https://wa.me/5511999999999" target="_blank" rel="noopener noreferrer">
