@@ -120,20 +120,26 @@ export function Footer() {
               <li className="flex items-start gap-3">
                 <MapPin className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
                 <span className="leading-relaxed">
-                  Av. Brigadeiro Faria Lima, 3000
+                  Estrada Caetano Monteiro, 790 - Pendotiba
                   <br />
-                  Itaim Bibi, São Paulo - SP
-                  <br />
-                  CEP: 01451-000
+                  Niterói - RJ. CEP 24.320-570
                 </span>
               </li>
-              <li className="flex items-center gap-3">
-                <Phone className="w-5 h-5 text-accent flex-shrink-0" />
-                <span>+55 (11) 3000-0000</span>
+              <li className="flex items-start gap-3">
+                <Phone className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
+                <div className="flex flex-col gap-1">
+                  <span>21-2082-6855</span>
+                  <span>21-97439-8218</span>
+                </div>
               </li>
               <li className="flex items-center gap-3">
                 <Mail className="w-5 h-5 text-accent flex-shrink-0" />
-                <span>contato@moraesrodrigues.com.br</span>
+                <a
+                  href="mailto:contato@moraesrodriguesadvocacia.com.br"
+                  className="hover:text-accent transition-colors"
+                >
+                  contato@moraesrodriguesadvocacia.com.br
+                </a>
               </li>
             </ul>
           </div>

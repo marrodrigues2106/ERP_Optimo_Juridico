@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ArrowRight, CheckCircle2 } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Phone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { specialtiesData } from '@/data/content'
@@ -132,20 +132,13 @@ export default function Index() {
             <div className="lg:w-1/2 w-full">
               <ScrollReveal>
                 <h2 className="text-3xl md:text-4xl font-serif font-bold mb-6 text-primary">
-                  Tradição, Precisão e Integridade
+                  Conheça nosso escritório de advocacia
                 </h2>
                 <div className="w-16 h-1 bg-accent mb-8" />
-                <p className="text-lg text-muted-foreground mb-6 leading-relaxed">
-                  O escritório{' '}
-                  <strong className="text-foreground">Moraes Rodrigues Advocacia</strong> nasceu com
-                  o propósito inabalável de oferecer uma advocacia artesanal, estratégica e
-                  altamente especializada para pessoas físicas e jurídicas.
-                </p>
                 <p className="text-lg text-muted-foreground mb-10 leading-relaxed">
-                  Compreendemos que as questões jurídicas de nossos clientes são únicas e exigem
-                  extrema diligência. Por isso, aliamos conhecimento técnico profundo a uma visão de
-                  negócios abrangente, entregando soluções precisas para demandas de alta
-                  complexidade.
+                  Fundado em 2019, oferecemos serviços especializados em direito tributário,
+                  planejamento patrimonial e sucessório, e direito imobiliário, tanto no contencioso
+                  judicial quanto extrajudicial.
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
@@ -202,6 +195,25 @@ export default function Index() {
             >
               <Link to="/contato">Falar com um Especialista</Link>
             </Button>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mt-8 text-white/90">
+              <a
+                href="tel:2120826855"
+                className="flex items-center gap-2 hover:text-accent transition-colors"
+              >
+                <Phone className="w-5 h-5 text-accent" />
+                <span>21-2082-6855</span>
+              </a>
+              <a
+                href="https://wa.me/5521974398218"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 hover:text-accent transition-colors"
+              >
+                <Phone className="w-5 h-5 text-accent" />
+                <span>21-97439-8218</span>
+              </a>
+            </div>
           </ScrollReveal>
         </div>
       </section>

@@ -111,7 +111,7 @@ export default function Specialty() {
                     className="w-full border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 h-14 text-base font-medium transition-colors"
                     asChild
                   >
-                    <a href="https://wa.me/5511999999999" target="_blank" rel="noopener noreferrer">
+                    <a href="https://wa.me/5521974398218" target="_blank" rel="noopener noreferrer">
                       Falar no WhatsApp
                     </a>
                   </Button>

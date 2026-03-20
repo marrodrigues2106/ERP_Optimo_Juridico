@@ -178,11 +178,9 @@ export default function Contact() {
                   <div>
                     <h3 className="font-bold text-lg mb-1 text-primary">Nosso Endereço</h3>
                     <p className="text-muted-foreground leading-relaxed">
-                      Av. Brigadeiro Faria Lima, 3000
+                      Estrada Caetano Monteiro, 790 - Pendotiba
                       <br />
-                      Itaim Bibi, São Paulo - SP
-                      <br />
-                      CEP: 01451-000
+                      Niterói - RJ. CEP 24.320-570
                     </p>
                   </div>
                 </div>
@@ -193,9 +191,9 @@ export default function Contact() {
                   <div>
                     <h3 className="font-bold text-lg mb-1 text-primary">Telefones</h3>
                     <p className="text-muted-foreground leading-relaxed">
-                      +55 (11) 3000-0000
+                      21-2082-6855
                       <br />
-                      +55 (11) 99999-9999 (WhatsApp)
+                      21-97439-8218 (WhatsApp)
                     </p>
                   </div>
                 </div>
@@ -205,9 +203,12 @@ export default function Contact() {
                   </div>
                   <div>
                     <h3 className="font-bold text-lg mb-1 text-primary">E-mail Institucional</h3>
-                    <p className="text-muted-foreground leading-relaxed break-all">
-                      contato@moraesrodrigues.com.br
-                    </p>
+                    <a
+                      href="mailto:contato@moraesrodriguesadvocacia.com.br"
+                      className="text-muted-foreground leading-relaxed break-all hover:text-accent transition-colors"
+                    >
+                      contato@moraesrodriguesadvocacia.com.br
+                    </a>
                   </div>
                 </div>
                 <div className="flex gap-4 items-start">
@@ -227,7 +228,7 @@ export default function Contact() {
 
               <div className="rounded-xl overflow-hidden h-[350px] border border-border bg-muted shadow-sm">
                 <iframe
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3656.760144577821!2d-46.68884968440621!3d-23.57523996803738!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x94ce5771c5ec213b%3A0xc3f92936df314d15!2sAv.%20Brg.%20Faria%20Lima%2C%203000%20-%20Itaim%20Bibi%2C%20S%C3%A3o%20Paulo%20-%20SP%2C%2001451-000!5e0!3m2!1spt-BR!2sbr!4v1655123456789!5m2!1spt-BR!2sbr"
+                  src="https://www.google.com/maps?q=Estrada+Caetano+Monteiro,+790+-+Pendotiba+-+Niter%C3%B3i+-+RJ&output=embed"
                   width="100%"
                   height="100%"
                   style={{ border: 0, filter: 'grayscale(100%) contrast(1.1) opacity(0.9)' }}
