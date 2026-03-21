@@ -35,7 +35,7 @@ migrate(
       admin.setEmail('mmr.juridico@gmail.com')
     }
 
-    admin.setPassword('1234')
+    admin.setPassword('Skip@2026')
     admin.set('isAdmin', true)
     admin.setVerified(true)
 
