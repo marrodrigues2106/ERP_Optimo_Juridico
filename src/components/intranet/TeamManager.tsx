@@ -144,24 +144,16 @@ export default function TeamManager() {
                 />
               </div>
               <div>
-                <Label>CPF</Label>
-                <Input name="cpf" defaultValue={editingItem?.cpf} />
-              </div>
-              <div>
-                <Label>Identidade</Label>
-                <Input name="idNumber" defaultValue={editingItem?.idNumber} />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Endereço</Label>
-                <Input name="address" defaultValue={editingItem?.address} />
-              </div>
-              <div>
                 <Label>n.º OAB</Label>
                 <Input name="oabNumber" defaultValue={editingItem?.oabNumber} />
               </div>
               <div>
-                <Label>OAB seccional</Label>
-                <Input name="oabSectional" defaultValue={editingItem?.oabSectional} />
+                <Label>Termos D.O. (Monitoramento)</Label>
+                <Input
+                  name="personalSearchTerms"
+                  placeholder="Ex: Nome Completo"
+                  defaultValue={editingItem?.personalSearchTerms}
+                />
               </div>
               <div className="md:col-span-2 mt-4">
                 <Button type="submit" className="w-full">
@@ -223,7 +215,6 @@ export default function TeamManager() {
                   {member.oabNumber && (
                     <span className="text-xs text-muted-foreground flex items-center justify-center gap-2">
                       <FileBadge className="w-3 h-3" /> OAB: {member.oabNumber}{' '}
-                      {member.oabSectional ? ` - ${member.oabSectional}` : ''}
                     </span>
                   )}
                 </div>

@@ -1,7 +1,19 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
+import { usePermissions } from '@/hooks/use-permissions'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarTrigger,
+} from '@/components/ui/sidebar'
 import {
   LogOut,
   LayoutDashboard,
@@ -12,6 +24,9 @@ import {
   Briefcase,
   User,
   Shield,
+  Calendar,
+  Activity,
+  Menu,
 } from 'lucide-react'
 
 import BlogManager from '@/components/intranet/BlogManager'
@@ -22,111 +37,106 @@ import CrmManager from '@/components/intranet/CrmManager'
 import TeamManager from '@/components/intranet/TeamManager'
 import UsersManager from '@/components/intranet/UsersManager'
 import ProfileManager from '@/components/intranet/ProfileManager'
+import AgendaManager from '@/components/intranet/AgendaManager'
+import AuditLogs from '@/components/intranet/AuditLogs'
 
 export default function Intranet() {
   const { signOut, user } = useAuth()
   const navigate = useNavigate()
+  const perms = usePermissions()
+  const [activeView, setActiveView] = useState('processes')
 
   const handleLogout = () => {
     signOut()
     navigate('/')
   }
 
+  const navItems = [
+    {
+      id: 'processes',
+      label: 'Processos e Serviços',
+      icon: Briefcase,
+      show: perms.canViewProcesses,
+    },
+    { id: 'crm', label: 'CRM e Clientes', icon: Users, show: perms.canViewCRM },
+    { id: 'agenda', label: 'Agenda', icon: Calendar, show: true },
+    { id: 'finance', label: 'Financeiro', icon: DollarSign, show: perms.canViewFinances },
+    { id: 'library', label: 'Biblioteca', icon: BookOpen, show: true },
+    { id: 'blog', label: 'Blog', icon: FileText, show: perms.canViewBlog },
+    { id: 'team', label: 'Equipe', icon: LayoutDashboard, show: perms.canViewTeam },
+    { id: 'users', label: 'Usuários', icon: Shield, show: perms.canViewUsers },
+    { id: 'audit', label: 'Auditoria', icon: Activity, show: perms.canViewAudit },
+    { id: 'profile', label: 'Meu Perfil', icon: User, show: true },
+  ]
+
   return (
-    <div className="min-h-screen bg-slate-50 pt-24 pb-16 px-4">
-      <div className="container max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b pb-6 gap-4">
-          <div>
-            <h1 className="text-3xl font-serif font-bold text-primary">Portal de Gestão</h1>
-            <p className="text-muted-foreground mt-1">Intranet Moraes Rodrigues Advocacia</p>
+    <SidebarProvider>
+      <div className="flex w-full min-h-screen bg-slate-50 pt-[72px]">
+        <Sidebar
+          className="top-[72px] h-[calc(100svh-72px)] border-r bg-white hidden md:flex"
+          collapsible="none"
+        >
+          <SidebarContent>
+            <SidebarGroup>
+              <div className="px-4 py-4 mb-2 border-b">
+                <h2 className="text-lg font-serif font-bold text-primary tracking-tight">
+                  Portal Interno
+                </h2>
+                <p className="text-xs text-muted-foreground truncate mt-1">
+                  Moraes Rodrigues Advocacia
+                </p>
+              </div>
+              <SidebarGroupContent className="p-2">
+                <SidebarMenu>
+                  {navItems
+                    .filter((i) => i.show)
+                    .map((item) => (
+                      <SidebarMenuItem key={item.id}>
+                        <SidebarMenuButton
+                          onClick={() => setActiveView(item.id)}
+                          isActive={activeView === item.id}
+                          className="h-10 text-sm font-medium"
+                        >
+                          <item.icon className="w-4 h-4 mr-2" />
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  <SidebarMenuItem className="mt-6 border-t pt-4">
+                    <SidebarMenuButton
+                      onClick={handleLogout}
+                      className="h-10 text-sm font-medium text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      <span>Sair do Sistema</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </SidebarContent>
+        </Sidebar>
+
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 w-full">
+          <div className="md:hidden flex items-center mb-6 border-b pb-4">
+            <SidebarTrigger className="mr-4" />
+            <h1 className="text-xl font-serif font-bold text-primary">Portal Interno</h1>
           </div>
-          <Button variant="outline" onClick={handleLogout}>
-            <LogOut className="w-4 h-4 mr-2" /> Sair
-          </Button>
-        </div>
 
-        <Tabs defaultValue="processes" className="w-full">
-          <TabsList className="flex flex-wrap h-auto gap-2 bg-transparent justify-start border-b rounded-none pb-4 mb-6 w-full">
-            <TabsTrigger
-              value="processes"
-              className="data-[state=active]:bg-primary data-[state=active]:text-white border bg-white"
-            >
-              <Briefcase className="w-4 h-4 mr-2 hidden sm:block" /> Processos
-            </TabsTrigger>
-            <TabsTrigger
-              value="crm"
-              className="data-[state=active]:bg-primary data-[state=active]:text-white border bg-white"
-            >
-              <Users className="w-4 h-4 mr-2 hidden sm:block" /> CRM
-            </TabsTrigger>
-            <TabsTrigger
-              value="finance"
-              className="data-[state=active]:bg-primary data-[state=active]:text-white border bg-white"
-            >
-              <DollarSign className="w-4 h-4 mr-2 hidden sm:block" /> Financeiro
-            </TabsTrigger>
-            <TabsTrigger
-              value="library"
-              className="data-[state=active]:bg-primary data-[state=active]:text-white border bg-white"
-            >
-              <BookOpen className="w-4 h-4 mr-2 hidden sm:block" /> Biblioteca
-            </TabsTrigger>
-            <TabsTrigger
-              value="blog"
-              className="data-[state=active]:bg-primary data-[state=active]:text-white border bg-white"
-            >
-              <FileText className="w-4 h-4 mr-2 hidden sm:block" /> Blog
-            </TabsTrigger>
-            <TabsTrigger
-              value="team"
-              className="data-[state=active]:bg-primary data-[state=active]:text-white border bg-white"
-            >
-              <LayoutDashboard className="w-4 h-4 mr-2 hidden sm:block" /> Equipe
-            </TabsTrigger>
-            {user?.isAdmin && (
-              <TabsTrigger
-                value="users"
-                className="data-[state=active]:bg-primary data-[state=active]:text-white border bg-white"
-              >
-                <Shield className="w-4 h-4 mr-2 hidden sm:block" /> Usuários
-              </TabsTrigger>
-            )}
-            <TabsTrigger
-              value="profile"
-              className="data-[state=active]:bg-primary data-[state=active]:text-white border bg-white"
-            >
-              <User className="w-4 h-4 mr-2 hidden sm:block" /> Meu Perfil
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="processes" className="mt-0">
-            <ProcessManager />
-          </TabsContent>
-          <TabsContent value="crm" className="mt-0">
-            <CrmManager />
-          </TabsContent>
-          <TabsContent value="finance" className="mt-0">
-            <FinanceManager />
-          </TabsContent>
-          <TabsContent value="library" className="mt-0">
-            <LibraryManager />
-          </TabsContent>
-          <TabsContent value="blog" className="mt-0">
-            <BlogManager />
-          </TabsContent>
-          <TabsContent value="team" className="mt-0">
-            <TeamManager />
-          </TabsContent>
-          {user?.isAdmin && (
-            <TabsContent value="users" className="mt-0">
-              <UsersManager />
-            </TabsContent>
-          )}
-          <TabsContent value="profile" className="mt-0">
-            <ProfileManager />
-          </TabsContent>
-        </Tabs>
+          <div className="max-w-7xl mx-auto w-full">
+            {activeView === 'processes' && <ProcessManager />}
+            {activeView === 'crm' && <CrmManager />}
+            {activeView === 'agenda' && <AgendaManager />}
+            {activeView === 'finance' && <FinanceManager />}
+            {activeView === 'library' && <LibraryManager />}
+            {activeView === 'blog' && <BlogManager />}
+            {activeView === 'team' && <TeamManager />}
+            {activeView === 'users' && <UsersManager />}
+            {activeView === 'audit' && <AuditLogs />}
+            {activeView === 'profile' && <ProfileManager />}
+          </div>
+        </main>
       </div>
-    </div>
+    </SidebarProvider>
   )
 }

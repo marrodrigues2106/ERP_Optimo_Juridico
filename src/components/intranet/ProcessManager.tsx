@@ -18,7 +18,14 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Search, Plus, Calendar as CalendarIcon, Trash2, Edit2 } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Search, Plus, Calendar as CalendarIcon, Trash2, Edit2, Activity } from 'lucide-react'
 import { getLawsuits, createLawsuit, updateLawsuit, deleteLawsuit } from '@/services/lawsuits'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
@@ -28,6 +35,7 @@ export default function ProcessManager() {
   const [searchTerm, setSearchTerm] = useState('')
   const [open, setOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
+  const [trackingLawsuit, setTrackingLawsuit] = useState<any>(null)
   const { toast } = useToast()
 
   const loadData = async () => {
@@ -45,7 +53,8 @@ export default function ProcessManager() {
 
   const filtered = processes.filter(
     (p) =>
-      p.number.includes(searchTerm) || p.parties.toLowerCase().includes(searchTerm.toLowerCase()),
+      (p.number || '').includes(searchTerm) ||
+      (p.parties || '').toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   const handleOpenNew = () => {
@@ -66,10 +75,10 @@ export default function ProcessManager() {
     try {
       if (editingItem) {
         await updateLawsuit(editingItem.id, data)
-        toast({ title: 'Processo atualizado com sucesso' })
+        toast({ title: 'Registro atualizado com sucesso' })
       } else {
         await createLawsuit(data)
-        toast({ title: 'Processo cadastrado com sucesso' })
+        toast({ title: 'Registro cadastrado com sucesso' })
       }
       setOpen(false)
     } catch (error) {
@@ -83,75 +92,146 @@ export default function ProcessManager() {
     }
   }
 
+  const handleAddLog = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    const desc = fd.get('description') as string
+    const newLog = { date: new Date().toISOString(), description: desc }
+    const updatedLogs = [...(trackingLawsuit.trackingLogs || []), newLog]
+
+    try {
+      await updateLawsuit(trackingLawsuit.id, { trackingLogs: updatedLogs })
+      setTrackingLawsuit({ ...trackingLawsuit, trackingLogs: updatedLogs })
+      toast({ title: 'Andamento registrado' })
+      e.currentTarget.reset()
+    } catch (err) {
+      toast({ title: 'Erro ao registrar andamento', variant: 'destructive' })
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-        <h2 className="text-2xl font-serif font-bold text-primary">Gestão de Processos</h2>
+        <h2 className="text-2xl font-serif font-bold text-primary">Processos e Serviços</h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button onClick={handleOpenNew}>
-              <Plus className="w-4 h-4 mr-2" /> Novo Processo
+              <Plus className="w-4 h-4 mr-2" /> Novo Registro
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>{editingItem ? 'Editar Processo' : 'Novo Processo'}</DialogTitle>
+              <DialogTitle>{editingItem ? 'Editar Registro' : 'Novo Registro'}</DialogTitle>
             </DialogHeader>
-            <form key={editingItem?.id || 'new'} onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label>Número do Processo</Label>
+            <form
+              key={editingItem?.id || 'new'}
+              onSubmit={handleSubmit}
+              className="grid grid-cols-1 md:grid-cols-2 gap-4"
+            >
+              <div className="md:col-span-2">
+                <Label>Tipo de Registro</Label>
+                <Select name="entryType" defaultValue={editingItem?.entryType || 'Processo'}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Processo">Processo</SelectItem>
+                    <SelectItem value="Serviço Jurídico">Serviço Jurídico</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <Label>Número do Processo (Opcional p/ Serviços)</Label>
                 <Input
                   name="number"
-                  required
                   placeholder="0000000-00.0000.0.00.0000"
                   defaultValue={editingItem?.number}
                 />
               </div>
               <div>
-                <Label>Tribunal</Label>
-                <Input
-                  name="court"
-                  required
-                  placeholder="Ex: TJ-RJ"
-                  defaultValue={editingItem?.court}
-                />
-              </div>
-              <div>
-                <Label>Partes (Cliente x Parte Contraria)</Label>
-                <Input name="parties" required defaultValue={editingItem?.parties} />
+                <Label>Tribunal / Órgão</Label>
+                <Input name="court" placeholder="Ex: TJ-RJ" defaultValue={editingItem?.court} />
               </div>
               <div>
                 <Label>Status</Label>
                 <Input
                   name="status"
-                  required
                   placeholder="Ex: Aguardando Audiência"
                   defaultValue={editingItem?.status}
                 />
+              </div>
+              <div className="md:col-span-2">
+                <Label>Partes (Cliente x Parte Contraria) / Título do Serviço</Label>
+                <Input name="parties" required defaultValue={editingItem?.parties} />
               </div>
               <div>
                 <Label>Próximo Prazo</Label>
                 <Input
                   name="deadline"
                   type="date"
-                  required
                   defaultValue={editingItem?.deadline?.split('T')[0]}
                 />
               </div>
-              <Button type="submit" className="w-full">
-                Salvar Processo
-              </Button>
+              <div>
+                <Label>Termos Datajud / D.O. (Monitoramento)</Label>
+                <Input
+                  name="gazetteTerms"
+                  placeholder="Ex: Termos de pesquisa"
+                  defaultValue={editingItem?.gazetteTerms}
+                />
+              </div>
+              <div className="md:col-span-2 mt-4">
+                <Button type="submit" className="w-full">
+                  Salvar Registro
+                </Button>
+              </div>
             </form>
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Tracking Logs Dialog */}
+      <Dialog open={!!trackingLawsuit} onOpenChange={(v) => !v && setTrackingLawsuit(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Acompanhamento: {trackingLawsuit?.parties}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="max-h-[300px] overflow-y-auto space-y-3 p-2 bg-slate-50 border rounded-md">
+              {!trackingLawsuit?.trackingLogs || trackingLawsuit.trackingLogs.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhum registro encontrado.
+                </p>
+              ) : (
+                [...trackingLawsuit.trackingLogs].reverse().map((log: any, idx: number) => (
+                  <div key={idx} className="bg-white p-3 rounded shadow-sm border text-sm">
+                    <div className="text-xs text-primary font-bold mb-1">
+                      {new Date(log.date).toLocaleString()}
+                    </div>
+                    <div>{log.description}</div>
+                  </div>
+                ))
+              )}
+            </div>
+            <form onSubmit={handleAddLog} className="flex gap-2">
+              <Input
+                name="description"
+                placeholder="Adicionar novo andamento..."
+                required
+                className="flex-1"
+              />
+              <Button type="submit">Adicionar</Button>
+            </form>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader>
               <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                <CardTitle>Meus Processos</CardTitle>
+                <CardTitle>Meus Processos e Serviços</CardTitle>
                 <div className="relative w-full md:w-64">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -167,8 +247,8 @@ export default function ProcessManager() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Tribunal / Número</TableHead>
-                    <TableHead>Partes</TableHead>
+                    <TableHead>Identificação</TableHead>
+                    <TableHead>Partes/Título</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
@@ -177,18 +257,32 @@ export default function ProcessManager() {
                   {filtered.map((p) => (
                     <TableRow key={p.id}>
                       <TableCell>
-                        <div className="font-medium text-primary">{p.number}</div>
-                        <div className="text-xs text-muted-foreground">{p.court}</div>
+                        <div className="font-medium text-primary flex items-center gap-2">
+                          <span
+                            className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${p.entryType === 'Serviço Jurídico' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}
+                          >
+                            {p.entryType === 'Serviço Jurídico' ? 'Serviço' : 'Processo'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">{p.number || '-'}</div>
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate" title={p.parties}>
                         {p.parties}
                       </TableCell>
                       <TableCell>
                         <span className="px-2 py-1 bg-secondary/10 text-secondary rounded-full text-xs font-medium whitespace-nowrap">
-                          {p.status}
+                          {p.status || 'Aberto'}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right whitespace-nowrap">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Acompanhamento"
+                          onClick={() => setTrackingLawsuit(p)}
+                        >
+                          <Activity className="w-4 h-4 text-blue-500" />
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => handleEdit(p)}>
                           <Edit2 className="w-4 h-4 text-slate-500" />
                         </Button>

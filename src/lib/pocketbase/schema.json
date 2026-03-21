@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T03:33:48.133Z",
+  "generatedAt": "2026-03-21T03:51:02.376Z",
   "collections": [
     {
       "name": "users",
@@ -79,6 +79,13 @@
           "type": "date",
           "required": false,
           "system": false
+        },
+        {
+          "name": "role",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["admin", "legal_team", "admin_user", "financial_user"]
         }
       ],
       "indexes": [
@@ -164,7 +171,7 @@
         {
           "name": "number",
           "type": "text",
-          "required": true,
+          "required": false,
           "system": false
         },
         {
@@ -204,6 +211,31 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "entryType",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Processo", "Serviço Jurídico"]
+        },
+        {
+          "name": "trackingLogs",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "datajudStatus",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "gazetteTerms",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []
@@ -421,6 +453,13 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "classification",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Ativo", "Inativo", "Lead"]
         }
       ],
       "indexes": []
@@ -516,6 +555,143 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "personalSearchTerms",
+          "type": "text",
+          "required": false,
+          "system": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "audit_logs",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.role = 'admin' || @request.auth.isAdmin = true",
+        "view": "@request.auth.role = 'admin' || @request.auth.isAdmin = true",
+        "create": null,
+        "update": null,
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "collection_name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "record_id",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "action",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "user",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "changes",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "agenda_events",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "title",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "type",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Note", "Meeting", "Call", "Deadline", "Reminder"]
+        },
+        {
+          "name": "start_date",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "end_date",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "reminders",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "linked_lawsuit",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "lawsuits"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
       "indexes": []

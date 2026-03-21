@@ -17,6 +17,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Search, UserPlus, Phone, Mail, Trash2, Edit2 } from 'lucide-react'
 import { getClients, createClient, updateClient, deleteClient } from '@/services/clients'
@@ -117,6 +124,19 @@ export default function CrmManager() {
                 />
               </div>
               <div>
+                <Label>Classificação</Label>
+                <Select name="classification" defaultValue={editingItem?.classification || 'Lead'}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Ativo">Ativo</SelectItem>
+                    <SelectItem value="Inativo">Inativo</SelectItem>
+                    <SelectItem value="Lead">Lead</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label>CPF</Label>
                 <Input name="cpf" defaultValue={editingItem?.cpf} />
               </div>
@@ -156,14 +176,6 @@ export default function CrmManager() {
                 <Label>Profissão</Label>
                 <Input name="profession" defaultValue={editingItem?.profession} />
               </div>
-              <div className="md:col-span-2">
-                <Label>Status</Label>
-                <Input
-                  name="status"
-                  placeholder="Ex: Ativo, Prospecto"
-                  defaultValue={editingItem?.status}
-                />
-              </div>
               <div className="md:col-span-2 mt-4">
                 <Button type="submit" className="w-full">
                   Salvar Cliente
@@ -196,7 +208,7 @@ export default function CrmManager() {
                 <TableHead>Nome</TableHead>
                 <TableHead>Contato</TableHead>
                 <TableHead>CPF</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Classificação</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -223,11 +235,17 @@ export default function CrmManager() {
                     {client.cpf || '-'}
                   </TableCell>
                   <TableCell>
-                    {client.status && (
-                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
-                        {client.status}
-                      </span>
-                    )}
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        client.classification === 'Ativo'
+                          ? 'bg-green-100 text-green-700'
+                          : client.classification === 'Inativo'
+                            ? 'bg-slate-100 text-slate-700'
+                            : 'bg-blue-100 text-blue-700'
+                      }`}
+                    >
+                      {client.classification || 'Lead'}
+                    </span>
                   </TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon" onClick={() => handleEdit(client)}>
