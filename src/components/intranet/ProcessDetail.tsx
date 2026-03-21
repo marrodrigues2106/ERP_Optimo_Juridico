@@ -4,6 +4,7 @@ import { getLawsuit, updateLawsuit } from '@/services/lawsuits'
 import { getAgendaEventsByLawsuit, createAgendaEvent } from '@/services/agenda'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
@@ -67,9 +68,11 @@ export default function ProcessDetail() {
   useEffect(() => {
     loadData()
   }, [id])
+
   useRealtime('lawsuits', () => {
     loadData()
   })
+
   useRealtime('agenda_events', () => {
     loadData()
   })
@@ -86,9 +89,13 @@ export default function ProcessDetail() {
   const handleSyncDatajud = async () => {
     try {
       await updateLawsuit(lawsuit.id, { datajudStatus: 'Sync Requested' })
-      toast({ title: 'Sincronização solicitada. Aguarde...' })
+      toast({ title: 'Sincronização solicitada ou concluída com sucesso.' })
     } catch (e) {
-      toast({ title: 'Erro ao solicitar sincronização', variant: 'destructive' })
+      toast({
+        title: 'Erro ao solicitar sincronização',
+        description: getErrorMessage(e),
+        variant: 'destructive',
+      })
     }
   }
 

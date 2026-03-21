@@ -1,6 +1,6 @@
 function getCourtAlias(courtName) {
   if (!courtName) return null
-  const lower = courtName.toLowerCase()
+  const lower = String(courtName).toLowerCase()
   if (lower.indexOf('tjrj') > -1 || lower.indexOf('rio de janeiro') > -1) return 'tjrj'
   if (lower.indexOf('tjsp') > -1 || lower.indexOf('são paulo') > -1) return 'tjsp'
   if (lower.indexOf('tjmg') > -1 || lower.indexOf('minas gerais') > -1) return 'tjmg'
@@ -21,17 +21,23 @@ function getCourtAlias(courtName) {
 }
 
 function fetchAndMergeDatajud(record) {
-  const num = record.get('number')
-  const court = record.get('court')
+  const num = record.get('number') || ''
+  const court = record.get('court') || ''
 
-  if (!num) return false
+  if (!num) {
+    record.set('datajudStatus', 'Sem número de processo')
+    return false
+  }
 
-  const cleanNum = num.replace(/\D/g, '')
-  if (cleanNum.length < 10) return false
+  const cleanNum = String(num).replace(/\D/g, '')
+  if (cleanNum.length < 10) {
+    record.set('datajudStatus', 'Número inválido')
+    return false
+  }
 
-  const courtAlias = getCourtAlias(court)
+  const courtAlias = getCourtAlias(String(court))
   if (!courtAlias) {
-    record.set('datajudStatus', 'Unknown Court Alias')
+    record.set('datajudStatus', 'Tribunal não suportado')
     return false
   }
 
@@ -57,21 +63,28 @@ function fetchAndMergeDatajud(record) {
 
     const data = res.json
     if (!data || !data.hits || !data.hits.hits || data.hits.hits.length === 0) {
-      record.set('datajudStatus', 'No results found on Datajud')
+      record.set('datajudStatus', 'Sem resultados no Datajud')
       return false
     }
 
     const proc = data.hits.hits[0]._source
     const movimentos = proc.movimentos || []
 
-    const existingLogs = record.get('trackingLogs') || []
-    const existingDescs = []
-    for (let i = 0; i < existingLogs.length; i++) {
-      existingDescs.push(existingLogs[i].description)
+    let existingLogsRaw = record.get('trackingLogs')
+    let existingLogs = []
+    if (existingLogsRaw) {
+      try {
+        existingLogs = JSON.parse(JSON.stringify(existingLogsRaw))
+      } catch (e) {}
+    }
+    if (!Array.isArray(existingLogs)) {
+      existingLogs = []
     }
 
+    const existingDescs = existingLogs.map((l) => (l && l.description ? l.description : null))
+
     let changed = false
-    const allLogs = existingLogs.slice()
+    const allLogs = [...existingLogs]
 
     for (let i = 0; i < movimentos.length; i++) {
       const mov = movimentos[i]
@@ -99,12 +112,18 @@ function fetchAndMergeDatajud(record) {
 }
 
 function createNotifications(record) {
-  const logs = record.get('trackingLogs') || []
-  if (logs.length === 0) return
+  let logsRaw = record.get('trackingLogs')
+  let logs = []
+  if (logsRaw) {
+    try {
+      logs = JSON.parse(JSON.stringify(logsRaw))
+    } catch (e) {}
+  }
+  if (!Array.isArray(logs) || logs.length === 0) return
 
   let notifyUserIds = []
   try {
-    const users = $app.findRecordsByFilter('users', '1=1', '', 100, 0)
+    const users = $app.findRecordsByFilter('users', '', '', 100, 0)
     for (let i = 0; i < users.length; i++) {
       notifyUserIds.push(users[i].id)
     }
@@ -116,6 +135,8 @@ function createNotifications(record) {
 
   for (let i = 0; i < logs.length; i++) {
     const log = logs[i]
+    if (!log || !log.description) continue
+
     for (let j = 0; j < notifyUserIds.length; j++) {
       const uid = notifyUserIds[j]
       try {
@@ -129,12 +150,16 @@ function createNotifications(record) {
           },
         )
       } catch (e) {
-        const n = new Record(notifsCol)
-        n.set('lawsuit', record.id)
-        n.set('update_content', log.description)
-        n.set('user', uid)
-        n.set('is_read', false)
-        $app.saveNoValidate(n)
+        try {
+          const n = new Record(notifsCol)
+          n.set('lawsuit', record.id)
+          n.set('update_content', log.description)
+          n.set('user', uid)
+          n.set('is_read', false)
+          $app.saveNoValidate(n)
+        } catch (saveErr) {
+          console.log('Error creating notification', saveErr)
+        }
       }
     }
   }
