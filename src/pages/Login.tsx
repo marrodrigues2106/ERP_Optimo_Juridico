@@ -25,10 +25,12 @@ export default function Login() {
     if (email && password) {
       const { error } = await signIn(email, password)
       if (error) {
-        setErrorMsg('Credenciais inválidas.')
+        setErrorMsg('E-mail ou senha inválidos.')
       } else {
         navigate('/intranet')
       }
+    } else {
+      setErrorMsg('Por favor, preencha todos os campos.')
     }
     setIsLoading(false)
   }
@@ -42,14 +44,16 @@ export default function Login() {
     if (email) {
       try {
         await pb.collection('users').requestPasswordReset(email)
-      } catch (error) {
-        // We intentionally ignore errors to prevent email enumeration attacks
+        setSuccessMsg(`Um e-mail de recuperação foi enviado para ${email}.`)
+      } catch (error: any) {
+        if (error?.status === 400 || error?.status === 404) {
+          setErrorMsg('E-mail não encontrado ou inválido.')
+        } else {
+          setSuccessMsg(`Um e-mail de recuperação foi enviado para ${email}.`)
+        }
       }
-
-      // Always show success message for security purposes
-      setSuccessMsg(
-        'Se o e-mail estiver cadastrado, você receberá as instruções para sua nova senha em breve.',
-      )
+    } else {
+      setErrorMsg('Por favor, informe seu e-mail.')
     }
     setIsLoading(false)
   }
@@ -118,6 +122,11 @@ export default function Login() {
               Informe seu e-mail para receber as instruções de recuperação.
             </p>
             <form onSubmit={handleForgot} className="space-y-6">
+              {errorMsg && (
+                <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md text-center font-medium">
+                  {errorMsg}
+                </div>
+              )}
               {successMsg && (
                 <div className="bg-green-50 text-green-700 text-sm p-4 rounded-md text-center font-medium border border-green-200">
                   {successMsg}
