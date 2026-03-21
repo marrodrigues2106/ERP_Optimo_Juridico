@@ -5,14 +5,14 @@ migrate(
     // 1. Admin Login Fix
     try {
       const existing = app.findAuthRecordByEmail('users', 'mmr.juridico@gmail.com')
-      existing.setPassword('1234')
+      existing.setPassword('Skip@2026')
       existing.set('isAdmin', true)
       existing.setVerified(true)
       app.save(existing)
     } catch (err) {
       const admin = new Record(users)
       admin.setEmail('mmr.juridico@gmail.com')
-      admin.setPassword('1234')
+      admin.setPassword('Skip@2026')
       admin.set('isAdmin', true)
       admin.setVerified(true)
       app.save(admin)
