@@ -70,62 +70,122 @@ function fetchAndMergeDatajud(record) {
       return false
     }
 
-    let res
-    try {
-      const url = 'https://api-publica.datajud.cnj.jus.br/api_publica_' + alias + '/_search'
-      res = $http.send({
-        url: url,
-        method: 'POST',
-        headers: {
-          Authorization: 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: { match: { numeroProcesso: cleanNum } },
-        }),
-        timeout: 15,
-      })
-    } catch (err) {
-      record.set('datajudStatus', 'Error: Connection Failed')
-      console.log('Datajud Error: ', err)
-      return false
+    const url = 'https://api-publica.datajud.cnj.jus.br/api_publica_' + alias + '/_search'
+    let allHits = []
+    let searchAfter = null
+    const pageSize = 100
+
+    while (true) {
+      let bodyObj = {
+        size: pageSize,
+        query: { match: { numeroProcesso: cleanNum } },
+        sort: [
+          {
+            '@timestamp': {
+              order: 'asc',
+            },
+          },
+        ],
+      }
+
+      if (searchAfter) {
+        bodyObj.search_after = searchAfter
+      }
+
+      let res
+      try {
+        res = $http.send({
+          url: url,
+          method: 'POST',
+          headers: {
+            Authorization: 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(bodyObj),
+          timeout: 30,
+        })
+      } catch (err) {
+        record.set('datajudStatus', 'Error: Connection Failed')
+        console.log('Datajud Error: ', err)
+        return false
+      }
+
+      if (res.statusCode !== 200) {
+        record.set('datajudStatus', 'Error: API ' + res.statusCode)
+        return false
+      }
+
+      let data
+      try {
+        data = res.json
+      } catch (err) {
+        record.set('datajudStatus', 'Error: Invalid Response format')
+        return false
+      }
+
+      if (!data || !data.hits || !data.hits.hits) {
+        break
+      }
+
+      const hits = data.hits.hits
+      if (hits.length === 0) {
+        break
+      }
+
+      for (let i = 0; i < hits.length; i++) {
+        allHits.push(hits[i])
+      }
+
+      if (hits.length < pageSize) {
+        break // Last page reached
+      }
+
+      const lastHit = hits[hits.length - 1]
+      if (lastHit.sort && lastHit.sort.length > 0) {
+        searchAfter = lastHit.sort
+      } else {
+        break // Failsafe: if sort array is missing, we can't paginate further
+      }
     }
 
-    if (res.statusCode !== 200) {
-      record.set('datajudStatus', 'Error: API ' + res.statusCode)
-      return false
-    }
-
-    let data
-    try {
-      data = res.json
-    } catch (err) {
-      record.set('datajudStatus', 'Error: Invalid Response format')
-      return false
-    }
-
-    if (!data || !data.hits || !data.hits.hits || data.hits.hits.length === 0) {
+    if (allHits.length === 0) {
       record.set('datajudStatus', 'Not Found')
       return false
     }
 
-    const proc = data.hits.hits[0]._source
-    const movimentos = proc.movimentos || []
-
-    // Extract process metadata when available
-    if (proc.orgaoJulgador && proc.orgaoJulgador.nomeOrgao) {
-      record.set('court', proc.orgaoJulgador.nomeOrgao)
+    // Extract metadata from the first valid hit
+    for (let i = 0; i < allHits.length; i++) {
+      const proc = allHits[i]._source
+      if (proc && proc.orgaoJulgador && proc.orgaoJulgador.nomeOrgao) {
+        record.set('court', proc.orgaoJulgador.nomeOrgao)
+        break
+      }
     }
 
     const newLogs = []
-    for (let i = 0; i < movimentos.length; i++) {
-      const m = movimentos[i]
-      newLogs.push({
-        date: m.dataHora || new Date().toISOString(),
-        description: m.nome || m.descricao || 'Movimentação Datajud',
-        complementos: m.complementosTabelados || [],
-        isManual: false,
-      })
+    const uniqueKeys = {}
+
+    // Extract and deduplicate all movimentos across all paginated hits
+    for (let i = 0; i < allHits.length; i++) {
+      const proc = allHits[i]._source
+      const movimentos = proc.movimentos || []
+
+      for (let j = 0; j < movimentos.length; j++) {
+        const m = movimentos[j]
+        const dateStr = m.dataHora || new Date().toISOString()
+        const descStr = m.nome || m.descricao || 'Movimentação Datajud'
+        const dedupKey = dateStr + '_' + descStr
+
+        if (!uniqueKeys[dedupKey]) {
+          uniqueKeys[dedupKey] = true
+          newLogs.push({
+            date: dateStr,
+            description: descStr,
+            complementos: m.complementosTabelados || [],
+            isManual: false,
+          })
+        }
+      }
     }
 
     let existingLogsRaw = record.get('trackingLogs')
