@@ -30,7 +30,9 @@ export default function CrmManager() {
   const loadData = async () => {
     try {
       setClients(await getClients())
-    } catch (e) {}
+    } catch (e) {
+      console.error(e)
+    }
   }
   useEffect(() => {
     loadData()

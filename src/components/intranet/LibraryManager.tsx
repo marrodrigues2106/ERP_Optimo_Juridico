@@ -22,7 +22,9 @@ export default function LibraryManager() {
   const loadData = async () => {
     try {
       setDocs(await getKnowledgeItems())
-    } catch (e) {}
+    } catch (e) {
+      console.error(e)
+    }
   }
   useEffect(() => {
     loadData()

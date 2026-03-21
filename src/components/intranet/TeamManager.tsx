@@ -29,7 +29,9 @@ export default function TeamManager() {
   const loadData = async () => {
     try {
       setTeam(await getCollaborators())
-    } catch (e) {}
+    } catch (e) {
+      console.error(e)
+    }
   }
   useEffect(() => {
     loadData()

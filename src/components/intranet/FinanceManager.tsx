@@ -43,7 +43,9 @@ export default function FinanceManager() {
   const loadData = async () => {
     try {
       setTransactions(await getFinances())
-    } catch (e) {}
+    } catch (e) {
+      console.error(e)
+    }
   }
   useEffect(() => {
     loadData()

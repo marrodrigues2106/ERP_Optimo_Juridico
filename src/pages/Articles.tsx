@@ -10,7 +10,9 @@ export default function Articles() {
   const loadData = async () => {
     try {
       setPosts(await getPublishedPosts())
-    } catch (e) {}
+    } catch (e) {
+      console.error(e)
+    }
   }
   useEffect(() => {
     loadData()

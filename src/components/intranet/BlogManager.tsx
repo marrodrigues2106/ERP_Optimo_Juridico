@@ -23,7 +23,9 @@ export default function BlogManager() {
   const loadData = async () => {
     try {
       setPosts(await getPosts())
-    } catch (e) {}
+    } catch (e) {
+      console.error(e)
+    }
   }
   useEffect(() => {
     loadData()

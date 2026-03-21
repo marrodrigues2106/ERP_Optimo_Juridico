@@ -30,7 +30,9 @@ export default function ProcessManager() {
   const loadData = async () => {
     try {
       setProcesses(await getLawsuits())
-    } catch (e) {}
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   useEffect(() => {
