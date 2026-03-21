@@ -104,7 +104,10 @@ export default function ProcessDetail() {
     const fd = new FormData(e.currentTarget)
     const desc = fd.get('description') as string
     const newLog = { date: new Date().toISOString(), description: desc, isManual: true }
-    const updatedLogs = [...(lawsuit.trackingLogs || []), newLog]
+
+    // Safely parse trackingLogs array to prevent crashes
+    const logs = Array.isArray(lawsuit.trackingLogs) ? lawsuit.trackingLogs : []
+    const updatedLogs = [...logs, newLog]
 
     try {
       await updateLawsuit(lawsuit.id, { trackingLogs: updatedLogs })
@@ -181,7 +184,7 @@ export default function ProcessDetail() {
                 </span>
                 <div className="flex items-center justify-between mt-0.5">
                   <p className="font-medium text-sm">{lawsuit.court || 'Não especificado'}</p>
-                  {lawsuit.number && lawsuit.court && (
+                  {lawsuit.number && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -341,12 +344,18 @@ export default function ProcessDetail() {
                 </CardHeader>
                 <CardContent className="pt-8">
                   <div className="relative border-l-2 border-slate-200 ml-3 md:ml-4 space-y-8 mb-8 pb-4">
-                    {!lawsuit.trackingLogs || lawsuit.trackingLogs.length === 0 ? (
-                      <p className="text-muted-foreground text-center py-8 ml-[-1rem]">
-                        Nenhuma movimentação registrada no sistema.
-                      </p>
-                    ) : (
-                      [...lawsuit.trackingLogs].reverse().map((log: any, idx: number) => (
+                    {(() => {
+                      const logs = Array.isArray(lawsuit.trackingLogs) ? lawsuit.trackingLogs : []
+
+                      if (logs.length === 0) {
+                        return (
+                          <p className="text-muted-foreground text-center py-8 ml-[-1rem]">
+                            Nenhuma movimentação registrada no sistema.
+                          </p>
+                        )
+                      }
+
+                      return [...logs].reverse().map((log: any, idx: number) => (
                         <div key={idx} className="relative pl-6 md:pl-8">
                           <span
                             className={cn(
@@ -384,7 +393,7 @@ export default function ProcessDetail() {
                           </div>
                         </div>
                       ))
-                    )}
+                    })()}
                   </div>
 
                   <form onSubmit={handleAddLog} className="mt-6 bg-slate-50 p-4 rounded-lg border">

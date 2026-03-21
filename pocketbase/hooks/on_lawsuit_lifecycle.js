@@ -38,8 +38,8 @@ function getCourtAliasFromNumber(numStr) {
       22: 'tjro',
       23: 'tjrr',
       24: 'tjsc',
-      25: 'tjsp',
-      26: 'tjse',
+      25: 'tjse',
+      26: 'tjsp',
       27: 'tjto',
     }
     return stateMap[parseInt(tr, 10)] || null
@@ -112,6 +112,11 @@ function fetchAndMergeDatajud(record) {
     const proc = data.hits.hits[0]._source
     const movimentos = proc.movimentos || []
 
+    // Extract process metadata when available
+    if (proc.orgaoJulgador && proc.orgaoJulgador.nomeOrgao) {
+      record.set('court', proc.orgaoJulgador.nomeOrgao)
+    }
+
     const newLogs = []
     for (let i = 0; i < movimentos.length; i++) {
       const m = movimentos[i]
@@ -127,7 +132,10 @@ function fetchAndMergeDatajud(record) {
     let existingLogs = []
     if (existingLogsRaw) {
       try {
-        existingLogs = JSON.parse(JSON.stringify(existingLogsRaw))
+        existingLogs =
+          typeof existingLogsRaw === 'string'
+            ? JSON.parse(existingLogsRaw)
+            : JSON.parse(JSON.stringify(existingLogsRaw))
       } catch (e) {}
     }
     if (!Array.isArray(existingLogs)) {
@@ -144,7 +152,8 @@ function fetchAndMergeDatajud(record) {
     const allLogs = manualLogs.concat(newLogs)
     allLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
-    record.set('trackingLogs', JSON.parse(JSON.stringify(allLogs)))
+    // Apply raw array directly to prevent validation errors with JSON parsing during hook assignment
+    record.set('trackingLogs', allLogs)
     record.set('datajudStatus', 'Success')
     return true
   } catch (globalErr) {
@@ -160,7 +169,8 @@ function createNotifications(record) {
     let logs = []
     if (logsRaw) {
       try {
-        logs = JSON.parse(JSON.stringify(logsRaw))
+        logs =
+          typeof logsRaw === 'string' ? JSON.parse(logsRaw) : JSON.parse(JSON.stringify(logsRaw))
       } catch (e) {}
     }
     if (!Array.isArray(logs) || logs.length === 0) return
