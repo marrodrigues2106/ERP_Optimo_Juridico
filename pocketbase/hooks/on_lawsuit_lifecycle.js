@@ -56,6 +56,20 @@ function getCourtAliasFromNumber(numStr) {
 
 function getCourtAliasFromName(courtStr) {
   if (!courtStr) return null
+  // Normalize string to lowercase and strip all punctuation and spaces
+  const cleanStr = String(courtStr)
+    .toLowerCase()
+    .replace(/[\/\-\s]/g, '')
+
+  // Extract known court acronyms from variations like "TJ-RJ", "TJ/RJ", "Tribunal Regional Federal da 1a Regiao (TRF1)"
+  const regex = /(stf|stj|tse|stm|cnj|tj[a-z]{2}|trf[0-9]+|trt[0-9]+|tre[a-z]{2})/
+  const match = cleanStr.match(regex)
+
+  if (match) {
+    return match[0]
+  }
+
+  // Fallback if not an exact match to our patterns
   return String(courtStr)
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '')
@@ -313,9 +327,27 @@ function createNotifications(record) {
   }
 }
 
+function logDatajudAudit(e, actionName, details) {
+  try {
+    const logs = $app.findCollectionByNameOrId('audit_logs')
+    const logRecord = new Record(logs)
+    logRecord.set('collection_name', 'lawsuits')
+    logRecord.set('record_id', e.record?.id || '')
+    logRecord.set('action', actionName)
+    logRecord.set('user', null) // System action
+    logRecord.set('changes', details)
+    $app.saveNoValidate(logRecord)
+  } catch (err) {
+    console.log('Audit log err (Datajud):', err)
+  }
+}
+
 onRecordCreate((e) => {
   try {
     fetchAndMergeDatajud(e.record)
+    logDatajudAudit(e, 'datajud_sync_create', {
+      status: e.record.get('datajudStatus'),
+    })
   } catch (err) {
     console.log('Error in Datajud hook on create:', err)
   }
@@ -326,9 +358,14 @@ onRecordUpdate((e) => {
   if (e.record.get('datajudStatus') === 'Sync Requested') {
     try {
       fetchAndMergeDatajud(e.record)
+      logDatajudAudit(e, 'datajud_sync_update', {
+        status: e.record.get('datajudStatus'),
+        court: e.record.get('court'),
+      })
     } catch (err) {
       console.log('Error in Datajud hook on update:', err)
       e.record.set('datajudStatus', 'Error: Internal Error')
+      logDatajudAudit(e, 'datajud_sync_error', { error: err.toString() })
     }
   }
   e.next()
