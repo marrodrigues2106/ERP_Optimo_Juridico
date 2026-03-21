@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getLawsuit, updateLawsuit } from '@/services/lawsuits'
 import { getAgendaEventsByLawsuit, createAgendaEvent } from '@/services/agenda'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -185,9 +185,12 @@ export default function ProcessDetail() {
                 </span>
                 {lawsuit.expand?.client ? (
                   <div className="flex flex-col bg-slate-50 p-3 rounded-md border">
-                    <span className="font-medium text-sm text-primary">
+                    <Link
+                      to={`/intranet/clientes/${lawsuit.client}`}
+                      className="font-medium text-sm text-primary hover:text-secondary hover:underline transition-colors"
+                    >
                       {lawsuit.expand.client.fullName || lawsuit.expand.client.name}
-                    </span>
+                    </Link>
                     <span className="text-xs text-muted-foreground flex items-center mt-1">
                       <Mail className="w-3 h-3 mr-1" />{' '}
                       {lawsuit.expand.client.email || 'Sem e-mail'}
@@ -206,10 +209,13 @@ export default function ProcessDetail() {
                 </span>
                 {lawsuit.expand?.collaborator ? (
                   <div className="flex flex-col bg-slate-50 p-3 rounded-md border">
-                    <span className="font-medium text-sm text-primary">
+                    <Link
+                      to={`/intranet/equipe/${lawsuit.collaborator}`}
+                      className="font-medium text-sm text-primary hover:text-secondary hover:underline transition-colors"
+                    >
                       {lawsuit.expand.collaborator.fullName || lawsuit.expand.collaborator.name}
-                    </span>
-                    <span className="text-xs text-secondary mt-1">
+                    </Link>
+                    <span className="text-xs text-secondary mt-1 font-medium">
                       {lawsuit.expand.collaborator.role}
                     </span>
                   </div>

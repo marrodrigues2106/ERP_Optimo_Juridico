@@ -2,6 +2,7 @@ import pb from '@/lib/pocketbase/client'
 
 export const getCollaborators = () =>
   pb.collection('collaborators').getFullList({ sort: '-created' })
+export const getCollaborator = (id: string) => pb.collection('collaborators').getOne(id)
 export const createCollaborator = (data: any) => pb.collection('collaborators').create(data)
 export const updateCollaborator = (id: string, data: any) =>
   pb.collection('collaborators').update(id, data)

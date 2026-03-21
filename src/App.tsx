@@ -9,13 +9,16 @@ import Articles from './pages/Articles'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './hooks/use-auth'
 
+import Dashboard from '@/components/intranet/Dashboard'
 import BlogManager from '@/components/intranet/BlogManager'
 import ProcessManager from '@/components/intranet/ProcessManager'
 import ProcessDetail from '@/components/intranet/ProcessDetail'
 import FinanceManager from '@/components/intranet/FinanceManager'
 import LibraryManager from '@/components/intranet/LibraryManager'
 import CrmManager from '@/components/intranet/CrmManager'
+import ClientDetail from '@/components/intranet/ClientDetail'
 import TeamManager from '@/components/intranet/TeamManager'
+import CollaboratorDetail from '@/components/intranet/CollaboratorDetail'
 import UsersManager from '@/components/intranet/UsersManager'
 import ProfileManager from '@/components/intranet/ProfileManager'
 import AgendaManager from '@/components/intranet/AgendaManager'
@@ -40,9 +43,12 @@ function App() {
                 </ProtectedRoute>
               }
             >
-              <Route index element={<Navigate to="processos" replace />} />
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<Dashboard />} />
               <Route path="processos" element={<ProcessManager />} />
               <Route path="processos/:id" element={<ProcessDetail />} />
+              <Route path="clientes/:id" element={<ClientDetail />} />
+              <Route path="equipe/:id" element={<CollaboratorDetail />} />
               <Route path="crm" element={<CrmManager />} />
               <Route path="agenda" element={<AgendaManager />} />
               <Route path="finance" element={<FinanceManager />} />

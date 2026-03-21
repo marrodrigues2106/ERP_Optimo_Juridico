@@ -38,9 +38,10 @@ export default function Intranet() {
   }
 
   const pathParts = location.pathname.split('/')
-  const currentPath = pathParts[2] || 'processos'
+  const currentPath = pathParts[2] || 'dashboard'
 
   const navItems = [
+    { id: 'dashboard', label: 'Painel de Controle', icon: LayoutDashboard, show: true },
     {
       id: 'processos',
       label: 'Processos e Serviços',
@@ -48,11 +49,11 @@ export default function Intranet() {
       show: perms.canViewProcesses,
     },
     { id: 'crm', label: 'CRM e Clientes', icon: Users, show: perms.canViewCRM },
-    { id: 'agenda', label: 'Agenda', icon: Calendar, show: true },
+    { id: 'agenda', label: 'Agenda Geral', icon: Calendar, show: true },
     { id: 'finance', label: 'Financeiro', icon: DollarSign, show: perms.canViewFinances },
     { id: 'library', label: 'Biblioteca', icon: BookOpen, show: true },
     { id: 'blog', label: 'Blog', icon: FileText, show: perms.canViewBlog },
-    { id: 'team', label: 'Equipe', icon: LayoutDashboard, show: perms.canViewTeam },
+    { id: 'team', label: 'Equipe', icon: Users, show: perms.canViewTeam },
     { id: 'users', label: 'Usuários', icon: Shield, show: perms.canViewUsers },
     { id: 'audit', label: 'Auditoria', icon: Activity, show: perms.canViewAudit },
     { id: 'profile', label: 'Meu Perfil', icon: User, show: true },
@@ -62,9 +63,9 @@ export default function Intranet() {
 
   return (
     <SidebarProvider>
-      <div className="flex w-full min-h-screen bg-slate-50 pt-[72px]">
+      <div className="flex w-full min-h-screen bg-slate-50 pt-[88px] md:pt-[104px]">
         <Sidebar
-          className="top-[72px] h-[calc(100svh-72px)] border-r bg-white hidden md:flex"
+          className="top-[88px] md:top-[104px] h-[calc(100svh-88px)] md:h-[calc(100svh-104px)] border-r bg-white hidden md:flex"
           collapsible="none"
         >
           <SidebarContent>
@@ -87,7 +88,7 @@ export default function Intranet() {
                           onClick={() => navigate(`/intranet/${item.id}`)}
                           isActive={
                             currentPath === item.id ||
-                            (item.id === 'processos' && currentPath === 'processos')
+                            (item.id === 'dashboard' && currentPath === 'dashboard')
                           }
                           className="h-10 text-sm font-medium"
                         >
