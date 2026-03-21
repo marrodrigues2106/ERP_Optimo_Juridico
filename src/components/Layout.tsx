@@ -5,12 +5,11 @@ import Footer from './Footer'
 import WhatsAppFAB from './WhatsAppFAB'
 import { Toaster } from '@/components/ui/toaster'
 import pb from '@/lib/pocketbase/client'
-import { cn } from '@/lib/utils'
-import { Activity, AlertTriangle, WifiOff } from 'lucide-react'
+import { Activity, AlertTriangle } from 'lucide-react'
 
 export default function Layout() {
   const { pathname } = useLocation()
-  const [apiStatus, setApiStatus] = useState<'loading' | 'online' | 'offline' | 'error'>('loading')
+  const [apiStatus, setApiStatus] = useState<'loading' | 'online' | 'error'>('loading')
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -21,32 +20,30 @@ export default function Layout() {
 
     const checkHealth = async () => {
       try {
-        await pb.health.check()
-
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 8000)
+        // Allow up to 20 seconds for the frontend to wait, accommodating the 15s backend timeout
+        const timeoutId = setTimeout(() => controller.abort(), 20000)
 
-        try {
-          const res = await pb.send('/backend/v1/datajud/health', {
-            method: 'GET',
-            signal: controller.signal,
-          })
-          clearTimeout(timeoutId)
+        const res = await pb.send('/backend/v1/datajud/health', {
+          method: 'GET',
+          signal: controller.signal,
+        })
 
-          if (mounted) {
-            setApiStatus(res.status === 'online' ? 'online' : 'error')
-          }
-        } catch (e) {
-          clearTimeout(timeoutId)
-          if (mounted) setApiStatus('error')
+        clearTimeout(timeoutId)
+
+        if (mounted) {
+          setApiStatus(res?.status === 'online' ? 'online' : 'error')
         }
       } catch (error) {
-        if (mounted) setApiStatus('offline')
+        if (mounted) setApiStatus('error')
       }
     }
 
+    // Initial non-blocking check
     checkHealth()
-    const interval = setInterval(checkHealth, 30000)
+
+    // Automatic retry every 60 seconds
+    const interval = setInterval(checkHealth, 60000)
 
     return () => {
       mounted = false
@@ -68,22 +65,17 @@ export default function Layout() {
       <div className="fixed bottom-4 left-4 z-50 flex items-center gap-2 bg-white/95 backdrop-blur-md px-4 py-2 rounded-full border border-slate-200 shadow-sm text-xs font-medium text-slate-700 transition-all hover:bg-white hover:shadow-md">
         {apiStatus === 'online' ? (
           <Activity className="w-4 h-4 text-green-500" />
-        ) : apiStatus === 'offline' ? (
-          <WifiOff className="w-4 h-4 text-slate-500" />
         ) : apiStatus === 'error' ? (
           <AlertTriangle className="w-4 h-4 text-red-500" />
         ) : (
           <Activity className="w-4 h-4 text-amber-500 animate-pulse" />
         )}
         <span>
-          Status DataJud:{' '}
           {apiStatus === 'online'
-            ? 'Operacional'
+            ? 'Status DataJud: Operacional'
             : apiStatus === 'error'
-              ? 'Serviço Indisponível'
-              : apiStatus === 'offline'
-                ? 'Problema de Conexão'
-                : 'Verificando...'}
+              ? 'Status DataJud: Serviço Indisponível (Tentando reconectar...)'
+              : 'Verificando Status DataJud...'}
         </span>
       </div>
     </div>
