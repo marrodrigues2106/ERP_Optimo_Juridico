@@ -109,7 +109,9 @@ export default function ProcessDetail() {
     if (typeof lawsuit.trackingLogs === 'string') {
       try {
         logs = JSON.parse(lawsuit.trackingLogs)
-      } catch (e) {}
+      } catch (e) {
+        /* ignore */
+      }
     } else if (Array.isArray(lawsuit.trackingLogs)) {
       logs = lawsuit.trackingLogs
     }
@@ -156,7 +158,9 @@ export default function ProcessDetail() {
   if (typeof lawsuit.trackingLogs === 'string') {
     try {
       displayLogs = JSON.parse(lawsuit.trackingLogs)
-    } catch (e) {}
+    } catch (e) {
+      /* ignore */
+    }
   } else if (Array.isArray(lawsuit.trackingLogs)) {
     displayLogs = lawsuit.trackingLogs
   }
