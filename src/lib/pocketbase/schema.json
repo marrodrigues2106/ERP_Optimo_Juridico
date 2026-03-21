@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T03:51:02.376Z",
+  "generatedAt": "2026-03-21T04:03:14.248Z",
   "collections": [
     {
       "name": "users",
@@ -234,6 +234,26 @@
         {
           "name": "gazetteTerms",
           "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "client",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clients"
+        },
+        {
+          "name": "collaborator",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "collaborators"
+        },
+        {
+          "name": "notifyClient",
+          "type": "bool",
           "required": false,
           "system": false
         }
@@ -692,6 +712,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "collaborator",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "collaborators"
         }
       ],
       "indexes": []

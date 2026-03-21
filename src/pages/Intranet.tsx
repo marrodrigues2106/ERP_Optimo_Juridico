@@ -1,8 +1,6 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
 import { usePermissions } from '@/hooks/use-permissions'
-import { Button } from '@/components/ui/button'
 import {
   SidebarProvider,
   Sidebar,
@@ -26,34 +24,25 @@ import {
   Shield,
   Calendar,
   Activity,
-  Menu,
 } from 'lucide-react'
 
-import BlogManager from '@/components/intranet/BlogManager'
-import ProcessManager from '@/components/intranet/ProcessManager'
-import FinanceManager from '@/components/intranet/FinanceManager'
-import LibraryManager from '@/components/intranet/LibraryManager'
-import CrmManager from '@/components/intranet/CrmManager'
-import TeamManager from '@/components/intranet/TeamManager'
-import UsersManager from '@/components/intranet/UsersManager'
-import ProfileManager from '@/components/intranet/ProfileManager'
-import AgendaManager from '@/components/intranet/AgendaManager'
-import AuditLogs from '@/components/intranet/AuditLogs'
-
 export default function Intranet() {
-  const { signOut, user } = useAuth()
+  const { signOut } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const perms = usePermissions()
-  const [activeView, setActiveView] = useState('processes')
 
   const handleLogout = () => {
     signOut()
     navigate('/')
   }
 
+  const pathParts = location.pathname.split('/')
+  const currentPath = pathParts[2] || 'processos'
+
   const navItems = [
     {
-      id: 'processes',
+      id: 'processos',
       label: 'Processos e Serviços',
       icon: Briefcase,
       show: perms.canViewProcesses,
@@ -68,6 +57,8 @@ export default function Intranet() {
     { id: 'audit', label: 'Auditoria', icon: Activity, show: perms.canViewAudit },
     { id: 'profile', label: 'Meu Perfil', icon: User, show: true },
   ]
+
+  const activeItem = navItems.find((i) => i.id === currentPath) || navItems[0]
 
   return (
     <SidebarProvider>
@@ -93,8 +84,11 @@ export default function Intranet() {
                     .map((item) => (
                       <SidebarMenuItem key={item.id}>
                         <SidebarMenuButton
-                          onClick={() => setActiveView(item.id)}
-                          isActive={activeView === item.id}
+                          onClick={() => navigate(`/intranet/${item.id}`)}
+                          isActive={
+                            currentPath === item.id ||
+                            (item.id === 'processos' && currentPath === 'processos')
+                          }
                           className="h-10 text-sm font-medium"
                         >
                           <item.icon className="w-4 h-4 mr-2" />
@@ -120,20 +114,13 @@ export default function Intranet() {
         <main className="flex-1 overflow-y-auto p-4 md:p-8 w-full">
           <div className="md:hidden flex items-center mb-6 border-b pb-4">
             <SidebarTrigger className="mr-4" />
-            <h1 className="text-xl font-serif font-bold text-primary">Portal Interno</h1>
+            <h1 className="text-xl font-serif font-bold text-primary">
+              {activeItem ? activeItem.label : 'Portal Interno'}
+            </h1>
           </div>
 
           <div className="max-w-7xl mx-auto w-full">
-            {activeView === 'processes' && <ProcessManager />}
-            {activeView === 'crm' && <CrmManager />}
-            {activeView === 'agenda' && <AgendaManager />}
-            {activeView === 'finance' && <FinanceManager />}
-            {activeView === 'library' && <LibraryManager />}
-            {activeView === 'blog' && <BlogManager />}
-            {activeView === 'team' && <TeamManager />}
-            {activeView === 'users' && <UsersManager />}
-            {activeView === 'audit' && <AuditLogs />}
-            {activeView === 'profile' && <ProfileManager />}
+            <Outlet />
           </div>
         </main>
       </div>

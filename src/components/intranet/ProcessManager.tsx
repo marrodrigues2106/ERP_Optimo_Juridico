@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -25,17 +26,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Search, Plus, Calendar as CalendarIcon, Trash2, Edit2, Activity } from 'lucide-react'
+import { Search, Plus, Calendar as CalendarIcon, Trash2, Edit2, Eye } from 'lucide-react'
 import { getLawsuits, createLawsuit, updateLawsuit, deleteLawsuit } from '@/services/lawsuits'
+import { getClients } from '@/services/clients'
+import { getCollaborators } from '@/services/collaborators'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 
 export default function ProcessManager() {
+  const navigate = useNavigate()
   const [processes, setProcesses] = useState<any[]>([])
+  const [clients, setClients] = useState<any[]>([])
+  const [collaborators, setCollaborators] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [open, setOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
-  const [trackingLawsuit, setTrackingLawsuit] = useState<any>(null)
   const { toast } = useToast()
 
   const loadData = async () => {
@@ -46,8 +51,18 @@ export default function ProcessManager() {
     }
   }
 
+  const loadRelations = async () => {
+    try {
+      setClients(await getClients())
+      setCollaborators(await getCollaborators())
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   useEffect(() => {
     loadData()
+    loadRelations()
   }, [])
   useRealtime('lawsuits', loadData)
 
@@ -72,6 +87,9 @@ export default function ProcessManager() {
     const fd = new FormData(e.currentTarget)
     const data = Object.fromEntries(fd.entries())
 
+    if (!data.client || data.client === 'none') delete data.client
+    if (!data.collaborator || data.collaborator === 'none') delete data.collaborator
+
     try {
       if (editingItem) {
         await updateLawsuit(editingItem.id, data)
@@ -92,23 +110,6 @@ export default function ProcessManager() {
     }
   }
 
-  const handleAddLog = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const fd = new FormData(e.currentTarget)
-    const desc = fd.get('description') as string
-    const newLog = { date: new Date().toISOString(), description: desc }
-    const updatedLogs = [...(trackingLawsuit.trackingLogs || []), newLog]
-
-    try {
-      await updateLawsuit(trackingLawsuit.id, { trackingLogs: updatedLogs })
-      setTrackingLawsuit({ ...trackingLawsuit, trackingLogs: updatedLogs })
-      toast({ title: 'Andamento registrado' })
-      e.currentTarget.reset()
-    } catch (err) {
-      toast({ title: 'Erro ao registrar andamento', variant: 'destructive' })
-    }
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
@@ -119,7 +120,7 @@ export default function ProcessManager() {
               <Plus className="w-4 h-4 mr-2" /> Novo Registro
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingItem ? 'Editar Registro' : 'Novo Registro'}</DialogTitle>
             </DialogHeader>
@@ -147,6 +148,11 @@ export default function ProcessManager() {
                   placeholder="0000000-00.0000.0.00.0000"
                   defaultValue={editingItem?.number}
                 />
+                {!editingItem && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Insira o número para busca automática no Datajud.
+                  </p>
+                )}
               </div>
               <div>
                 <Label>Tribunal / Órgão</Label>
@@ -164,6 +170,41 @@ export default function ProcessManager() {
                 <Label>Partes (Cliente x Parte Contraria) / Título do Serviço</Label>
                 <Input name="parties" required defaultValue={editingItem?.parties} />
               </div>
+
+              <div>
+                <Label>Cliente Vinculado</Label>
+                <Select name="client" defaultValue={editingItem?.client || 'none'}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {clients.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.fullName || c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Membro Responsável</Label>
+                <Select name="collaborator" defaultValue={editingItem?.collaborator || 'none'}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um membro" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {collaborators.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.fullName || c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div>
                 <Label>Próximo Prazo</Label>
                 <Input
@@ -189,42 +230,6 @@ export default function ProcessManager() {
           </DialogContent>
         </Dialog>
       </div>
-
-      {/* Tracking Logs Dialog */}
-      <Dialog open={!!trackingLawsuit} onOpenChange={(v) => !v && setTrackingLawsuit(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Acompanhamento: {trackingLawsuit?.parties}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="max-h-[300px] overflow-y-auto space-y-3 p-2 bg-slate-50 border rounded-md">
-              {!trackingLawsuit?.trackingLogs || trackingLawsuit.trackingLogs.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Nenhum registro encontrado.
-                </p>
-              ) : (
-                [...trackingLawsuit.trackingLogs].reverse().map((log: any, idx: number) => (
-                  <div key={idx} className="bg-white p-3 rounded shadow-sm border text-sm">
-                    <div className="text-xs text-primary font-bold mb-1">
-                      {new Date(log.date).toLocaleString()}
-                    </div>
-                    <div>{log.description}</div>
-                  </div>
-                ))
-              )}
-            </div>
-            <form onSubmit={handleAddLog} className="flex gap-2">
-              <Input
-                name="description"
-                placeholder="Adicionar novo andamento..."
-                required
-                className="flex-1"
-              />
-              <Button type="submit">Adicionar</Button>
-            </form>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
@@ -278,10 +283,10 @@ export default function ProcessManager() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          title="Acompanhamento"
-                          onClick={() => setTrackingLawsuit(p)}
+                          title="Detalhes do Processo"
+                          onClick={() => navigate(`/intranet/processos/${p.id}`)}
                         >
-                          <Activity className="w-4 h-4 text-blue-500" />
+                          <Eye className="w-4 h-4 text-blue-500" />
                         </Button>
                         <Button variant="ghost" size="icon" onClick={() => handleEdit(p)}>
                           <Edit2 className="w-4 h-4 text-slate-500" />
@@ -314,7 +319,8 @@ export default function ProcessManager() {
                   .map((p) => (
                     <div
                       key={`deadline-${p.id}`}
-                      className="flex justify-between items-start p-3 border rounded-lg bg-slate-50"
+                      className="flex justify-between items-start p-3 border rounded-lg bg-slate-50 cursor-pointer hover:bg-slate-100 transition-colors"
+                      onClick={() => navigate(`/intranet/processos/${p.id}`)}
                     >
                       <div className="flex-1 pr-2">
                         <div className="font-semibold text-sm text-primary line-clamp-1">
