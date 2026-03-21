@@ -54,6 +54,13 @@ function getCourtAliasFromNumber(numStr) {
   return null
 }
 
+function getCourtAliasFromName(courtStr) {
+  if (!courtStr) return null
+  return String(courtStr)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+}
+
 function fetchAndMergeDatajud(record) {
   try {
     const num = record.get('number') || ''
@@ -64,7 +71,19 @@ function fetchAndMergeDatajud(record) {
       return false
     }
 
-    const alias = getCourtAliasFromNumber(cleanNum)
+    let alias = null
+    const courtName = record.get('court')
+
+    // Attempt dynamic mapping from court name first
+    if (courtName) {
+      alias = getCourtAliasFromName(courtName)
+    }
+
+    // Fallback to extraction from number if name doesn't provide a valid alias
+    if (!alias) {
+      alias = getCourtAliasFromNumber(cleanNum)
+    }
+
     if (!alias) {
       record.set('datajudStatus', 'Error: Unknown Tribunal')
       return false
@@ -109,12 +128,13 @@ function fetchAndMergeDatajud(record) {
         })
       } catch (err) {
         record.set('datajudStatus', 'Error: Connection Failed')
-        console.log('Datajud Error: ', err)
+        console.log('Datajud Connection Error: ', err, 'URL: ', url)
         return false
       }
 
       if (res.statusCode !== 200) {
         record.set('datajudStatus', 'Error: API ' + res.statusCode)
+        console.log('Datajud API Error: ', res.statusCode, 'URL: ', url)
         return false
       }
 
@@ -160,7 +180,10 @@ function fetchAndMergeDatajud(record) {
     for (let i = 0; i < allHits.length; i++) {
       const proc = allHits[i]?._source
       if (proc && proc.orgaoJulgador && proc.orgaoJulgador.nomeOrgao) {
-        record.set('court', proc.orgaoJulgador.nomeOrgao)
+        // Only override court if it wasn't already set, avoiding replacing user short codes like "TJ-RJ"
+        if (!record.get('court')) {
+          record.set('court', proc.orgaoJulgador.nomeOrgao)
+        }
         break
       }
     }
