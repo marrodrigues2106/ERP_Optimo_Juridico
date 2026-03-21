@@ -52,9 +52,9 @@ export default function Header() {
           <NavigationMenu>
             <NavigationMenuList>
               <NavigationMenuItem>
-                <Link to="/">
-                  <NavigationMenuLink
-                    active={pathname === '/'}
+                <NavigationMenuLink asChild active={pathname === '/'}>
+                  <Link
+                    to="/"
                     className={cn(
                       navigationMenuTriggerStyle(),
                       'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
@@ -62,8 +62,8 @@ export default function Header() {
                     )}
                   >
                     Início
-                  </NavigationMenuLink>
-                </Link>
+                  </Link>
+                </NavigationMenuLink>
               </NavigationMenuItem>
               <NavigationMenuItem>
                 <NavigationMenuTrigger
@@ -97,9 +97,9 @@ export default function Header() {
                 </NavigationMenuContent>
               </NavigationMenuItem>
               <NavigationMenuItem>
-                <Link to="/artigos">
-                  <NavigationMenuLink
-                    active={pathname === '/artigos'}
+                <NavigationMenuLink asChild active={pathname === '/artigos'}>
+                  <Link
+                    to="/artigos"
                     className={cn(
                       navigationMenuTriggerStyle(),
                       'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
@@ -108,20 +108,21 @@ export default function Header() {
                     )}
                   >
                     Artigos
-                  </NavigationMenuLink>
-                </Link>
+                  </Link>
+                </NavigationMenuLink>
               </NavigationMenuItem>
               <NavigationMenuItem>
-                <a href="#contato">
-                  <NavigationMenuLink
+                <NavigationMenuLink asChild>
+                  <a
+                    href="#contato"
                     className={cn(
                       navigationMenuTriggerStyle(),
                       'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
                     )}
                   >
                     Contato
-                  </NavigationMenuLink>
-                </a>
+                  </a>
+                </NavigationMenuLink>
               </NavigationMenuItem>
             </NavigationMenuList>
           </NavigationMenu>
