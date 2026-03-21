@@ -6,11 +6,11 @@ import WhatsAppFAB from './WhatsAppFAB'
 import { Toaster } from '@/components/ui/toaster'
 import pb from '@/lib/pocketbase/client'
 import { cn } from '@/lib/utils'
-import { Activity } from 'lucide-react'
+import { Activity, AlertTriangle, WifiOff } from 'lucide-react'
 
 export default function Layout() {
   const { pathname } = useLocation()
-  const [apiStatus, setApiStatus] = useState<'loading' | 'online' | 'offline'>('loading')
+  const [apiStatus, setApiStatus] = useState<'loading' | 'online' | 'offline' | 'error'>('loading')
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -22,7 +22,14 @@ export default function Layout() {
     const checkHealth = async () => {
       try {
         await pb.health.check()
-        if (mounted) setApiStatus('online')
+        try {
+          const res = await pb.send('/backend/v1/datajud/health', { method: 'GET' })
+          if (mounted) {
+            setApiStatus(res.status === 'online' ? 'online' : 'error')
+          }
+        } catch (e) {
+          if (mounted) setApiStatus('error')
+        }
       } catch (error) {
         if (mounted) setApiStatus('offline')
       }
@@ -48,24 +55,25 @@ export default function Layout() {
       <Toaster />
 
       {/* Status API Indicator */}
-      <div className="fixed bottom-4 left-4 z-50 flex items-center gap-2 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full border shadow-sm text-xs font-medium text-slate-600 transition-all hover:bg-white">
-        <Activity
-          className={cn(
-            'w-3.5 h-3.5',
-            apiStatus === 'online'
-              ? 'text-green-500'
-              : apiStatus === 'offline'
-                ? 'text-red-500'
-                : 'text-amber-500 animate-pulse',
-          )}
-        />
+      <div className="fixed bottom-4 left-4 z-50 flex items-center gap-2 bg-white/95 backdrop-blur-md px-4 py-2 rounded-full border border-slate-200 shadow-sm text-xs font-medium text-slate-700 transition-all hover:bg-white hover:shadow-md">
+        {apiStatus === 'online' ? (
+          <Activity className="w-4 h-4 text-green-500" />
+        ) : apiStatus === 'offline' ? (
+          <WifiOff className="w-4 h-4 text-slate-500" />
+        ) : apiStatus === 'error' ? (
+          <AlertTriangle className="w-4 h-4 text-red-500" />
+        ) : (
+          <Activity className="w-4 h-4 text-amber-500 animate-pulse" />
+        )}
         <span>
-          Status API:{' '}
+          Status DataJud:{' '}
           {apiStatus === 'online'
             ? 'Operacional'
-            : apiStatus === 'offline'
-              ? 'Offline'
-              : 'Verificando...'}
+            : apiStatus === 'error'
+              ? 'Serviço Indisponível'
+              : apiStatus === 'offline'
+                ? 'Problema de Conexão'
+                : 'Verificando...'}
         </span>
       </div>
     </div>

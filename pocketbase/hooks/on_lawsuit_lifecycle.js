@@ -1,3 +1,25 @@
+routerAdd('GET', '/backend/v1/datajud/health', (e) => {
+  try {
+    const res = $http.send({
+      url: 'https://api-publica.datajud.cnj.jus.br/api_publica_stf/_search',
+      method: 'POST',
+      headers: {
+        Authorization: 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ size: 1, query: { match_all: {} } }),
+      timeout: 10,
+    })
+
+    if (res.statusCode === 200) {
+      return e.json(200, { status: 'online' })
+    }
+    return e.json(200, { status: 'error', detail: 'HTTP ' + res.statusCode })
+  } catch (err) {
+    return e.json(200, { status: 'error', detail: err.message || 'Request failed' })
+  }
+})
+
 function getCourtAliasFromNumber(numStr) {
   if (!numStr) return null
   const cleanNum = String(numStr).replace(/\D/g, '')
@@ -137,7 +159,11 @@ function fetchAndMergeDatajud(record) {
       loopCount++
       let bodyObj = {
         size: pageSize,
-        query: { match: { numeroProcesso: cleanNum } },
+        query: {
+          bool: {
+            filter: [{ term: { numeroProcesso: cleanNum } }],
+          },
+        },
         sort: [{ '@timestamp': { order: 'asc' } }],
       }
       if (searchAfter) bodyObj.search_after = searchAfter

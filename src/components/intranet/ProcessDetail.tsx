@@ -105,12 +105,13 @@ export default function ProcessDetail() {
     const desc = fd.get('description') as string
     const newLog = { date: new Date().toISOString(), description: desc, isManual: true }
 
-    let logs = []
+    let logs: any[] = []
     if (typeof lawsuit.trackingLogs === 'string') {
       try {
         logs = JSON.parse(lawsuit.trackingLogs)
+        if (!Array.isArray(logs)) logs = []
       } catch (e) {
-        /* ignore */
+        logs = []
       }
     } else if (Array.isArray(lawsuit.trackingLogs)) {
       logs = lawsuit.trackingLogs
@@ -158,8 +159,9 @@ export default function ProcessDetail() {
   if (typeof lawsuit.trackingLogs === 'string') {
     try {
       displayLogs = JSON.parse(lawsuit.trackingLogs)
+      if (!Array.isArray(displayLogs)) displayLogs = []
     } catch (e) {
-      /* ignore */
+      displayLogs = []
     }
   } else if (Array.isArray(lawsuit.trackingLogs)) {
     displayLogs = lawsuit.trackingLogs
