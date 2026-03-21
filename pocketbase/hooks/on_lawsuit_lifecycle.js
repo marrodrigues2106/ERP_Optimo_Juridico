@@ -8,7 +8,7 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ size: 1, query: { match_all: {} } }),
-      timeout: 10,
+      timeout: 5,
     })
 
     if (res.statusCode === 200) {
@@ -20,6 +20,50 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
   }
 })
 
+// Background synchronization route to decouple DataJud external API from database transactions
+routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
+  try {
+    const body = e.requestInfo().body || {}
+    if (body.secret !== 'internal-async-trigger') return e.forbiddenError('Forbidden')
+
+    const id = e.request.pathValue('id')
+    const record = $app.findRecordById('lawsuits', id)
+
+    // Run synchronization logic atomically outside of the initial save transaction
+    const success = fetchAndMergeDatajud(record)
+    $app.saveNoValidate(record)
+
+    logDatajudAudit(record.id, 'datajud_sync_async', {
+      status: record.get('datajudStatus'),
+      court: record.get('court'),
+      success: success,
+    })
+
+    return e.json(200, { status: 'ok' })
+  } catch (err) {
+    console.log('Background sync error:', err)
+    return e.json(500, { error: String(err) })
+  }
+})
+
+function triggerBackgroundSync(recordId) {
+  try {
+    let baseUrl = $secrets.get('PB_INSTANCE_URL')
+    if (!baseUrl || baseUrl === '') {
+      baseUrl = 'http://127.0.0.1:8090'
+    }
+    $http.send({
+      url: baseUrl + '/backend/v1/datajud/background-sync/' + recordId,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret: 'internal-async-trigger' }),
+      timeout: 1, // Short timeout to act as fire-and-forget
+    })
+  } catch (err) {
+    // Timeout expected, background task will continue to execute
+  }
+}
+
 function getCourtAliasFromNumber(numStr) {
   if (!numStr) return null
   const cleanNum = String(numStr).replace(/\D/g, '')
@@ -28,12 +72,8 @@ function getCourtAliasFromNumber(numStr) {
   const j = cleanNum.substring(13, 14)
   const tr = cleanNum.substring(14, 16)
 
-  if (j === '4') {
-    return 'trf' + parseInt(tr, 10)
-  }
-  if (j === '5') {
-    return 'trt' + parseInt(tr, 10)
-  }
+  if (j === '4') return 'trf' + parseInt(tr, 10)
+  if (j === '5') return 'trt' + parseInt(tr, 10)
   if (j === '8') {
     const stateMap = {
       1: 'tjac',
@@ -66,7 +106,6 @@ function getCourtAliasFromNumber(numStr) {
     }
     return stateMap[parseInt(tr, 10)] || null
   }
-
   if (j === '1') return 'stf'
   if (j === '2') return 'cnj'
   if (j === '3') return 'stj'
@@ -155,6 +194,7 @@ function fetchAndMergeDatajud(record) {
     const pageSize = 100
     let loopCount = 0
 
+    // Optimized ElasticSearch search with boolean terms
     while (loopCount < 10) {
       loopCount++
       let bodyObj = {
@@ -178,7 +218,7 @@ function fetchAndMergeDatajud(record) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(bodyObj),
-          timeout: 30,
+          timeout: 15,
         })
       } catch (err) {
         record.set('datajudStatus', 'Sync Failed')
@@ -335,12 +375,12 @@ function createNotifications(record) {
   }
 }
 
-function logDatajudAudit(e, actionName, details) {
+function logDatajudAudit(recordId, actionName, details) {
   try {
     const logs = $app.findCollectionByNameOrId('audit_logs')
     const logRecord = new Record(logs)
     logRecord.set('collection_name', 'lawsuits')
-    logRecord.set('record_id', e.record?.id || '')
+    logRecord.set('record_id', recordId)
     logRecord.set('action', actionName)
     logRecord.set('changes', details)
     $app.saveNoValidate(logRecord)
@@ -349,32 +389,10 @@ function logDatajudAudit(e, actionName, details) {
   }
 }
 
-onRecordCreate((e) => {
-  try {
-    fetchAndMergeDatajud(e.record)
-    logDatajudAudit(e, 'datajud_sync_create', { status: e.record.get('datajudStatus') })
-  } catch (err) {
-    console.log('Error in Datajud hook on create:', err)
-  }
-  e.next()
-}, 'lawsuits')
-
-onRecordUpdate((e) => {
-  if (e.record.get('datajudStatus') === 'Sync Requested') {
-    try {
-      fetchAndMergeDatajud(e.record)
-      logDatajudAudit(e, 'datajud_sync_update', {
-        status: e.record.get('datajudStatus'),
-        court: e.record.get('court'),
-      })
-    } catch (err) {
-      console.log('Error in Datajud hook on update:', err)
-      e.record.set('datajudStatus', 'Sync Failed')
-      const errMsg = err && err.message ? err.message : String(err)
-      addErrorLog(e.record, 'Falha crítica na sincronização DataJud: ' + errMsg)
-      logDatajudAudit(e, 'datajud_sync_error', { error: err.toString() })
-    }
-  }
+// JSON Field Safety Validations - ensures data schema robustness before any patches
+onRecordValidate((e) => {
+  const logs = getSafeLogs(e.record)
+  e.record.set('trackingLogs', logs)
   e.next()
 }, 'lawsuits')
 
@@ -385,6 +403,11 @@ onRecordAfterCreateSuccess((e) => {
       `[SIMULATION] Notificando cliente via e-mail sobre criação: ${e.record.get('parties')}`,
     )
   }
+
+  if (e.record.get('number')) {
+    triggerBackgroundSync(e.record.id)
+  }
+
   e.next()
 }, 'lawsuits')
 
@@ -395,6 +418,12 @@ onRecordAfterUpdateSuccess((e) => {
       `[SIMULATION] Notificando cliente via e-mail sobre atualização: ${e.record.get('parties')}`,
     )
   }
+
+  // Trigger decoupled async synchronization without blocking response
+  if (e.record.get('datajudStatus') === 'Sync Requested') {
+    triggerBackgroundSync(e.record.id)
+  }
+
   e.next()
 }, 'lawsuits')
 

@@ -22,12 +22,22 @@ export default function Layout() {
     const checkHealth = async () => {
       try {
         await pb.health.check()
+
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 8000)
+
         try {
-          const res = await pb.send('/backend/v1/datajud/health', { method: 'GET' })
+          const res = await pb.send('/backend/v1/datajud/health', {
+            method: 'GET',
+            signal: controller.signal,
+          })
+          clearTimeout(timeoutId)
+
           if (mounted) {
             setApiStatus(res.status === 'online' ? 'online' : 'error')
           }
         } catch (e) {
+          clearTimeout(timeoutId)
           if (mounted) setApiStatus('error')
         }
       } catch (error) {
