@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, ReactNode } from 'react'
 export interface BlogPost {
   id: string
   title: string
+  category: string
   content: string
   imageUrl?: string
   videoUrl?: string
@@ -22,6 +23,7 @@ const initialPosts: BlogPost[] = [
   {
     id: '1',
     title: 'A Importância do Planejamento Sucessório',
+    category: 'Planejamento Patrimonial',
     content:
       'O planejamento sucessório é um conjunto de estratégias que visa organizar a transferência do patrimônio de uma pessoa para seus herdeiros de forma eficiente e segura.\n\nEvitando conflitos familiares e minimizando o impacto tributário, essa prática tem ganhado cada vez mais espaço entre famílias de diferentes tamanhos patrimoniais. É essencial consultar um advogado especializado para a estruturação ideal.',
     imageUrl: 'https://img.usecurling.com/p/800/400?q=law%20books&color=blue',

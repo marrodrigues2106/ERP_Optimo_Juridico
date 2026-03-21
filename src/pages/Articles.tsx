@@ -52,6 +52,7 @@ export default function Articles() {
                 )}
                 <CardHeader className="pt-8 pb-4">
                   <div className="text-sm text-secondary font-medium tracking-wider uppercase mb-2">
+                    {post.category && `${post.category} • `}
                     {new Date(post.date).toLocaleDateString()}
                   </div>
                   <CardTitle className="font-serif text-3xl md:text-4xl text-primary leading-tight">

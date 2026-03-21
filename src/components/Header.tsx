@@ -42,7 +42,7 @@ export default function Header() {
             <img
               src={logoImg}
               alt={firmData.name}
-              className="h-24 w-auto object-contain transition-all duration-300"
+              className="h-48 w-auto object-contain transition-all duration-300"
             />
           </div>
         </Link>
