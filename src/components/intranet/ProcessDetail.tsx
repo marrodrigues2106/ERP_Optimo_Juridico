@@ -35,7 +35,9 @@ import {
   Briefcase,
   User,
   Mail,
+  RefreshCw,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export default function ProcessDetail() {
   const { id } = useParams()
@@ -78,6 +80,15 @@ export default function ProcessDetail() {
       toast({ title: checked ? 'Notificações ativadas' : 'Notificações desativadas' })
     } catch (e) {
       toast({ title: 'Erro ao atualizar notificações', variant: 'destructive' })
+    }
+  }
+
+  const handleSyncDatajud = async () => {
+    try {
+      await updateLawsuit(lawsuit.id, { datajudStatus: 'Sync Requested' })
+      toast({ title: 'Sincronização solicitada. Aguarde...' })
+    } catch (e) {
+      toast({ title: 'Erro ao solicitar sincronização', variant: 'destructive' })
     }
   }
 
@@ -161,7 +172,42 @@ export default function ProcessDetail() {
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">
                   Tribunal/Órgão
                 </span>
-                <p className="font-medium text-sm mt-0.5">{lawsuit.court || 'Não especificado'}</p>
+                <div className="flex items-center justify-between mt-0.5">
+                  <p className="font-medium text-sm">{lawsuit.court || 'Não especificado'}</p>
+                  {lawsuit.number && lawsuit.court && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleSyncDatajud}
+                      className="h-6 text-[10px] px-2 py-0"
+                    >
+                      <RefreshCw
+                        className={cn(
+                          'w-3 h-3 mr-1',
+                          lawsuit.datajudStatus === 'Sync Requested' && 'animate-spin',
+                        )}
+                      />
+                      Sincronizar
+                    </Button>
+                  )}
+                </div>
+                {lawsuit.datajudStatus && (
+                  <p className="text-[10px] text-muted-foreground mt-1 flex items-center">
+                    Status API:
+                    <span
+                      className={cn(
+                        'ml-1 font-medium',
+                        lawsuit.datajudStatus === 'Synced'
+                          ? 'text-green-600'
+                          : lawsuit.datajudStatus === 'Sync Requested'
+                            ? 'text-blue-600 animate-pulse'
+                            : 'text-orange-600',
+                      )}
+                    >
+                      {lawsuit.datajudStatus}
+                    </span>
+                  </p>
+                )}
               </div>
               <div>
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">
