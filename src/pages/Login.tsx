@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import pb from '@/lib/pocketbase/client'
-import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 export default function Login() {
   const [view, setView] = useState<'login' | 'forgot'>('login')
@@ -26,7 +25,7 @@ export default function Login() {
     if (email && password) {
       const { error } = await signIn(email, password)
       if (error) {
-        setErrorMsg(getErrorMessage(error) || 'Credenciais inválidas.')
+        setErrorMsg('Credenciais inválidas.')
       } else {
         navigate('/intranet')
       }
