@@ -1,4 +1,5 @@
-import { Instagram, Twitter, Phone as WhatsappIcon } from 'lucide-react'
+import { Instagram, Facebook, Phone as WhatsappIcon } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -16,42 +17,50 @@ export default function Footer() {
       setLoading(false)
       toast({
         title: 'Mensagem enviada com sucesso!',
-        description: 'Entraremos em contato em breve.',
+        description: `Sua mensagem foi enviada para ${firmData.contact.email}.`,
       })
       ;(e.target as HTMLFormElement).reset()
     }, 1000)
   }
 
   return (
-    <footer className="bg-[#4B4B4B] text-white pt-20 pb-10" id="contato">
+    <footer className="bg-[#4B4B4B] text-white pt-20 pb-10 font-sans" id="contato">
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-24">
           {/* Left Column */}
           <div>
-            <h3 className="font-serif text-3xl font-bold mb-6">Advocacia</h3>
+            <h3 className="text-sm font-bold tracking-widest mb-6 uppercase text-gray-200">
+              Sobre a Advocacia
+            </h3>
             <p className="text-gray-300 mb-8 text-sm leading-relaxed max-w-xs">
               Especialista em direito tributário, planejamento patrimonial e sucessório e direito
               imobiliário.
             </p>
             <div className="flex space-x-6">
               <a
+                href={firmData.socials.facebook}
+                className="hover:text-secondary transition-colors"
+                aria-label="Facebook"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Facebook size={22} />
+              </a>
+              <a
                 href={firmData.socials.instagram}
                 className="hover:text-secondary transition-colors"
                 aria-label="Instagram"
+                target="_blank"
+                rel="noreferrer"
               >
                 <Instagram size={22} />
-              </a>
-              <a
-                href="#"
-                className="hover:text-secondary transition-colors"
-                aria-label="X (Twitter)"
-              >
-                <Twitter size={22} />
               </a>
               <a
                 href={firmData.socials.whatsapp}
                 className="hover:text-secondary transition-colors"
                 aria-label="WhatsApp"
+                target="_blank"
+                rel="noreferrer"
               >
                 <WhatsappIcon size={22} />
               </a>
@@ -78,13 +87,6 @@ export default function Footer() {
                   >
                     {firmData.contact.phoneMobile1}
                   </a>
-                  {' / '}
-                  <a
-                    href={`tel:${firmData.contact.phoneMobile2.replace(/\D/g, '')}`}
-                    className="hover:text-secondary transition-colors"
-                  >
-                    {firmData.contact.phoneMobile2}
-                  </a>
                 </span>
               </div>
               <p>
@@ -101,7 +103,7 @@ export default function Footer() {
           {/* Right Column - Form */}
           <div>
             <h3 className="text-sm font-bold tracking-widest mb-6 uppercase text-gray-200">
-              Sobre
+              Entre em contato
             </h3>
             <form
               onSubmit={handleSubmit}
@@ -143,7 +145,10 @@ export default function Footer() {
 
         <div className="mt-20 text-center text-sm text-gray-400 border-t border-white/10 pt-8 flex flex-col items-center">
           <div className="w-12 h-1 bg-gray-600 rounded-full mb-6"></div>
-          <p>© {new Date().getFullYear()}. All rights reserved.</p>
+          <p className="mb-2">© {new Date().getFullYear()}. All rights reserved.</p>
+          <Link to="/login" className="text-gray-500 hover:text-gray-300 transition-colors text-xs">
+            Acesso Restrito
+          </Link>
         </div>
       </div>
     </footer>

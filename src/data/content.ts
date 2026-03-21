@@ -6,13 +6,12 @@ export const firmData = {
   contact: {
     phoneFixed: '+55 21 2082-6855',
     phoneMobile1: '+55 21 97439-8218',
-    phoneMobile2: '+55 21 975268833',
     email: 'contato@moraesrodriguesadvocacia.com.br',
     whatsapp: '5521974398218',
   },
   socials: {
-    instagram: 'https://instagram.com',
-    facebook: 'https://facebook.com',
+    instagram: 'https://www.instagram.com/dr.marcelorodrigues.adv',
+    facebook: 'https://www.facebook.com/M2RAdvocacia/',
     whatsapp: 'https://wa.me/5521974398218',
   },
   aboutText:

@@ -39,7 +39,11 @@ export default function Header() {
       <div className="container mx-auto px-4 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2" onClick={closeMenu}>
           <div className="bg-[#4B4B4B] p-2 rounded-sm flex items-center justify-center">
-            <img src={logoImg} alt={firmData.name} className="h-12 w-auto object-contain" />
+            <img
+              src={logoImg}
+              alt={firmData.name}
+              className="h-24 w-auto object-contain transition-all duration-300"
+            />
           </div>
         </Link>
 
@@ -95,9 +99,12 @@ export default function Header() {
               <NavigationMenuItem>
                 <Link to="/artigos">
                   <NavigationMenuLink
+                    active={pathname === '/artigos'}
                     className={cn(
                       navigationMenuTriggerStyle(),
                       'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
+                      pathname === '/artigos' &&
+                        'border-b-2 border-secondary rounded-none text-secondary',
                     )}
                   >
                     Artigos
@@ -194,13 +201,13 @@ export default function Header() {
             Contato
           </a>
           <div className="flex items-center gap-6 mt-4 justify-center text-primary/80">
-            <a href={firmData.socials.whatsapp}>
+            <a href={firmData.socials.whatsapp} target="_blank" rel="noreferrer">
               <WhatsappIcon size={24} />
             </a>
-            <a href={firmData.socials.facebook}>
+            <a href={firmData.socials.facebook} target="_blank" rel="noreferrer">
               <Facebook size={24} />
             </a>
-            <a href={firmData.socials.instagram}>
+            <a href={firmData.socials.instagram} target="_blank" rel="noreferrer">
               <Instagram size={24} />
             </a>
           </div>
