@@ -103,7 +103,7 @@ export default function ProcessDetail() {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     const desc = fd.get('description') as string
-    const newLog = { date: new Date().toISOString(), description: desc }
+    const newLog = { date: new Date().toISOString(), description: desc, isManual: true }
     const updatedLogs = [...(lawsuit.trackingLogs || []), newLog]
 
     try {
@@ -205,11 +205,13 @@ export default function ProcessDetail() {
                     <span
                       className={cn(
                         'ml-1 font-medium',
-                        lawsuit.datajudStatus === 'Synced'
+                        lawsuit.datajudStatus === 'Success'
                           ? 'text-green-600'
                           : lawsuit.datajudStatus === 'Sync Requested'
                             ? 'text-blue-600 animate-pulse'
-                            : 'text-orange-600',
+                            : lawsuit.datajudStatus === 'Not Found'
+                              ? 'text-slate-500'
+                              : 'text-red-600',
                       )}
                     >
                       {lawsuit.datajudStatus}
@@ -346,7 +348,12 @@ export default function ProcessDetail() {
                     ) : (
                       [...lawsuit.trackingLogs].reverse().map((log: any, idx: number) => (
                         <div key={idx} className="relative pl-6 md:pl-8">
-                          <span className="absolute -left-[9px] top-1.5 h-4 w-4 rounded-full border-2 border-white bg-primary"></span>
+                          <span
+                            className={cn(
+                              'absolute -left-[9px] top-1.5 h-4 w-4 rounded-full border-2 border-white',
+                              log.isManual ? 'bg-amber-500' : 'bg-primary',
+                            )}
+                          ></span>
                           <div className="flex flex-col">
                             <span className="text-sm font-bold text-slate-800 mb-2 flex items-center">
                               {new Date(log.date).toLocaleString('pt-BR', {
@@ -355,7 +362,24 @@ export default function ProcessDetail() {
                               })}
                             </span>
                             <div className="text-slate-700 bg-white p-4 rounded-lg border shadow-sm text-sm leading-relaxed">
-                              {log.description}
+                              <p className="font-semibold text-slate-800">{log.description}</p>
+                              {log.complementos && log.complementos.length > 0 && (
+                                <div className="mt-3 space-y-1 text-xs text-slate-600 bg-slate-50 p-2.5 rounded border border-dashed">
+                                  {log.complementos.map((comp: any, cIdx: number) => (
+                                    <div key={cIdx} className="grid grid-cols-[100px_1fr] gap-2">
+                                      <span className="font-medium text-slate-700">
+                                        {comp.nome}:
+                                      </span>
+                                      <span className="break-words">{comp.valor}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {log.isManual && (
+                                <span className="inline-block mt-3 px-2 py-1 bg-amber-100 text-amber-800 text-[10px] rounded font-bold uppercase tracking-wider">
+                                  Registro Manual
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>

@@ -1,50 +1,78 @@
-function getCourtAlias(courtName) {
-  if (!courtName) return null
-  const lower = String(courtName).toLowerCase()
-  if (lower.indexOf('tjrj') > -1 || lower.indexOf('rio de janeiro') > -1) return 'tjrj'
-  if (lower.indexOf('tjsp') > -1 || lower.indexOf('são paulo') > -1) return 'tjsp'
-  if (lower.indexOf('tjmg') > -1 || lower.indexOf('minas gerais') > -1) return 'tjmg'
-  if (lower.indexOf('tjrs') > -1 || lower.indexOf('rio grande do sul') > -1) return 'tjrs'
-  if (lower.indexOf('tjpr') > -1 || lower.indexOf('paraná') > -1) return 'tjpr'
-  if (lower.indexOf('tjsc') > -1 || lower.indexOf('santa catarina') > -1) return 'tjsc'
-  if (lower.indexOf('tjdf') > -1 || lower.indexOf('distrito federal') > -1) return 'tjdft'
-  if (lower.indexOf('stj') > -1 || lower.indexOf('superior tribunal') > -1) return 'stj'
-  if (lower.indexOf('stf') > -1 || lower.indexOf('supremo') > -1) return 'stf'
-  if (lower.indexOf('tst') > -1 || lower.indexOf('trabalho') > -1) return 'tst'
+function getCourtAliasFromNumber(numStr) {
+  if (!numStr) return null
+  const cleanNum = String(numStr).replace(/\D/g, '')
+  if (cleanNum.length !== 20) return null
 
-  const match = lower.match(/(tj[a-z]{2}|stj|stf|tst|trt\d+|trf\d+|trf|tre\d+)/)
-  if (match) {
-    if (match[1] === 'tjdf') return 'tjdft'
-    return match[1]
+  const j = cleanNum.substring(13, 14)
+  const tr = cleanNum.substring(14, 16)
+
+  if (j === '4') {
+    return 'trf' + parseInt(tr, 10)
   }
+  if (j === '5') {
+    return 'trt' + parseInt(tr, 10)
+  }
+  if (j === '8') {
+    const stateMap = {
+      1: 'tjac',
+      2: 'tjal',
+      3: 'tjap',
+      4: 'tjam',
+      5: 'tjba',
+      6: 'tjce',
+      7: 'tjdft',
+      8: 'tjes',
+      9: 'tjgo',
+      10: 'tjma',
+      11: 'tjmt',
+      12: 'tjms',
+      13: 'tjmg',
+      14: 'tjpa',
+      15: 'tjpb',
+      16: 'tjpr',
+      17: 'tjpe',
+      18: 'tjpi',
+      19: 'tjrj',
+      20: 'tjrn',
+      21: 'tjrs',
+      22: 'tjro',
+      23: 'tjrr',
+      24: 'tjsc',
+      25: 'tjsp',
+      26: 'tjse',
+      27: 'tjto',
+    }
+    return stateMap[parseInt(tr, 10)] || null
+  }
+
+  if (j === '1') return 'stf'
+  if (j === '2') return 'cnj'
+  if (j === '3') return 'stj'
+  if (j === '6') return 'tse'
+  if (j === '7') return 'stm'
+
   return null
 }
 
 function fetchAndMergeDatajud(record) {
   try {
     const num = record.get('number') || ''
-    const court = record.get('court') || ''
-
-    if (!num) {
-      record.set('datajudStatus', 'Sem número de processo')
-      return false
-    }
-
     const cleanNum = String(num).replace(/\D/g, '')
-    if (cleanNum.length < 10) {
-      record.set('datajudStatus', 'Número inválido')
+
+    if (cleanNum.length !== 20) {
+      record.set('datajudStatus', 'Error: Invalid Number')
       return false
     }
 
-    const courtAlias = getCourtAlias(String(court))
-    if (!courtAlias) {
-      record.set('datajudStatus', 'Tribunal não suportado')
+    const alias = getCourtAliasFromNumber(cleanNum)
+    if (!alias) {
+      record.set('datajudStatus', 'Error: Unknown Tribunal')
       return false
     }
 
     let res
     try {
-      const url = 'https://api-publica.datajud.cnj.jus.br/api_publica_' + courtAlias + '/_search'
+      const url = 'https://api-publica.datajud.cnj.jus.br/api_publica_' + alias + '/_search'
       res = $http.send({
         url: url,
         method: 'POST',
@@ -58,13 +86,13 @@ function fetchAndMergeDatajud(record) {
         timeout: 15,
       })
     } catch (err) {
-      record.set('datajudStatus', 'Connection Error')
+      record.set('datajudStatus', 'Error: Connection Failed')
       console.log('Datajud Error: ', err)
       return false
     }
 
     if (res.statusCode !== 200) {
-      record.set('datajudStatus', 'API Error: ' + res.statusCode)
+      record.set('datajudStatus', 'Error: API ' + res.statusCode)
       return false
     }
 
@@ -72,17 +100,28 @@ function fetchAndMergeDatajud(record) {
     try {
       data = res.json
     } catch (err) {
-      record.set('datajudStatus', 'Invalid Response format')
+      record.set('datajudStatus', 'Error: Invalid Response format')
       return false
     }
 
     if (!data || !data.hits || !data.hits.hits || data.hits.hits.length === 0) {
-      record.set('datajudStatus', 'Sem resultados no Datajud')
+      record.set('datajudStatus', 'Not Found')
       return false
     }
 
     const proc = data.hits.hits[0]._source
     const movimentos = proc.movimentos || []
+
+    const newLogs = []
+    for (let i = 0; i < movimentos.length; i++) {
+      const m = movimentos[i]
+      newLogs.push({
+        date: m.dataHora || new Date().toISOString(),
+        description: m.nome || m.descricao || 'Movimentação Datajud',
+        complementos: m.complementosTabelados || [],
+        isManual: false,
+      })
+    }
 
     let existingLogsRaw = record.get('trackingLogs')
     let existingLogs = []
@@ -95,34 +134,22 @@ function fetchAndMergeDatajud(record) {
       existingLogs = []
     }
 
-    const existingDescs = existingLogs.map((l) => (l && l.description ? l.description : null))
-
-    let changed = false
-    const allLogs = [...existingLogs]
-
-    for (let i = 0; i < movimentos.length; i++) {
-      const mov = movimentos[i]
-      const desc = mov.nome || mov.descricao || 'Movimentação Datajud'
-      const dateStr = mov.dataHora || new Date().toISOString()
-
-      if (existingDescs.indexOf(desc) === -1) {
-        allLogs.push({ date: dateStr, description: desc })
-        changed = true
+    const manualLogs = []
+    for (let i = 0; i < existingLogs.length; i++) {
+      if (existingLogs[i] && existingLogs[i].isManual) {
+        manualLogs.push(existingLogs[i])
       }
     }
 
-    if (changed) {
-      allLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      // Use JSON.parse(JSON.stringify()) to ensure goja treats it as a pure primitive JS array map
-      // avoiding potential validation errors when saving to a json field in PocketBase v0.22+
-      record.set('trackingLogs', JSON.parse(JSON.stringify(allLogs)))
-    }
+    const allLogs = manualLogs.concat(newLogs)
+    allLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
-    record.set('datajudStatus', 'Synced')
-    return changed
+    record.set('trackingLogs', JSON.parse(JSON.stringify(allLogs)))
+    record.set('datajudStatus', 'Success')
+    return true
   } catch (globalErr) {
     console.log('Global error in fetchAndMergeDatajud:', globalErr)
-    record.set('datajudStatus', 'Erro interno na sincronização')
+    record.set('datajudStatus', 'Error: Internal Error')
     return false
   }
 }
@@ -152,7 +179,7 @@ function createNotifications(record) {
     try {
       notifsCol = $app.findCollectionByNameOrId('lawsuit_notifications')
     } catch (e) {
-      return // Notification collection not found
+      return
     }
 
     for (let i = 0; i < logs.length; i++) {
@@ -205,7 +232,7 @@ onRecordUpdate((e) => {
       fetchAndMergeDatajud(e.record)
     } catch (err) {
       console.log('Error in Datajud hook on update:', err)
-      e.record.set('datajudStatus', 'Erro interno na sincronização')
+      e.record.set('datajudStatus', 'Error: Internal Error')
     }
   }
   e.next()
@@ -219,7 +246,6 @@ onRecordAfterCreateSuccess((e) => {
       `[SIMULATION] Notificando cliente via e-mail sobre criação: ${e.record.get('parties')}`,
     )
   }
-
   e.next()
 }, 'lawsuits')
 
