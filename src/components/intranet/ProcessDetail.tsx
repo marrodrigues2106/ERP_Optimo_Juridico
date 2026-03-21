@@ -105,8 +105,15 @@ export default function ProcessDetail() {
     const desc = fd.get('description') as string
     const newLog = { date: new Date().toISOString(), description: desc, isManual: true }
 
-    // Safely parse trackingLogs array to prevent crashes
-    const logs = Array.isArray(lawsuit.trackingLogs) ? lawsuit.trackingLogs : []
+    let logs = []
+    if (typeof lawsuit.trackingLogs === 'string') {
+      try {
+        logs = JSON.parse(lawsuit.trackingLogs)
+      } catch (e) {}
+    } else if (Array.isArray(lawsuit.trackingLogs)) {
+      logs = lawsuit.trackingLogs
+    }
+
     const updatedLogs = [...logs, newLog]
 
     try {
@@ -143,6 +150,15 @@ export default function ProcessDetail() {
         Carregando detalhes do processo...
       </div>
     )
+  }
+
+  let displayLogs: any[] = []
+  if (typeof lawsuit.trackingLogs === 'string') {
+    try {
+      displayLogs = JSON.parse(lawsuit.trackingLogs)
+    } catch (e) {}
+  } else if (Array.isArray(lawsuit.trackingLogs)) {
+    displayLogs = lawsuit.trackingLogs
   }
 
   return (
@@ -204,7 +220,7 @@ export default function ProcessDetail() {
                 </div>
                 {lawsuit.datajudStatus && (
                   <p className="text-[10px] text-muted-foreground mt-1 flex items-center">
-                    Status API:
+                    Status da Integração:
                     <span
                       className={cn(
                         'ml-1 font-medium',
@@ -352,18 +368,12 @@ export default function ProcessDetail() {
                 </CardHeader>
                 <CardContent className="pt-8">
                   <div className="relative border-l-2 border-slate-200 ml-3 md:ml-4 space-y-8 mb-8 pb-4">
-                    {(() => {
-                      const logs = Array.isArray(lawsuit.trackingLogs) ? lawsuit.trackingLogs : []
-
-                      if (logs.length === 0) {
-                        return (
-                          <p className="text-muted-foreground text-center py-8 ml-[-1rem]">
-                            Nenhuma movimentação registrada no sistema.
-                          </p>
-                        )
-                      }
-
-                      return [...logs].reverse().map((log: any, idx: number) => {
+                    {displayLogs.length === 0 ? (
+                      <p className="text-muted-foreground text-center py-8 ml-[-1rem]">
+                        Nenhuma movimentação registrada no sistema.
+                      </p>
+                    ) : (
+                      [...displayLogs].reverse().map((log: any, idx: number) => {
                         const isErrorLog =
                           !log.isManual &&
                           log.description &&
@@ -428,7 +438,7 @@ export default function ProcessDetail() {
                           </div>
                         )
                       })
-                    })()}
+                    )}
                   </div>
 
                   <form onSubmit={handleAddLog} className="mt-6 bg-slate-50 p-4 rounded-lg border">

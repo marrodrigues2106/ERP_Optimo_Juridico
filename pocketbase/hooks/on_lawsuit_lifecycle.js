@@ -56,44 +56,44 @@ function getCourtAliasFromNumber(numStr) {
 
 function getCourtAliasFromName(courtStr) {
   if (!courtStr) return null
-  // Normalize string to lowercase and strip all punctuation and spaces
   const cleanStr = String(courtStr)
     .toLowerCase()
     .replace(/[\/\-\s.,]/g, '')
-
-  // Extract known court acronyms from variations like "TJ-RJ", "TJ/RJ", "Tribunal Regional Federal da 1a Regiao (TRF1)"
   const regex = /(stf|stj|tse|stm|cnj|tj[a-z]{2}|trf[0-9]+|trt[0-9]+|tre[a-z]{2})/
   const match = cleanStr.match(regex)
-
-  if (match) {
-    return match[0]
-  }
-
-  // Fallback if not an exact match to our patterns
+  if (match) return match[0]
   return cleanStr.replace(/[^a-z0-9]/g, '')
 }
 
-function addErrorLog(record, message) {
-  let existingLogsRaw = record.get('trackingLogs')
-  let existingLogs = []
-  if (existingLogsRaw) {
+function getSafeLogs(record) {
+  let raw = record.get('trackingLogs')
+  if (!raw) return []
+  if (typeof raw === 'string') {
     try {
-      existingLogs =
-        typeof existingLogsRaw === 'string'
-          ? JSON.parse(existingLogsRaw)
-          : JSON.parse(JSON.stringify(existingLogsRaw))
-    } catch (e) {}
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed : []
+    } catch (e) {
+      return []
+    }
   }
-  if (!Array.isArray(existingLogs)) {
-    existingLogs = []
+  if (Array.isArray(raw)) return raw
+  try {
+    const parsed = JSON.parse(JSON.stringify(raw))
+    return Array.isArray(parsed) ? parsed : []
+  } catch (e) {
+    return []
   }
+}
+
+function addErrorLog(record, message) {
+  let existingLogs = getSafeLogs(record)
   existingLogs.push({
     date: new Date().toISOString(),
     description: message,
     isManual: false,
     complementos: [],
   })
-  record.set('trackingLogs', JSON.parse(JSON.stringify(existingLogs)))
+  record.set('trackingLogs', existingLogs)
 }
 
 function fetchAndMergeDatajud(record) {
@@ -115,15 +115,8 @@ function fetchAndMergeDatajud(record) {
     let alias = null
     const courtName = record.get('court')
 
-    // Attempt dynamic mapping from court name first
-    if (courtName) {
-      alias = getCourtAliasFromName(courtName)
-    }
-
-    // Fallback to extraction from number if name doesn't provide a valid alias
-    if (!alias) {
-      alias = getCourtAliasFromNumber(cleanNum)
-    }
+    if (courtName) alias = getCourtAliasFromName(courtName)
+    if (!alias) alias = getCourtAliasFromNumber(cleanNum)
 
     if (!alias) {
       record.set('datajudStatus', 'Sync Failed')
@@ -140,24 +133,14 @@ function fetchAndMergeDatajud(record) {
     const pageSize = 100
     let loopCount = 0
 
-    // Limit pagination to 10 pages to prevent timeouts and database lock exceptions
     while (loopCount < 10) {
       loopCount++
       let bodyObj = {
         size: pageSize,
         query: { match: { numeroProcesso: cleanNum } },
-        sort: [
-          {
-            '@timestamp': {
-              order: 'asc',
-            },
-          },
-        ],
+        sort: [{ '@timestamp': { order: 'asc' } }],
       }
-
-      if (searchAfter) {
-        bodyObj.search_after = searchAfter
-      }
+      if (searchAfter) bodyObj.search_after = searchAfter
 
       let res
       try {
@@ -178,7 +161,6 @@ function fetchAndMergeDatajud(record) {
           record,
           'Falha na sincronização de rede com a API DataJud (' + url + '): ' + errMsg,
         )
-        console.log('Datajud Connection Error: ', err, 'URL: ', url)
         return false
       }
 
@@ -186,13 +168,8 @@ function fetchAndMergeDatajud(record) {
         record.set('datajudStatus', 'Sync Failed')
         addErrorLog(
           record,
-          'Falha na sincronização: A API DataJud retornou status ' +
-            res.statusCode +
-            ' (' +
-            url +
-            ')',
+          'Falha na sincronização: A API DataJud retornou status ' + res.statusCode,
         )
-        console.log('Datajud API Error: ', res.statusCode, 'URL: ', url)
         return false
       }
 
@@ -205,28 +182,18 @@ function fetchAndMergeDatajud(record) {
         return false
       }
 
-      if (!data || !data.hits || !data.hits.hits) {
-        break
-      }
-
+      if (!data || !data.hits || !data.hits.hits) break
       const hits = data.hits.hits
-      if (!Array.isArray(hits) || hits.length === 0) {
-        break
-      }
+      if (!Array.isArray(hits) || hits.length === 0) break
 
-      for (let i = 0; i < hits.length; i++) {
-        allHits.push(hits[i])
-      }
-
-      if (hits.length < pageSize) {
-        break // Last page reached
-      }
+      for (let i = 0; i < hits.length; i++) allHits.push(hits[i])
+      if (hits.length < pageSize) break
 
       const lastHit = hits[hits.length - 1]
       if (lastHit && lastHit.sort && lastHit.sort.length > 0) {
         searchAfter = lastHit.sort
       } else {
-        break // Failsafe
+        break
       }
     }
 
@@ -235,14 +202,10 @@ function fetchAndMergeDatajud(record) {
       return false
     }
 
-    // Extract metadata from the first valid hit
     for (let i = 0; i < allHits.length; i++) {
       const proc = allHits[i]?._source
       if (proc && proc.orgaoJulgador && proc.orgaoJulgador.nomeOrgao) {
-        // Only override court if it wasn't already set, avoiding replacing user short codes like "TJ-RJ"
-        if (!record.get('court')) {
-          record.set('court', proc.orgaoJulgador.nomeOrgao)
-        }
+        if (!record.get('court')) record.set('court', proc.orgaoJulgador.nomeOrgao)
         break
       }
     }
@@ -250,11 +213,9 @@ function fetchAndMergeDatajud(record) {
     const newLogs = []
     const uniqueKeys = {}
 
-    // Extract and deduplicate all movimentos across all paginated hits
     for (let i = 0; i < allHits.length; i++) {
       const proc = allHits[i]?._source
       const movimentos = proc?.movimentos || []
-
       for (let j = 0; j < movimentos.length; j++) {
         const m = movimentos[j]
         const dateStr = m.dataHora || new Date().toISOString()
@@ -273,40 +234,22 @@ function fetchAndMergeDatajud(record) {
       }
     }
 
-    let existingLogsRaw = record.get('trackingLogs')
-    let existingLogs = []
-    if (existingLogsRaw) {
-      try {
-        existingLogs =
-          typeof existingLogsRaw === 'string'
-            ? JSON.parse(existingLogsRaw)
-            : JSON.parse(JSON.stringify(existingLogsRaw))
-      } catch (e) {}
-    }
-    if (!Array.isArray(existingLogs)) {
-      existingLogs = []
-    }
-
+    const existingLogs = getSafeLogs(record)
     const manualLogs = []
     const errorLogs = []
+
     for (let i = 0; i < existingLogs.length; i++) {
-      if (existingLogs[i]) {
-        if (existingLogs[i].isManual) {
-          manualLogs.push(existingLogs[i])
-        } else if (
-          existingLogs[i].description &&
-          String(existingLogs[i].description).startsWith('Falha')
-        ) {
-          errorLogs.push(existingLogs[i])
-        }
+      const log = existingLogs[i]
+      if (log) {
+        if (log.isManual) manualLogs.push(log)
+        else if (log.description && String(log.description).startsWith('Falha')) errorLogs.push(log)
       }
     }
 
     const allLogs = manualLogs.concat(errorLogs).concat(newLogs)
     allLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
-    // Deep copy to completely eliminate undefined or circular references before PocketBase validation
-    record.set('trackingLogs', JSON.parse(JSON.stringify(allLogs)))
+    record.set('trackingLogs', allLogs)
     record.set('datajudStatus', 'Success')
     return true
   } catch (globalErr) {
@@ -320,29 +263,16 @@ function fetchAndMergeDatajud(record) {
 
 function createNotifications(record) {
   try {
-    let logsRaw = record.get('trackingLogs')
-    let logs = []
-    if (logsRaw) {
-      try {
-        logs =
-          typeof logsRaw === 'string' ? JSON.parse(logsRaw) : JSON.parse(JSON.stringify(logsRaw))
-      } catch (e) {}
-    }
-    if (!Array.isArray(logs) || logs.length === 0) return
+    const logs = getSafeLogs(record)
+    if (logs.length === 0) return
 
     let notifyUserIds = []
     try {
-      // Use "1=1" instead of empty string to avoid SQL syntax errors on PB JSVM
       const users = $app.findRecordsByFilter('users', '1=1', '', 100, 0)
-      for (let i = 0; i < users.length; i++) {
-        notifyUserIds.push(users[i].id)
-      }
-    } catch (e) {
-      console.log('Error fetching users for notification:', e)
-    }
+      for (let i = 0; i < users.length; i++) notifyUserIds.push(users[i].id)
+    } catch (e) {}
 
     if (notifyUserIds.length === 0) return
-
     let notifsCol
     try {
       notifsCol = $app.findCollectionByNameOrId('lawsuit_notifications')
@@ -357,8 +287,7 @@ function createNotifications(record) {
       for (let j = 0; j < notifyUserIds.length; j++) {
         const uid = notifyUserIds[j]
         try {
-          // Properly escape and interpolate values instead of using unsupported object bindings
-          const safeContent = String(log.description).replace(/'/g, "''")
+          const safeContent = String(log.description).replace(/'/g, "''").replace(/\\/g, '\\\\')
           $app.findFirstRecordByFilter(
             'lawsuit_notifications',
             `lawsuit = '${record.id}' && update_content = '${safeContent}' && user = '${uid}'`,
@@ -371,9 +300,7 @@ function createNotifications(record) {
             n.set('user', uid)
             n.set('is_read', false)
             $app.saveNoValidate(n)
-          } catch (saveErr) {
-            console.log('Error creating notification', saveErr)
-          }
+          } catch (saveErr) {}
         }
       }
     }
@@ -389,7 +316,6 @@ function logDatajudAudit(e, actionName, details) {
     logRecord.set('collection_name', 'lawsuits')
     logRecord.set('record_id', e.record?.id || '')
     logRecord.set('action', actionName)
-    logRecord.set('user', null) // System action
     logRecord.set('changes', details)
     $app.saveNoValidate(logRecord)
   } catch (err) {
@@ -400,9 +326,7 @@ function logDatajudAudit(e, actionName, details) {
 onRecordCreate((e) => {
   try {
     fetchAndMergeDatajud(e.record)
-    logDatajudAudit(e, 'datajud_sync_create', {
-      status: e.record.get('datajudStatus'),
-    })
+    logDatajudAudit(e, 'datajud_sync_create', { status: e.record.get('datajudStatus') })
   } catch (err) {
     console.log('Error in Datajud hook on create:', err)
   }
@@ -430,7 +354,6 @@ onRecordUpdate((e) => {
 
 onRecordAfterCreateSuccess((e) => {
   createNotifications(e.record)
-
   if (e.record.get('notifyClient') && e.record.get('client')) {
     console.log(
       `[SIMULATION] Notificando cliente via e-mail sobre criação: ${e.record.get('parties')}`,
@@ -441,7 +364,6 @@ onRecordAfterCreateSuccess((e) => {
 
 onRecordAfterUpdateSuccess((e) => {
   createNotifications(e.record)
-
   if (e.record.get('notifyClient') && e.record.get('client')) {
     console.log(
       `[SIMULATION] Notificando cliente via e-mail sobre atualização: ${e.record.get('parties')}`,
