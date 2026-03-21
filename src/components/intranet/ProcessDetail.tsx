@@ -89,7 +89,7 @@ export default function ProcessDetail() {
   const handleSyncDatajud = async () => {
     try {
       await updateLawsuit(lawsuit.id, { datajudStatus: 'Sync Requested' })
-      toast({ title: 'Sincronização solicitada ou concluída com sucesso.' })
+      toast({ title: 'Sincronização solicitada com sucesso. Processando...' })
     } catch (e) {
       toast({
         title: 'Erro ao solicitar sincronização',
@@ -186,6 +186,7 @@ export default function ProcessDetail() {
                       size="sm"
                       variant="outline"
                       onClick={handleSyncDatajud}
+                      disabled={lawsuit.datajudStatus === 'Sync Requested'}
                       className="h-6 text-[10px] px-2 py-0"
                     >
                       <RefreshCw
@@ -194,7 +195,7 @@ export default function ProcessDetail() {
                           lawsuit.datajudStatus === 'Sync Requested' && 'animate-spin',
                         )}
                       />
-                      Sincronizar
+                      {lawsuit.datajudStatus === 'Sync Requested' ? 'Sincronizando' : 'Sincronizar'}
                     </Button>
                   )}
                 </div>

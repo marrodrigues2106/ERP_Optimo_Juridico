@@ -21,47 +21,61 @@ function getCourtAlias(courtName) {
 }
 
 function fetchAndMergeDatajud(record) {
-  const num = record.get('number') || ''
-  const court = record.get('court') || ''
-
-  if (!num) {
-    record.set('datajudStatus', 'Sem número de processo')
-    return false
-  }
-
-  const cleanNum = String(num).replace(/\D/g, '')
-  if (cleanNum.length < 10) {
-    record.set('datajudStatus', 'Número inválido')
-    return false
-  }
-
-  const courtAlias = getCourtAlias(String(court))
-  if (!courtAlias) {
-    record.set('datajudStatus', 'Tribunal não suportado')
-    return false
-  }
-
   try {
-    const url = 'https://api-publica.datajud.cnj.jus.br/api_publica_' + courtAlias + '/_search'
-    const res = $http.send({
-      url: url,
-      method: 'POST',
-      headers: {
-        Authorization: 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        query: { match: { numeroProcesso: cleanNum } },
-      }),
-      timeout: 15,
-    })
+    const num = record.get('number') || ''
+    const court = record.get('court') || ''
+
+    if (!num) {
+      record.set('datajudStatus', 'Sem número de processo')
+      return false
+    }
+
+    const cleanNum = String(num).replace(/\D/g, '')
+    if (cleanNum.length < 10) {
+      record.set('datajudStatus', 'Número inválido')
+      return false
+    }
+
+    const courtAlias = getCourtAlias(String(court))
+    if (!courtAlias) {
+      record.set('datajudStatus', 'Tribunal não suportado')
+      return false
+    }
+
+    let res
+    try {
+      const url = 'https://api-publica.datajud.cnj.jus.br/api_publica_' + courtAlias + '/_search'
+      res = $http.send({
+        url: url,
+        method: 'POST',
+        headers: {
+          Authorization: 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: { match: { numeroProcesso: cleanNum } },
+        }),
+        timeout: 15,
+      })
+    } catch (err) {
+      record.set('datajudStatus', 'Connection Error')
+      console.log('Datajud Error: ', err)
+      return false
+    }
 
     if (res.statusCode !== 200) {
       record.set('datajudStatus', 'API Error: ' + res.statusCode)
       return false
     }
 
-    const data = res.json
+    let data
+    try {
+      data = res.json
+    } catch (err) {
+      record.set('datajudStatus', 'Invalid Response format')
+      return false
+    }
+
     if (!data || !data.hits || !data.hits.hits || data.hits.hits.length === 0) {
       record.set('datajudStatus', 'Sem resultados no Datajud')
       return false
@@ -99,80 +113,100 @@ function fetchAndMergeDatajud(record) {
 
     if (changed) {
       allLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      record.set('trackingLogs', allLogs)
+      // Use JSON.parse(JSON.stringify()) to ensure goja treats it as a pure primitive JS array map
+      // avoiding potential validation errors when saving to a json field in PocketBase v0.22+
+      record.set('trackingLogs', JSON.parse(JSON.stringify(allLogs)))
     }
 
     record.set('datajudStatus', 'Synced')
     return changed
-  } catch (err) {
-    record.set('datajudStatus', 'Connection Error')
-    console.log('Datajud Error: ', err)
+  } catch (globalErr) {
+    console.log('Global error in fetchAndMergeDatajud:', globalErr)
+    record.set('datajudStatus', 'Erro interno na sincronização')
     return false
   }
 }
 
 function createNotifications(record) {
-  let logsRaw = record.get('trackingLogs')
-  let logs = []
-  if (logsRaw) {
-    try {
-      logs = JSON.parse(JSON.stringify(logsRaw))
-    } catch (e) {}
-  }
-  if (!Array.isArray(logs) || logs.length === 0) return
-
-  let notifyUserIds = []
   try {
-    const users = $app.findRecordsByFilter('users', '', '', 100, 0)
-    for (let i = 0; i < users.length; i++) {
-      notifyUserIds.push(users[i].id)
-    }
-  } catch (e) {}
-
-  if (notifyUserIds.length === 0) return
-
-  const notifsCol = $app.findCollectionByNameOrId('lawsuit_notifications')
-
-  for (let i = 0; i < logs.length; i++) {
-    const log = logs[i]
-    if (!log || !log.description) continue
-
-    for (let j = 0; j < notifyUserIds.length; j++) {
-      const uid = notifyUserIds[j]
+    let logsRaw = record.get('trackingLogs')
+    let logs = []
+    if (logsRaw) {
       try {
-        $app.findFirstRecordByFilter(
-          'lawsuit_notifications',
-          'lawsuit = {:lawsuit} && update_content = {:content} && user = {:user}',
-          {
-            lawsuit: record.id,
-            content: log.description,
-            user: uid,
-          },
-        )
-      } catch (e) {
+        logs = JSON.parse(JSON.stringify(logsRaw))
+      } catch (e) {}
+    }
+    if (!Array.isArray(logs) || logs.length === 0) return
+
+    let notifyUserIds = []
+    try {
+      const users = $app.findRecordsByFilter('users', '', '', 100, 0)
+      for (let i = 0; i < users.length; i++) {
+        notifyUserIds.push(users[i].id)
+      }
+    } catch (e) {}
+
+    if (notifyUserIds.length === 0) return
+
+    let notifsCol
+    try {
+      notifsCol = $app.findCollectionByNameOrId('lawsuit_notifications')
+    } catch (e) {
+      return // Notification collection not found
+    }
+
+    for (let i = 0; i < logs.length; i++) {
+      const log = logs[i]
+      if (!log || !log.description) continue
+
+      for (let j = 0; j < notifyUserIds.length; j++) {
+        const uid = notifyUserIds[j]
         try {
-          const n = new Record(notifsCol)
-          n.set('lawsuit', record.id)
-          n.set('update_content', log.description)
-          n.set('user', uid)
-          n.set('is_read', false)
-          $app.saveNoValidate(n)
-        } catch (saveErr) {
-          console.log('Error creating notification', saveErr)
+          $app.findFirstRecordByFilter(
+            'lawsuit_notifications',
+            'lawsuit = {:lawsuit} && update_content = {:content} && user = {:user}',
+            {
+              lawsuit: record.id,
+              content: log.description,
+              user: uid,
+            },
+          )
+        } catch (e) {
+          try {
+            const n = new Record(notifsCol)
+            n.set('lawsuit', record.id)
+            n.set('update_content', log.description)
+            n.set('user', uid)
+            n.set('is_read', false)
+            $app.saveNoValidate(n)
+          } catch (saveErr) {
+            console.log('Error creating notification', saveErr)
+          }
         }
       }
     }
+  } catch (globalErr) {
+    console.log('Global error in createNotifications:', globalErr)
   }
 }
 
 onRecordCreate((e) => {
-  fetchAndMergeDatajud(e.record)
+  try {
+    fetchAndMergeDatajud(e.record)
+  } catch (err) {
+    console.log('Error in Datajud hook on create:', err)
+  }
   e.next()
 }, 'lawsuits')
 
 onRecordUpdate((e) => {
   if (e.record.get('datajudStatus') === 'Sync Requested') {
-    fetchAndMergeDatajud(e.record)
+    try {
+      fetchAndMergeDatajud(e.record)
+    } catch (err) {
+      console.log('Error in Datajud hook on update:', err)
+      e.record.set('datajudStatus', 'Erro interno na sincronização')
+    }
   }
   e.next()
 }, 'lawsuits')
@@ -182,7 +216,7 @@ onRecordAfterCreateSuccess((e) => {
 
   if (e.record.get('notifyClient') && e.record.get('client')) {
     console.log(
-      `[SIMULATION] Notificando cliente via e-mail sobre atualização: ${e.record.get('parties')}`,
+      `[SIMULATION] Notificando cliente via e-mail sobre criação: ${e.record.get('parties')}`,
     )
   }
 
