@@ -80,14 +80,6 @@ export default function Footer() {
                 >
                   {firmData.contact.phoneFixed}
                 </a>
-                <span className="block font-sans">
-                  <a
-                    href={`tel:${firmData.contact.phoneMobile1.replace(/\D/g, '')}`}
-                    className="hover:text-secondary transition-colors font-sans"
-                  >
-                    {firmData.contact.phoneMobile1}
-                  </a>
-                </span>
               </div>
               <p className="font-sans">
                 <a

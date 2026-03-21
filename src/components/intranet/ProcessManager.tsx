@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -10,51 +10,87 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Search, Plus, Calendar as CalendarIcon } from 'lucide-react'
-
-const mockProcesses = [
-  {
-    id: '1',
-    court: 'TJ-RJ',
-    number: '0012345-67.2023.8.19.0001',
-    parties: 'João Silva x Empresa ABC',
-    status: 'Aguardando Audiência',
-    deadline: '2023-11-20',
-  },
-  {
-    id: '2',
-    court: 'TRF-2',
-    number: '5009876-54.2022.4.02.5101',
-    parties: 'Maria Souza x União Federal',
-    status: 'Prazo para Recurso',
-    deadline: '2023-11-15',
-  },
-  {
-    id: '3',
-    court: 'STJ',
-    number: '1004567-89.2021.3.00.0000',
-    parties: 'Empresa ABC x Estado do Rio',
-    status: 'Em Análise',
-    deadline: '2023-12-05',
-  },
-]
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Search, Plus, Calendar as CalendarIcon, Trash2 } from 'lucide-react'
+import { getLawsuits, createLawsuit, deleteLawsuit } from '@/services/lawsuits'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export default function ProcessManager() {
-  const [processes] = useState(mockProcesses)
+  const [processes, setProcesses] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [open, setOpen] = useState(false)
+
+  const loadData = async () => {
+    try {
+      setProcesses(await getLawsuits())
+    } catch (e) {}
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+  useRealtime('lawsuits', loadData)
 
   const filtered = processes.filter(
     (p) =>
       p.number.includes(searchTerm) || p.parties.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    await createLawsuit(Object.fromEntries(fd.entries()))
+    setOpen(false)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <h2 className="text-2xl font-serif font-bold text-primary">Gestão de Processos</h2>
-        <Button>
-          <Plus className="w-4 h-4 mr-2" /> Novo Processo
-        </Button>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="w-4 h-4 mr-2" /> Novo Processo
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Novo Processo</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label>Número do Processo</Label>
+                <Input name="number" required placeholder="0000000-00.0000.0.00.0000" />
+              </div>
+              <div>
+                <Label>Tribunal</Label>
+                <Input name="court" required placeholder="Ex: TJ-RJ" />
+              </div>
+              <div>
+                <Label>Partes (Cliente x Parte Contraria)</Label>
+                <Input name="parties" required />
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Input name="status" required placeholder="Ex: Aguardando Audiência" />
+              </div>
+              <div>
+                <Label>Próximo Prazo</Label>
+                <Input name="deadline" type="date" required />
+              </div>
+              <Button type="submit" className="w-full">
+                Salvar Processo
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -81,6 +117,7 @@ export default function ProcessManager() {
                     <TableHead>Tribunal / Número</TableHead>
                     <TableHead>Partes</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -97,6 +134,11 @@ export default function ProcessManager() {
                         <span className="px-2 py-1 bg-secondary/10 text-secondary rounded-full text-xs font-medium whitespace-nowrap">
                           {p.status}
                         </span>
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" onClick={() => deleteLawsuit(p.id)}>
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -115,18 +157,16 @@ export default function ProcessManager() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {processes
+                {[...processes]
                   .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
+                  .slice(0, 5)
                   .map((p) => (
                     <div
                       key={`deadline-${p.id}`}
                       className="flex justify-between items-start p-3 border rounded-lg bg-slate-50"
                     >
                       <div className="flex-1 pr-2">
-                        <div
-                          className="font-semibold text-sm text-primary line-clamp-1"
-                          title={p.parties}
-                        >
+                        <div className="font-semibold text-sm text-primary line-clamp-1">
                           {p.parties}
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 line-clamp-1">
@@ -139,9 +179,6 @@ export default function ProcessManager() {
                     </div>
                   ))}
               </div>
-              <Button variant="outline" className="w-full mt-4">
-                Ver Calendário Completo
-              </Button>
             </CardContent>
           </Card>
         </div>

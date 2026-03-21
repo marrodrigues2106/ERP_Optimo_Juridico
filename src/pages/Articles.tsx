@@ -1,9 +1,21 @@
-import { useBlog } from '@/contexts/BlogContext'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Play } from 'lucide-react'
+import { getPublishedPosts } from '@/services/posts'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export default function Articles() {
-  const { posts } = useBlog()
+  const [posts, setPosts] = useState<any[]>([])
+
+  const loadData = async () => {
+    try {
+      setPosts(await getPublishedPosts())
+    } catch (e) {}
+  }
+  useEffect(() => {
+    loadData()
+  }, [])
+  useRealtime('posts', loadData)
 
   return (
     <div className="min-h-screen bg-slate-50 pt-32 pb-24 px-4">
@@ -53,7 +65,7 @@ export default function Articles() {
                 <CardHeader className="pt-8 pb-4">
                   <div className="text-sm text-secondary font-medium tracking-wider uppercase mb-2">
                     {post.category && `${post.category} • `}
-                    {new Date(post.date).toLocaleDateString()}
+                    {new Date(post.created).toLocaleDateString()}
                   </div>
                   <CardTitle className="font-serif text-3xl md:text-4xl text-primary leading-tight">
                     {post.title}

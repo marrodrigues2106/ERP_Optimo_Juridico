@@ -42,7 +42,7 @@ export default function Header() {
             <img
               src={logoImg}
               alt={firmData.name}
-              className="h-48 w-auto object-contain transition-all duration-300"
+              className="h-36 w-auto object-contain transition-all duration-300"
             />
           </div>
         </Link>
@@ -112,9 +112,24 @@ export default function Header() {
                 </NavigationMenuLink>
               </NavigationMenuItem>
               <NavigationMenuItem>
+                <NavigationMenuLink asChild active={pathname === '/intranet'}>
+                  <Link
+                    to="/intranet"
+                    className={cn(
+                      navigationMenuTriggerStyle(),
+                      'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
+                      pathname === '/intranet' &&
+                        'border-b-2 border-secondary rounded-none text-secondary',
+                    )}
+                  >
+                    Acesso Restrito
+                  </Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+              <NavigationMenuItem>
                 <NavigationMenuLink asChild>
                   <a
-                    href="#contato"
+                    href="/#contato"
                     className={cn(
                       navigationMenuTriggerStyle(),
                       'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
@@ -198,7 +213,14 @@ export default function Header() {
           >
             Artigos
           </Link>
-          <a href="#contato" className="text-lg font-medium py-2 text-primary" onClick={closeMenu}>
+          <Link
+            to="/intranet"
+            className="text-lg font-medium py-2 border-b text-primary"
+            onClick={closeMenu}
+          >
+            Acesso Restrito
+          </Link>
+          <a href="/#contato" className="text-lg font-medium py-2 text-primary" onClick={closeMenu}>
             Contato
           </a>
           <div className="flex items-center gap-6 mt-4 justify-center text-primary/80">

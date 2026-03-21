@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -8,14 +8,20 @@ import { Label } from '@/components/ui/label'
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const { login } = useAuth()
+  const [errorMsg, setErrorMsg] = useState('')
+  const { signIn } = useAuth()
   const navigate = useNavigate()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setErrorMsg('')
     if (email && password) {
-      login()
-      navigate('/intranet')
+      const { error } = await signIn(email, password)
+      if (error) {
+        setErrorMsg('Invalid credentials')
+      } else {
+        navigate('/intranet')
+      }
     }
   }
 
@@ -29,6 +35,11 @@ export default function Login() {
           Área exclusiva para membros do escritório.
         </p>
         <form onSubmit={handleSubmit} className="space-y-6">
+          {errorMsg && (
+            <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md text-center font-medium">
+              {errorMsg}
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="email">E-mail</Label>
             <Input

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -20,11 +20,11 @@ import CrmManager from '@/components/intranet/CrmManager'
 import TeamManager from '@/components/intranet/TeamManager'
 
 export default function Intranet() {
-  const { logout } = useAuth()
+  const { signOut } = useAuth()
   const navigate = useNavigate()
 
   const handleLogout = () => {
-    logout()
+    signOut()
     navigate('/')
   }
 

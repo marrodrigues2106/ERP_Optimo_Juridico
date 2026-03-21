@@ -1,6 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import {
   Table,
   TableBody,
@@ -10,52 +18,71 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { Search, UserPlus, Phone, Mail } from 'lucide-react'
-
-const mockClients = [
-  {
-    id: '1',
-    name: 'João Silva',
-    email: 'joao@example.com',
-    phone: '(21) 99999-9999',
-    status: 'Active Client',
-  },
-  {
-    id: '2',
-    name: 'Maria Souza',
-    email: 'maria@example.com',
-    phone: '(21) 98888-8888',
-    status: 'Prospect',
-  },
-  {
-    id: '3',
-    name: 'Empresa ABC',
-    email: 'contato@abc.com',
-    phone: '(11) 3333-3333',
-    status: 'Former Client',
-  },
-  {
-    id: '4',
-    name: 'Pedro Alves',
-    email: 'pedro@example.com',
-    phone: '(21) 97777-7777',
-    status: 'Active Client',
-  },
-]
+import { Search, UserPlus, Phone, Mail, Trash2 } from 'lucide-react'
+import { getClients, createClient, deleteClient } from '@/services/clients'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export default function CrmManager() {
-  const [clients] = useState(mockClients)
+  const [clients, setClients] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [open, setOpen] = useState(false)
+
+  const loadData = async () => {
+    try {
+      setClients(await getClients())
+    } catch (e) {}
+  }
+  useEffect(() => {
+    loadData()
+  }, [])
+  useRealtime('clients', loadData)
 
   const filtered = clients.filter((c) => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    await createClient(Object.fromEntries(fd.entries()))
+    setOpen(false)
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <h2 className="text-2xl font-serif font-bold text-primary">CRM & Clientes</h2>
-        <Button>
-          <UserPlus className="w-4 h-4 mr-2" /> Novo Cliente
-        </Button>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <UserPlus className="w-4 h-4 mr-2" /> Novo Cliente
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Cadastrar Cliente</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label>Nome Completo / Empresa</Label>
+                <Input name="name" required />
+              </div>
+              <div>
+                <Label>E-mail</Label>
+                <Input name="email" type="email" />
+              </div>
+              <div>
+                <Label>Telefone</Label>
+                <Input name="phone" />
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Input name="status" placeholder="Ex: Ativo, Prospecto" />
+              </div>
+              <Button type="submit" className="w-full">
+                Salvar Cliente
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Card>
@@ -98,25 +125,13 @@ export default function CrmManager() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
-                        client.status === 'Active Client'
-                          ? 'bg-green-100 text-green-800'
-                          : client.status === 'Prospect'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {client.status === 'Active Client'
-                        ? 'Ativo'
-                        : client.status === 'Prospect'
-                          ? 'Prospecto'
-                          : 'Ex-Cliente'}
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+                      {client.status}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm">
-                      Ver Perfil
+                    <Button variant="ghost" size="icon" onClick={() => deleteClient(client.id)}>
+                      <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>
                   </TableCell>
                 </TableRow>

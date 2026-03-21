@@ -5,7 +5,6 @@ export const firmData = {
   schedule: 'Seg a Sex, com agendamento',
   contact: {
     phoneFixed: '+55 21 2082-6855',
-    phoneMobile1: '+55 21 97439-8218',
     email: 'contato@moraesrodriguesadvocacia.com.br',
     whatsapp: '5521974398218',
   },

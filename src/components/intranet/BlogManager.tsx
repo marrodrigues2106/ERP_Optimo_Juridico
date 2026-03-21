@@ -1,15 +1,16 @@
-import { useState } from 'react'
-import { useBlog, BlogPost } from '@/contexts/BlogContext'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Trash2, Edit2 } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
+import { getPosts, createPost, updatePost, deletePost } from '@/services/posts'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export default function BlogManager() {
-  const { posts, addPost, updatePost, deletePost } = useBlog()
-
+  const [posts, setPosts] = useState<any[]>([])
   const [isEditing, setIsEditing] = useState(false)
   const [currentId, setCurrentId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
@@ -17,6 +18,17 @@ export default function BlogManager() {
   const [content, setContent] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [videoUrl, setVideoUrl] = useState('')
+  const [published, setPublished] = useState(false)
+
+  const loadData = async () => {
+    try {
+      setPosts(await getPosts())
+    } catch (e) {}
+  }
+  useEffect(() => {
+    loadData()
+  }, [])
+  useRealtime('posts', loadData)
 
   const resetForm = () => {
     setTitle('')
@@ -24,21 +36,23 @@ export default function BlogManager() {
     setContent('')
     setImageUrl('')
     setVideoUrl('')
+    setPublished(false)
     setCurrentId(null)
     setIsEditing(false)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const data = { title, category, content, imageUrl, videoUrl, published }
     if (currentId) {
-      updatePost(currentId, { title, category, content, imageUrl, videoUrl })
+      await updatePost(currentId, data)
     } else {
-      addPost({ title, category, content, imageUrl, videoUrl })
+      await createPost(data)
     }
     resetForm()
   }
 
-  const handleEdit = (post: BlogPost) => {
+  const handleEdit = (post: any) => {
     setIsEditing(true)
     setCurrentId(post.id)
     setTitle(post.title)
@@ -46,6 +60,7 @@ export default function BlogManager() {
     setContent(post.content)
     setImageUrl(post.imageUrl || '')
     setVideoUrl(post.videoUrl || '')
+    setPublished(!!post.published)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -74,11 +89,10 @@ export default function BlogManager() {
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   required
-                  placeholder="Ex: Direito Tributário"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="content">Conteúdo</Label>
+                <Label htmlFor="content">Conteúdo (Suporta parágrafos)</Label>
                 <Textarea
                   id="content"
                   value={content}
@@ -93,7 +107,6 @@ export default function BlogManager() {
                   id="imageUrl"
                   value={imageUrl}
                   onChange={(e) => setImageUrl(e.target.value)}
-                  placeholder="https://..."
                 />
               </div>
               <div className="space-y-2">
@@ -102,12 +115,15 @@ export default function BlogManager() {
                   id="videoUrl"
                   value={videoUrl}
                   onChange={(e) => setVideoUrl(e.target.value)}
-                  placeholder="https://..."
                 />
+              </div>
+              <div className="flex items-center space-x-2 pt-2">
+                <Switch id="published" checked={published} onCheckedChange={setPublished} />
+                <Label htmlFor="published">Publicado</Label>
               </div>
               <div className="pt-2 flex flex-col gap-2">
                 <Button type="submit" className="w-full">
-                  {isEditing ? 'Salvar Alterações' : 'Publicar Artigo'}
+                  {isEditing ? 'Salvar Alterações' : 'Criar Artigo'}
                 </Button>
                 {isEditing && (
                   <Button type="button" variant="outline" onClick={resetForm}>
@@ -123,13 +139,11 @@ export default function BlogManager() {
       <div className="lg:col-span-2">
         <Card>
           <CardHeader>
-            <CardTitle>Artigos Publicados ({posts.length})</CardTitle>
+            <CardTitle>Artigos ({posts.length})</CardTitle>
           </CardHeader>
           <CardContent>
             {posts.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">
-                Nenhum artigo publicado ainda.
-              </p>
+              <p className="text-muted-foreground text-center py-8">Nenhum artigo encontrado.</p>
             ) : (
               <div className="space-y-4">
                 {posts.map((post) => (
@@ -140,37 +154,21 @@ export default function BlogManager() {
                     <div className="flex-1">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
                         <h3 className="font-semibold text-lg text-primary">{post.title}</h3>
-                        {post.category && (
-                          <span className="bg-secondary/20 text-secondary text-xs px-2 py-1 rounded-full">
-                            {post.category}
+                        {!post.published && (
+                          <span className="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-full">
+                            Rascunho
                           </span>
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
                         {post.content}
                       </p>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        <span>{new Date(post.date).toLocaleDateString()}</span>
-                        {(post.imageUrl || post.videoUrl) && <span>•</span>}
-                        {post.imageUrl && <span>Tem imagem</span>}
-                        {post.videoUrl && <span>Tem vídeo</span>}
-                      </div>
                     </div>
                     <div className="flex gap-2 shrink-0 md:flex-col justify-center">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => handleEdit(post)}
-                        title="Editar"
-                      >
+                      <Button variant="outline" size="icon" onClick={() => handleEdit(post)}>
                         <Edit2 className="w-4 h-4" />
                       </Button>
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => deletePost(post.id)}
-                        title="Excluir"
-                      >
+                      <Button variant="destructive" size="icon" onClick={() => deletePost(post.id)}>
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
