@@ -74,8 +74,11 @@ function fetchAndMergeDatajud(record) {
     let allHits = []
     let searchAfter = null
     const pageSize = 100
+    let loopCount = 0
 
-    while (true) {
+    // Limit pagination to 10 pages to prevent timeouts and database lock exceptions
+    while (loopCount < 10) {
+      loopCount++
       let bodyObj = {
         size: pageSize,
         query: { match: { numeroProcesso: cleanNum } },
@@ -128,7 +131,7 @@ function fetchAndMergeDatajud(record) {
       }
 
       const hits = data.hits.hits
-      if (hits.length === 0) {
+      if (!Array.isArray(hits) || hits.length === 0) {
         break
       }
 
@@ -141,10 +144,10 @@ function fetchAndMergeDatajud(record) {
       }
 
       const lastHit = hits[hits.length - 1]
-      if (lastHit.sort && lastHit.sort.length > 0) {
+      if (lastHit && lastHit.sort && lastHit.sort.length > 0) {
         searchAfter = lastHit.sort
       } else {
-        break // Failsafe: if sort array is missing, we can't paginate further
+        break // Failsafe
       }
     }
 
@@ -155,7 +158,7 @@ function fetchAndMergeDatajud(record) {
 
     // Extract metadata from the first valid hit
     for (let i = 0; i < allHits.length; i++) {
-      const proc = allHits[i]._source
+      const proc = allHits[i]?._source
       if (proc && proc.orgaoJulgador && proc.orgaoJulgador.nomeOrgao) {
         record.set('court', proc.orgaoJulgador.nomeOrgao)
         break
@@ -167,8 +170,8 @@ function fetchAndMergeDatajud(record) {
 
     // Extract and deduplicate all movimentos across all paginated hits
     for (let i = 0; i < allHits.length; i++) {
-      const proc = allHits[i]._source
-      const movimentos = proc.movimentos || []
+      const proc = allHits[i]?._source
+      const movimentos = proc?.movimentos || []
 
       for (let j = 0; j < movimentos.length; j++) {
         const m = movimentos[j]
@@ -181,7 +184,7 @@ function fetchAndMergeDatajud(record) {
           newLogs.push({
             date: dateStr,
             description: descStr,
-            complementos: m.complementosTabelados || [],
+            complementos: Array.isArray(m.complementosTabelados) ? m.complementosTabelados : [],
             isManual: false,
           })
         }
@@ -212,8 +215,8 @@ function fetchAndMergeDatajud(record) {
     const allLogs = manualLogs.concat(newLogs)
     allLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
-    // Apply raw array directly to prevent validation errors with JSON parsing during hook assignment
-    record.set('trackingLogs', allLogs)
+    // Deep copy to completely eliminate undefined or circular references before PocketBase validation
+    record.set('trackingLogs', JSON.parse(JSON.stringify(allLogs)))
     record.set('datajudStatus', 'Success')
     return true
   } catch (globalErr) {
@@ -237,11 +240,14 @@ function createNotifications(record) {
 
     let notifyUserIds = []
     try {
-      const users = $app.findRecordsByFilter('users', '', '', 100, 0)
+      // Use "1=1" instead of empty string to avoid SQL syntax errors on PB JSVM
+      const users = $app.findRecordsByFilter('users', '1=1', '', 100, 0)
       for (let i = 0; i < users.length; i++) {
         notifyUserIds.push(users[i].id)
       }
-    } catch (e) {}
+    } catch (e) {
+      console.log('Error fetching users for notification:', e)
+    }
 
     if (notifyUserIds.length === 0) return
 
@@ -259,14 +265,11 @@ function createNotifications(record) {
       for (let j = 0; j < notifyUserIds.length; j++) {
         const uid = notifyUserIds[j]
         try {
+          // Properly escape and interpolate values instead of using unsupported object bindings
+          const safeContent = String(log.description).replace(/'/g, "''")
           $app.findFirstRecordByFilter(
             'lawsuit_notifications',
-            'lawsuit = {:lawsuit} && update_content = {:content} && user = {:user}',
-            {
-              lawsuit: record.id,
-              content: log.description,
-              user: uid,
-            },
+            `lawsuit = '${record.id}' && update_content = '${safeContent}' && user = '${uid}'`,
           )
         } catch (e) {
           try {
