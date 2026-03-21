@@ -214,10 +214,18 @@ export default function ProcessDetail() {
                             ? 'text-blue-600 animate-pulse'
                             : lawsuit.datajudStatus === 'Not Found'
                               ? 'text-slate-500'
-                              : 'text-red-600',
+                              : lawsuit.datajudStatus === 'Sync Failed'
+                                ? 'text-red-600 font-bold'
+                                : 'text-red-600',
                       )}
                     >
-                      {lawsuit.datajudStatus}
+                      {lawsuit.datajudStatus === 'Sync Failed'
+                        ? 'Falha na Sincronização'
+                        : lawsuit.datajudStatus === 'Success'
+                          ? 'Sucesso'
+                          : lawsuit.datajudStatus === 'Not Found'
+                            ? 'Não Encontrado'
+                            : lawsuit.datajudStatus}
                     </span>
                   </p>
                 )}
@@ -355,44 +363,71 @@ export default function ProcessDetail() {
                         )
                       }
 
-                      return [...logs].reverse().map((log: any, idx: number) => (
-                        <div key={idx} className="relative pl-6 md:pl-8">
-                          <span
-                            className={cn(
-                              'absolute -left-[9px] top-1.5 h-4 w-4 rounded-full border-2 border-white',
-                              log.isManual ? 'bg-amber-500' : 'bg-primary',
-                            )}
-                          ></span>
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-slate-800 mb-2 flex items-center">
-                              {new Date(log.date).toLocaleString('pt-BR', {
-                                dateStyle: 'short',
-                                timeStyle: 'short',
-                              })}
-                            </span>
-                            <div className="text-slate-700 bg-white p-4 rounded-lg border shadow-sm text-sm leading-relaxed">
-                              <p className="font-semibold text-slate-800">{log.description}</p>
-                              {log.complementos && log.complementos.length > 0 && (
-                                <div className="mt-3 space-y-1 text-xs text-slate-600 bg-slate-50 p-2.5 rounded border border-dashed">
-                                  {log.complementos.map((comp: any, cIdx: number) => (
-                                    <div key={cIdx} className="grid grid-cols-[100px_1fr] gap-2">
-                                      <span className="font-medium text-slate-700">
-                                        {comp.nome}:
-                                      </span>
-                                      <span className="break-words">{comp.valor}</span>
-                                    </div>
-                                  ))}
-                                </div>
+                      return [...logs].reverse().map((log: any, idx: number) => {
+                        const isErrorLog =
+                          !log.isManual &&
+                          log.description &&
+                          String(log.description).startsWith('Falha')
+                        return (
+                          <div key={idx} className="relative pl-6 md:pl-8">
+                            <span
+                              className={cn(
+                                'absolute -left-[9px] top-1.5 h-4 w-4 rounded-full border-2 border-white',
+                                log.isManual
+                                  ? 'bg-amber-500'
+                                  : isErrorLog
+                                    ? 'bg-red-500'
+                                    : 'bg-primary',
                               )}
-                              {log.isManual && (
-                                <span className="inline-block mt-3 px-2 py-1 bg-amber-100 text-amber-800 text-[10px] rounded font-bold uppercase tracking-wider">
-                                  Registro Manual
-                                </span>
-                              )}
+                            ></span>
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-slate-800 mb-2 flex items-center">
+                                {new Date(log.date).toLocaleString('pt-BR', {
+                                  dateStyle: 'short',
+                                  timeStyle: 'short',
+                                })}
+                              </span>
+                              <div
+                                className={cn(
+                                  'bg-white p-4 rounded-lg border shadow-sm text-sm leading-relaxed',
+                                  isErrorLog ? 'border-red-200 text-red-900' : 'text-slate-700',
+                                )}
+                              >
+                                <p
+                                  className={cn(
+                                    'font-semibold',
+                                    isErrorLog ? 'text-red-800' : 'text-slate-800',
+                                  )}
+                                >
+                                  {log.description}
+                                </p>
+                                {log.complementos && log.complementos.length > 0 && (
+                                  <div className="mt-3 space-y-1 text-xs text-slate-600 bg-slate-50 p-2.5 rounded border border-dashed">
+                                    {log.complementos.map((comp: any, cIdx: number) => (
+                                      <div key={cIdx} className="grid grid-cols-[100px_1fr] gap-2">
+                                        <span className="font-medium text-slate-700">
+                                          {comp.nome}:
+                                        </span>
+                                        <span className="break-words">{comp.valor}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {log.isManual && (
+                                  <span className="inline-block mt-3 px-2 py-1 bg-amber-100 text-amber-800 text-[10px] rounded font-bold uppercase tracking-wider">
+                                    Registro Manual
+                                  </span>
+                                )}
+                                {isErrorLog && (
+                                  <span className="inline-block mt-3 px-2 py-1 bg-red-100 text-red-800 text-[10px] rounded font-bold uppercase tracking-wider">
+                                    Erro de Sistema
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))
+                        )
+                      })
                     })()}
                   </div>
 

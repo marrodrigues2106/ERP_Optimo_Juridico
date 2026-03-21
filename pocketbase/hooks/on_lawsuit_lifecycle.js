@@ -59,7 +59,7 @@ function getCourtAliasFromName(courtStr) {
   // Normalize string to lowercase and strip all punctuation and spaces
   const cleanStr = String(courtStr)
     .toLowerCase()
-    .replace(/[\/\-\s]/g, '')
+    .replace(/[\/\-\s.,]/g, '')
 
   // Extract known court acronyms from variations like "TJ-RJ", "TJ/RJ", "Tribunal Regional Federal da 1a Regiao (TRF1)"
   const regex = /(stf|stj|tse|stm|cnj|tj[a-z]{2}|trf[0-9]+|trt[0-9]+|tre[a-z]{2})/
@@ -70,9 +70,30 @@ function getCourtAliasFromName(courtStr) {
   }
 
   // Fallback if not an exact match to our patterns
-  return String(courtStr)
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '')
+  return cleanStr.replace(/[^a-z0-9]/g, '')
+}
+
+function addErrorLog(record, message) {
+  let existingLogsRaw = record.get('trackingLogs')
+  let existingLogs = []
+  if (existingLogsRaw) {
+    try {
+      existingLogs =
+        typeof existingLogsRaw === 'string'
+          ? JSON.parse(existingLogsRaw)
+          : JSON.parse(JSON.stringify(existingLogsRaw))
+    } catch (e) {}
+  }
+  if (!Array.isArray(existingLogs)) {
+    existingLogs = []
+  }
+  existingLogs.push({
+    date: new Date().toISOString(),
+    description: message,
+    isManual: false,
+    complementos: [],
+  })
+  record.set('trackingLogs', JSON.parse(JSON.stringify(existingLogs)))
 }
 
 function fetchAndMergeDatajud(record) {
@@ -81,7 +102,13 @@ function fetchAndMergeDatajud(record) {
     const cleanNum = String(num).replace(/\D/g, '')
 
     if (cleanNum.length !== 20) {
-      record.set('datajudStatus', 'Error: Invalid Number')
+      record.set('datajudStatus', 'Sync Failed')
+      addErrorLog(
+        record,
+        'Falha na sincronização: Número do processo inválido (' +
+          cleanNum +
+          '). O número deve conter 20 dígitos.',
+      )
       return false
     }
 
@@ -99,7 +126,11 @@ function fetchAndMergeDatajud(record) {
     }
 
     if (!alias) {
-      record.set('datajudStatus', 'Error: Unknown Tribunal')
+      record.set('datajudStatus', 'Sync Failed')
+      addErrorLog(
+        record,
+        'Falha na sincronização: Não foi possível identificar o tribunal (Órgão) pelo nome ou número.',
+      )
       return false
     }
 
@@ -141,13 +172,26 @@ function fetchAndMergeDatajud(record) {
           timeout: 30,
         })
       } catch (err) {
-        record.set('datajudStatus', 'Error: Connection Failed')
+        record.set('datajudStatus', 'Sync Failed')
+        const errMsg = err && err.message ? err.message : String(err)
+        addErrorLog(
+          record,
+          'Falha na sincronização de rede com a API DataJud (' + url + '): ' + errMsg,
+        )
         console.log('Datajud Connection Error: ', err, 'URL: ', url)
         return false
       }
 
       if (res.statusCode !== 200) {
-        record.set('datajudStatus', 'Error: API ' + res.statusCode)
+        record.set('datajudStatus', 'Sync Failed')
+        addErrorLog(
+          record,
+          'Falha na sincronização: A API DataJud retornou status ' +
+            res.statusCode +
+            ' (' +
+            url +
+            ')',
+        )
         console.log('Datajud API Error: ', res.statusCode, 'URL: ', url)
         return false
       }
@@ -156,7 +200,8 @@ function fetchAndMergeDatajud(record) {
       try {
         data = res.json
       } catch (err) {
-        record.set('datajudStatus', 'Error: Invalid Response format')
+        record.set('datajudStatus', 'Sync Failed')
+        addErrorLog(record, 'Falha na sincronização: Resposta da API DataJud em formato inválido.')
         return false
       }
 
@@ -243,13 +288,21 @@ function fetchAndMergeDatajud(record) {
     }
 
     const manualLogs = []
+    const errorLogs = []
     for (let i = 0; i < existingLogs.length; i++) {
-      if (existingLogs[i] && existingLogs[i].isManual) {
-        manualLogs.push(existingLogs[i])
+      if (existingLogs[i]) {
+        if (existingLogs[i].isManual) {
+          manualLogs.push(existingLogs[i])
+        } else if (
+          existingLogs[i].description &&
+          String(existingLogs[i].description).startsWith('Falha')
+        ) {
+          errorLogs.push(existingLogs[i])
+        }
       }
     }
 
-    const allLogs = manualLogs.concat(newLogs)
+    const allLogs = manualLogs.concat(errorLogs).concat(newLogs)
     allLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
     // Deep copy to completely eliminate undefined or circular references before PocketBase validation
@@ -258,7 +311,9 @@ function fetchAndMergeDatajud(record) {
     return true
   } catch (globalErr) {
     console.log('Global error in fetchAndMergeDatajud:', globalErr)
-    record.set('datajudStatus', 'Error: Internal Error')
+    record.set('datajudStatus', 'Sync Failed')
+    const errMsg = globalErr && globalErr.message ? globalErr.message : String(globalErr)
+    addErrorLog(record, 'Falha inesperada no processamento da sincronização DataJud: ' + errMsg)
     return false
   }
 }
@@ -364,7 +419,9 @@ onRecordUpdate((e) => {
       })
     } catch (err) {
       console.log('Error in Datajud hook on update:', err)
-      e.record.set('datajudStatus', 'Error: Internal Error')
+      e.record.set('datajudStatus', 'Sync Failed')
+      const errMsg = err && err.message ? err.message : String(err)
+      addErrorLog(e.record, 'Falha crítica na sincronização DataJud: ' + errMsg)
       logDatajudAudit(e, 'datajud_sync_error', { error: err.toString() })
     }
   }
