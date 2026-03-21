@@ -32,8 +32,8 @@ export default function Header() {
       className={cn(
         'fixed top-0 w-full z-50 transition-all duration-300 border-b',
         isScrolled
-          ? 'bg-white/95 backdrop-blur-md shadow-sm border-gray-200 py-2'
-          : 'bg-[#F9F9F9] border-transparent py-4',
+          ? 'bg-white/95 backdrop-blur-md shadow-sm border-gray-200 py-1'
+          : 'bg-[#F9F9F9] border-transparent py-3',
       )}
     >
       <div className="container mx-auto px-4 flex items-center justify-between">
@@ -42,7 +42,7 @@ export default function Header() {
             <img
               src={logoImg}
               alt={firmData.name}
-              className="h-36 w-auto object-contain transition-all duration-300"
+              className="h-[6.75rem] w-auto object-contain transition-all duration-300"
             />
           </div>
         </Link>

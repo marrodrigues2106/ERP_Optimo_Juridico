@@ -1,15 +1,15 @@
 {
-  "generatedAt": "2026-03-21T02:39:51.896Z",
+  "generatedAt": "2026-03-21T02:48:49.190Z",
   "collections": [
     {
       "name": "users",
       "type": "auth",
       "apiRules": {
-        "list": "id = @request.auth.id",
-        "view": "id = @request.auth.id",
+        "list": "id = @request.auth.id || @request.auth.isAdmin = true",
+        "view": "id = @request.auth.id || @request.auth.isAdmin = true",
         "create": "",
-        "update": "id = @request.auth.id",
-        "delete": "id = @request.auth.id"
+        "update": "id = @request.auth.id || @request.auth.isAdmin = true",
+        "delete": "@request.auth.isAdmin = true"
       },
       "fields": [
         {
@@ -37,6 +37,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "isAdmin",
+          "type": "bool",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [

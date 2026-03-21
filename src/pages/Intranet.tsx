@@ -10,6 +10,8 @@ import {
   BookOpen,
   Users,
   Briefcase,
+  User,
+  Shield,
 } from 'lucide-react'
 
 import BlogManager from '@/components/intranet/BlogManager'
@@ -18,9 +20,11 @@ import FinanceManager from '@/components/intranet/FinanceManager'
 import LibraryManager from '@/components/intranet/LibraryManager'
 import CrmManager from '@/components/intranet/CrmManager'
 import TeamManager from '@/components/intranet/TeamManager'
+import UsersManager from '@/components/intranet/UsersManager'
+import ProfileManager from '@/components/intranet/ProfileManager'
 
 export default function Intranet() {
-  const { signOut } = useAuth()
+  const { signOut, user } = useAuth()
   const navigate = useNavigate()
 
   const handleLogout = () => {
@@ -79,6 +83,20 @@ export default function Intranet() {
             >
               <LayoutDashboard className="w-4 h-4 mr-2 hidden sm:block" /> Equipe
             </TabsTrigger>
+            {user?.isAdmin && (
+              <TabsTrigger
+                value="users"
+                className="data-[state=active]:bg-primary data-[state=active]:text-white border bg-white"
+              >
+                <Shield className="w-4 h-4 mr-2 hidden sm:block" /> Usuários
+              </TabsTrigger>
+            )}
+            <TabsTrigger
+              value="profile"
+              className="data-[state=active]:bg-primary data-[state=active]:text-white border bg-white"
+            >
+              <User className="w-4 h-4 mr-2 hidden sm:block" /> Meu Perfil
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="processes" className="mt-0">
@@ -98,6 +116,14 @@ export default function Intranet() {
           </TabsContent>
           <TabsContent value="team" className="mt-0">
             <TeamManager />
+          </TabsContent>
+          {user?.isAdmin && (
+            <TabsContent value="users" className="mt-0">
+              <UsersManager />
+            </TabsContent>
+          )}
+          <TabsContent value="profile" className="mt-0">
+            <ProfileManager />
           </TabsContent>
         </Tabs>
       </div>
