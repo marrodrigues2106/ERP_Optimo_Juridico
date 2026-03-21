@@ -10,14 +10,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Search, BookOpen, FileText, Bookmark, Plus, Trash2 } from 'lucide-react'
-import { getKnowledgeItems, createKnowledgeItem, deleteKnowledgeItem } from '@/services/knowledge'
+import { Search, BookOpen, FileText, Bookmark, Plus, Trash2, Edit2 } from 'lucide-react'
+import {
+  getKnowledgeItems,
+  createKnowledgeItem,
+  updateKnowledgeItem,
+  deleteKnowledgeItem,
+} from '@/services/knowledge'
 import { useRealtime } from '@/hooks/use-realtime'
+import { useToast } from '@/hooks/use-toast'
 
 export default function LibraryManager() {
   const [docs, setDocs] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [open, setOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<any>(null)
+  const { toast } = useToast()
 
   const loadData = async () => {
     try {
@@ -33,11 +41,39 @@ export default function LibraryManager() {
 
   const filtered = docs.filter((d) => d.title.toLowerCase().includes(searchTerm.toLowerCase()))
 
+  const handleOpenNew = () => {
+    setEditingItem(null)
+    setOpen(true)
+  }
+
+  const handleEdit = (item: any) => {
+    setEditingItem(item)
+    setOpen(true)
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    await createKnowledgeItem(Object.fromEntries(fd.entries()))
-    setOpen(false)
+    const data = Object.fromEntries(fd.entries())
+
+    try {
+      if (editingItem) {
+        await updateKnowledgeItem(editingItem.id, data)
+        toast({ title: 'Material atualizado' })
+      } else {
+        await createKnowledgeItem(data)
+        toast({ title: 'Material adicionado' })
+      }
+      setOpen(false)
+    } catch (error) {
+      toast({ title: 'Erro ao salvar', variant: 'destructive' })
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (confirm('Tem certeza que deseja excluir este material?')) {
+      await deleteKnowledgeItem(id)
+    }
   }
 
   return (
@@ -46,34 +82,38 @@ export default function LibraryManager() {
         <h2 className="text-2xl font-serif font-bold text-primary">Biblioteca & Conhecimento</h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={handleOpenNew}>
               <Plus className="w-4 h-4 mr-2" /> Novo Recurso
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Adicionar Material</DialogTitle>
+              <DialogTitle>{editingItem ? 'Editar Material' : 'Adicionar Material'}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form key={editingItem?.id || 'new'} onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label>Título</Label>
-                <Input name="title" required />
+                <Input name="title" required defaultValue={editingItem?.title} />
               </div>
               <div>
                 <Label>Autor</Label>
-                <Input name="author" />
+                <Input name="author" defaultValue={editingItem?.author} />
               </div>
               <div>
                 <Label>Categoria</Label>
-                <Input name="category" placeholder="Ex: Livros, Artigos, Interno" />
+                <Input
+                  name="category"
+                  placeholder="Ex: Livros, Artigos, Interno"
+                  defaultValue={editingItem?.category}
+                />
               </div>
               <div>
                 <Label>Tipo (PDF, Link, Doc)</Label>
-                <Input name="type" />
+                <Input name="type" defaultValue={editingItem?.type} />
               </div>
               <div>
                 <Label>Link do Arquivo/Página</Label>
-                <Input name="link" type="url" />
+                <Input name="link" type="url" defaultValue={editingItem?.link} />
               </div>
               <Button type="submit" className="w-full">
                 Salvar Material
@@ -103,16 +143,16 @@ export default function LibraryManager() {
             {filtered.map((doc) => (
               <div
                 key={doc.id}
-                className="flex flex-col justify-between p-5 border rounded-xl hover:shadow-md hover:-translate-y-1 transition-all bg-white relative group"
+                className="flex flex-col justify-between p-5 border rounded-xl hover:shadow-md transition-all bg-white relative group"
               >
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={() => deleteKnowledgeItem(doc.id)}
-                >
-                  <Trash2 className="w-4 h-4 text-destructive" />
-                </Button>
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex">
+                  <Button variant="ghost" size="icon" onClick={() => handleEdit(doc)}>
+                    <Edit2 className="w-4 h-4 text-slate-500" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleDelete(doc.id)}>
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+                </div>
                 <div className="flex items-start space-x-4 mb-4">
                   <div className="bg-secondary/10 p-3 rounded-full text-secondary shrink-0">
                     {doc.category === 'Livros' ? (
@@ -123,12 +163,12 @@ export default function LibraryManager() {
                       <Bookmark className="w-6 h-6" />
                     )}
                   </div>
-                  <div>
+                  <div className="pr-12">
                     <h4 className="font-semibold text-primary line-clamp-2" title={doc.title}>
                       {doc.title}
                     </h4>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {doc.category} • {doc.author}
+                      {doc.category} {doc.author ? `• ${doc.author}` : ''}
                     </p>
                   </div>
                 </div>
@@ -136,16 +176,18 @@ export default function LibraryManager() {
                   <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded">
                     {doc.type}
                   </span>
-                  <Button
-                    asChild
-                    variant="ghost"
-                    size="sm"
-                    className="text-secondary hover:text-primary"
-                  >
-                    <a href={doc.link} target="_blank" rel="noreferrer">
-                      Acessar
-                    </a>
-                  </Button>
+                  {doc.link && (
+                    <Button
+                      asChild
+                      variant="ghost"
+                      size="sm"
+                      className="text-secondary hover:text-primary"
+                    >
+                      <a href={doc.link} target="_blank" rel="noreferrer">
+                        Acessar
+                      </a>
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}

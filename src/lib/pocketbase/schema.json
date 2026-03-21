@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T03:12:26.680Z",
+  "generatedAt": "2026-03-21T03:33:48.133Z",
   "collections": [
     {
       "name": "users",
@@ -41,6 +41,42 @@
         {
           "name": "isAdmin",
           "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "fullName",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cpf",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "idNumber",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "phone",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "address",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "birthDate",
+          "type": "date",
           "required": false,
           "system": false
         }
@@ -337,6 +373,54 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "fullName",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cpf",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "idNumber",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "address",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "birthDate",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nationality",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "maritalStatus",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "profession",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []
@@ -390,6 +474,48 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "fullName",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cpf",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "idNumber",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "address",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "birthDate",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "oabNumber",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "oabSectional",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []

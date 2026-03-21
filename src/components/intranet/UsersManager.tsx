@@ -19,7 +19,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Plus, Trash2, Edit2, ShieldCheck } from 'lucide-react'
+import { Plus, Trash2, Edit2, ShieldCheck, Mail, Phone } from 'lucide-react'
 import { getUsers, createUser, updateUser, deleteUser } from '@/services/users'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
 import { useToast } from '@/hooks/use-toast'
@@ -30,8 +30,13 @@ export default function UsersManager() {
   const [open, setOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
 
-  const [name, setName] = useState('')
+  const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
+  const [cpf, setCpf] = useState('')
+  const [idNumber, setIdNumber] = useState('')
+  const [phone, setPhone] = useState('')
+  const [address, setAddress] = useState('')
+  const [birthDate, setBirthDate] = useState('')
   const [password, setPassword] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
   const [errors, setErrors] = useState<any>({})
@@ -53,8 +58,13 @@ export default function UsersManager() {
   }, [])
 
   const resetForm = () => {
-    setName('')
+    setFullName('')
     setEmail('')
+    setCpf('')
+    setIdNumber('')
+    setPhone('')
+    setAddress('')
+    setBirthDate('')
     setPassword('')
     setIsAdmin(false)
     setEditingId(null)
@@ -69,8 +79,13 @@ export default function UsersManager() {
   const handleEdit = (u: any) => {
     resetForm()
     setEditingId(u.id)
-    setName(u.name || '')
+    setFullName(u.fullName || u.name || '')
     setEmail(u.email || '')
+    setCpf(u.cpf || '')
+    setIdNumber(u.idNumber || '')
+    setPhone(u.phone || '')
+    setAddress(u.address || '')
+    setBirthDate(u.birthDate?.split('T')[0] || '')
     setIsAdmin(!!u.isAdmin)
     setOpen(true)
   }
@@ -79,7 +94,18 @@ export default function UsersManager() {
     e.preventDefault()
     setErrors({})
     try {
-      const data: any = { name, email, isAdmin }
+      const data: any = {
+        name: fullName,
+        fullName,
+        email,
+        cpf,
+        idNumber,
+        phone,
+        address,
+        birthDate: birthDate ? new Date(birthDate).toISOString() : null,
+        isAdmin,
+      }
+
       if (password) {
         data.password = password
         data.passwordConfirm = password
@@ -129,14 +155,20 @@ export default function UsersManager() {
               <Plus className="w-4 h-4 mr-2" /> Novo Usuário
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>{editingId ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2 space-y-2">
+                <Label htmlFor="fullName">Nome Completo</Label>
+                <Input
+                  id="fullName"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                />
+                {errors.fullName && <p className="text-xs text-destructive">{errors.fullName}</p>}
                 {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
               </div>
               <div className="space-y-2">
@@ -151,6 +183,35 @@ export default function UsersManager() {
                 {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
               </div>
               <div className="space-y-2">
+                <Label htmlFor="phone">Telefone</Label>
+                <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cpf">CPF</Label>
+                <Input id="cpf" value={cpf} onChange={(e) => setCpf(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="idNumber">Identidade</Label>
+                <Input
+                  id="idNumber"
+                  value={idNumber}
+                  onChange={(e) => setIdNumber(e.target.value)}
+                />
+              </div>
+              <div className="md:col-span-2 space-y-2">
+                <Label htmlFor="address">Endereço</Label>
+                <Input id="address" value={address} onChange={(e) => setAddress(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="birthDate">Data Nascimento</Label>
+                <Input
+                  id="birthDate"
+                  type="date"
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="password">
                   Senha {editingId && '(Deixe em branco para manter a atual)'}
                 </Label>
@@ -163,13 +224,15 @@ export default function UsersManager() {
                 />
                 {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
               </div>
-              <div className="flex items-center space-x-2 pt-2">
+              <div className="md:col-span-2 flex items-center space-x-2 pt-2">
                 <Switch id="isAdmin" checked={isAdmin} onCheckedChange={setIsAdmin} />
                 <Label htmlFor="isAdmin">Privilégios de Administrador</Label>
               </div>
-              <Button type="submit" className="w-full">
-                Salvar
-              </Button>
+              <div className="md:col-span-2 pt-2">
+                <Button type="submit" className="w-full">
+                  Salvar
+                </Button>
+              </div>
             </form>
           </DialogContent>
         </Dialog>
@@ -179,16 +242,29 @@ export default function UsersManager() {
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
-              <TableHead>E-mail</TableHead>
-              <TableHead>Função</TableHead>
+              <TableHead>Contato</TableHead>
+              <TableHead>CPF</TableHead>
+              <TableHead>Acesso</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {users.map((u) => (
               <TableRow key={u.id}>
-                <TableCell className="font-medium">{u.name || '-'}</TableCell>
-                <TableCell>{u.email}</TableCell>
+                <TableCell className="font-medium">{u.fullName || u.name || '-'}</TableCell>
+                <TableCell>
+                  <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+                    <span className="flex items-center">
+                      <Mail className="w-3 h-3 mr-2" /> {u.email}
+                    </span>
+                    {u.phone && (
+                      <span className="flex items-center">
+                        <Phone className="w-3 h-3 mr-2" /> {u.phone}
+                      </span>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className="text-muted-foreground text-sm">{u.cpf || '-'}</TableCell>
                 <TableCell>
                   {u.isAdmin ? (
                     <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-primary/10 text-primary">

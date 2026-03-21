@@ -15,7 +15,7 @@ export default function ProfileManager() {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [name, setName] = useState(user?.name || '')
+  const [fullName, setFullName] = useState(user?.fullName || user?.name || '')
   const [email] = useState(user?.email || '')
   const [avatarPreview, setAvatarPreview] = useState<string | null>(
     user?.avatar ? pb.files.getURL(user, user.avatar) : null,
@@ -41,7 +41,8 @@ export default function ProfileManager() {
     setProfileErrors({})
     try {
       const formData = new FormData()
-      formData.append('name', name)
+      formData.append('fullName', fullName)
+      formData.append('name', fullName) // also keep base name updated
       if (avatarFile) formData.append('avatar', avatarFile)
 
       await pb.collection('users').update(user.id, formData)
@@ -90,7 +91,7 @@ export default function ProfileManager() {
                       avatarPreview || `https://img.usecurling.com/ppl/thumbnail?seed=${user?.id}`
                     }
                   />
-                  <AvatarFallback>{name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                  <AvatarFallback>{fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <div className="absolute inset-0 bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                   <Camera className="w-6 h-6" />
@@ -114,10 +115,15 @@ export default function ProfileManager() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="name">Nome Completo</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
-              {profileErrors.name && (
-                <p className="text-xs text-destructive">{profileErrors.name}</p>
+              <Label htmlFor="fullName">Nome Completo</Label>
+              <Input
+                id="fullName"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                required
+              />
+              {profileErrors.fullName && (
+                <p className="text-xs text-destructive">{profileErrors.fullName}</p>
               )}
             </div>
 

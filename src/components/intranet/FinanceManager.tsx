@@ -25,11 +25,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, ArrowUpRight, ArrowDownRight, Trash2 } from 'lucide-react'
+import { Plus, ArrowUpRight, ArrowDownRight, Trash2, Edit2 } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
-import { getFinances, createFinance, deleteFinance } from '@/services/finances'
+import { getFinances, createFinance, updateFinance, deleteFinance } from '@/services/finances'
 import { useRealtime } from '@/hooks/use-realtime'
+import { useToast } from '@/hooks/use-toast'
 
 const chartConfig = {
   income: { label: 'Receitas', color: 'hsl(var(--primary))' },
@@ -39,6 +40,8 @@ const chartConfig = {
 export default function FinanceManager() {
   const [transactions, setTransactions] = useState<any[]>([])
   const [open, setOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<any>(null)
+  const { toast } = useToast()
 
   const loadData = async () => {
     try {
@@ -52,13 +55,40 @@ export default function FinanceManager() {
   }, [])
   useRealtime('finances', loadData)
 
+  const handleOpenNew = () => {
+    setEditingItem(null)
+    setOpen(true)
+  }
+
+  const handleEdit = (item: any) => {
+    setEditingItem(item)
+    setOpen(true)
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     const data = Object.fromEntries(fd.entries())
     data.amount = parseFloat(data.amount as string) as any
-    await createFinance(data)
-    setOpen(false)
+
+    try {
+      if (editingItem) {
+        await updateFinance(editingItem.id, data)
+        toast({ title: 'Transação atualizada' })
+      } else {
+        await createFinance(data)
+        toast({ title: 'Transação registrada' })
+      }
+      setOpen(false)
+    } catch (error) {
+      toast({ title: 'Erro ao salvar', variant: 'destructive' })
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (confirm('Tem certeza que deseja excluir esta transação?')) {
+      await deleteFinance(id)
+    }
   }
 
   // Group by month for chart
@@ -78,22 +108,27 @@ export default function FinanceManager() {
         <h2 className="text-2xl font-serif font-bold text-primary">Gestão Financeira</h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={handleOpenNew}>
               <Plus className="w-4 h-4 mr-2" /> Nova Transação
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Nova Transação</DialogTitle>
+              <DialogTitle>{editingItem ? 'Editar Transação' : 'Nova Transação'}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form key={editingItem?.id || 'new'} onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label>Descrição</Label>
-                <Input name="description" required placeholder="Ex: Honorários ABC" />
+                <Input
+                  name="description"
+                  required
+                  placeholder="Ex: Honorários ABC"
+                  defaultValue={editingItem?.description}
+                />
               </div>
               <div>
                 <Label>Tipo</Label>
-                <Select name="type" defaultValue="inflow">
+                <Select name="type" defaultValue={editingItem?.type || 'inflow'}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -105,15 +140,31 @@ export default function FinanceManager() {
               </div>
               <div>
                 <Label>Valor (R$)</Label>
-                <Input name="amount" type="number" step="0.01" required />
+                <Input
+                  name="amount"
+                  type="number"
+                  step="0.01"
+                  required
+                  defaultValue={editingItem?.amount}
+                />
               </div>
               <div>
                 <Label>Data</Label>
-                <Input name="date" type="date" required />
+                <Input
+                  name="date"
+                  type="date"
+                  required
+                  defaultValue={editingItem?.date?.split('T')[0]}
+                />
               </div>
               <div>
                 <Label>Status</Label>
-                <Input name="status" required placeholder="Ex: Pago" />
+                <Input
+                  name="status"
+                  required
+                  placeholder="Ex: Pago"
+                  defaultValue={editingItem?.status}
+                />
               </div>
               <Button type="submit" className="w-full">
                 Salvar Transação
@@ -153,7 +204,7 @@ export default function FinanceManager() {
                   <TableHead>Descrição</TableHead>
                   <TableHead>Valor</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead></TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -168,7 +219,7 @@ export default function FinanceManager() {
                       ) : (
                         <ArrowDownRight className="w-4 h-4 text-red-600 shrink-0" />
                       )}
-                      {t.description}
+                      <span className="truncate">{t.description}</span>
                     </TableCell>
                     <TableCell
                       className={`whitespace-nowrap ${t.type === 'inflow' ? 'text-green-600' : 'text-red-600'}`}
@@ -180,8 +231,11 @@ export default function FinanceManager() {
                         {t.status}
                       </span>
                     </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => deleteFinance(t.id)}>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(t)}>
+                        <Edit2 className="w-4 h-4 text-slate-500" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(t.id)}>
                         <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
                     </TableCell>

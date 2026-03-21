@@ -18,14 +18,17 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Search, Plus, Calendar as CalendarIcon, Trash2 } from 'lucide-react'
-import { getLawsuits, createLawsuit, deleteLawsuit } from '@/services/lawsuits'
+import { Search, Plus, Calendar as CalendarIcon, Trash2, Edit2 } from 'lucide-react'
+import { getLawsuits, createLawsuit, updateLawsuit, deleteLawsuit } from '@/services/lawsuits'
 import { useRealtime } from '@/hooks/use-realtime'
+import { useToast } from '@/hooks/use-toast'
 
 export default function ProcessManager() {
   const [processes, setProcesses] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [open, setOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<any>(null)
+  const { toast } = useToast()
 
   const loadData = async () => {
     try {
@@ -45,11 +48,39 @@ export default function ProcessManager() {
       p.number.includes(searchTerm) || p.parties.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
+  const handleOpenNew = () => {
+    setEditingItem(null)
+    setOpen(true)
+  }
+
+  const handleEdit = (item: any) => {
+    setEditingItem(item)
+    setOpen(true)
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    await createLawsuit(Object.fromEntries(fd.entries()))
-    setOpen(false)
+    const data = Object.fromEntries(fd.entries())
+
+    try {
+      if (editingItem) {
+        await updateLawsuit(editingItem.id, data)
+        toast({ title: 'Processo atualizado com sucesso' })
+      } else {
+        await createLawsuit(data)
+        toast({ title: 'Processo cadastrado com sucesso' })
+      }
+      setOpen(false)
+    } catch (error) {
+      toast({ title: 'Erro ao salvar', variant: 'destructive' })
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (confirm('Tem certeza que deseja excluir?')) {
+      await deleteLawsuit(id)
+    }
   }
 
   return (
@@ -58,34 +89,54 @@ export default function ProcessManager() {
         <h2 className="text-2xl font-serif font-bold text-primary">Gestão de Processos</h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={handleOpenNew}>
               <Plus className="w-4 h-4 mr-2" /> Novo Processo
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Novo Processo</DialogTitle>
+              <DialogTitle>{editingItem ? 'Editar Processo' : 'Novo Processo'}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form key={editingItem?.id || 'new'} onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label>Número do Processo</Label>
-                <Input name="number" required placeholder="0000000-00.0000.0.00.0000" />
+                <Input
+                  name="number"
+                  required
+                  placeholder="0000000-00.0000.0.00.0000"
+                  defaultValue={editingItem?.number}
+                />
               </div>
               <div>
                 <Label>Tribunal</Label>
-                <Input name="court" required placeholder="Ex: TJ-RJ" />
+                <Input
+                  name="court"
+                  required
+                  placeholder="Ex: TJ-RJ"
+                  defaultValue={editingItem?.court}
+                />
               </div>
               <div>
                 <Label>Partes (Cliente x Parte Contraria)</Label>
-                <Input name="parties" required />
+                <Input name="parties" required defaultValue={editingItem?.parties} />
               </div>
               <div>
                 <Label>Status</Label>
-                <Input name="status" required placeholder="Ex: Aguardando Audiência" />
+                <Input
+                  name="status"
+                  required
+                  placeholder="Ex: Aguardando Audiência"
+                  defaultValue={editingItem?.status}
+                />
               </div>
               <div>
                 <Label>Próximo Prazo</Label>
-                <Input name="deadline" type="date" required />
+                <Input
+                  name="deadline"
+                  type="date"
+                  required
+                  defaultValue={editingItem?.deadline?.split('T')[0]}
+                />
               </div>
               <Button type="submit" className="w-full">
                 Salvar Processo
@@ -119,7 +170,7 @@ export default function ProcessManager() {
                     <TableHead>Tribunal / Número</TableHead>
                     <TableHead>Partes</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead></TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -137,8 +188,11 @@ export default function ProcessManager() {
                           {p.status}
                         </span>
                       </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => deleteLawsuit(p.id)}>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(p)}>
+                          <Edit2 className="w-4 h-4 text-slate-500" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)}>
                           <Trash2 className="w-4 h-4 text-destructive" />
                         </Button>
                       </TableCell>
@@ -160,6 +214,7 @@ export default function ProcessManager() {
             <CardContent>
               <div className="space-y-4">
                 {[...processes]
+                  .filter((p) => p.deadline)
                   .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
                   .slice(0, 5)
                   .map((p) => (

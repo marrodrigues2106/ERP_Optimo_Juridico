@@ -18,13 +18,21 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { UserPlus, Mail, Phone, Trash2 } from 'lucide-react'
-import { getCollaborators, createCollaborator, deleteCollaborator } from '@/services/collaborators'
+import { UserPlus, Mail, Phone, Trash2, Edit2, FileBadge } from 'lucide-react'
+import {
+  getCollaborators,
+  createCollaborator,
+  updateCollaborator,
+  deleteCollaborator,
+} from '@/services/collaborators'
 import { useRealtime } from '@/hooks/use-realtime'
+import { useToast } from '@/hooks/use-toast'
 
 export default function TeamManager() {
   const [team, setTeam] = useState<any[]>([])
   const [open, setOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<any>(null)
+  const { toast } = useToast()
 
   const loadData = async () => {
     try {
@@ -38,11 +46,45 @@ export default function TeamManager() {
   }, [])
   useRealtime('collaborators', loadData)
 
+  const handleOpenNew = () => {
+    setEditingItem(null)
+    setOpen(true)
+  }
+
+  const handleEdit = (item: any) => {
+    setEditingItem(item)
+    setOpen(true)
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    await createCollaborator(Object.fromEntries(fd.entries()))
-    setOpen(false)
+    const data = Object.fromEntries(fd.entries())
+
+    // Maintain fallback 'name' field
+    data.name = data.fullName
+
+    try {
+      if (editingItem) {
+        await updateCollaborator(editingItem.id, data)
+        toast({ title: 'Membro da equipe atualizado' })
+      } else {
+        await createCollaborator(data)
+        toast({
+          title: 'Membro da equipe adicionado',
+          description: 'Uma conta de usuário será criada automaticamente.',
+        })
+      }
+      setOpen(false)
+    } catch (error) {
+      toast({ title: 'Erro ao salvar', variant: 'destructive' })
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (confirm('Tem certeza que deseja excluir este membro da equipe?')) {
+      await deleteCollaborator(id)
+    }
   }
 
   return (
@@ -51,22 +93,38 @@ export default function TeamManager() {
         <h2 className="text-2xl font-serif font-bold text-primary">Gestão de Equipe</h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={handleOpenNew}>
               <UserPlus className="w-4 h-4 mr-2" /> Adicionar Membro
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Novo Membro da Equipe</DialogTitle>
+              <DialogTitle>{editingItem ? 'Editar Membro' : 'Novo Membro da Equipe'}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
+            <form
+              key={editingItem?.id || 'new'}
+              onSubmit={handleSubmit}
+              className="grid grid-cols-1 md:grid-cols-2 gap-4"
+            >
+              <div className="md:col-span-2">
                 <Label>Nome Completo</Label>
-                <Input name="name" required />
+                <Input
+                  name="fullName"
+                  required
+                  defaultValue={editingItem?.fullName || editingItem?.name}
+                />
+              </div>
+              <div>
+                <Label>E-mail</Label>
+                <Input name="email" type="email" defaultValue={editingItem?.email} />
+              </div>
+              <div>
+                <Label>Telefone</Label>
+                <Input name="phone" defaultValue={editingItem?.phone} />
               </div>
               <div>
                 <Label>Função</Label>
-                <Select name="role" defaultValue="Advogado">
+                <Select name="role" defaultValue={editingItem?.role || 'Advogado'}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -78,16 +136,38 @@ export default function TeamManager() {
                 </Select>
               </div>
               <div>
-                <Label>E-mail</Label>
-                <Input name="email" type="email" />
+                <Label>Data Nascimento</Label>
+                <Input
+                  name="birthDate"
+                  type="date"
+                  defaultValue={editingItem?.birthDate?.split('T')[0]}
+                />
               </div>
               <div>
-                <Label>Telefone</Label>
-                <Input name="phone" />
+                <Label>CPF</Label>
+                <Input name="cpf" defaultValue={editingItem?.cpf} />
               </div>
-              <Button type="submit" className="w-full">
-                Salvar Membro
-              </Button>
+              <div>
+                <Label>Identidade</Label>
+                <Input name="idNumber" defaultValue={editingItem?.idNumber} />
+              </div>
+              <div className="md:col-span-2">
+                <Label>Endereço</Label>
+                <Input name="address" defaultValue={editingItem?.address} />
+              </div>
+              <div>
+                <Label>n.º OAB</Label>
+                <Input name="oabNumber" defaultValue={editingItem?.oabNumber} />
+              </div>
+              <div>
+                <Label>OAB seccional</Label>
+                <Input name="oabSectional" defaultValue={editingItem?.oabSectional} />
+              </div>
+              <div className="md:col-span-2 mt-4">
+                <Button type="submit" className="w-full">
+                  Salvar Membro
+                </Button>
+              </div>
             </form>
           </DialogContent>
         </Dialog>
@@ -99,25 +179,27 @@ export default function TeamManager() {
             key={member.id}
             className="hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative group"
           >
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-              onClick={() => deleteCollaborator(member.id)}
-            >
-              <Trash2 className="w-4 h-4 text-destructive" />
-            </Button>
+            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex">
+              <Button variant="ghost" size="icon" onClick={() => handleEdit(member)}>
+                <Edit2 className="w-4 h-4 text-slate-500" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => handleDelete(member.id)}>
+                <Trash2 className="w-4 h-4 text-destructive" />
+              </Button>
+            </div>
             <CardContent className="p-6 text-center">
               <Avatar className="h-24 w-24 mx-auto mb-4 border-4 border-slate-50">
                 <AvatarImage
                   src={`https://img.usecurling.com/ppl/thumbnail?seed=${member.id}&gender=male`}
                 />
                 <AvatarFallback className="text-xl bg-primary text-white">
-                  {member.name.substring(0, 2).toUpperCase()}
+                  {(member.fullName || member.name || 'M').substring(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div className="space-y-2">
-                <h3 className="font-semibold text-primary text-lg">{member.name}</h3>
+                <h3 className="font-semibold text-primary text-lg">
+                  {member.fullName || member.name}
+                </h3>
                 <span className="inline-block px-3 py-1 bg-secondary/10 text-secondary text-xs rounded-full font-medium mb-2">
                   {member.role}
                 </span>
@@ -137,6 +219,12 @@ export default function TeamManager() {
                     >
                       <Phone className="w-3 h-3" /> {member.phone}
                     </a>
+                  )}
+                  {member.oabNumber && (
+                    <span className="text-xs text-muted-foreground flex items-center justify-center gap-2">
+                      <FileBadge className="w-3 h-3" /> OAB: {member.oabNumber}{' '}
+                      {member.oabSectional ? ` - ${member.oabSectional}` : ''}
+                    </span>
                   )}
                 </div>
               </div>

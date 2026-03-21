@@ -18,14 +18,17 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { Search, UserPlus, Phone, Mail, Trash2 } from 'lucide-react'
-import { getClients, createClient, deleteClient } from '@/services/clients'
+import { Search, UserPlus, Phone, Mail, Trash2, Edit2 } from 'lucide-react'
+import { getClients, createClient, updateClient, deleteClient } from '@/services/clients'
 import { useRealtime } from '@/hooks/use-realtime'
+import { useToast } from '@/hooks/use-toast'
 
 export default function CrmManager() {
   const [clients, setClients] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [open, setOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<any>(null)
+  const { toast } = useToast()
 
   const loadData = async () => {
     try {
@@ -39,13 +42,51 @@ export default function CrmManager() {
   }, [])
   useRealtime('clients', loadData)
 
-  const filtered = clients.filter((c) => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filtered = clients.filter((c) => {
+    const term = searchTerm.toLowerCase()
+    return (
+      (c.fullName || c.name || '').toLowerCase().includes(term) ||
+      (c.email || '').toLowerCase().includes(term) ||
+      (c.cpf || '').includes(term)
+    )
+  })
+
+  const handleOpenNew = () => {
+    setEditingItem(null)
+    setOpen(true)
+  }
+
+  const handleEdit = (item: any) => {
+    setEditingItem(item)
+    setOpen(true)
+  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    await createClient(Object.fromEntries(fd.entries()))
-    setOpen(false)
+    const data = Object.fromEntries(fd.entries())
+
+    // Maintain fallback 'name' field
+    data.name = data.fullName
+
+    try {
+      if (editingItem) {
+        await updateClient(editingItem.id, data)
+        toast({ title: 'Cliente atualizado' })
+      } else {
+        await createClient(data)
+        toast({ title: 'Cliente cadastrado' })
+      }
+      setOpen(false)
+    } catch (error) {
+      toast({ title: 'Erro ao salvar', variant: 'destructive' })
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (confirm('Tem certeza que deseja excluir?')) {
+      await deleteClient(id)
+    }
   }
 
   return (
@@ -54,34 +95,80 @@ export default function CrmManager() {
         <h2 className="text-2xl font-serif font-bold text-primary">CRM & Clientes</h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={handleOpenNew}>
               <UserPlus className="w-4 h-4 mr-2" /> Novo Cliente
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Cadastrar Cliente</DialogTitle>
+              <DialogTitle>{editingItem ? 'Editar Cliente' : 'Cadastrar Cliente'}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form
+              key={editingItem?.id || 'new'}
+              onSubmit={handleSubmit}
+              className="grid grid-cols-1 md:grid-cols-2 gap-4"
+            >
+              <div className="md:col-span-2">
+                <Label>Nome Completo</Label>
+                <Input
+                  name="fullName"
+                  required
+                  defaultValue={editingItem?.fullName || editingItem?.name}
+                />
+              </div>
               <div>
-                <Label>Nome Completo / Empresa</Label>
-                <Input name="name" required />
+                <Label>CPF</Label>
+                <Input name="cpf" defaultValue={editingItem?.cpf} />
+              </div>
+              <div>
+                <Label>Identidade</Label>
+                <Input name="idNumber" defaultValue={editingItem?.idNumber} />
               </div>
               <div>
                 <Label>E-mail</Label>
-                <Input name="email" type="email" />
+                <Input name="email" type="email" defaultValue={editingItem?.email} />
               </div>
               <div>
                 <Label>Telefone</Label>
-                <Input name="phone" />
+                <Input name="phone" defaultValue={editingItem?.phone} />
+              </div>
+              <div className="md:col-span-2">
+                <Label>Endereço</Label>
+                <Input name="address" defaultValue={editingItem?.address} />
               </div>
               <div>
-                <Label>Status</Label>
-                <Input name="status" placeholder="Ex: Ativo, Prospecto" />
+                <Label>Data Nascimento</Label>
+                <Input
+                  name="birthDate"
+                  type="date"
+                  defaultValue={editingItem?.birthDate?.split('T')[0]}
+                />
               </div>
-              <Button type="submit" className="w-full">
-                Salvar Cliente
-              </Button>
+              <div>
+                <Label>Nacionalidade</Label>
+                <Input name="nationality" defaultValue={editingItem?.nationality} />
+              </div>
+              <div>
+                <Label>Estado Civil</Label>
+                <Input name="maritalStatus" defaultValue={editingItem?.maritalStatus} />
+              </div>
+              <div>
+                <Label>Profissão</Label>
+                <Input name="profession" defaultValue={editingItem?.profession} />
+              </div>
+              <div className="md:col-span-2">
+                <Label>Status</Label>
+                <Input
+                  name="status"
+                  placeholder="Ex: Ativo, Prospecto"
+                  defaultValue={editingItem?.status}
+                />
+              </div>
+              <div className="md:col-span-2 mt-4">
+                <Button type="submit" className="w-full">
+                  Salvar Cliente
+                </Button>
+              </div>
             </form>
           </DialogContent>
         </Dialog>
@@ -94,7 +181,7 @@ export default function CrmManager() {
             <div className="relative w-full md:w-80">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar por nome..."
+                placeholder="Buscar por nome, email ou CPF..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9"
@@ -108,6 +195,7 @@ export default function CrmManager() {
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>Contato</TableHead>
+                <TableHead>CPF</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -115,24 +203,37 @@ export default function CrmManager() {
             <TableBody>
               {filtered.map((client) => (
                 <TableRow key={client.id}>
-                  <TableCell className="font-medium">{client.name}</TableCell>
+                  <TableCell className="font-medium">{client.fullName || client.name}</TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-                      <span className="flex items-center">
-                        <Mail className="w-3 h-3 mr-2" /> {client.email}
-                      </span>
-                      <span className="flex items-center">
-                        <Phone className="w-3 h-3 mr-2" /> {client.phone}
-                      </span>
+                      {client.email && (
+                        <span className="flex items-center">
+                          <Mail className="w-3 h-3 mr-2 shrink-0" />{' '}
+                          <span className="truncate max-w-[150px]">{client.email}</span>
+                        </span>
+                      )}
+                      {client.phone && (
+                        <span className="flex items-center">
+                          <Phone className="w-3 h-3 mr-2 shrink-0" /> {client.phone}
+                        </span>
+                      )}
                     </div>
                   </TableCell>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {client.cpf || '-'}
+                  </TableCell>
                   <TableCell>
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
-                      {client.status}
-                    </span>
+                    {client.status && (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+                        {client.status}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => deleteClient(client.id)}>
+                    <Button variant="ghost" size="icon" onClick={() => handleEdit(client)}>
+                      <Edit2 className="w-4 h-4 text-slate-500" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(client.id)}>
                       <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>
                   </TableCell>
