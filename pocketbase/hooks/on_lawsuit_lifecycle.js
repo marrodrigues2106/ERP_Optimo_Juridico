@@ -1,15 +1,26 @@
+function getApiKey() {
+  try {
+    const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
+    if (configs.length > 0 && configs[0].get('apiKey')) {
+      return configs[0].get('apiKey')
+    }
+  } catch (e) {}
+  return 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==' // Default fallback
+}
+
 routerAdd('GET', '/backend/v1/datajud/health', (e) => {
   try {
+    const apiKey = getApiKey()
     const checkEndpoint = (url) => {
       return $http.send({
         url: url,
         method: 'POST',
         headers: {
-          Authorization: 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==',
+          Authorization: 'APIKey ' + apiKey,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ size: 1, query: { match_all: {} } }),
-        timeout: 15, // Increased timeout tolerance
+        timeout: 15,
       })
     }
 
@@ -17,10 +28,8 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
     let usedFallback = false
 
     try {
-      // Primary check against STF
       res = checkEndpoint('https://api-publica.datajud.cnj.jus.br/api_publica_stf/_search')
     } catch (err) {
-      // Fallback secondary validation against STJ if primary fails
       try {
         usedFallback = true
         res = checkEndpoint('https://api-publica.datajud.cnj.jus.br/api_publica_stj/_search')
@@ -29,7 +38,6 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
       }
     }
 
-    // Diagnostic logging for Credential Validation (401/403)
     if (res && (res.statusCode === 401 || res.statusCode === 403)) {
       try {
         const logs = $app.findCollectionByNameOrId('audit_logs')
@@ -63,7 +71,6 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
   }
 })
 
-// Background synchronization route to decouple DataJud external API from database transactions
 routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
   try {
     const body = e.requestInfo().body || {}
@@ -72,7 +79,6 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
     const id = e.request.pathValue('id')
     const record = $app.findRecordById('lawsuits', id)
 
-    // Run synchronization logic atomically outside of the initial save transaction
     const success = fetchAndMergeDatajud(record)
     $app.saveNoValidate(record)
 
@@ -100,11 +106,9 @@ function triggerBackgroundSync(recordId) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ secret: 'internal-async-trigger' }),
-      timeout: 1, // Short timeout to act as fire-and-forget
+      timeout: 1,
     })
-  } catch (err) {
-    // Timeout expected, background task will continue to execute
-  }
+  } catch (err) {}
 }
 
 function getCourtAliasFromNumber(numStr) {
@@ -236,16 +240,14 @@ function fetchAndMergeDatajud(record) {
     let searchAfter = null
     const pageSize = 100
     let loopCount = 0
+    const apiKey = getApiKey()
 
-    // Optimized ElasticSearch search with boolean terms
     while (loopCount < 10) {
       loopCount++
       let bodyObj = {
         size: pageSize,
         query: {
-          bool: {
-            filter: [{ term: { numeroProcesso: cleanNum } }],
-          },
+          bool: { filter: [{ term: { numeroProcesso: cleanNum } }] },
         },
         sort: [{ '@timestamp': { order: 'asc' } }],
       }
@@ -257,7 +259,7 @@ function fetchAndMergeDatajud(record) {
           url: url,
           method: 'POST',
           headers: {
-            Authorization: 'APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==',
+            Authorization: 'APIKey ' + apiKey,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(bodyObj),
@@ -405,6 +407,7 @@ function createNotifications(record) {
           try {
             const n = new Record(notifsCol)
             n.set('lawsuit', record.id)
+            n.set('type', 'update')
             n.set('update_content', log.description)
             n.set('user', uid)
             n.set('is_read', false)
@@ -427,12 +430,9 @@ function logDatajudAudit(recordId, actionName, details) {
     logRecord.set('action', actionName)
     logRecord.set('changes', details)
     $app.saveNoValidate(logRecord)
-  } catch (err) {
-    console.log('Audit log err (Datajud):', err)
-  }
+  } catch (err) {}
 }
 
-// JSON Field Safety Validations - ensures data schema robustness before any patches
 onRecordValidate((e) => {
   const logs = getSafeLogs(e.record)
   e.record.set('trackingLogs', logs)
@@ -462,7 +462,6 @@ onRecordAfterUpdateSuccess((e) => {
     )
   }
 
-  // Trigger decoupled async synchronization without blocking response
   if (e.record.get('datajudStatus') === 'Sync Requested') {
     triggerBackgroundSync(e.record.id)
   }

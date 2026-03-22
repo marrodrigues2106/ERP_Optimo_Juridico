@@ -24,6 +24,7 @@ import {
   Shield,
   Calendar,
   Activity,
+  BellRing,
 } from 'lucide-react'
 
 export default function Intranet() {
@@ -42,6 +43,12 @@ export default function Intranet() {
 
   const navItems = [
     { id: 'dashboard', label: 'Painel de Controle', icon: LayoutDashboard, show: true },
+    {
+      id: 'monitoring',
+      label: 'Monitoramento & Push',
+      icon: BellRing,
+      show: perms.canViewProcesses,
+    },
     {
       id: 'processos',
       label: 'Processos e Serviços',
@@ -63,9 +70,9 @@ export default function Intranet() {
 
   return (
     <SidebarProvider>
-      <div className="flex w-full min-h-screen bg-slate-50 pt-[88px] md:pt-[104px]">
+      <div className="flex w-full min-h-screen bg-slate-50 pt-[72px] md:pt-[80px]">
         <Sidebar
-          className="top-[88px] md:top-[104px] h-[calc(100svh-88px)] md:h-[calc(100svh-104px)] border-r bg-white hidden md:flex"
+          className="top-[72px] md:top-[80px] h-[calc(100svh-72px)] md:h-[calc(100svh-80px)] border-r bg-white hidden md:flex"
           collapsible="none"
         >
           <SidebarContent>

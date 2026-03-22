@@ -33,7 +33,7 @@ export default function Header() {
         'fixed top-0 w-full z-50 transition-all duration-300 border-b',
         isScrolled
           ? 'bg-white/95 backdrop-blur-md shadow-sm border-gray-200 py-1'
-          : 'bg-[#F9F9F9] border-transparent py-3',
+          : 'bg-[#F9F9F9] border-transparent py-2',
       )}
     >
       <div className="container mx-auto px-4 flex items-center justify-between">
@@ -42,7 +42,7 @@ export default function Header() {
             <img
               src={logoImg}
               alt={firmData.name}
-              className="h-[6.75rem] w-auto object-contain transition-all duration-300"
+              className="h-10 md:h-12 w-auto object-contain transition-all duration-300"
             />
           </div>
         </Link>
@@ -112,13 +112,13 @@ export default function Header() {
                 </NavigationMenuLink>
               </NavigationMenuItem>
               <NavigationMenuItem>
-                <NavigationMenuLink asChild active={pathname === '/intranet'}>
+                <NavigationMenuLink asChild active={pathname.includes('/intranet')}>
                   <Link
                     to="/intranet"
                     className={cn(
                       navigationMenuTriggerStyle(),
                       'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
-                      pathname === '/intranet' &&
+                      pathname.includes('/intranet') &&
                         'border-b-2 border-secondary rounded-none text-secondary',
                     )}
                   >

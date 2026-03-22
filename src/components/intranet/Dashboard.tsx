@@ -1,6 +1,7 @@
 import { UpdatesWidget } from './dashboard/UpdatesWidget'
 import { AgendaWidget } from './dashboard/AgendaWidget'
 import { TasksWidget } from './dashboard/TasksWidget'
+import { PushAlertsWidget } from './dashboard/PushAlertsWidget'
 
 export default function Dashboard() {
   return (
@@ -13,10 +14,11 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-6 flex flex-col">
           <UpdatesWidget />
-          <TasksWidget />
+          <PushAlertsWidget />
         </div>
-        <div className="xl:col-span-1 space-y-6">
+        <div className="xl:col-span-1 space-y-6 flex flex-col">
           <AgendaWidget />
+          <TasksWidget />
         </div>
       </div>
     </div>
