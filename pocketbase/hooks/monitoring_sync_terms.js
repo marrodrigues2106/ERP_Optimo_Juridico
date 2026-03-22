@@ -22,7 +22,6 @@ routerAdd(
         const t = terms[i]
         if (t.get('type') === 'DataJud') {
           const query = t.get('term')
-          // Elasticsearch query using match_phrase for the provided term
           const bodyObj = {
             size: 10,
             query: {
@@ -48,7 +47,6 @@ routerAdd(
               for (let h = 0; h < hits.length; h++) {
                 const proc = hits[h]._source
                 if (proc && proc.numeroProcesso) {
-                  // Check if the process is already registered
                   let exists = false
                   try {
                     $app.findFirstRecordByFilter('lawsuits', `number ~ '${proc.numeroProcesso}'`)
@@ -56,7 +54,6 @@ routerAdd(
                   } catch (err) {}
 
                   if (!exists) {
-                    // Check if a notification already exists for this discovery
                     let notifExists = false
                     try {
                       $app.findFirstRecordByFilter(
@@ -70,7 +67,6 @@ routerAdd(
                       newCount++
                       const notifsCol = $app.findCollectionByNameOrId('lawsuit_notifications')
 
-                      // Dispatch alert to all system users
                       for (let u = 0; u < users.length; u++) {
                         const n = new Record(notifsCol)
                         n.set('type', 'discovery')
@@ -82,7 +78,10 @@ routerAdd(
                         n.set('is_read', false)
                         n.set('discovered_data', {
                           number: proc.numeroProcesso,
-                          court: proc.orgaoJulgador?.nomeOrgao || 'STJ',
+                          court:
+                            proc.orgaoJulgador && proc.orgaoJulgador.nomeOrgao
+                              ? proc.orgaoJulgador.nomeOrgao
+                              : 'STJ',
                           parties: 'Partes não identificadas',
                           status: 'Descoberto',
                         })
@@ -100,30 +99,6 @@ routerAdd(
       }
 
       return e.json(200, { success: true, discovered: newCount })
-    } catch (err) {
-      return e.json(500, { error: String(err) })
-    }
-  },
-  $apis.requireAuth(),
-)
-
-routerAdd(
-  'POST',
-  '/backend/v1/monitoring/sync-processes',
-  (e) => {
-    try {
-      const processes = $app.findRecordsByFilter('lawsuits', "status != 'Encerrado'", '', 100, 0)
-      let count = 0
-      for (let i = 0; i < processes.length; i++) {
-        const p = processes[i]
-        if (p.get('number')) {
-          // Queue the process for sync
-          p.set('datajudStatus', 'Sync Requested')
-          $app.saveNoValidate(p)
-          count++
-        }
-      }
-      return e.json(200, { success: true, count: count })
     } catch (err) {
       return e.json(500, { error: String(err) })
     }

@@ -42,7 +42,9 @@ export function PushAlertsWidget() {
   const handleMarkRead = async (id: string, current: boolean) => {
     try {
       await pb.collection('lawsuit_notifications').update(id, { is_read: !current })
-    } catch (e) {}
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {

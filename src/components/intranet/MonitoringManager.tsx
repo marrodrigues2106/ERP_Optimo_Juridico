@@ -51,7 +51,9 @@ export default function MonitoringManager() {
         setFrequency(cfg.frequency)
       }
       setTerms(await getMonitoringTerms())
-    } catch (e) {}
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   const handleSaveConfig = async () => {
@@ -81,7 +83,9 @@ export default function MonitoringManager() {
     try {
       await updateMonitoringTerm(t.id, { active: !t.active })
       load()
-    } catch (e) {}
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   const handleSyncP = async () => {
