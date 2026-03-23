@@ -73,6 +73,7 @@ routerAdd(
                     headers: {
                       Authorization: 'APIKey ' + apiKey,
                       'Content-Type': 'application/json',
+                      Accept: 'application/json',
                     },
                     body: JSON.stringify(strategies[s]),
                     timeout: 5, // Shorter timeout for term discovery to scan across 90 aliases efficiently

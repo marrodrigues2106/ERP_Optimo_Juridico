@@ -17,6 +17,7 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
         headers: {
           Authorization: 'APIKey ' + apiKey,
           'Content-Type': 'application/json',
+          Accept: 'application/json',
         },
         body: JSON.stringify({ size: 1, query: { match_all: {} } }),
         timeout: 30, // Updated to 30s

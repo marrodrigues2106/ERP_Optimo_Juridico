@@ -168,6 +168,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
                   headers: {
                     Authorization: 'APIKey ' + apiKey,
                     'Content-Type': 'application/json',
+                    Accept: 'application/json',
                   },
                   body: JSON.stringify(bodyObj),
                   timeout: 30,

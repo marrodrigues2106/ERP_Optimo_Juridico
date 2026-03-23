@@ -30,6 +30,7 @@ routerAdd(
           headers: {
             Authorization: 'APIKey ' + apiKey,
             'Content-Type': 'application/json',
+            Accept: 'application/json',
           },
           body: JSON.stringify({ size: 1, query: { match_all: {} } }),
           timeout: 30, // Strict 30s timeout per AC
