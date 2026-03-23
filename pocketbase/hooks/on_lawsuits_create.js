@@ -77,10 +77,9 @@ onRecordAfterCreateSuccess((e) => {
 
   if (e.record.get('number')) {
     try {
-      let baseUrl = $secrets.get('PB_INSTANCE_URL')
-      if (!baseUrl || baseUrl === '') {
-        baseUrl = 'http://127.0.0.1:8090'
-      }
+      let baseUrl = $secrets.get('PB_INSTANCE_URL') || 'http://127.0.0.1:8090'
+      if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1)
+
       $http.send({
         url: baseUrl + '/backend/v1/datajud/background-sync/' + e.record.id,
         method: 'POST',

@@ -192,36 +192,43 @@ export default function MonitoringManager() {
       return <Badge className="bg-emerald-500 hover:bg-emerald-600 mt-2 text-[10px]">Online</Badge>
     }
 
-    if (status === 'NETWORK_TIMEOUT') {
-      return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge className="bg-yellow-500 hover:bg-yellow-600 mt-2 text-[10px] cursor-help">
-                Timeout
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent className="bg-yellow-50 text-yellow-900 border-yellow-200 p-3 max-w-[280px]">
-              <p className="font-semibold text-xs mb-1">Diagnóstico do Erro</p>
-              <p className="text-xs break-words">{errorStr}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )
+    const labels: Record<string, string> = {
+      API_KEY_MISSING: 'Chave Ausente',
+      ENDPOINT_INVALID: 'Endpoint Inválido',
+      AUTH_FAILURE: 'Erro Autenticação',
+      DNS_FAILURE: 'Falha de DNS',
+      NETWORK_TIMEOUT: 'Tempo Limite',
+      NETWORK_REFUSED: 'Conexão Recusada',
+      NETWORK_FAILURE: 'Falha de Rede',
+      HTTP_STATUS_ERRORS: 'Erro HTTP',
     }
+
+    const label = labels[status] || status
+    const isWarning =
+      status === 'NETWORK_TIMEOUT' || status === 'API_KEY_MISSING' || status === 'ENDPOINT_INVALID'
 
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
             <Badge
-              variant="destructive"
-              className="mt-2 text-[10px] truncate max-w-[100px] cursor-help"
+              variant={isWarning ? 'default' : 'destructive'}
+              className={cn(
+                'mt-2 text-[10px] truncate max-w-[120px] cursor-help',
+                isWarning ? 'bg-amber-500 hover:bg-amber-600 text-white border-transparent' : '',
+              )}
             >
-              {status}
+              {label}
             </Badge>
           </TooltipTrigger>
-          <TooltipContent className="bg-red-50 text-red-900 border-red-200 p-3 max-w-[280px]">
+          <TooltipContent
+            className={cn(
+              isWarning
+                ? 'bg-amber-50 text-amber-900 border-amber-200'
+                : 'bg-red-50 text-red-900 border-red-200',
+              'p-3 max-w-[280px]',
+            )}
+          >
             <p className="font-semibold text-xs mb-1">Diagnóstico do Erro</p>
             <p className="text-xs break-words">{errorStr || `Erro de Conexão`}</p>
           </TooltipContent>
@@ -280,17 +287,29 @@ export default function MonitoringManager() {
         <TabsContent value="geral" className="space-y-6">
           {config?.datajudStatus && config.datajudStatus !== 'online' && (
             <Alert
-              variant={config.datajudStatus === 'NETWORK_TIMEOUT' ? 'default' : 'destructive'}
+              variant={
+                ['NETWORK_TIMEOUT', 'API_KEY_MISSING', 'ENDPOINT_INVALID'].includes(
+                  config.datajudStatus,
+                )
+                  ? 'default'
+                  : 'destructive'
+              }
               className={
-                config.datajudStatus === 'NETWORK_TIMEOUT'
-                  ? 'border-yellow-500/50 bg-yellow-50 text-yellow-900'
+                ['NETWORK_TIMEOUT', 'API_KEY_MISSING', 'ENDPOINT_INVALID'].includes(
+                  config.datajudStatus,
+                )
+                  ? 'border-amber-500/50 bg-amber-50 text-amber-900'
                   : ''
               }
             >
               <AlertCircle
                 className={cn(
                   'h-4 w-4',
-                  config.datajudStatus === 'NETWORK_TIMEOUT' ? 'text-yellow-600' : '',
+                  ['NETWORK_TIMEOUT', 'API_KEY_MISSING', 'ENDPOINT_INVALID'].includes(
+                    config.datajudStatus,
+                  )
+                    ? 'text-amber-600'
+                    : '',
                 )}
               />
               <AlertTitle>Alerta de Conexão com o DataJud ({config.datajudStatus})</AlertTitle>
@@ -312,8 +331,10 @@ export default function MonitoringManager() {
                     <Database className="w-5 h-5 text-blue-500 mb-1" />
                     <p className="text-[11px] font-bold text-slate-700">DataJud</p>
                     {renderDataJudStatusLabel()}
-                    {config?.lastLatency > 0 && (
-                      <p className="text-[9px] mt-1 text-slate-500">{config.lastLatency}ms</p>
+                    {config?.lastLatency > 0 && config?.datajudStatus === 'online' && (
+                      <p className="text-[9px] mt-1 text-slate-500 font-mono">
+                        {config.lastLatency}ms
+                      </p>
                     )}
                   </div>
                   <div className="p-3 border rounded-lg bg-slate-50 text-center shadow-sm flex flex-col items-center justify-center">
@@ -321,7 +342,9 @@ export default function MonitoringManager() {
                     <p className="text-[11px] font-bold text-slate-700">Tribunais</p>
                     {renderStatusLabel(config?.tribunalStatus, config?.tribunalError)}
                     {config?.tribunalLatency > 0 && (
-                      <p className="text-[9px] mt-1 text-slate-500">{config.tribunalLatency}ms</p>
+                      <p className="text-[9px] mt-1 text-slate-500 font-mono">
+                        {config.tribunalLatency}ms
+                      </p>
                     )}
                   </div>
                   <div className="p-3 border rounded-lg bg-slate-50 text-center shadow-sm flex flex-col items-center justify-center">
@@ -329,7 +352,9 @@ export default function MonitoringManager() {
                     <p className="text-[11px] font-bold text-slate-700">DOU</p>
                     {renderStatusLabel(config?.douStatus, config?.douError)}
                     {config?.douLatency > 0 && (
-                      <p className="text-[9px] mt-1 text-slate-500">{config.douLatency}ms</p>
+                      <p className="text-[9px] mt-1 text-slate-500 font-mono">
+                        {config.douLatency}ms
+                      </p>
                     )}
                   </div>
                 </div>
@@ -435,6 +460,12 @@ export default function MonitoringManager() {
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder="Insira a API Key"
                   />
+                  {!apiKey && (
+                    <p className="text-xs text-amber-600 font-medium mt-1 flex items-center">
+                      <AlertCircle className="w-3 h-3 mr-1" /> Chave de API é necessária para
+                      conexão.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Frequência de Busca Automática</Label>
