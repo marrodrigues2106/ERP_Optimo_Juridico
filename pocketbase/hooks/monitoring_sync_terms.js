@@ -8,7 +8,7 @@ routerAdd(
       const tribunals = $app.findRecordsByFilter('tribunals', 'active = true', '', 100, 0)
       const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
 
-      let apiKey = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
+      let apiKey = ''
       let configRecord = null
 
       if (configs.length > 0) {
@@ -16,6 +16,16 @@ routerAdd(
         if (configRecord.get('apiKey')) {
           apiKey = configRecord.get('apiKey')
         }
+      }
+
+      if (!apiKey) {
+        if (configRecord) {
+          configRecord.set('lastError', 'Configuration Missing: API Key is not set')
+          try {
+            $app.saveNoValidate(configRecord)
+          } catch (e) {}
+        }
+        return e.json(400, { error: 'Configuration Missing: API Key is not set' })
       }
 
       let users = []
@@ -47,7 +57,6 @@ routerAdd(
             },
           ]
 
-          // Iterate through all active tribunals for Global Term Search
           for (let tr = 0; tr < tribunals.length; tr++) {
             if (Date.now() - start > 45000) break
 
@@ -70,20 +79,39 @@ routerAdd(
                       Accept: 'application/json',
                     },
                     body: JSON.stringify(strategies[s]),
-                    timeout: 5,
+                    timeout: 30, // Updated timeout
                   })
 
-                  successReq = true
                   if (res.statusCode === 200 && res.json && res.json.hits && res.json.hits.hits) {
                     hits = res.json.hits.hits
+                    successReq = true
+                  } else if (res.statusCode === 401 || res.statusCode === 403) {
+                    hasError = true
+                    lastError = 'Authentication Error: Invalid or expired API Key'
+                    successReq = true
+                  } else if (res.statusCode === 404) {
+                    hasError = true
+                    lastError = 'Invalid Endpoint: Tribunal alias not recognized'
+                    successReq = true
                   } else if (res.statusCode !== 200) {
                     hasError = true
-                    lastError = 'Status ' + res.statusCode
+                    lastError = 'HTTP Error: ' + res.statusCode
                   }
                 } catch (err) {
                   retryCount++
                   hasError = true
-                  lastError = String(err)
+                  const errStr = String(err).toLowerCase()
+                  if (
+                    errStr.includes('no such host') ||
+                    errStr.includes('dns') ||
+                    errStr.includes('resolve')
+                  ) {
+                    lastError = 'DNS Failure: Could not resolve host'
+                  } else if (errStr.includes('timeout') || errStr.includes('deadline')) {
+                    lastError = 'Connection Timeout: Server took too long to respond'
+                  } else {
+                    lastError = 'Network Failure: ' + String(err)
+                  }
                 }
               }
 
@@ -140,17 +168,15 @@ routerAdd(
             }
           }
         } else if (t.get('type') === 'DOU') {
-          // Official Gazette Mock Logic
           let douRes
           try {
-            douRes = $http.send({ url: 'https://httpbin.org/get', method: 'GET', timeout: 5 })
+            douRes = $http.send({ url: 'https://httpbin.org/get', method: 'GET', timeout: 10 })
           } catch (e) {
             hasError = true
             lastError = 'DOU Timeout'
           }
 
           if (douRes && douRes.statusCode === 200) {
-            // Simulate discovering the term in the gazette
             newCount++
             const notifsCol = $app.findCollectionByNameOrId('lawsuit_notifications')
             for (let u = 0; u < users.length; u++) {
@@ -181,7 +207,7 @@ routerAdd(
           configRecord.set('lastLatency', Date.now() - start)
           if (hasError && newCount === 0) {
             configRecord.set('lastStatus', 0)
-            configRecord.set('lastError', 'Algumas requisições falharam: ' + lastError)
+            configRecord.set('lastError', lastError)
           } else {
             configRecord.set('lastStatus', 200)
             configRecord.set('lastError', '')

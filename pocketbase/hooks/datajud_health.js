@@ -5,10 +5,17 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
     const cfg = configs.length > 0 ? configs[0] : null
 
     if (!cfg || !cfg.get('apiKey')) {
+      const errStr = 'Configuration Missing: API Key is not set'
+      if (cfg) {
+        cfg.set('lastError', errStr)
+        try {
+          $app.saveNoValidate(cfg)
+        } catch (e) {}
+      }
       return e.json(200, {
         status: 'error',
-        detail: 'Authentication Error: API Key missing',
-        errorType: 'Authentication Error',
+        detail: errStr,
+        errorType: 'Configuration Missing',
       })
     }
     const apiKey = cfg.get('apiKey')
@@ -18,15 +25,15 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
       if (!tr.get('active')) {
         return e.json(200, {
           status: 'error',
-          detail: `Invalid Endpoint/Alias: Tribunal '${alias}' inactive`,
-          errorType: 'Invalid Endpoint/Alias',
+          detail: `Invalid Endpoint: Tribunal '${alias}' inactive`,
+          errorType: 'Invalid Endpoint',
         })
       }
     } catch (err) {
       return e.json(200, {
         status: 'error',
-        detail: `Invalid Endpoint/Alias: Tribunal '${alias}' not found`,
-        errorType: 'Invalid Endpoint/Alias',
+        detail: `Invalid Endpoint: Tribunal alias not recognized`,
+        errorType: 'Invalid Endpoint',
       })
     }
 
@@ -49,18 +56,24 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
           Accept: 'application/json',
         },
         body: JSON.stringify({ size: 1, query: { match_all: {} } }),
-        timeout: 10,
+        timeout: 30, // Updated timeout
       })
 
-      if (res.statusCode === 401 || res.statusCode === 403) lastErrorString = 'Authentication Error'
-      else if (res.statusCode === 404) lastErrorString = 'Invalid Endpoint/Alias'
-      else if (res.statusCode >= 300) lastErrorString = 'HTTP ' + res.statusCode
+      if (res.statusCode === 401 || res.statusCode === 403) {
+        lastErrorString = 'Authentication Error: Invalid or expired API Key'
+      } else if (res.statusCode === 404) {
+        lastErrorString = 'Invalid Endpoint: Tribunal alias not recognized'
+      } else if (res.statusCode >= 300) {
+        lastErrorString = 'HTTP Error: ' + res.statusCode
+      }
     } catch (err) {
       const errStr = String(err).toLowerCase()
       if (errStr.includes('no such host') || errStr.includes('dns') || errStr.includes('resolve')) {
-        lastErrorString = 'DNS Failure'
+        lastErrorString = 'DNS Failure: Could not resolve host'
+      } else if (errStr.includes('timeout') || errStr.includes('deadline')) {
+        lastErrorString = 'Connection Timeout: Server took too long to respond'
       } else {
-        lastErrorString = 'Connection Timeout/Network Failure'
+        lastErrorString = 'Network Failure: ' + String(err)
       }
     }
 

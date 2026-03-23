@@ -10,12 +10,19 @@ routerAdd(
     const cfg = configs.length > 0 ? configs[0] : null
 
     if (!cfg || !cfg.get('apiKey')) {
+      const errStr = 'Configuration Missing: API Key is not set'
+      if (cfg) {
+        cfg.set('lastError', errStr)
+        try {
+          $app.saveNoValidate(cfg)
+        } catch (e) {}
+      }
       return e.json(200, {
         service,
         status: 0,
         latency: 0,
-        snippet: 'ERRO: Authentication Error - API Key missing',
-        errorType: 'Authentication Error',
+        snippet: 'ERRO: ' + errStr,
+        errorType: errStr,
       })
     }
     const apiKey = cfg.get('apiKey')
@@ -28,8 +35,8 @@ routerAdd(
             service,
             status: 0,
             latency: 0,
-            snippet: `ERRO: Invalid Endpoint/Alias - Tribunal '${alias}' inactive`,
-            errorType: 'Invalid Endpoint/Alias',
+            snippet: `ERRO: Invalid Endpoint - Tribunal '${alias}' inactive`,
+            errorType: 'Invalid Endpoint',
           })
         }
       } catch (err) {
@@ -37,8 +44,8 @@ routerAdd(
           service,
           status: 0,
           latency: 0,
-          snippet: `ERRO: Invalid Endpoint/Alias - Tribunal '${alias}' not found`,
-          errorType: 'Invalid Endpoint/Alias',
+          snippet: `ERRO: Invalid Endpoint - Tribunal alias not recognized`,
+          errorType: 'Invalid Endpoint',
         })
       }
 
@@ -61,15 +68,15 @@ routerAdd(
             Accept: 'application/json',
           },
           body: JSON.stringify({ size: 1, query: { match_all: {} } }),
-          timeout: 10,
+          timeout: 30, // Updated timeout
         })
 
         if (res.statusCode === 401 || res.statusCode === 403) {
-          lastErrorString = 'Authentication Error'
+          lastErrorString = 'Authentication Error: Invalid or expired API Key'
         } else if (res.statusCode === 404) {
-          lastErrorString = 'Invalid Endpoint/Alias'
+          lastErrorString = 'Invalid Endpoint: Tribunal alias not recognized'
         } else if (res.statusCode >= 300) {
-          lastErrorString = 'HTTP ' + res.statusCode
+          lastErrorString = 'HTTP Error: ' + res.statusCode
         }
       } catch (err) {
         const errStr = String(err).toLowerCase()
@@ -78,9 +85,11 @@ routerAdd(
           errStr.includes('dns') ||
           errStr.includes('resolve')
         ) {
-          lastErrorString = 'DNS Failure'
+          lastErrorString = 'DNS Failure: Could not resolve host'
+        } else if (errStr.includes('timeout') || errStr.includes('deadline')) {
+          lastErrorString = 'Connection Timeout: Server took too long to respond'
         } else {
-          lastErrorString = 'Connection Timeout/Network Failure'
+          lastErrorString = 'Network Failure: ' + String(err)
         }
       }
 
@@ -119,14 +128,19 @@ routerAdd(
         url: 'https://httpbin.org/get',
         method: 'GET',
         headers: { Accept: 'application/json' },
-        timeout: 10,
+        timeout: 30, // Updated timeout
       })
     } catch (err) {
+      const errStr = String(err).toLowerCase()
+      let finalErr = 'Network Failure: ' + String(err)
+      if (errStr.includes('timeout') || errStr.includes('deadline')) {
+        finalErr = 'Connection Timeout: Server took too long to respond'
+      }
       return e.json(500, {
         service,
         status: 0,
         latency: Date.now() - start,
-        snippet: 'Connection Timeout/Network Failure: ' + String(err),
+        snippet: finalErr,
       })
     }
 

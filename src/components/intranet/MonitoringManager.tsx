@@ -12,6 +12,7 @@ import {
   getTribunals,
   updateTribunal,
 } from '@/services/monitoring'
+import { useRealtime } from '@/hooks/use-realtime'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,7 +27,20 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import { Trash2, Plus, RefreshCw, Search, Wifi, Database, Landmark, BookOpen } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  Trash2,
+  Plus,
+  RefreshCw,
+  Search,
+  Wifi,
+  Database,
+  Landmark,
+  BookOpen,
+  AlertCircle,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function MonitoringManager() {
@@ -54,6 +68,12 @@ export default function MonitoringManager() {
   useEffect(() => {
     load()
   }, [])
+
+  useRealtime('monitoring_configs', (e) => {
+    if (e.action === 'update' || e.action === 'create') {
+      setConfig(e.record)
+    }
+  })
 
   const load = async () => {
     try {
@@ -116,7 +136,6 @@ export default function MonitoringManager() {
     try {
       await syncProcesses()
       toast({ title: 'Orquestração de Sincronização concluída' })
-      load()
     } catch (e) {
       toast({ title: 'Erro ao sincronizar', variant: 'destructive' })
     } finally {
@@ -142,7 +161,6 @@ export default function MonitoringManager() {
       const res = await testExternalConnection(type)
       setDebugLog(res)
       toast({ title: `Teste de conexão ${type.toUpperCase()} finalizado.` })
-      load()
     } catch (e: any) {
       toast({ title: 'Falha ao testar conexão', variant: 'destructive' })
       setDebugLog({ service: type, status: 0, latency: 0, snippet: `Erro interno: ${e.message}` })
@@ -154,36 +172,32 @@ export default function MonitoringManager() {
   const renderStatusLabel = (status?: number, errStr?: string) => {
     if (status === undefined || status === null) {
       return (
-        <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded mt-1.5 inline-block">
+        <Badge variant="secondary" className="mt-2 text-[10px]">
           Preparado
-        </span>
+        </Badge>
       )
     }
     if (status >= 200 && status < 300 && !errStr) {
-      return (
-        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded mt-1.5 inline-block">
-          Online
-        </span>
-      )
-    }
-
-    let label = 'Offline'
-    if (errStr) {
-      if (errStr.includes('Authentication Error')) label = 'Erro Auth (401/403)'
-      else if (errStr.includes('Invalid Endpoint/Alias')) label = 'Endpoint Inválido (404)'
-      else if (errStr.includes('DNS Failure')) label = 'Falha de DNS'
-      else if (errStr.includes('Connection Timeout') || errStr.includes('Network Failure'))
-        label = 'Timeout / Rede'
-      else label = errStr
+      return <Badge className="bg-emerald-500 hover:bg-emerald-600 mt-2 text-[10px]">Online</Badge>
     }
 
     return (
-      <span
-        className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded mt-1.5 inline-block text-center"
-        title={errStr}
-      >
-        {label}
-      </span>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge
+              variant="destructive"
+              className="mt-2 text-[10px] truncate max-w-[100px] cursor-help"
+            >
+              Offline
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent className="bg-red-50 text-red-900 border-red-200 p-3 max-w-[280px]">
+            <p className="font-semibold text-xs mb-1">Diagnóstico do Erro</p>
+            <p className="text-xs break-words">{errStr || `HTTP Error ${status}`}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     )
   }
 
@@ -203,6 +217,17 @@ export default function MonitoringManager() {
         </TabsList>
 
         <TabsContent value="geral" className="space-y-6">
+          {config?.lastError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Alerta de Conexão com o DataJud</AlertTitle>
+              <AlertDescription>
+                A última tentativa de sincronização encontrou um problema crítico:{' '}
+                <strong>{config.lastError}</strong>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="flex flex-col">
               <CardHeader>

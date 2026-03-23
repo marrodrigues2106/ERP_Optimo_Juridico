@@ -53,9 +53,15 @@ routerAdd(
 
       if (!apiKey) {
         record.set('datajudStatus', 'Sync Failed')
-        addErrorLog('Authentication Error: API Key missing.')
+        addErrorLog('Configuration Missing: API Key is not set.')
+        if (cfg) {
+          cfg.set('lastError', 'Configuration Missing: API Key is not set')
+          try {
+            $app.saveNoValidate(cfg)
+          } catch (e) {}
+        }
         $app.saveNoValidate(record)
-        return e.json(400, { status: 'error', errorType: 'Authentication Error' })
+        return e.json(400, { status: 'error', errorType: 'Configuration Missing' })
       }
 
       const num = record.get('number') || ''
@@ -86,15 +92,15 @@ routerAdd(
 
       if (!alias) {
         record.set('datajudStatus', 'Sync Failed')
-        addErrorLog(
-          'Falha na sincronização: Invalid Endpoint/Alias - Tribunal não identificado ou inativo.',
-        )
+        addErrorLog('Invalid Endpoint: Tribunal alias not recognized.')
         if (cfg) {
-          cfg.set('lastError', 'Invalid Endpoint/Alias')
-          $app.saveNoValidate(cfg)
+          cfg.set('lastError', 'Invalid Endpoint: Tribunal alias not recognized')
+          try {
+            $app.saveNoValidate(cfg)
+          } catch (e) {}
         }
         $app.saveNoValidate(record)
-        return e.json(400, { status: 'error', errorType: 'Invalid Endpoint/Alias' })
+        return e.json(400, { status: 'error', errorType: 'Invalid Endpoint' })
       }
 
       const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`
@@ -128,15 +134,15 @@ routerAdd(
             },
             sort: [{ '@timestamp': { order: 'asc' } }],
           }),
-          timeout: 10,
+          timeout: 30, // Updated timeout
         })
 
         if (res.statusCode === 401 || res.statusCode === 403) {
-          lastErrorString = 'Authentication Error'
+          lastErrorString = 'Authentication Error: Invalid or expired API Key'
         } else if (res.statusCode === 404) {
-          lastErrorString = 'Invalid Endpoint/Alias'
+          lastErrorString = 'Invalid Endpoint: Tribunal alias not recognized'
         } else if (res.statusCode >= 300) {
-          lastErrorString = 'HTTP ' + res.statusCode
+          lastErrorString = 'HTTP Error: ' + res.statusCode
         } else {
           const data = res.json
           const hits = data && data.hits && data.hits.hits ? data.hits.hits : []
@@ -195,9 +201,11 @@ routerAdd(
           errStr.includes('dns') ||
           errStr.includes('resolve')
         ) {
-          lastErrorString = 'DNS Failure'
+          lastErrorString = 'DNS Failure: Could not resolve host'
+        } else if (errStr.includes('timeout') || errStr.includes('deadline')) {
+          lastErrorString = 'Connection Timeout: Server took too long to respond'
         } else {
-          lastErrorString = 'Connection Timeout/Network Failure'
+          lastErrorString = 'Network Failure: ' + String(err)
         }
       }
 

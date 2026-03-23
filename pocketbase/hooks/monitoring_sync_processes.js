@@ -8,7 +8,15 @@ routerAdd(
       const cfg = configs.length > 0 ? configs[0] : null
       const apiKey = cfg ? cfg.get('apiKey') : ''
 
-      if (!apiKey) return e.json(400, { error: 'Authentication Error: API Key missing' })
+      if (!apiKey) {
+        if (cfg) {
+          cfg.set('lastError', 'Configuration Missing: API Key is not set')
+          try {
+            $app.saveNoValidate(cfg)
+          } catch (e) {}
+        }
+        return e.json(400, { error: 'Configuration Missing: API Key is not set' })
+      }
 
       const tribunals = $app.findRecordsByFilter('tribunals', 'active = true', '', 100, 0)
       const movementsCol = $app.findCollectionByNameOrId('lawsuit_movements')
@@ -21,12 +29,9 @@ routerAdd(
 
       let count = 0
 
-      // Pre-flight Environment Compliance Check
       try {
         $http.send({ url: 'https://1.1.1.1', method: 'GET', timeout: 2 })
-      } catch (err) {
-        // Ignore, allowed to proceed and capture granular error later
-      }
+      } catch (err) {}
 
       for (let i = 0; i < processes.length; i++) {
         const record = processes[i]
@@ -93,11 +98,9 @@ routerAdd(
 
         if (!alias) {
           record.set('datajudStatus', 'Sync Failed')
-          addErrorLog(
-            'Falha na sincronização: Invalid Endpoint/Alias - Tribunal não identificado no banco.',
-          )
+          addErrorLog('Invalid Endpoint: Tribunal alias not recognized.')
           if (cfg) {
-            cfg.set('lastError', 'Invalid Endpoint/Alias')
+            cfg.set('lastError', 'Invalid Endpoint: Tribunal alias not recognized')
             $app.saveNoValidate(cfg)
           }
           $app.saveNoValidate(record)
@@ -130,15 +133,15 @@ routerAdd(
               },
               sort: [{ '@timestamp': { order: 'asc' } }],
             }),
-            timeout: 10,
+            timeout: 30, // Updated timeout
           })
 
           if (res.statusCode === 401 || res.statusCode === 403) {
-            lastErrorString = 'Authentication Error'
+            lastErrorString = 'Authentication Error: Invalid or expired API Key'
           } else if (res.statusCode === 404) {
-            lastErrorString = 'Invalid Endpoint/Alias'
+            lastErrorString = 'Invalid Endpoint: Tribunal alias not recognized'
           } else if (res.statusCode >= 300) {
-            lastErrorString = 'HTTP ' + res.statusCode
+            lastErrorString = 'HTTP Error: ' + res.statusCode
           } else {
             const data = res.json
             const hits = data && data.hits && data.hits.hits ? data.hits.hits : []
@@ -196,9 +199,11 @@ routerAdd(
             errStr.includes('dns') ||
             errStr.includes('resolve')
           ) {
-            lastErrorString = 'DNS Failure'
+            lastErrorString = 'DNS Failure: Could not resolve host'
+          } else if (errStr.includes('timeout') || errStr.includes('deadline')) {
+            lastErrorString = 'Connection Timeout: Server took too long to respond'
           } else {
-            lastErrorString = 'Connection Timeout/Network Failure'
+            lastErrorString = 'Network Failure: ' + String(err)
           }
         }
 
