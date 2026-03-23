@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getNotifications, markLogAsRead } from '@/services/notifications'
+import { getNotifications, markAllAsRead } from '@/services/notifications'
 import { useAuth } from '@/hooks/use-auth'
 import pb from '@/lib/pocketbase/client'
 import { createLawsuit } from '@/services/lawsuits'
@@ -10,8 +10,9 @@ import { Label } from '@/components/ui/label'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Bell, CheckCircle2, PlusCircle, Activity } from 'lucide-react'
+import { Bell, CheckCircle2, PlusCircle, Activity, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Link } from 'react-router-dom'
 
 export function PushAlertsWidget() {
   const [alerts, setAlerts] = useState<any[]>([])
@@ -52,6 +53,17 @@ export function PushAlertsWidget() {
     }
   }
 
+  const handleMarkAllRead = async () => {
+    if (!user?.id) return
+    try {
+      await markAllAsRead(user.id)
+      toast({ title: 'Todos os alertas marcados como lidos' })
+      load()
+    } catch (e) {
+      toast({ title: 'Erro ao marcar alertas', variant: 'destructive' })
+    }
+  }
+
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
@@ -77,11 +89,18 @@ export function PushAlertsWidget() {
             <Activity className="w-5 h-5 text-primary" />
             <CardTitle className="text-lg">Feed de Atualizações & Alertas</CardTitle>
           </div>
-          {unreadCount > 0 && (
-            <span className="bg-primary/10 text-primary text-xs font-bold px-2 py-1 rounded-full">
-              {unreadCount} Não lidos
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {unreadCount > 0 && (
+              <span className="bg-primary/10 text-primary text-xs font-bold px-2 py-1 rounded-full hidden sm:inline-block">
+                {unreadCount} Não lidos
+              </span>
+            )}
+            {unreadCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={handleMarkAllRead} className="h-8 text-xs">
+                Marcar todos lidos
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-0 flex-1 overflow-y-auto">
@@ -158,6 +177,13 @@ export function PushAlertsWidget() {
                         }}
                       >
                         <PlusCircle className="w-3.5 h-3.5 mr-1.5" /> Registrar Processo
+                      </Button>
+                    )}
+                    {a.type !== 'discovery' && a.lawsuit && (
+                      <Button size="sm" variant="secondary" className="h-8 text-xs px-3" asChild>
+                        <Link to={`/intranet/processos/${a.lawsuit}`}>
+                          <ArrowRight className="w-3.5 h-3.5 mr-1.5" /> Ver Processo
+                        </Link>
                       </Button>
                     )}
                   </div>

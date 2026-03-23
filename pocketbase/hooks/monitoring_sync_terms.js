@@ -22,78 +22,116 @@ routerAdd(
         const t = terms[i]
         if (t.get('type') === 'DataJud') {
           const query = t.get('term')
-          const bodyObj = {
-            size: 10,
-            query: {
-              match_phrase: { 'movimentos.nome': query },
+
+          const strategies = [
+            {
+              size: 10,
+              query: {
+                bool: {
+                  should: [
+                    { term: { numeroProcesso: query } },
+                    { term: { 'numeroProcesso.keyword': query } },
+                  ],
+                },
+              },
             },
+            {
+              size: 10,
+              query: {
+                match_phrase: { 'partes.nome': query },
+              },
+            },
+            {
+              size: 10,
+              query: {
+                multi_match: {
+                  query: query,
+                  fields: ['partes.nome', 'movimentos.nome', 'orgaoJulgador.nomeOrgao'],
+                },
+              },
+            },
+          ]
+
+          let hits = []
+
+          for (let s = 0; s < strategies.length; s++) {
+            let retryCount = 0
+            let successReq = false
+
+            while (retryCount < 2 && !successReq) {
+              try {
+                let res = $http.send({
+                  url: 'https://api-publica.datajud.cnj.jus.br/api_publica_stj/_search',
+                  method: 'POST',
+                  headers: {
+                    Authorization: 'APIKey ' + apiKey,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(strategies[s]),
+                  timeout: 30, // 30s timeout resilient
+                })
+
+                successReq = true
+                if (res.statusCode === 200 && res.json && res.json.hits && res.json.hits.hits) {
+                  if (res.json.hits.hits.length > 0) {
+                    hits = res.json.hits.hits
+                    break
+                  }
+                }
+              } catch (err) {
+                retryCount++
+                console.log('Error syncing term (timeout/network): ', query, err)
+              }
+            }
+            if (hits.length > 0) break // found hits, break strategy loop
           }
 
-          let res
-          try {
-            res = $http.send({
-              url: 'https://api-publica.datajud.cnj.jus.br/api_publica_stj/_search',
-              method: 'POST',
-              headers: {
-                Authorization: 'APIKey ' + apiKey,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(bodyObj),
-              timeout: 30, // Updated to 30s timeout
-            })
+          for (let h = 0; h < hits.length; h++) {
+            const proc = hits[h]._source
+            if (proc && proc.numeroProcesso) {
+              let exists = false
+              try {
+                $app.findFirstRecordByFilter('lawsuits', `number ~ '${proc.numeroProcesso}'`)
+                exists = true
+              } catch (err) {}
 
-            if (res.statusCode === 200 && res.json && res.json.hits && res.json.hits.hits) {
-              const hits = res.json.hits.hits
-              for (let h = 0; h < hits.length; h++) {
-                const proc = hits[h]._source
-                if (proc && proc.numeroProcesso) {
-                  let exists = false
-                  try {
-                    $app.findFirstRecordByFilter('lawsuits', `number ~ '${proc.numeroProcesso}'`)
-                    exists = true
-                  } catch (err) {}
+              if (!exists) {
+                let notifExists = false
+                try {
+                  $app.findFirstRecordByFilter(
+                    'lawsuit_notifications',
+                    `update_content ~ '${proc.numeroProcesso}' && type = 'discovery'`,
+                  )
+                  notifExists = true
+                } catch (err) {}
 
-                  if (!exists) {
-                    let notifExists = false
-                    try {
-                      $app.findFirstRecordByFilter(
-                        'lawsuit_notifications',
-                        `update_content ~ '${proc.numeroProcesso}' && type = 'discovery'`,
-                      )
-                      notifExists = true
-                    } catch (err) {}
+                if (!notifExists) {
+                  newCount++
+                  const notifsCol = $app.findCollectionByNameOrId('lawsuit_notifications')
 
-                    if (!notifExists) {
-                      newCount++
-                      const notifsCol = $app.findCollectionByNameOrId('lawsuit_notifications')
-
-                      for (let u = 0; u < users.length; u++) {
-                        const n = new Record(notifsCol)
-                        n.set('type', 'discovery')
-                        n.set(
-                          'update_content',
-                          `Novo processo encontrado via termo '${query}': ${proc.numeroProcesso}`,
-                        )
-                        n.set('user', users[u].id)
-                        n.set('is_read', false)
-                        n.set('discovered_data', {
-                          number: proc.numeroProcesso,
-                          court:
-                            proc.orgaoJulgador && proc.orgaoJulgador.nomeOrgao
-                              ? proc.orgaoJulgador.nomeOrgao
-                              : 'STJ',
-                          parties: 'Partes não identificadas',
-                          status: 'Descoberto',
-                        })
-                        $app.saveNoValidate(n)
-                      }
-                    }
+                  for (let u = 0; u < users.length; u++) {
+                    const n = new Record(notifsCol)
+                    n.set('type', 'discovery')
+                    n.set(
+                      'update_content',
+                      `Novo processo encontrado via termo '${query}': ${proc.numeroProcesso}`,
+                    )
+                    n.set('user', users[u].id)
+                    n.set('is_read', false)
+                    n.set('discovered_data', {
+                      number: proc.numeroProcesso,
+                      court:
+                        proc.orgaoJulgador && proc.orgaoJulgador.nomeOrgao
+                          ? proc.orgaoJulgador.nomeOrgao
+                          : 'STJ',
+                      parties: 'Partes identificadas na pesquisa',
+                      status: 'Descoberto',
+                    })
+                    $app.saveNoValidate(n)
                   }
                 }
               }
             }
-          } catch (err) {
-            console.log('Error syncing term (timeout/network): ', query, err)
           }
         }
       }

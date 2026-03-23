@@ -62,7 +62,7 @@ routerAdd(
       }
     } else {
       debugSnippet =
-        'Falha na conexão.\n\nA solicitação não foi concluída. Isso geralmente ocorre devido a um timeout excedido (limite de 30 segundos atingido) ou recusa de rede.\n\nDetalhe técnico: ' +
+        'Falha na conexão.\n\nA solicitação não foi concluída. Isso geralmente ocorre devido a um timeout excedido (limite de 30 segundos atingido) ou recusa de rede.\n\nDetalhe técnico: Timeout Exceeded (30s) ou Connection Refused.\n\nMensagem original: ' +
         (errorMsg || 'Timeout/Unknown')
     }
 

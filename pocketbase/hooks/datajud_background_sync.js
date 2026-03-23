@@ -149,42 +149,62 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
             let bodyObj = {
               size: pageSize,
               query: {
-                bool: { filter: [{ term: { numeroProcesso: cleanNum } }] },
+                bool: {
+                  should: [
+                    { term: { numeroProcesso: cleanNum } },
+                    { term: { 'numeroProcesso.keyword': cleanNum } },
+                    { match_phrase: { numeroProcesso: cleanNum } },
+                  ],
+                  minimum_should_match: 1,
+                },
               },
               sort: [{ '@timestamp': { order: 'asc' } }],
             }
             if (searchAfter) bodyObj.search_after = searchAfter
 
             let res
-            try {
-              res = $http.send({
-                url: url,
-                method: 'POST',
-                headers: {
-                  Authorization: 'APIKey ' + apiKey,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(bodyObj),
-                timeout: 30, // Updated to 30s timeout
-              })
-            } catch (err) {
-              record.set('datajudStatus', 'Sync Failed')
-              const errMsg = err && err.message ? err.message : String(err)
-              addErrorLog(
-                record,
-                'Falha na sincronização de rede ou timeout (30s) na API DataJud: ' + errMsg,
-              )
-              hasNetworkError = true
-              break
+            let retryCount = 0
+            let successReq = false
+
+            while (retryCount < 3 && !successReq) {
+              try {
+                res = $http.send({
+                  url: url,
+                  method: 'POST',
+                  headers: {
+                    Authorization: 'APIKey ' + apiKey,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(bodyObj),
+                  timeout: 30, // Updated 30s timeout
+                })
+                successReq = true
+              } catch (err) {
+                retryCount++
+                if (retryCount >= 3) {
+                  record.set('datajudStatus', 'Sync Failed')
+                  const errMsg = err && err.message ? err.message : String(err)
+                  addErrorLog(
+                    record,
+                    'Falha de rede (Timeout 30s) ou recusa após 3 tentativas na API DataJud: ' +
+                      errMsg,
+                  )
+                  hasNetworkError = true
+                  break
+                }
+              }
             }
 
-            if (res.statusCode !== 200) {
+            if (hasNetworkError) break
+
+            if (!res || res.statusCode !== 200) {
               record.set('datajudStatus', 'Sync Failed')
               addErrorLog(
                 record,
-                'Falha na sincronização: A API DataJud retornou status ' + res.statusCode,
+                'Falha na sincronização: A API DataJud retornou status ' +
+                  (res ? res.statusCode : 'desconhecido'),
               )
-              apiStatusError = res.statusCode
+              apiStatusError = res ? res.statusCode : 0
               break
             }
 
@@ -234,10 +254,27 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
               for (let i = 0; i < allHits.length; i++) {
                 const proc = allHits[i] ? allHits[i]._source : null
                 const movimentos = proc && proc.movimentos ? proc.movimentos : []
+
                 for (let j = 0; j < movimentos.length; j++) {
                   const m = movimentos[j]
                   const dateStr = m.dataHora || new Date().toISOString()
-                  const descStr = m.nome || m.descricao || 'Movimentação Datajud'
+                  let descStr = m.nome || m.descricao || 'Movimentação Datajud'
+
+                  if (
+                    Array.isArray(m.complementosTabelados) &&
+                    m.complementosTabelados.length > 0
+                  ) {
+                    const compStrs = []
+                    for (let k = 0; k < m.complementosTabelados.length; k++) {
+                      const comp = m.complementosTabelados[k]
+                      if (comp.nome && comp.valor) compStrs.push(comp.nome + ': ' + comp.valor)
+                      else if (comp.descricao) compStrs.push(comp.descricao)
+                    }
+                    if (compStrs.length > 0) {
+                      descStr += ' - ' + compStrs.join(', ')
+                    }
+                  }
+
                   const dedupKey = dateStr + '_' + descStr
 
                   if (!uniqueKeys[dedupKey]) {

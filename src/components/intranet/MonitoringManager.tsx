@@ -158,7 +158,7 @@ export default function MonitoringManager() {
             <div className="space-y-2">
               <Label>Chave da API (DataJud)</Label>
               <Input
-                type="text"
+                type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="Insira a API Key"
@@ -211,7 +211,7 @@ export default function MonitoringManager() {
             <div className="pt-5 mt-5 border-t space-y-4">
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 <Activity className="w-4 h-4 text-primary" />
-                Service Connection Status (Debug)
+                Diagnóstico de Conexão (Debug)
               </h3>
               <div className="flex flex-col sm:flex-row gap-3">
                 <Button

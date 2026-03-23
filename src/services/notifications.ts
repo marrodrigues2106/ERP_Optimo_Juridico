@@ -20,3 +20,13 @@ export const markLogAsRead = async (
     })
   }
 }
+
+export const markAllAsRead = async (userId: string) => {
+  const records = await pb.collection('lawsuit_notifications').getFullList({
+    filter: `user = "${userId}" && is_read = false`,
+  })
+  const promises = records.map((r) =>
+    pb.collection('lawsuit_notifications').update(r.id, { is_read: true }),
+  )
+  return Promise.all(promises)
+}
