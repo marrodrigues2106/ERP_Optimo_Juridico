@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-23T03:28:20.411Z",
+  "generatedAt": "2026-03-23T03:42:06.862Z",
   "collections": [
     {
       "name": "users",
@@ -951,6 +951,24 @@
         },
         {
           "name": "douError",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "datajudLastCheckAt",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "datajudLastError",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "datajudStatus",
           "type": "text",
           "required": false,
           "system": false

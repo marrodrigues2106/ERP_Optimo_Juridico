@@ -9,56 +9,81 @@ routerAdd(
     const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
     const cfg = configs.length > 0 ? configs[0] : null
 
-    if (!cfg || !cfg.get('apiKey')) {
-      const errStr = 'Configuration Missing: API Key is not set'
-      if (cfg) {
-        cfg.set('lastError', errStr)
-        try {
-          $app.saveNoValidate(cfg)
-        } catch (e) {}
-      }
+    if (!cfg) {
       return e.json(200, {
         service,
         status: 0,
         latency: 0,
-        snippet: 'ERRO: ' + errStr,
-        errorType: errStr,
+        snippet: 'ERRO: Configuration Missing',
+        errorType: 'API_KEY_MISSING',
       })
     }
-    const apiKey = cfg.get('apiKey')
 
     if (service === 'datajud') {
-      try {
-        const tr = $app.findFirstRecordByFilter('tribunals', `alias = '${alias}'`)
-        if (!tr.get('active')) {
-          return e.json(200, {
-            service,
-            status: 0,
-            latency: 0,
-            snippet: `ERRO: Invalid Endpoint - Tribunal '${alias}' inactive`,
-            errorType: 'Invalid Endpoint',
-          })
-        }
-      } catch (err) {
+      let errorType = ''
+      let lastErrorString = ''
+
+      if (!cfg.get('apiKey')) {
+        errorType = 'API_KEY_MISSING'
+        lastErrorString = 'Configuration Missing: API Key is not set'
+        cfg.set('datajudLastError', lastErrorString)
+        cfg.set('datajudStatus', errorType)
+        cfg.set('datajudLastCheckAt', new Date().toISOString())
+        try {
+          $app.saveNoValidate(cfg)
+        } catch (err) {}
         return e.json(200, {
           service,
           status: 0,
           latency: 0,
-          snippet: `ERRO: Invalid Endpoint - Tribunal alias not recognized`,
-          errorType: 'Invalid Endpoint',
+          snippet: 'ERRO: ' + lastErrorString,
+          errorType: errorType,
+        })
+      }
+      const apiKey = cfg.get('apiKey')
+
+      try {
+        const tr = $app.findFirstRecordByFilter('tribunals', `alias = '${alias}'`)
+        if (!tr.get('active')) {
+          errorType = 'ENDPOINT_INVALID'
+          lastErrorString = `Invalid Endpoint: Tribunal '${alias}' inactive`
+          cfg.set('datajudLastError', lastErrorString)
+          cfg.set('datajudStatus', errorType)
+          cfg.set('datajudLastCheckAt', new Date().toISOString())
+          try {
+            $app.saveNoValidate(cfg)
+          } catch (err) {}
+          return e.json(200, {
+            service,
+            status: 0,
+            latency: 0,
+            snippet: `ERRO: ` + lastErrorString,
+            errorType: errorType,
+          })
+        }
+      } catch (err) {
+        errorType = 'ENDPOINT_INVALID'
+        lastErrorString = `Invalid Endpoint: Tribunal alias not recognized`
+        cfg.set('datajudLastError', lastErrorString)
+        cfg.set('datajudStatus', errorType)
+        cfg.set('datajudLastCheckAt', new Date().toISOString())
+        try {
+          $app.saveNoValidate(cfg)
+        } catch (e) {}
+        return e.json(200, {
+          service,
+          status: 0,
+          latency: 0,
+          snippet: `ERRO: ` + lastErrorString,
+          errorType: errorType,
         })
       }
 
       const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`
       let res
-      let lastErrorString = ''
       const start = Date.now()
 
       try {
-        try {
-          $http.send({ url: 'https://1.1.1.1', method: 'GET', timeout: 2 })
-        } catch (err) {}
-
         res = $http.send({
           url: url,
           method: 'POST',
@@ -68,27 +93,39 @@ routerAdd(
             Accept: 'application/json',
           },
           body: JSON.stringify({ size: 1, query: { match_all: {} } }),
-          timeout: 30, // Updated timeout
+          timeout: 30,
         })
 
         if (res.statusCode === 401 || res.statusCode === 403) {
+          errorType = 'AUTH_FAILURE'
           lastErrorString = 'Authentication Error: Invalid or expired API Key'
         } else if (res.statusCode === 404) {
+          errorType = 'ENDPOINT_INVALID'
           lastErrorString = 'Invalid Endpoint: Tribunal alias not recognized'
         } else if (res.statusCode >= 300) {
+          errorType = 'HTTP_STATUS_ERRORS'
           lastErrorString = 'HTTP Error: ' + res.statusCode
+        } else {
+          errorType = 'online'
         }
       } catch (err) {
         const errStr = String(err).toLowerCase()
         if (
+          errStr.includes('lookup') ||
           errStr.includes('no such host') ||
           errStr.includes('dns') ||
           errStr.includes('resolve')
         ) {
-          lastErrorString = 'DNS Failure: Could not resolve host'
+          errorType = 'DNS_FAILURE'
+          lastErrorString = 'DNS Failure: Could not resolve host api-publica.datajud.cnj.jus.br'
         } else if (errStr.includes('timeout') || errStr.includes('deadline')) {
-          lastErrorString = 'Connection Timeout: Server took too long to respond'
+          errorType = 'NETWORK_TIMEOUT'
+          lastErrorString = 'Connection Timeout: Server took too long to respond (30s)'
+        } else if (errStr.includes('connection refused')) {
+          errorType = 'NETWORK_REFUSED'
+          lastErrorString = 'Network Refused: Connection refused by the server'
         } else {
+          errorType = 'NETWORK_FAILURE'
           lastErrorString = 'Network Failure: ' + String(err)
         }
       }
@@ -108,7 +145,9 @@ routerAdd(
       try {
         cfg.set('lastStatus', statusCode)
         cfg.set('lastLatency', latency)
-        cfg.set('lastError', lastErrorString)
+        cfg.set('datajudStatus', errorType)
+        cfg.set('datajudLastError', lastErrorString)
+        cfg.set('datajudLastCheckAt', new Date().toISOString())
         $app.saveNoValidate(cfg)
       } catch (e) {}
 
@@ -117,7 +156,7 @@ routerAdd(
         status: statusCode,
         latency,
         snippet,
-        errorType: lastErrorString,
+        errorType: errorType,
       })
     }
 
@@ -128,7 +167,7 @@ routerAdd(
         url: 'https://httpbin.org/get',
         method: 'GET',
         headers: { Accept: 'application/json' },
-        timeout: 30, // Updated timeout
+        timeout: 30,
       })
     } catch (err) {
       const errStr = String(err).toLowerCase()

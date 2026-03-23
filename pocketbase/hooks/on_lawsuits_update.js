@@ -86,7 +86,7 @@ onRecordAfterUpdateSuccess((e) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ secret: 'internal-async-trigger' }),
-        timeout: 1,
+        timeout: 15,
       })
     } catch (err) {}
   }

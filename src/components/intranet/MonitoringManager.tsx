@@ -63,6 +63,7 @@ export default function MonitoringManager() {
     status: number
     latency: number
     snippet: string
+    errorType?: string
   } | null>(null)
 
   useEffect(() => {
@@ -80,8 +81,8 @@ export default function MonitoringManager() {
       const cfg = await getMonitoringConfig()
       if (cfg) {
         setConfig(cfg)
-        setApiKey(cfg.apiKey)
-        setFrequency(cfg.frequency)
+        setApiKey(cfg.apiKey || '')
+        setFrequency(cfg.frequency || 'Daily')
       }
       setTerms(await getMonitoringTerms())
       setTribunals(await getTribunals())
@@ -163,10 +164,70 @@ export default function MonitoringManager() {
       toast({ title: `Teste de conexão ${type.toUpperCase()} finalizado.` })
     } catch (e: any) {
       toast({ title: 'Falha ao testar conexão', variant: 'destructive' })
-      setDebugLog({ service: type, status: 0, latency: 0, snippet: `Erro interno: ${e.message}` })
+      setDebugLog({
+        service: type,
+        status: 0,
+        latency: 0,
+        snippet: `Erro interno: ${e.message}`,
+        errorType: 'INTERNAL_ERROR',
+      })
     } finally {
       setIsTesting(null)
     }
+  }
+
+  const renderDataJudStatusLabel = () => {
+    const status = config?.datajudStatus
+    const errorStr = config?.datajudLastError
+
+    if (!status) {
+      return (
+        <Badge variant="secondary" className="mt-2 text-[10px]">
+          Preparado
+        </Badge>
+      )
+    }
+
+    if (status === 'online') {
+      return <Badge className="bg-emerald-500 hover:bg-emerald-600 mt-2 text-[10px]">Online</Badge>
+    }
+
+    if (status === 'NETWORK_TIMEOUT') {
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge className="bg-yellow-500 hover:bg-yellow-600 mt-2 text-[10px] cursor-help">
+                Timeout
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent className="bg-yellow-50 text-yellow-900 border-yellow-200 p-3 max-w-[280px]">
+              <p className="font-semibold text-xs mb-1">Diagnóstico do Erro</p>
+              <p className="text-xs break-words">{errorStr}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )
+    }
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge
+              variant="destructive"
+              className="mt-2 text-[10px] truncate max-w-[100px] cursor-help"
+            >
+              {status}
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent className="bg-red-50 text-red-900 border-red-200 p-3 max-w-[280px]">
+            <p className="font-semibold text-xs mb-1">Diagnóstico do Erro</p>
+            <p className="text-xs break-words">{errorStr || `Erro de Conexão`}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
   }
 
   const renderStatusLabel = (status?: number, errStr?: string) => {
@@ -217,13 +278,25 @@ export default function MonitoringManager() {
         </TabsList>
 
         <TabsContent value="geral" className="space-y-6">
-          {config?.lastError && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Alerta de Conexão com o DataJud</AlertTitle>
+          {config?.datajudStatus && config.datajudStatus !== 'online' && (
+            <Alert
+              variant={config.datajudStatus === 'NETWORK_TIMEOUT' ? 'default' : 'destructive'}
+              className={
+                config.datajudStatus === 'NETWORK_TIMEOUT'
+                  ? 'border-yellow-500/50 bg-yellow-50 text-yellow-900'
+                  : ''
+              }
+            >
+              <AlertCircle
+                className={cn(
+                  'h-4 w-4',
+                  config.datajudStatus === 'NETWORK_TIMEOUT' ? 'text-yellow-600' : '',
+                )}
+              />
+              <AlertTitle>Alerta de Conexão com o DataJud ({config.datajudStatus})</AlertTitle>
               <AlertDescription>
-                A última tentativa de sincronização encontrou um problema crítico:{' '}
-                <strong>{config.lastError}</strong>
+                A última tentativa de sincronização encontrou um problema:{' '}
+                <strong>{config.datajudLastError}</strong>
               </AlertDescription>
             </Alert>
           )}
@@ -238,7 +311,7 @@ export default function MonitoringManager() {
                   <div className="p-3 border rounded-lg bg-slate-50 text-center shadow-sm flex flex-col items-center justify-center">
                     <Database className="w-5 h-5 text-blue-500 mb-1" />
                     <p className="text-[11px] font-bold text-slate-700">DataJud</p>
-                    {renderStatusLabel(config?.lastStatus, config?.lastError)}
+                    {renderDataJudStatusLabel()}
                     {config?.lastLatency > 0 && (
                       <p className="text-[9px] mt-1 text-slate-500">{config.lastLatency}ms</p>
                     )}
@@ -261,9 +334,9 @@ export default function MonitoringManager() {
                   </div>
                 </div>
 
-                {config?.updated && (
+                {config?.datajudLastCheckAt && (
                   <p className="text-[10px] text-slate-400 text-center font-mono">
-                    Última validação: {new Date(config.updated).toLocaleString()}
+                    Última checagem DataJud: {new Date(config.datajudLastCheckAt).toLocaleString()}
                   </p>
                 )}
 
@@ -326,12 +399,16 @@ export default function MonitoringManager() {
                       <span
                         className={cn(
                           'px-2 py-1 rounded text-[11px] font-bold',
-                          debugLog.status >= 200 && debugLog.status < 300
+                          debugLog.status >= 200 &&
+                            debugLog.status < 300 &&
+                            (!debugLog.errorType || debugLog.errorType === 'online')
                             ? 'bg-emerald-900/50 text-emerald-400'
                             : 'bg-red-900/50 text-red-400',
                         )}
                       >
-                        HTTP {debugLog.status}
+                        {debugLog.errorType && debugLog.errorType !== 'online'
+                          ? debugLog.errorType
+                          : `HTTP ${debugLog.status}`}
                       </span>
                       <span className="text-slate-400 font-semibold tracking-wider uppercase text-[10px]">
                         Alvo: {debugLog.service}
