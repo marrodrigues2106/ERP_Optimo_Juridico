@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-23T00:31:53.702Z",
+  "generatedAt": "2026-03-23T00:45:25.682Z",
   "collections": [
     {
       "name": "users",
@@ -254,6 +254,12 @@
         {
           "name": "notifyClient",
           "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "last_sync",
+          "type": "date",
           "required": false,
           "system": false
         }
