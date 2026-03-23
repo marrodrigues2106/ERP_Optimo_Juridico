@@ -1,15 +1,14 @@
 routerAdd('GET', '/backend/v1/datajud/health', (e) => {
   try {
     const alias = e.request.url.query().get('alias') || 'stf'
-
     const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
     const cfg = configs.length > 0 ? configs[0] : null
 
     if (!cfg || !cfg.get('apiKey')) {
       return e.json(200, {
         status: 'error',
-        detail: 'Configuration Error: API Key is missing or empty',
-        errorType: 'Configuration Error',
+        detail: 'Authentication Error: API Key missing',
+        errorType: 'Authentication Error',
       })
     }
     const apiKey = cfg.get('apiKey')
@@ -19,23 +18,28 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
       if (!tr.get('active')) {
         return e.json(200, {
           status: 'error',
-          detail: `Configuration Error: Tribunal alias '${alias}' is inactive`,
-          errorType: 'Configuration Error',
+          detail: `Invalid Endpoint/Alias: Tribunal '${alias}' inactive`,
+          errorType: 'Invalid Endpoint/Alias',
         })
       }
     } catch (err) {
       return e.json(200, {
         status: 'error',
-        detail: `Invalid Endpoint: Tribunal alias '${alias}' not found in database`,
-        errorType: 'Invalid Endpoint',
+        detail: `Invalid Endpoint/Alias: Tribunal '${alias}' not found`,
+        errorType: 'Invalid Endpoint/Alias',
       })
     }
 
     const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`
-    const start = Date.now()
     let res
+    const start = Date.now()
+    let lastErrorString = ''
 
     try {
+      try {
+        $http.send({ url: 'https://1.1.1.1', method: 'GET', timeout: 2 })
+      } catch (err) {}
+
       res = $http.send({
         url: url,
         method: 'POST',
@@ -45,67 +49,41 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
           Accept: 'application/json',
         },
         body: JSON.stringify({ size: 1, query: { match_all: {} } }),
-        timeout: 15,
+        timeout: 10,
       })
-    } catch (err) {
-      const latency = Date.now() - start
-      try {
-        cfg.set('lastStatus', 0)
-        cfg.set('lastLatency', latency)
-        cfg.set('lastError', 'Timeout: ' + String(err))
-        $app.saveNoValidate(cfg)
-      } catch (e) {}
 
+      if (res.statusCode === 401 || res.statusCode === 403) lastErrorString = 'Authentication Error'
+      else if (res.statusCode === 404) lastErrorString = 'Invalid Endpoint/Alias'
+      else if (res.statusCode >= 300) lastErrorString = 'HTTP ' + res.statusCode
+    } catch (err) {
+      const errStr = String(err).toLowerCase()
+      if (errStr.includes('no such host') || errStr.includes('dns') || errStr.includes('resolve')) {
+        lastErrorString = 'DNS Failure'
+      } else {
+        lastErrorString = 'Connection Timeout/Network Failure'
+      }
+    }
+
+    const latency = Date.now() - start
+
+    try {
+      cfg.set('lastStatus', res ? res.statusCode : 0)
+      cfg.set('lastLatency', latency)
+      cfg.set('lastError', lastErrorString)
+      $app.saveNoValidate(cfg)
+    } catch (e) {}
+
+    if (lastErrorString) {
       return e.json(200, {
         status: 'error',
-        detail: 'Timeout or network issue: ' + String(err),
-        errorType: 'Timeout',
+        detail: lastErrorString,
+        errorType: lastErrorString,
         latency,
       })
     }
 
-    const latency = Date.now() - start
-    let errorType = null
-    let detail = null
-
-    if (res.statusCode === 401 || res.statusCode === 403) {
-      errorType = 'Auth Error'
-      detail = 'Invalid or expired credentials'
-    } else if (res.statusCode === 404) {
-      errorType = 'Invalid Endpoint'
-      detail = 'Endpoint/Alias invalid'
-    } else if (res.statusCode >= 300) {
-      errorType = 'Unexpected HTTP Response'
-      detail = 'HTTP ' + res.statusCode
-    }
-
-    try {
-      cfg.set('lastStatus', res.statusCode)
-      cfg.set('lastLatency', latency)
-      cfg.set('lastError', detail || '')
-      $app.saveNoValidate(cfg)
-    } catch (e) {}
-
-    if (errorType) {
-      try {
-        const logs = $app.findCollectionByNameOrId('audit_logs')
-        const logRecord = new Record(logs)
-        logRecord.set('collection_name', 'system')
-        logRecord.set('record_id', 'datajud_health_check')
-        logRecord.set('action', 'datajud_error')
-        logRecord.set('changes', { error_code: res.statusCode, detail: detail })
-        $app.saveNoValidate(logRecord)
-      } catch (logErr) {}
-
-      return e.json(200, { status: 'error', detail, errorType, latency })
-    }
-
     return e.json(200, { status: 'online', latency, data: res.json })
   } catch (err) {
-    return e.json(200, {
-      status: 'error',
-      detail: err.message || 'Graceful health check failure',
-      errorType: 'Unexpected Error',
-    })
+    return e.json(500, { error: String(err) })
   }
 })

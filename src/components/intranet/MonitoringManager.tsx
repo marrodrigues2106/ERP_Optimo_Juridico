@@ -115,7 +115,8 @@ export default function MonitoringManager() {
     setLoadingSyncP(true)
     try {
       await syncProcesses()
-      toast({ title: 'Orquestração de Múltiplas Fontes iniciada' })
+      toast({ title: 'Orquestração de Sincronização concluída' })
+      load()
     } catch (e) {
       toast({ title: 'Erro ao sincronizar', variant: 'destructive' })
     } finally {
@@ -158,7 +159,7 @@ export default function MonitoringManager() {
         </span>
       )
     }
-    if (status >= 200 && status < 300) {
+    if (status >= 200 && status < 300 && !errStr) {
       return (
         <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded mt-1.5 inline-block">
           Online
@@ -167,23 +168,18 @@ export default function MonitoringManager() {
     }
 
     let label = 'Offline'
-    if (status === 401 || status === 403) label = 'Credencial Inválida'
-    else if (status === 404) label = 'Endpoint Inválido'
-    else if (
-      status === 0 ||
-      errStr?.toLowerCase().includes('timeout') ||
-      errStr?.toLowerCase().includes('network')
-    )
-      label = 'Sem Conexão'
-    else if (
-      errStr?.toLowerCase().includes('configura') ||
-      errStr?.toLowerCase().includes('configuration')
-    )
-      label = 'Erro Configuração'
+    if (errStr) {
+      if (errStr.includes('Authentication Error')) label = 'Erro Auth (401/403)'
+      else if (errStr.includes('Invalid Endpoint/Alias')) label = 'Endpoint Inválido (404)'
+      else if (errStr.includes('DNS Failure')) label = 'Falha de DNS'
+      else if (errStr.includes('Connection Timeout') || errStr.includes('Network Failure'))
+        label = 'Timeout / Rede'
+      else label = errStr
+    }
 
     return (
       <span
-        className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded mt-1.5 inline-block text-center px-1"
+        className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded mt-1.5 inline-block text-center"
         title={errStr}
       >
         {label}
@@ -239,6 +235,12 @@ export default function MonitoringManager() {
                     )}
                   </div>
                 </div>
+
+                {config?.updated && (
+                  <p className="text-[10px] text-slate-400 text-center font-mono">
+                    Última validação: {new Date(config.updated).toLocaleString()}
+                  </p>
+                )}
 
                 <div className="flex flex-col gap-2 pt-2 border-t">
                   <span className="text-xs font-semibold text-slate-700 mb-1">
@@ -354,7 +356,7 @@ export default function MonitoringManager() {
                   <div className="flex flex-col gap-3">
                     <Button variant="secondary" onClick={handleSyncP} disabled={loadingSyncP}>
                       <RefreshCw className={cn('w-4 h-4 mr-2', loadingSyncP && 'animate-spin')} />
-                      Orquestrar Sincronização de Processos
+                      Sincronizar Processos Ativos
                     </Button>
                     <Button variant="secondary" onClick={handleSyncT} disabled={loadingSyncT}>
                       <Search className={cn('w-4 h-4 mr-2', loadingSyncT && 'animate-spin')} />

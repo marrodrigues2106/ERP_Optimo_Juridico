@@ -4,23 +4,23 @@ routerAdd(
   (e) => {
     const body = e.requestInfo().body || {}
     const service = body.service || 'datajud'
+    const alias = body.alias || 'stf'
+
+    const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
+    const cfg = configs.length > 0 ? configs[0] : null
+
+    if (!cfg || !cfg.get('apiKey')) {
+      return e.json(200, {
+        service,
+        status: 0,
+        latency: 0,
+        snippet: 'ERRO: Authentication Error - API Key missing',
+        errorType: 'Authentication Error',
+      })
+    }
+    const apiKey = cfg.get('apiKey')
 
     if (service === 'datajud') {
-      const alias = body.alias || 'stf'
-      const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
-      const cfg = configs.length > 0 ? configs[0] : null
-
-      if (!cfg || !cfg.get('apiKey')) {
-        return e.json(200, {
-          service,
-          status: 0,
-          latency: 0,
-          snippet: 'ERRO: Erro de Configuração - API Key is missing or empty',
-          errorType: 'Configuration Error',
-        })
-      }
-      const apiKey = cfg.get('apiKey')
-
       try {
         const tr = $app.findFirstRecordByFilter('tribunals', `alias = '${alias}'`)
         if (!tr.get('active')) {
@@ -28,8 +28,8 @@ routerAdd(
             service,
             status: 0,
             latency: 0,
-            snippet: `ERRO: Erro de Configuração - Tribunal '${alias}' is inactive`,
-            errorType: 'Configuration Error',
+            snippet: `ERRO: Invalid Endpoint/Alias - Tribunal '${alias}' inactive`,
+            errorType: 'Invalid Endpoint/Alias',
           })
         }
       } catch (err) {
@@ -37,16 +37,21 @@ routerAdd(
           service,
           status: 0,
           latency: 0,
-          snippet: `ERRO: Endpoint/Alias inválido - Tribunal '${alias}' not found`,
-          errorType: 'Invalid Endpoint',
+          snippet: `ERRO: Invalid Endpoint/Alias - Tribunal '${alias}' not found`,
+          errorType: 'Invalid Endpoint/Alias',
         })
       }
 
       const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`
-      const start = Date.now()
       let res
+      let lastErrorString = ''
+      const start = Date.now()
 
       try {
+        try {
+          $http.send({ url: 'https://1.1.1.1', method: 'GET', timeout: 2 })
+        } catch (err) {}
+
         res = $http.send({
           url: url,
           method: 'POST',
@@ -56,61 +61,72 @@ routerAdd(
             Accept: 'application/json',
           },
           body: JSON.stringify({ size: 1, query: { match_all: {} } }),
-          timeout: 15,
+          timeout: 10,
         })
+
+        if (res.statusCode === 401 || res.statusCode === 403) {
+          lastErrorString = 'Authentication Error'
+        } else if (res.statusCode === 404) {
+          lastErrorString = 'Invalid Endpoint/Alias'
+        } else if (res.statusCode >= 300) {
+          lastErrorString = 'HTTP ' + res.statusCode
+        }
       } catch (err) {
-        const latency = Date.now() - start
-        try {
-          cfg.set('lastStatus', 0)
-          cfg.set('lastLatency', latency)
-          cfg.set('lastError', 'Timeout: ' + String(err))
-          $app.saveNoValidate(cfg)
-        } catch (e) {}
-        return e.json(200, {
-          service,
-          status: 0,
-          latency,
-          snippet: 'ERRO: Conectividade indisponível - ' + String(err),
-          errorType: 'Timeout',
-        })
+        const errStr = String(err).toLowerCase()
+        if (
+          errStr.includes('no such host') ||
+          errStr.includes('dns') ||
+          errStr.includes('resolve')
+        ) {
+          lastErrorString = 'DNS Failure'
+        } else {
+          lastErrorString = 'Connection Timeout/Network Failure'
+        }
       }
 
       const latency = Date.now() - start
+      const statusCode = res ? res.statusCode : 0
       let snippet = ''
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        snippet = `SUCESSO: Conexão com DATAJUD estabelecida.\n\n`
-        if (res.body) snippet += String(res.body).substring(0, 150) + '...'
+
+      if (lastErrorString) {
+        snippet = `ERRO: ${lastErrorString}.\n\n`
+        if (res && res.body) snippet += String(res.body).substring(0, 150)
       } else {
-        snippet = `ERRO: HTTP ${res.statusCode}.\n\n`
-        if (res.statusCode === 401 || res.statusCode === 403) {
-          snippet += 'Credencial inválida ou expirada.\n'
-        }
-        if (res.body) snippet += String(res.body).substring(0, 150)
+        snippet = `SUCESSO: Conexão com DATAJUD estabelecida.\n\n`
+        if (res && res.body) snippet += String(res.body).substring(0, 150) + '...'
       }
 
       try {
-        cfg.set('lastStatus', res.statusCode)
+        cfg.set('lastStatus', statusCode)
         cfg.set('lastLatency', latency)
-        cfg.set('lastError', res.statusCode >= 300 ? snippet : '')
+        cfg.set('lastError', lastErrorString)
         $app.saveNoValidate(cfg)
       } catch (e) {}
 
-      return e.json(200, { service, status: res.statusCode, latency, snippet })
+      return e.json(200, {
+        service,
+        status: statusCode,
+        latency,
+        snippet,
+        errorType: lastErrorString,
+      })
     }
 
-    // Mock endpoints for tribunal and dou to simulate external tests
-    let url = 'https://httpbin.org/get'
-    let headers = { Accept: 'application/json' }
     const start = Date.now()
     let res
     try {
-      res = $http.send({ url: url, method: 'GET', headers: headers, timeout: 10 })
+      res = $http.send({
+        url: 'https://httpbin.org/get',
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        timeout: 10,
+      })
     } catch (err) {
       return e.json(500, {
-        service: service,
+        service,
         status: 0,
         latency: Date.now() - start,
-        snippet: 'Falha de Conexão: ' + String(err),
+        snippet: 'Connection Timeout/Network Failure: ' + String(err),
       })
     }
 
@@ -124,28 +140,20 @@ routerAdd(
       if (res.body) snippet += String(res.body).substring(0, 150)
     }
 
-    // Update latencies in configs
     try {
-      const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
-      if (configs.length > 0) {
-        const c = configs[0]
+      if (cfg) {
         if (service === 'tribunal') {
-          c.set('tribunalStatus', res.statusCode)
-          c.set('tribunalLatency', latency)
+          cfg.set('tribunalStatus', res.statusCode)
+          cfg.set('tribunalLatency', latency)
         } else if (service === 'dou') {
-          c.set('douStatus', res.statusCode)
-          c.set('douLatency', latency)
+          cfg.set('douStatus', res.statusCode)
+          cfg.set('douLatency', latency)
         }
-        $app.saveNoValidate(c)
+        $app.saveNoValidate(cfg)
       }
     } catch (err) {}
 
-    return e.json(200, {
-      service: service,
-      status: res.statusCode,
-      latency: latency,
-      snippet: snippet,
-    })
+    return e.json(200, { service, status: res.statusCode, latency, snippet })
   },
   $apis.requireAuth(),
 )

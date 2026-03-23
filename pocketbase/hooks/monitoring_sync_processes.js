@@ -3,33 +3,223 @@ routerAdd(
   '/backend/v1/monitoring/sync-processes',
   (e) => {
     try {
-      const processes = $app.findRecordsByFilter('lawsuits', "status != 'Encerrado'", '', 100, 0)
+      const processes = $app.findRecordsByFilter('lawsuits', "status != 'Encerrado'", '', 50, 0)
+      const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
+      const cfg = configs.length > 0 ? configs[0] : null
+      const apiKey = cfg ? cfg.get('apiKey') : ''
+
+      if (!apiKey) return e.json(400, { error: 'Authentication Error: API Key missing' })
+
+      const tribunals = $app.findRecordsByFilter('tribunals', 'active = true', '', 100, 0)
+      const movementsCol = $app.findCollectionByNameOrId('lawsuit_movements')
+      const notifsCol = $app.findCollectionByNameOrId('lawsuit_notifications')
+
+      let usersToNotify = []
+      try {
+        usersToNotify = $app.findRecordsByFilter('users', '1=1', '', 100, 0)
+      } catch (err) {}
+
       let count = 0
 
-      let url = $secrets.get('PB_INSTANCE_URL') || 'http://127.0.0.1:8090'
-      if (url.endsWith('/')) url = url.slice(0, -1)
+      // Pre-flight Environment Compliance Check
+      try {
+        $http.send({ url: 'https://1.1.1.1', method: 'GET', timeout: 2 })
+      } catch (err) {
+        // Ignore, allowed to proceed and capture granular error later
+      }
 
       for (let i = 0; i < processes.length; i++) {
-        const p = processes[i]
-        if (p.get('number')) {
-          p.set('datajudStatus', 'Sync Requested')
-          $app.saveNoValidate(p)
+        const record = processes[i]
+        const id = record.id
 
-          // Fire and forget background sync to orchestrator with resilient timeout
+        const saveMovement = (dateStr, descStr, source, meta) => {
+          const cleanDate = new Date(dateStr).toISOString().substring(0, 10)
+          const rawString = id + '_' + cleanDate + '_' + descStr.trim().toLowerCase()
+          const hash = $security.sha256(rawString)
           try {
-            $http.send({
-              url: url + '/backend/v1/datajud/background-sync/' + p.id,
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ secret: 'internal-async-trigger' }),
-              timeout: 5, // Increased timeout to 5s to prevent premature network failures during local dispatch
-            })
+            const existing = $app.findFirstRecordByFilter('lawsuit_movements', `hash = '${hash}'`)
+            let mData = existing.get('metadata') || {}
+            let sources = mData.sources || [existing.get('source')]
+            if (!sources.includes(source)) {
+              sources.push(source)
+              mData.sources = sources
+              existing.set('metadata', mData)
+              $app.saveNoValidate(existing)
+            }
+            return false
           } catch (err) {
-            // Expected timeout error - dispatch successful, control returned early
+            const mov = new Record(movementsCol)
+            mov.set('lawsuit', id)
+            mov.set('event_date', new Date(dateStr).toISOString())
+            mov.set('description', descStr)
+            mov.set('source', source)
+            mov.set('hash', hash)
+            let initialMeta = meta || {}
+            initialMeta.sources = [source]
+            mov.set('metadata', initialMeta)
+            $app.saveNoValidate(mov)
+            return true
           }
-
-          count++
         }
+
+        const addErrorLog = (msg) => {
+          saveMovement(new Date().toISOString(), msg, 'Sistema', { error: true })
+        }
+
+        const num = record.get('number') || ''
+        const cleanNum = String(num).replace(/\D/g, '')
+
+        if (cleanNum.length !== 20) {
+          record.set('datajudStatus', 'Sync Failed')
+          addErrorLog(`Falha na sincronização: Número do processo inválido (${cleanNum}).`)
+          $app.saveNoValidate(record)
+          continue
+        }
+
+        const courtName = record.get('court')
+        let alias = null
+
+        for (let t = 0; t < tribunals.length; t++) {
+          const tr = tribunals[t]
+          if (
+            courtName &&
+            (tr.get('name').toLowerCase() === courtName.toLowerCase() ||
+              tr.get('alias') === courtName.toLowerCase())
+          ) {
+            alias = tr.get('alias')
+            break
+          }
+        }
+
+        if (!alias) {
+          record.set('datajudStatus', 'Sync Failed')
+          addErrorLog(
+            'Falha na sincronização: Invalid Endpoint/Alias - Tribunal não identificado no banco.',
+          )
+          if (cfg) {
+            cfg.set('lastError', 'Invalid Endpoint/Alias')
+            $app.saveNoValidate(cfg)
+          }
+          $app.saveNoValidate(record)
+          continue
+        }
+
+        const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${alias}/_search`
+        let res
+        let lastErrorString = ''
+        const start = Date.now()
+
+        try {
+          res = $http.send({
+            url: url,
+            method: 'POST',
+            headers: {
+              Authorization: 'APIKey ' + apiKey,
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+            },
+            body: JSON.stringify({
+              size: 100,
+              query: {
+                bool: {
+                  should: [
+                    { term: { 'numeroProcesso.keyword': cleanNum } },
+                    { term: { numeroProcesso: cleanNum } },
+                  ],
+                },
+              },
+              sort: [{ '@timestamp': { order: 'asc' } }],
+            }),
+            timeout: 10,
+          })
+
+          if (res.statusCode === 401 || res.statusCode === 403) {
+            lastErrorString = 'Authentication Error'
+          } else if (res.statusCode === 404) {
+            lastErrorString = 'Invalid Endpoint/Alias'
+          } else if (res.statusCode >= 300) {
+            lastErrorString = 'HTTP ' + res.statusCode
+          } else {
+            const data = res.json
+            const hits = data && data.hits && data.hits.hits ? data.hits.hits : []
+            if (hits.length === 0) {
+              record.set('datajudStatus', 'Not Found')
+            } else {
+              const proc = hits[0]._source
+              if (
+                proc &&
+                proc.orgaoJulgador &&
+                proc.orgaoJulgador.nomeOrgao &&
+                !record.get('court')
+              ) {
+                record.set('court', proc.orgaoJulgador.nomeOrgao)
+              }
+
+              const lastSyncStr = record.get('last_sync')
+              let lastSyncTime = lastSyncStr ? new Date(lastSyncStr).getTime() : 0
+              let newLastSyncTime = lastSyncTime
+
+              for (let h = 0; h < hits.length; h++) {
+                const movimentos = hits[h]._source.movimentos || []
+                for (let j = 0; j < movimentos.length; j++) {
+                  const m = movimentos[j]
+                  const dateStr = m.dataHora || new Date().toISOString()
+                  const movTime = new Date(dateStr).getTime()
+                  let descStr = m.nome || m.descricao || 'Movimentação Datajud'
+                  const isNew = saveMovement(dateStr, descStr, 'DataJud', { datajud_raw: m })
+
+                  if (isNew && lastSyncTime !== 0 && movTime > lastSyncTime) {
+                    for (let u = 0; u < usersToNotify.length; u++) {
+                      const n = new Record(notifsCol)
+                      n.set('lawsuit', record.id)
+                      n.set('update_content', `Nova movimentação: ${descStr}`)
+                      n.set('type', 'update')
+                      n.set('user', usersToNotify[u].id)
+                      n.set('is_read', false)
+                      try {
+                        $app.saveNoValidate(n)
+                      } catch (e) {}
+                    }
+                  }
+                  if (movTime > newLastSyncTime) newLastSyncTime = movTime
+                }
+              }
+              record.set('datajudStatus', 'Success')
+              if (newLastSyncTime > 0)
+                record.set('last_sync', new Date(newLastSyncTime).toISOString())
+            }
+          }
+        } catch (err) {
+          const errStr = String(err).toLowerCase()
+          if (
+            errStr.includes('no such host') ||
+            errStr.includes('dns') ||
+            errStr.includes('resolve')
+          ) {
+            lastErrorString = 'DNS Failure'
+          } else {
+            lastErrorString = 'Connection Timeout/Network Failure'
+          }
+        }
+
+        if (cfg) {
+          cfg.set('lastStatus', res ? res.statusCode : 0)
+          cfg.set('lastLatency', Date.now() - start)
+          if (lastErrorString) cfg.set('lastError', lastErrorString)
+          try {
+            $app.saveNoValidate(cfg)
+          } catch (e) {}
+        }
+
+        if (lastErrorString) {
+          record.set('datajudStatus', 'Sync Failed')
+          addErrorLog(`Falha Datajud: ${lastErrorString}`)
+        }
+
+        try {
+          $app.saveNoValidate(record)
+        } catch (e) {}
+        count++
       }
 
       return e.json(200, { success: true, count: count })
