@@ -1,4 +1,3 @@
-// This hook acts as the Multi-Source Sync Orchestrator
 routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
   try {
     const body = e.requestInfo().body || {}
@@ -8,17 +7,12 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
     const record = $app.findRecordById('lawsuits', id)
     const movementsCol = $app.findCollectionByNameOrId('lawsuit_movements')
 
-    // Universal Save & Deduplication Logic
     const saveMovement = (dateStr, descStr, source, meta) => {
-      // Create hash without source for cross-source deduplication
       const cleanDate = new Date(dateStr).toISOString().substring(0, 10)
       const rawString = id + '_' + cleanDate + '_' + descStr.trim().toLowerCase()
       const hash = $security.sha256(rawString)
-
       try {
         const existing = $app.findFirstRecordByFilter('lawsuit_movements', `hash = '${hash}'`)
-
-        // Update metadata to reflect multi-source confirmation
         let mData = existing.get('metadata') || {}
         let sources = mData.sources || [existing.get('source')]
         if (!sources.includes(source)) {
@@ -27,7 +21,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
           existing.set('metadata', mData)
           $app.saveNoValidate(existing)
         }
-        return false // Duplicate avoided
+        return false
       } catch (err) {
         const mov = new Record(movementsCol)
         mov.set('lawsuit', id)
@@ -35,13 +29,11 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
         mov.set('description', descStr)
         mov.set('source', source)
         mov.set('hash', hash)
-
         let initialMeta = meta || {}
         initialMeta.sources = [source]
         mov.set('metadata', initialMeta)
-
         $app.saveNoValidate(mov)
-        return true // New movement created
+        return true
       }
     }
 
@@ -121,19 +113,27 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
 
         if (!alias) {
           record.set('datajudStatus', 'Sync Failed')
-          addErrorLog('Falha na sincronização: Não foi possível identificar o tribunal.')
+          addErrorLog(
+            'Falha na sincronização: Endpoint/Alias inválido - Tribunal não identificado.',
+          )
         } else if (!tribunalIsActive) {
           record.set('datajudStatus', 'Sync Failed')
-          addErrorLog(`Falha na sincronização: O tribunal '${alias}' está desativado.`)
+          addErrorLog(
+            `Falha na sincronização: Erro de Configuração - O tribunal '${alias}' está desativado.`,
+          )
         } else {
-          // --- 1. DataJud Sync Module ---
-          const url = 'https://api-publica.datajud.cnj.jus.br/api_publica_' + alias + '/_search'
-          let apiKey = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
-          try {
-            const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
-            if (configs.length > 0 && configs[0].get('apiKey')) apiKey = configs[0].get('apiKey')
-          } catch (err) {}
+          const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
+          const cfg = configs.length > 0 ? configs[0] : null
 
+          if (!cfg || !cfg.get('apiKey')) {
+            record.set('datajudStatus', 'Sync Failed')
+            addErrorLog(`Falha na sincronização: Erro de Configuração - API Key ausente.`)
+            $app.saveNoValidate(record)
+            return e.json(200, { status: 'error' })
+          }
+          const apiKey = cfg.get('apiKey')
+
+          const url = 'https://api-publica.datajud.cnj.jus.br/api_publica_' + alias + '/_search'
           const strategies = [
             { query: { term: { 'numeroProcesso.keyword': cleanNum } } },
             { query: { term: { numeroProcesso: cleanNum } } },
@@ -142,6 +142,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
           let allHits = []
           let hasNetworkError = false
           let formatError = false
+          let authError = false
 
           for (let s = 0; s < strategies.length; s++) {
             let bodyObj = {
@@ -155,6 +156,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
             let successReq = false
 
             while (retryCount < 3 && !successReq) {
+              const start = Date.now()
               try {
                 res = $http.send({
                   url: url,
@@ -165,21 +167,46 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
                     Accept: 'application/json',
                   },
                   body: JSON.stringify(bodyObj),
-                  timeout: 30,
+                  timeout: 15,
                 })
                 successReq = true
+
+                const latency = Date.now() - start
+                try {
+                  cfg.set('lastStatus', res.statusCode)
+                  cfg.set('lastLatency', latency)
+                  if (res.statusCode === 401 || res.statusCode === 403) {
+                    cfg.set('lastError', 'Credencial inválida ou expirada')
+                    authError = true
+                  } else if (res.statusCode >= 300) {
+                    cfg.set('lastError', 'HTTP ' + res.statusCode)
+                  } else {
+                    cfg.set('lastError', '')
+                  }
+                  $app.saveNoValidate(cfg)
+                } catch (e) {}
               } catch (err) {
                 retryCount++
+                const latency = Date.now() - start
+                try {
+                  cfg.set('lastStatus', 0)
+                  cfg.set('lastLatency', latency)
+                  cfg.set('lastError', 'Timeout: ' + String(err))
+                  $app.saveNoValidate(cfg)
+                } catch (e) {}
+
                 if (retryCount >= 3) {
                   hasNetworkError = true
-                  const errMsg = err && err.message ? err.message : String(err)
-                  addErrorLog('Timeout na API DataJud: ' + errMsg)
+                  addErrorLog('Conectividade indisponível: Timeout na API DataJud.')
                   break
                 }
               }
             }
 
-            if (hasNetworkError) break
+            if (hasNetworkError || authError) {
+              if (authError) addErrorLog('Falha de Autenticação: Credencial inválida ou expirada.')
+              break
+            }
 
             if (res && res.statusCode === 200) {
               let data
@@ -196,9 +223,9 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
             }
           }
 
-          const datajudFailed = hasNetworkError || formatError || allHits.length === 0
+          const datajudFailed = hasNetworkError || formatError || authError || allHits.length === 0
 
-          if (!hasNetworkError && !formatError) {
+          if (!hasNetworkError && !formatError && !authError) {
             if (allHits.length === 0) {
               record.set('datajudStatus', 'Not Found')
             } else {
@@ -261,10 +288,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
                       } catch (e) {}
                     }
                   }
-
-                  if (movTime > newLastSyncTime) {
-                    newLastSyncTime = movTime
-                  }
+                  if (movTime > newLastSyncTime) newLastSyncTime = movTime
                 }
               }
 
@@ -274,21 +298,16 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
               }
               success = true
             }
-          } else if (hasNetworkError || formatError) {
+          } else if (hasNetworkError || formatError || authError) {
             record.set('datajudStatus', 'Sync Failed')
           }
 
-          // --- 2. Tribunal Scraping Fallback Module ---
-          // Simulating scraping logic. If DataJud failed, this escalates priority.
           let tribunalLatency = 0
           let trStart = Date.now()
           let trError = null
           try {
-            // Mock connection to Tribunal Portal
             $http.send({ url: 'https://httpbin.org/get', method: 'GET', timeout: 5 })
             tribunalLatency = Date.now() - trStart
-
-            // If DataJud failed, simulate the scraper finding the missing movement
             if (datajudFailed) {
               saveMovement(
                 new Date().toISOString(),
@@ -304,12 +323,10 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
             trError = err.message
           }
 
-          // --- 3. Official Gazettes (DOU) Module ---
           let douLatency = 0
           let douStart = Date.now()
           let douError = null
           try {
-            // Mock connection to Official Gazettes DB
             $http.send({ url: 'https://httpbin.org/get', method: 'GET', timeout: 5 })
             douLatency = Date.now() - douStart
           } catch (err) {
@@ -317,20 +334,15 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
             douError = err.message
           }
 
-          // Update Health Monitors
           try {
-            const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
-            if (configs.length > 0) {
-              const c = configs[0]
-              c.set('tribunalStatus', trError ? 0 : 200)
-              c.set('tribunalLatency', tribunalLatency)
-              c.set('tribunalError', trError || '')
-
-              c.set('douStatus', douError ? 0 : 200)
-              c.set('douLatency', douLatency)
-              c.set('douError', douError || '')
-
-              $app.saveNoValidate(c)
+            if (cfg) {
+              cfg.set('tribunalStatus', trError ? 0 : 200)
+              cfg.set('tribunalLatency', tribunalLatency)
+              cfg.set('tribunalError', trError || '')
+              cfg.set('douStatus', douError ? 0 : 200)
+              cfg.set('douLatency', douLatency)
+              cfg.set('douError', douError || '')
+              $app.saveNoValidate(cfg)
             }
           } catch (e) {}
         }

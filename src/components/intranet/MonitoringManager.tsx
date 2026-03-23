@@ -26,18 +26,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import {
-  Trash2,
-  Plus,
-  RefreshCw,
-  Search,
-  Wifi,
-  CheckCircle2,
-  XCircle,
-  Database,
-  Landmark,
-  BookOpen,
-} from 'lucide-react'
+import { Trash2, Plus, RefreshCw, Search, Wifi, Database, Landmark, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function MonitoringManager() {
@@ -161,7 +150,7 @@ export default function MonitoringManager() {
     }
   }
 
-  const renderStatus = (status?: number, label: string = 'Ativo') => {
+  const renderStatusLabel = (status?: number, errStr?: string) => {
     if (status === undefined || status === null) {
       return (
         <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded mt-1.5 inline-block">
@@ -172,13 +161,32 @@ export default function MonitoringManager() {
     if (status >= 200 && status < 300) {
       return (
         <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded mt-1.5 inline-block">
-          {label}
+          Online
         </span>
       )
     }
+
+    let label = 'Offline'
+    if (status === 401 || status === 403) label = 'Credencial Inválida'
+    else if (status === 404) label = 'Endpoint Inválido'
+    else if (
+      status === 0 ||
+      errStr?.toLowerCase().includes('timeout') ||
+      errStr?.toLowerCase().includes('network')
+    )
+      label = 'Sem Conexão'
+    else if (
+      errStr?.toLowerCase().includes('configura') ||
+      errStr?.toLowerCase().includes('configuration')
+    )
+      label = 'Erro Configuração'
+
     return (
-      <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded mt-1.5 inline-block">
-        Offline
+      <span
+        className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded mt-1.5 inline-block text-center px-1"
+        title={errStr}
+      >
+        {label}
       </span>
     )
   }
@@ -209,7 +217,7 @@ export default function MonitoringManager() {
                   <div className="p-3 border rounded-lg bg-slate-50 text-center shadow-sm flex flex-col items-center justify-center">
                     <Database className="w-5 h-5 text-blue-500 mb-1" />
                     <p className="text-[11px] font-bold text-slate-700">DataJud</p>
-                    {renderStatus(config?.lastStatus)}
+                    {renderStatusLabel(config?.lastStatus, config?.lastError)}
                     {config?.lastLatency > 0 && (
                       <p className="text-[9px] mt-1 text-slate-500">{config.lastLatency}ms</p>
                     )}
@@ -217,7 +225,7 @@ export default function MonitoringManager() {
                   <div className="p-3 border rounded-lg bg-slate-50 text-center shadow-sm flex flex-col items-center justify-center">
                     <Landmark className="w-5 h-5 text-indigo-500 mb-1" />
                     <p className="text-[11px] font-bold text-slate-700">Tribunais</p>
-                    {renderStatus(config?.tribunalStatus)}
+                    {renderStatusLabel(config?.tribunalStatus, config?.tribunalError)}
                     {config?.tribunalLatency > 0 && (
                       <p className="text-[9px] mt-1 text-slate-500">{config.tribunalLatency}ms</p>
                     )}
@@ -225,7 +233,7 @@ export default function MonitoringManager() {
                   <div className="p-3 border rounded-lg bg-slate-50 text-center shadow-sm flex flex-col items-center justify-center">
                     <BookOpen className="w-5 h-5 text-amber-500 mb-1" />
                     <p className="text-[11px] font-bold text-slate-700">DOU</p>
-                    {renderStatus(config?.douStatus)}
+                    {renderStatusLabel(config?.douStatus, config?.douError)}
                     {config?.douLatency > 0 && (
                       <p className="text-[9px] mt-1 text-slate-500">{config.douLatency}ms</p>
                     )}

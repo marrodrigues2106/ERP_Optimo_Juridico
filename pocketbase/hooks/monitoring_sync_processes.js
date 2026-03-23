@@ -15,17 +15,17 @@ routerAdd(
           p.set('datajudStatus', 'Sync Requested')
           $app.saveNoValidate(p)
 
-          // Fire and forget background sync to orchestrator
+          // Fire and forget background sync to orchestrator with resilient timeout
           try {
             $http.send({
               url: url + '/backend/v1/datajud/background-sync/' + p.id,
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ secret: 'internal-async-trigger' }),
-              timeout: 1, // Short timeout to immediately return control
+              timeout: 5, // Increased timeout to 5s to prevent premature network failures during local dispatch
             })
           } catch (err) {
-            // Expected timeout error
+            // Expected timeout error - dispatch successful, control returned early
           }
 
           count++
