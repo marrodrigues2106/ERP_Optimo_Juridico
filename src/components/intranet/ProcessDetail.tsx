@@ -33,12 +33,8 @@ import {
   Plus,
   Calendar,
   Clock,
-  AlertTriangle,
-  Users,
-  Phone,
   Briefcase,
   User,
-  Mail,
   RefreshCw,
   Scale,
   Landmark,
@@ -100,7 +96,7 @@ export default function ProcessDetail() {
       pb.send(`/backend/v1/datajud/background-sync/${lawsuit.id}`, {
         method: 'POST',
         body: JSON.stringify({ secret: 'internal-async-trigger' }),
-      }).catch(() => {}) // Ignore fetch errors since we expect it to be async
+      }).catch(() => {})
 
       toast({ title: 'Sincronização com Múltiplas Fontes solicitada. Processando...' })
     } catch (e) {
@@ -265,11 +261,13 @@ export default function ProcessDetail() {
                         'ml-1 font-medium',
                         lawsuit.datajudStatus === 'Success'
                           ? 'text-green-600'
-                          : lawsuit.datajudStatus === 'Sync Requested'
-                            ? 'text-blue-600 animate-pulse'
-                            : lawsuit.datajudStatus === 'Not Found'
-                              ? 'text-slate-500'
-                              : 'text-red-600 font-bold',
+                          : lawsuit.datajudStatus === 'Partial Success (Fallback)'
+                            ? 'text-amber-600'
+                            : lawsuit.datajudStatus === 'Sync Requested'
+                              ? 'text-blue-600 animate-pulse'
+                              : lawsuit.datajudStatus === 'Not Found'
+                                ? 'text-slate-500'
+                                : 'text-red-600 font-bold',
                       )}
                     >
                       {lawsuit.datajudStatus}
@@ -433,6 +431,17 @@ export default function ProcessDetail() {
                                 >
                                   {mov.description}
                                 </p>
+
+                                {mov.metadata?.sources && mov.metadata.sources.length > 1 && (
+                                  <div className="mt-2 text-[10px] text-slate-500 font-medium flex gap-1">
+                                    <span className="text-slate-400">Confirmado também por:</span>
+                                    <span className="uppercase text-slate-600">
+                                      {mov.metadata.sources
+                                        .filter((s: string) => s !== mov.source)
+                                        .join(', ')}
+                                    </span>
+                                  </div>
+                                )}
 
                                 {mov.metadata?.complementos &&
                                   mov.metadata.complementos.length > 0 && (

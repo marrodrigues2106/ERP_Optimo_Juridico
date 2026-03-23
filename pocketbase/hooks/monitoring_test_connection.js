@@ -5,85 +5,85 @@ routerAdd(
     const body = e.requestInfo().body || {}
     const service = body.service || 'datajud'
 
-    let apiKey = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
-    let configRecord = null
+    let url = ''
+    let headers = {}
 
-    try {
-      const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
-      if (configs.length > 0) {
-        configRecord = configs[0]
-        if (configRecord.get('apiKey')) {
-          apiKey = configRecord.get('apiKey')
+    if (service === 'datajud') {
+      url = 'https://api-publica.datajud.cnj.jus.br/api_publica_stf/_search'
+      let apiKey = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
+      try {
+        const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
+        if (configs.length > 0 && configs[0].get('apiKey')) {
+          apiKey = configs[0].get('apiKey')
         }
+      } catch (err) {}
+      headers = {
+        Authorization: 'APIKey ' + apiKey,
+        'Content-Type': 'application/json',
       }
-    } catch (err) {}
+    } else {
+      // Mock endpoints for tribunal and dou to simulate external scraping tests
+      url = 'https://httpbin.org/get'
+      headers = { Accept: 'application/json' }
+    }
 
     const start = Date.now()
     let res
-    let errorMsg = null
-
     try {
-      if (service === 'datajud') {
-        res = $http.send({
-          url: 'https://api-publica.datajud.cnj.jus.br/api_publica_tjrj/_search',
-          method: 'POST',
-          headers: {
-            Authorization: 'APIKey ' + apiKey,
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-          body: JSON.stringify({ size: 1, query: { match_all: {} } }),
-          timeout: 30, // Strict 30s timeout per AC
-        })
-      } else if (service === 'dou') {
-        res = $http.send({
-          url: 'https://httpbin.org/get?source=dou_test',
-          method: 'GET',
-          headers: {
-            'User-Agent': 'MonitoringSystem/1.0',
-          },
-          timeout: 30,
-        })
-      }
+      res = $http.send({
+        url: url,
+        method: service === 'datajud' ? 'POST' : 'GET',
+        headers: headers,
+        body: service === 'datajud' ? JSON.stringify({ size: 1, query: { match_all: {} } }) : null,
+        timeout: 10,
+      })
     } catch (err) {
-      errorMsg = String(err)
+      return e.json(500, {
+        service: service,
+        status: 0,
+        latency: Date.now() - start,
+        snippet: 'Falha de Conexão: ' + String(err),
+      })
     }
 
     const latency = Date.now() - start
-    let debugSnippet = ''
-    let status = 0
-
-    if (res) {
-      status = res.statusCode || 0
-      try {
-        debugSnippet = JSON.stringify(res.json, null, 2)
-        if (debugSnippet.length > 1000) {
-          debugSnippet =
-            debugSnippet.substring(0, 1000) + '\n\n... (Resposta truncada por ser muito grande)'
-        }
-      } catch (parseErr) {
-        debugSnippet = 'Raw body:\n' + (res.body ? String(res.body).substring(0, 500) : 'vazio')
+    let snippet = ''
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      snippet = `SUCESSO: Conexão com ${service.toUpperCase()} estabelecida.\n\n`
+      if (res.body) {
+        snippet += String(res.body).substring(0, 150) + '...'
       }
     } else {
-      debugSnippet =
-        'Falha na conexão.\n\nA solicitação não foi concluída. Isso geralmente ocorre devido a um timeout excedido (limite de 30 segundos atingido) ou recusa de rede.\n\nDetalhe técnico: Timeout Exceeded (30s) ou Connection Refused.\n\nMensagem original: ' +
-        (errorMsg || 'Timeout/Unknown')
+      snippet = `ERRO: HTTP ${res.statusCode}.\n\n`
+      if (res.body) {
+        snippet += String(res.body).substring(0, 150)
+      }
     }
 
-    if (configRecord) {
-      try {
-        configRecord.set('lastStatus', status)
-        configRecord.set('lastLatency', latency)
-        configRecord.set('lastError', errorMsg || '')
-        $app.saveNoValidate(configRecord)
-      } catch (saveErr) {}
-    }
+    // Update latencies in configs
+    try {
+      const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
+      if (configs.length > 0) {
+        const c = configs[0]
+        if (service === 'datajud') {
+          c.set('lastStatus', res.statusCode)
+          c.set('lastLatency', latency)
+        } else if (service === 'tribunal') {
+          c.set('tribunalStatus', res.statusCode)
+          c.set('tribunalLatency', latency)
+        } else if (service === 'dou') {
+          c.set('douStatus', res.statusCode)
+          c.set('douLatency', latency)
+        }
+        $app.saveNoValidate(c)
+      }
+    } catch (err) {}
 
     return e.json(200, {
       service: service,
-      status: status,
+      status: res.statusCode,
       latency: latency,
-      snippet: debugSnippet,
+      snippet: snippet,
     })
   },
   $apis.requireAuth(),

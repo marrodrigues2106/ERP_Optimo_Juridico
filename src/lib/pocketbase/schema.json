@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-23T01:22:09.847Z",
+  "generatedAt": "2026-03-23T01:30:41.901Z",
   "collections": [
     {
       "name": "users",
@@ -915,6 +915,42 @@
         },
         {
           "name": "lastError",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tribunalStatus",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tribunalLatency",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tribunalError",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "douStatus",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "douLatency",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "douError",
           "type": "text",
           "required": false,
           "system": false

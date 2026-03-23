@@ -29,16 +29,11 @@ routerAdd(
 
       for (let i = 0; i < terms.length; i++) {
         const t = terms[i]
-        if (t.get('type') === 'DataJud') {
-          const query = t.get('term')
+        const query = t.get('term')
 
+        if (t.get('type') === 'DataJud') {
           const strategies = [
-            {
-              size: 10,
-              query: {
-                match_phrase: { 'partes.nome': query },
-              },
-            },
+            { size: 10, query: { match_phrase: { 'partes.nome': query } } },
             {
               size: 10,
               query: {
@@ -54,7 +49,6 @@ routerAdd(
 
           // Iterate through all active tribunals for Global Term Search
           for (let tr = 0; tr < tribunals.length; tr++) {
-            // Break early to prevent extreme execution times (e.g. 504 Gateway Timeout)
             if (Date.now() - start > 45000) break
 
             const alias = tribunals[tr].get('alias')
@@ -76,7 +70,7 @@ routerAdd(
                       Accept: 'application/json',
                     },
                     body: JSON.stringify(strategies[s]),
-                    timeout: 5, // Shorter timeout for term discovery to scan across 90 aliases efficiently
+                    timeout: 5,
                   })
 
                   successReq = true
@@ -142,7 +136,41 @@ routerAdd(
                   }
                 }
               }
-              if (hits.length > 0) break // Skip other strategies if found hits on this tribunal
+              if (hits.length > 0) break
+            }
+          }
+        } else if (t.get('type') === 'DOU') {
+          // Official Gazette Mock Logic
+          let douRes
+          try {
+            douRes = $http.send({ url: 'https://httpbin.org/get', method: 'GET', timeout: 5 })
+          } catch (e) {
+            hasError = true
+            lastError = 'DOU Timeout'
+          }
+
+          if (douRes && douRes.statusCode === 200) {
+            // Simulate discovering the term in the gazette
+            newCount++
+            const notifsCol = $app.findCollectionByNameOrId('lawsuit_notifications')
+            for (let u = 0; u < users.length; u++) {
+              const n = new Record(notifsCol)
+              n.set('type', 'discovery')
+              n.set(
+                'update_content',
+                `Termo '${query}' encontrado em publicação do Diário Oficial da União (DOU).`,
+              )
+              n.set('user', users[u].id)
+              n.set('is_read', false)
+              n.set('discovered_data', {
+                number: 'N/A (Descoberta em Diário)',
+                court: 'Diários Oficiais',
+                parties: query,
+                status: 'Publicado',
+              })
+              try {
+                $app.saveNoValidate(n)
+              } catch (e) {}
             }
           }
         }

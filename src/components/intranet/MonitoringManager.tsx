@@ -31,7 +31,6 @@ import {
   Plus,
   RefreshCw,
   Search,
-  Activity,
   Wifi,
   CheckCircle2,
   XCircle,
@@ -54,7 +53,7 @@ export default function MonitoringManager() {
 
   const [loadingSyncP, setLoadingSyncP] = useState(false)
   const [loadingSyncT, setLoadingSyncT] = useState(false)
-  const [isTesting, setIsTesting] = useState(false)
+  const [isTesting, setIsTesting] = useState<string | null>(null)
 
   const [debugLog, setDebugLog] = useState<{
     service: string
@@ -147,8 +146,8 @@ export default function MonitoringManager() {
     }
   }
 
-  const handleTest = async (type: 'datajud' | 'dou') => {
-    setIsTesting(true)
+  const handleTest = async (type: 'datajud' | 'tribunal' | 'dou') => {
+    setIsTesting(type)
     try {
       const res = await testExternalConnection(type)
       setDebugLog(res)
@@ -158,8 +157,30 @@ export default function MonitoringManager() {
       toast({ title: 'Falha ao testar conexão', variant: 'destructive' })
       setDebugLog({ service: type, status: 0, latency: 0, snippet: `Erro interno: ${e.message}` })
     } finally {
-      setIsTesting(false)
+      setIsTesting(null)
     }
+  }
+
+  const renderStatus = (status?: number, label: string = 'Ativo') => {
+    if (status === undefined || status === null) {
+      return (
+        <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded mt-1.5 inline-block">
+          Preparado
+        </span>
+      )
+    }
+    if (status >= 200 && status < 300) {
+      return (
+        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded mt-1.5 inline-block">
+          {label}
+        </span>
+      )
+    }
+    return (
+      <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded mt-1.5 inline-block">
+        Offline
+      </span>
+    )
   }
 
   return (
@@ -188,69 +209,80 @@ export default function MonitoringManager() {
                   <div className="p-3 border rounded-lg bg-slate-50 text-center shadow-sm flex flex-col items-center justify-center">
                     <Database className="w-5 h-5 text-blue-500 mb-1" />
                     <p className="text-[11px] font-bold text-slate-700">DataJud</p>
-                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded mt-1.5 inline-block">
-                      Ativo
-                    </span>
+                    {renderStatus(config?.lastStatus)}
+                    {config?.lastLatency > 0 && (
+                      <p className="text-[9px] mt-1 text-slate-500">{config.lastLatency}ms</p>
+                    )}
                   </div>
-                  <div className="p-3 border rounded-lg bg-slate-50 text-center shadow-sm flex flex-col items-center justify-center opacity-80">
+                  <div className="p-3 border rounded-lg bg-slate-50 text-center shadow-sm flex flex-col items-center justify-center">
                     <Landmark className="w-5 h-5 text-indigo-500 mb-1" />
-                    <p className="text-[11px] font-bold text-slate-700">Tribunais (Scraping)</p>
-                    <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded mt-1.5 inline-block">
-                      Preparado
-                    </span>
+                    <p className="text-[11px] font-bold text-slate-700">Tribunais</p>
+                    {renderStatus(config?.tribunalStatus)}
+                    {config?.tribunalLatency > 0 && (
+                      <p className="text-[9px] mt-1 text-slate-500">{config.tribunalLatency}ms</p>
+                    )}
                   </div>
-                  <div className="p-3 border rounded-lg bg-slate-50 text-center shadow-sm flex flex-col items-center justify-center opacity-80">
+                  <div className="p-3 border rounded-lg bg-slate-50 text-center shadow-sm flex flex-col items-center justify-center">
                     <BookOpen className="w-5 h-5 text-amber-500 mb-1" />
-                    <p className="text-[11px] font-bold text-slate-700">Diários Oficiais</p>
-                    <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded mt-1.5 inline-block">
-                      Preparado
-                    </span>
+                    <p className="text-[11px] font-bold text-slate-700">DOU</p>
+                    {renderStatus(config?.douStatus)}
+                    {config?.douLatency > 0 && (
+                      <p className="text-[9px] mt-1 text-slate-500">{config.douLatency}ms</p>
+                    )}
                   </div>
                 </div>
 
-                {config && config.lastStatus !== undefined ? (
-                  <div className="p-4 bg-slate-50 border rounded-lg flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-slate-700">
-                        Último Teste (API CNJ)
-                      </span>
-                      {config.lastStatus === 200 ? (
-                        <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-1 rounded-md">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> ONLINE
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-100 px-2 py-1 rounded-md">
-                          <XCircle className="w-3.5 h-3.5" /> OFFLINE
-                        </span>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 mt-1">
-                      <div>
-                        <p className="text-xs text-muted-foreground">HTTP Status</p>
-                        <p className="font-mono text-sm">
-                          {config.lastStatus === 0 ? 'Erro' : config.lastStatus}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Latência</p>
-                        <p className="font-mono text-sm">{config.lastLatency}ms</p>
-                      </div>
-                    </div>
+                <div className="flex flex-col gap-2 pt-2 border-t">
+                  <span className="text-xs font-semibold text-slate-700 mb-1">
+                    Testes de Conexão
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 text-xs"
+                      onClick={() => handleTest('datajud')}
+                      disabled={isTesting !== null}
+                    >
+                      <Wifi
+                        className={cn(
+                          'w-3.5 h-3.5 mr-1.5',
+                          isTesting === 'datajud' && 'animate-pulse text-amber-500',
+                        )}
+                      />
+                      DataJud
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 text-xs"
+                      onClick={() => handleTest('tribunal')}
+                      disabled={isTesting !== null}
+                    >
+                      <Landmark
+                        className={cn(
+                          'w-3.5 h-3.5 mr-1.5',
+                          isTesting === 'tribunal' && 'animate-pulse text-amber-500',
+                        )}
+                      />
+                      Tribunais
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 text-xs"
+                      onClick={() => handleTest('dou')}
+                      disabled={isTesting !== null}
+                    >
+                      <BookOpen
+                        className={cn(
+                          'w-3.5 h-3.5 mr-1.5',
+                          isTesting === 'dou' && 'animate-pulse text-amber-500',
+                        )}
+                      />
+                      DOU
+                    </Button>
                   </div>
-                ) : null}
-
-                <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => handleTest('datajud')}
-                    disabled={isTesting}
-                  >
-                    <Wifi
-                      className={cn('w-4 h-4 mr-2', isTesting && 'animate-pulse text-amber-500')}
-                    />
-                    Testar Conexão (DataJud)
-                  </Button>
                 </div>
 
                 {debugLog && (
@@ -318,7 +350,7 @@ export default function MonitoringManager() {
                     </Button>
                     <Button variant="secondary" onClick={handleSyncT} disabled={loadingSyncT}>
                       <Search className={cn('w-4 h-4 mr-2', loadingSyncT && 'animate-spin')} />
-                      Buscar Termos
+                      Buscar Termos (DataJud e DOU)
                     </Button>
                   </div>
                 </div>

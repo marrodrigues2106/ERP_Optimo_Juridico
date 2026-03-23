@@ -22,7 +22,7 @@ export const syncProcesses = () =>
   pb.send('/backend/v1/monitoring/sync-processes', { method: 'POST' })
 export const syncTerms = () => pb.send('/backend/v1/monitoring/sync-terms', { method: 'POST' })
 
-export const testExternalConnection = async (service: 'datajud' | 'dou') => {
+export const testExternalConnection = async (service: 'datajud' | 'tribunal' | 'dou') => {
   return pb.send('/backend/v1/monitoring/test-connection', {
     method: 'POST',
     body: JSON.stringify({ service }),
