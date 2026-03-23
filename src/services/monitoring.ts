@@ -29,5 +29,9 @@ export const testExternalConnection = async (service: 'datajud' | 'tribunal' | '
   })
 }
 
+export const testDnsResolution = async () => {
+  return pb.send('/backend/v1/system/dns-check', { method: 'GET' })
+}
+
 export const getTribunals = () => pb.collection('tribunals').getFullList({ sort: 'name' })
 export const updateTribunal = (id: string, data: any) => pb.collection('tribunals').update(id, data)

@@ -9,6 +9,7 @@ import {
   syncProcesses,
   syncTerms,
   testExternalConnection,
+  testDnsResolution,
   getTribunals,
   updateTribunal,
 } from '@/services/monitoring'
@@ -41,6 +42,7 @@ import {
   BookOpen,
   AlertCircle,
   KeyRound,
+  Activity,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -175,6 +177,32 @@ export default function MonitoringManager() {
     }
   }
 
+  const handleDnsTest = async () => {
+    setIsTesting('dns')
+    try {
+      const res = await testDnsResolution()
+      setDebugLog({
+        service: 'system-dns',
+        status: res.resolved && res.port443_reachable ? 200 : 0,
+        latency: res.latency,
+        snippet: JSON.stringify(res, null, 2),
+        errorType: res.error || 'online',
+      })
+      toast({ title: 'Diagnóstico de DNS e Infraestrutura concluído.' })
+    } catch (e: any) {
+      toast({ title: 'Falha ao testar DNS', variant: 'destructive' })
+      setDebugLog({
+        service: 'system-dns',
+        status: 0,
+        latency: 0,
+        snippet: `Erro interno: ${e.message}`,
+        errorType: 'INTERNAL_ERROR',
+      })
+    } finally {
+      setIsTesting(null)
+    }
+  }
+
   const renderDataJudStatusLabel = () => {
     const status = config?.datajudStatus
     const errorStr = config?.datajudLastError
@@ -197,14 +225,15 @@ export default function MonitoringManager() {
       AUTH_FAILURE: 'Erro Autenticação',
       DNS_FAILURE: 'Falha de DNS',
       NETWORK_TIMEOUT: 'Tempo Limite',
-      NETWORK_REFUSED: 'Conexão Recusada',
+      CONNECTION_REFUSED: 'Conexão Recusada',
       NETWORK_FAILURE: 'Falha de Rede',
       HTTP_STATUS_ERRORS: 'Erro HTTP',
     }
 
     const label = labels[status] || status
-    const isWarning =
-      status === 'NETWORK_TIMEOUT' || status === 'API_KEY_MISSING' || status === 'ENDPOINT_INVALID'
+    const isInfraError =
+      status === 'DNS_FAILURE' || status === 'NETWORK_TIMEOUT' || status === 'CONNECTION_REFUSED'
+    const isWarning = status === 'API_KEY_MISSING' || status === 'ENDPOINT_INVALID'
 
     return (
       <TooltipProvider>
@@ -215,6 +244,7 @@ export default function MonitoringManager() {
               className={cn(
                 'mt-2 text-[10px] truncate max-w-[120px] cursor-help',
                 isWarning ? 'bg-amber-500 hover:bg-amber-600 text-white border-transparent' : '',
+                isInfraError ? 'bg-red-600 hover:bg-red-700 text-white border-transparent' : '',
               )}
             >
               {label}
@@ -268,6 +298,13 @@ export default function MonitoringManager() {
     )
   }
 
+  const isInfraError = ['DNS_FAILURE', 'NETWORK_TIMEOUT', 'CONNECTION_REFUSED'].includes(
+    config?.datajudStatus,
+  )
+  const isApiError = ['API_KEY_MISSING', 'ENDPOINT_INVALID', 'AUTH_FAILURE'].includes(
+    config?.datajudStatus,
+  )
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between">
@@ -284,40 +321,38 @@ export default function MonitoringManager() {
         </TabsList>
 
         <TabsContent value="geral" className="space-y-6">
-          {config?.datajudStatus && config.datajudStatus !== 'online' && (
-            <Alert
-              variant={
-                ['NETWORK_TIMEOUT', 'API_KEY_MISSING', 'ENDPOINT_INVALID'].includes(
-                  config.datajudStatus,
-                )
-                  ? 'default'
-                  : 'destructive'
-              }
-              className={
-                ['NETWORK_TIMEOUT', 'API_KEY_MISSING', 'ENDPOINT_INVALID'].includes(
-                  config.datajudStatus,
-                )
-                  ? 'border-amber-500/50 bg-amber-50 text-amber-900'
-                  : ''
-              }
-            >
-              <AlertCircle
-                className={cn(
-                  'h-4 w-4',
-                  ['NETWORK_TIMEOUT', 'API_KEY_MISSING', 'ENDPOINT_INVALID'].includes(
-                    config.datajudStatus,
-                  )
-                    ? 'text-amber-600'
-                    : '',
-                )}
-              />
-              <AlertTitle>Alerta de Conexão com o DataJud ({config.datajudStatus})</AlertTitle>
+          {isInfraError && (
+            <Alert variant="destructive" className="border-red-500/50 bg-red-50 text-red-900">
+              <Activity className="h-4 w-4 text-red-600" />
+              <AlertTitle>Infraestrutura / DNS Error ({config?.datajudStatus})</AlertTitle>
               <AlertDescription>
-                A última tentativa de sincronização encontrou um problema:{' '}
-                <strong>{config.datajudLastError}</strong>
+                Falha na camada de rede ao tentar contatar o servidor do DataJud:{' '}
+                <strong>{config?.datajudLastError}</strong>
               </AlertDescription>
             </Alert>
           )}
+
+          {isApiError && (
+            <Alert variant="default" className="border-amber-500/50 bg-amber-50 text-amber-900">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertTitle>Alerta de API DataJud ({config?.datajudStatus})</AlertTitle>
+              <AlertDescription>
+                A sincronização falhou devido a credenciais ou configuração incorreta:{' '}
+                <strong>{config?.datajudLastError}</strong>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {!isInfraError &&
+            !isApiError &&
+            config?.datajudStatus &&
+            config.datajudStatus !== 'online' && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Erro na Integração DataJud</AlertTitle>
+                <AlertDescription>{config?.datajudLastError}</AlertDescription>
+              </Alert>
+            )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="flex flex-col">
@@ -368,11 +403,11 @@ export default function MonitoringManager() {
                   <span className="text-xs font-semibold text-slate-700 mb-1">
                     Testes de Conexão
                   </span>
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-2 gap-2 mb-2">
                     <Button
                       size="sm"
                       variant="outline"
-                      className="flex-1 text-xs"
+                      className="text-xs"
                       onClick={() => handleTest('datajud')}
                       disabled={isTesting !== null}
                     >
@@ -382,8 +417,25 @@ export default function MonitoringManager() {
                           isTesting === 'datajud' && 'animate-pulse text-amber-500',
                         )}
                       />
-                      DataJud
+                      DataJud API
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs"
+                      onClick={handleDnsTest}
+                      disabled={isTesting !== null}
+                    >
+                      <Activity
+                        className={cn(
+                          'w-3.5 h-3.5 mr-1.5',
+                          isTesting === 'dns' && 'animate-pulse text-indigo-500',
+                        )}
+                      />
+                      Diag. de Rede / DNS
+                    </Button>
+                  </div>
+                  <div className="flex gap-2">
                     <Button
                       size="sm"
                       variant="outline"

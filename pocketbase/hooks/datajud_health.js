@@ -118,16 +118,16 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
           errStr.includes('resolve')
         ) {
           result.errorType = 'DNS_FAILURE'
-          result.errorMessage = 'DNS Failure: Could not resolve host api-publica.datajud.cnj.jus.br'
+          result.errorMessage = 'DNS_FAILURE: Could not resolve host api-publica.datajud.cnj.jus.br'
         } else if (errStr.includes('timeout') || errStr.includes('deadline')) {
           result.errorType = 'NETWORK_TIMEOUT'
-          result.errorMessage = 'Connection Timeout: Server took too long to respond (30s)'
+          result.errorMessage = 'NETWORK_TIMEOUT: Server took too long to respond'
         } else if (errStr.includes('connection refused')) {
-          result.errorType = 'NETWORK_REFUSED'
-          result.errorMessage = 'Network Refused: Connection refused by the server'
+          result.errorType = 'CONNECTION_REFUSED'
+          result.errorMessage = 'CONNECTION_REFUSED: Connection refused by the server'
         } else {
           result.errorType = 'NETWORK_FAILURE'
-          result.errorMessage = 'Network Failure: ' + String(err)
+          result.errorMessage = 'NETWORK_FAILURE: ' + String(err)
         }
       }
       return result
