@@ -15,7 +15,7 @@ routerAdd(
 
       const saveMovement = (dateStr, descStr, source, meta) => {
         const cleanDate = new Date(dateStr).toISOString().substring(0, 10)
-        const rawString = id + '_' + cleanDate + '_' + descStr.trim().toLowerCase()
+        const rawString = id + '_' + cleanDate + '_' + (descStr || '').trim().toLowerCase()
         const hash = $security.sha256(rawString)
         try {
           const existing = $app.findFirstRecordByFilter('lawsuit_movements', `hash = '${hash}'`)
@@ -32,7 +32,7 @@ routerAdd(
           const mov = new Record(movementsCol)
           mov.set('lawsuit', id)
           mov.set('event_date', new Date(dateStr).toISOString())
-          mov.set('description', descStr)
+          mov.set('description', descStr || '')
           mov.set('source', source)
           mov.set('hash', hash)
           let initialMeta = meta || {}
@@ -61,7 +61,7 @@ routerAdd(
         cfg.set('datajudLastCheckAt', new Date().toISOString())
         try {
           $app.saveNoValidate(cfg)
-        } catch (e) {}
+        } catch (err) {}
       }
 
       if (!apiKey) {
@@ -87,19 +87,21 @@ routerAdd(
         return e.json(400, { status: 'error', errorType: 'Invalid Number' })
       }
 
-      const courtName = record.get('court')
-      const tribunals = $app.findRecordsByFilter('tribunals', 'active = true', '', 100, 0)
+      const courtName = record.get('court') || ''
       let alias = null
 
-      for (let t = 0; t < tribunals.length; t++) {
-        const tr = tribunals[t]
-        if (
-          courtName &&
-          (tr.get('name').toLowerCase() === courtName.toLowerCase() ||
-            tr.get('alias') === courtName.toLowerCase())
-        ) {
-          alias = tr.get('alias')
-          break
+      if (courtName) {
+        const tribunals = $app.findRecordsByFilter('tribunals', 'active = true', '', 100, 0)
+        for (let t = 0; t < tribunals.length; t++) {
+          const tr = tribunals[t]
+          const trName = (tr.get('name') || '').toLowerCase()
+          const trAlias = (tr.get('alias') || '').toLowerCase()
+          const cNameLower = courtName.toLowerCase()
+
+          if (trName === cNameLower || trAlias === cNameLower) {
+            alias = tr.get('alias')
+            break
+          }
         }
       }
 
@@ -142,7 +144,9 @@ routerAdd(
 
           result.latency = Date.now() - start
           result.statusCode = res.statusCode
-          result.rawResponse = res.json
+          try {
+            result.rawResponse = res.json
+          } catch (err) {}
 
           if (res.statusCode === 401 || res.statusCode === 403) {
             result.errorType = 'AUTH_FAILURE'
@@ -241,7 +245,7 @@ routerAdd(
                   n.set('is_read', false)
                   try {
                     $app.saveNoValidate(n)
-                  } catch (e) {}
+                  } catch (err) {}
                 }
               }
               if (movTime > newLastSyncTime) newLastSyncTime = movTime
@@ -256,7 +260,7 @@ routerAdd(
 
       try {
         $app.saveNoValidate(record)
-      } catch (e) {}
+      } catch (err) {}
 
       return e.json(200, { status: success ? 'ok' : 'error', detail: apiResult.errorMessage })
     } catch (globalErr) {

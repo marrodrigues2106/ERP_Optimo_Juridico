@@ -13,7 +13,7 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
       cfg.set('datajudLastCheckAt', new Date().toISOString())
       try {
         $app.saveNoValidate(cfg)
-      } catch (e) {}
+      } catch (err) {}
     }
 
     const apiKey = $secrets.get('DATAJUD_API_KEY')
@@ -89,7 +89,12 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
 
         result.latency = Date.now() - start
         result.statusCode = res.statusCode
-        result.rawResponse = res.json
+
+        try {
+          result.rawResponse = res.json
+        } catch (err) {
+          // ignore parsing error if not valid JSON
+        }
 
         if (res.statusCode === 401 || res.statusCode === 403) {
           result.errorType = 'AUTH_FAILURE'

@@ -108,7 +108,9 @@ routerAdd(
 
           result.latency = Date.now() - start
           result.statusCode = res.statusCode
-          result.rawResponse = res.json
+          try {
+            result.rawResponse = res.json
+          } catch (err) {}
 
           if (res.statusCode === 401 || res.statusCode === 403) {
             result.errorType = 'AUTH_FAILURE'
