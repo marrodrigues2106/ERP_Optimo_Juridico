@@ -43,6 +43,7 @@ import {
   AlertCircle,
   KeyRound,
   Activity,
+  ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -181,14 +182,24 @@ export default function MonitoringManager() {
     setIsTesting('dns')
     try {
       const res = await testDnsResolution()
+      const isReady = res.resolved && res.port443_reachable
+      const isDnsFail = res.error === 'DNS_FAILURE'
+
       setDebugLog({
         service: 'system-dns',
-        status: res.resolved && res.port443_reachable ? 200 : 0,
+        status: isReady ? 200 : 0,
         latency: res.latency,
-        snippet: JSON.stringify(res, null, 2),
-        errorType: res.error || 'online',
+        snippet: isReady
+          ? `Status: Network Ready\nConectividade validada: DNS e porta 443 operacionais para DataJud.\n\nRaw:\n${JSON.stringify(res, null, 2)}`
+          : isDnsFail
+            ? `Status: DNS Failure\nFalha ao resolver o domínio no backend (Verifique resolv.conf / Nameservers).\n\nRaw:\n${JSON.stringify(res, null, 2)}`
+            : `Status: Infra Error (${res.error})\n\nRaw:\n${JSON.stringify(res, null, 2)}`,
+        errorType: res.error || (isReady ? 'online' : 'OFFLINE'),
       })
-      toast({ title: 'Diagnóstico de DNS e Infraestrutura concluído.' })
+      toast({
+        title: isReady ? 'Network Ready' : isDnsFail ? 'DNS Failure' : 'Network Error',
+        variant: isReady ? 'default' : 'destructive',
+      })
     } catch (e: any) {
       toast({ title: 'Falha ao testar DNS', variant: 'destructive' })
       setDebugLog({
@@ -326,8 +337,27 @@ export default function MonitoringManager() {
               <Activity className="h-4 w-4 text-red-600" />
               <AlertTitle>Infraestrutura / DNS Error ({config?.datajudStatus})</AlertTitle>
               <AlertDescription>
-                Falha na camada de rede ao tentar contatar o servidor do DataJud:{' '}
-                <strong>{config?.datajudLastError}</strong>
+                {config?.datajudStatus === 'DNS_FAILURE' ? (
+                  <>
+                    Falha de resolução DNS no container. O backend não consegue localizar{' '}
+                    <code>api-publica.datajud.cnj.jus.br</code>.
+                  </>
+                ) : (
+                  <>
+                    Falha na camada de rede ao tentar contatar o servidor do DataJud:{' '}
+                    <strong>{config?.datajudLastError}</strong>
+                  </>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {!isInfraError && !isApiError && config?.datajudStatus === 'online' && (
+            <Alert className="border-emerald-500/50 bg-emerald-50 text-emerald-900">
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              <AlertTitle>Network Ready</AlertTitle>
+              <AlertDescription>
+                A conectividade com o DataJud está operacional. Resolução DNS e HTTPS verificados.
               </AlertDescription>
             </Alert>
           )}

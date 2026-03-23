@@ -13,7 +13,27 @@ routerAdd(
       latency: 0,
       error: null,
       detail: null,
+      global_dns_works: false,
+      global_ip: null,
     }
+
+    try {
+      const dohRes = $http.send({
+        url: `https://cloudflare-dns.com/dns-query?name=${host}&type=A`,
+        method: 'GET',
+        headers: { Accept: 'application/dns-json' },
+        timeout: 5,
+      })
+      if (
+        dohRes.statusCode === 200 &&
+        dohRes.json &&
+        dohRes.json.Answer &&
+        dohRes.json.Answer.length > 0
+      ) {
+        result.global_dns_works = true
+        result.global_ip = dohRes.json.Answer[0].data
+      }
+    } catch (err) {}
 
     try {
       const res = $http.send({
@@ -37,8 +57,12 @@ routerAdd(
       ) {
         result.resolved = false
         result.port443_reachable = false
-        result.error = 'DNS_FAILURE: Could not resolve host ' + host
-        result.detail = String(err)
+        result.error = 'DNS_FAILURE'
+        result.detail =
+          'DNS Resolution failed on backend runtime (resolv.conf). External check: ' +
+          (result.global_dns_works ? `OK (${result.global_ip})` : 'FAILED') +
+          '. Local err: ' +
+          String(err)
       } else if (errStr.includes('timeout') || errStr.includes('deadline')) {
         result.resolved = true
         result.port443_reachable = false

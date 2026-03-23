@@ -92,9 +92,7 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
 
         try {
           result.rawResponse = res.json
-        } catch (err) {
-          // ignore parsing error if not valid JSON
-        }
+        } catch (err) {}
 
         if (res.statusCode === 401 || res.statusCode === 403) {
           result.errorType = 'AUTH_FAILURE'
@@ -118,13 +116,15 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
           errStr.includes('resolve')
         ) {
           result.errorType = 'DNS_FAILURE'
-          result.errorMessage = 'DNS_FAILURE: Could not resolve host api-publica.datajud.cnj.jus.br'
+          result.errorMessage =
+            'DNS_FAILURE: Could not resolve host api-publica.datajud.cnj.jus.br in container (resolv.conf issue or [::1]:53 connection refused).'
         } else if (errStr.includes('timeout') || errStr.includes('deadline')) {
           result.errorType = 'NETWORK_TIMEOUT'
-          result.errorMessage = 'NETWORK_TIMEOUT: Server took too long to respond'
+          result.errorMessage = 'NETWORK_TIMEOUT: Server took too long to respond.'
         } else if (errStr.includes('connection refused')) {
           result.errorType = 'CONNECTION_REFUSED'
-          result.errorMessage = 'CONNECTION_REFUSED: Connection refused by the server'
+          result.errorMessage =
+            'CONNECTION_REFUSED: Connection refused by the server (check routing or port 443).'
         } else {
           result.errorType = 'NETWORK_FAILURE'
           result.errorMessage = 'NETWORK_FAILURE: ' + String(err)
