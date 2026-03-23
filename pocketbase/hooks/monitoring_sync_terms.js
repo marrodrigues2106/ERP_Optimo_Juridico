@@ -46,7 +46,14 @@ routerAdd(
               query: {
                 multi_match: {
                   query: query,
-                  fields: ['partes.nome', 'movimentos.nome', 'orgaoJulgador.nomeOrgao'],
+                  fields: [
+                    'numeroProcesso',
+                    'dadosBasicos.numeroProcesso',
+                    'classe.nome',
+                    'assunto.nome',
+                    'movimentos.nome',
+                    'movimentos.descricao',
+                  ],
                 },
               },
             },
@@ -68,7 +75,7 @@ routerAdd(
                     'Content-Type': 'application/json',
                   },
                   body: JSON.stringify(strategies[s]),
-                  timeout: 30, // 30s timeout resilient
+                  timeout: 30,
                 })
 
                 successReq = true
@@ -83,7 +90,7 @@ routerAdd(
                 console.log('Error syncing term (timeout/network): ', query, err)
               }
             }
-            if (hits.length > 0) break // found hits, break strategy loop
+            if (hits.length > 0) break
           }
 
           for (let h = 0; h < hits.length; h++) {

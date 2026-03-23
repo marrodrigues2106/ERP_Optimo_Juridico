@@ -42,7 +42,8 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
       const cleanStr = String(courtStr)
         .toLowerCase()
         .replace(/[\/\-\s.,]/g, '')
-      const regex = /(stf|stj|tse|stm|cnj|tj[a-z]{2}|trf[0-9]+|trt[0-9]+|tre[a-z]{2})/
+      const regex =
+        /(stf|stj|tst|tse|stm|cnj|tj[a-z]{2}|tjmmg|tjmrs|tjmsp|trf[0-9]+|trt[0-9]+|tre[a-z]{2})/
       const match = cleanStr.match(regex)
       if (match) return match[0]
       return cleanStr.replace(/[^a-z0-9]/g, '')
@@ -126,190 +127,221 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
             'Falha na sincronização: Não foi possível identificar o tribunal (Órgão) pelo nome ou número.',
           )
         } else {
-          const url = 'https://api-publica.datajud.cnj.jus.br/api_publica_' + alias + '/_search'
-          let allHits = []
-          let searchAfter = null
-          const pageSize = 100
-          let loopCount = 0
-
-          let apiKey = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
+          let tribunalIsActive = true
           try {
-            const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
-            if (configs.length > 0 && configs[0].get('apiKey')) {
-              apiKey = configs[0].get('apiKey')
+            const tribunalRecord = $app.findFirstRecordByFilter('tribunals', `alias = '${alias}'`)
+            if (tribunalRecord) {
+              tribunalIsActive = tribunalRecord.get('active')
             }
-          } catch (err) {}
+          } catch (e) {}
 
-          let hasNetworkError = false
-          let apiStatusError = null
-          let formatError = false
+          if (!tribunalIsActive) {
+            record.set('datajudStatus', 'Sync Failed')
+            addErrorLog(
+              record,
+              `Falha na sincronização: O tribunal '${alias}' está desativado nas configurações.`,
+            )
+          } else {
+            const url = 'https://api-publica.datajud.cnj.jus.br/api_publica_' + alias + '/_search'
+            const pageSize = 100
 
-          while (loopCount < 10) {
-            loopCount++
-            let bodyObj = {
-              size: pageSize,
-              query: {
-                bool: {
-                  should: [
-                    { term: { numeroProcesso: cleanNum } },
-                    { term: { 'numeroProcesso.keyword': cleanNum } },
-                    { match_phrase: { numeroProcesso: cleanNum } },
-                  ],
-                  minimum_should_match: 1,
-                },
-              },
-              sort: [{ '@timestamp': { order: 'asc' } }],
-            }
-            if (searchAfter) bodyObj.search_after = searchAfter
-
-            let res
-            let retryCount = 0
-            let successReq = false
-
-            while (retryCount < 3 && !successReq) {
-              try {
-                res = $http.send({
-                  url: url,
-                  method: 'POST',
-                  headers: {
-                    Authorization: 'APIKey ' + apiKey,
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify(bodyObj),
-                  timeout: 30, // Updated 30s timeout
-                })
-                successReq = true
-              } catch (err) {
-                retryCount++
-                if (retryCount >= 3) {
-                  record.set('datajudStatus', 'Sync Failed')
-                  const errMsg = err && err.message ? err.message : String(err)
-                  addErrorLog(
-                    record,
-                    'Falha de rede (Timeout 30s) ou recusa após 3 tentativas na API DataJud: ' +
-                      errMsg,
-                  )
-                  hasNetworkError = true
-                  break
-                }
-              }
-            }
-
-            if (hasNetworkError) break
-
-            if (!res || res.statusCode !== 200) {
-              record.set('datajudStatus', 'Sync Failed')
-              addErrorLog(
-                record,
-                'Falha na sincronização: A API DataJud retornou status ' +
-                  (res ? res.statusCode : 'desconhecido'),
-              )
-              apiStatusError = res ? res.statusCode : 0
-              break
-            }
-
-            let data
+            let apiKey = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
             try {
-              data = res.json
-            } catch (err) {
-              record.set('datajudStatus', 'Sync Failed')
-              addErrorLog(
-                record,
-                'Falha na sincronização: Resposta da API DataJud em formato inválido.',
-              )
-              formatError = true
-              break
-            }
+              const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
+              if (configs.length > 0 && configs[0].get('apiKey')) {
+                apiKey = configs[0].get('apiKey')
+              }
+            } catch (err) {}
 
-            if (!data || !data.hits || !data.hits.hits) break
-            const hits = data.hits.hits
-            if (!Array.isArray(hits) || hits.length === 0) break
+            const strategies = [
+              { query: { term: { 'numeroProcesso.keyword': cleanNum } } },
+              { query: { term: { numeroProcesso: cleanNum } } },
+              { query: { match_phrase: { numeroProcesso: cleanNum } } },
+            ]
 
-            for (let i = 0; i < hits.length; i++) allHits.push(hits[i])
-            if (hits.length < pageSize) break
+            let allHits = []
+            let hasNetworkError = false
+            let apiStatusError = null
+            let formatError = false
+            let selectedStrategy = null
 
-            const lastHit = hits[hits.length - 1]
-            if (lastHit && lastHit.sort && lastHit.sort.length > 0) {
-              searchAfter = lastHit.sort
-            } else {
-              break
-            }
-          }
+            for (let s = 0; s < strategies.length; s++) {
+              let bodyObj = {
+                size: pageSize,
+                query: strategies[s].query,
+                sort: [{ '@timestamp': { order: 'asc' } }],
+              }
 
-          if (!hasNetworkError && !apiStatusError && !formatError) {
-            if (allHits.length === 0) {
-              record.set('datajudStatus', 'Not Found')
-            } else {
-              for (let i = 0; i < allHits.length; i++) {
-                const proc = allHits[i] ? allHits[i]._source : null
-                if (proc && proc.orgaoJulgador && proc.orgaoJulgador.nomeOrgao) {
-                  if (!record.get('court')) record.set('court', proc.orgaoJulgador.nomeOrgao)
+              let res
+              let retryCount = 0
+              let successReq = false
+
+              while (retryCount < 3 && !successReq) {
+                try {
+                  res = $http.send({
+                    url: url,
+                    method: 'POST',
+                    headers: {
+                      Authorization: 'APIKey ' + apiKey,
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(bodyObj),
+                    timeout: 30,
+                  })
+                  successReq = true
+                } catch (err) {
+                  retryCount++
+                  if (retryCount >= 3) {
+                    hasNetworkError = true
+                    const errMsg = err && err.message ? err.message : String(err)
+                    addErrorLog(record, 'Timeout ou falha de conexão com a API DataJud: ' + errMsg)
+                    break
+                  }
+                }
+              }
+
+              if (hasNetworkError) break
+
+              if (res && res.statusCode === 200) {
+                let data
+                try {
+                  data = res.json
+                } catch (err) {
+                  formatError = true
                   break
                 }
-              }
 
-              const newLogs = []
-              const uniqueKeys = {}
-
-              for (let i = 0; i < allHits.length; i++) {
-                const proc = allHits[i] ? allHits[i]._source : null
-                const movimentos = proc && proc.movimentos ? proc.movimentos : []
-
-                for (let j = 0; j < movimentos.length; j++) {
-                  const m = movimentos[j]
-                  const dateStr = m.dataHora || new Date().toISOString()
-                  let descStr = m.nome || m.descricao || 'Movimentação Datajud'
-
-                  if (
-                    Array.isArray(m.complementosTabelados) &&
-                    m.complementosTabelados.length > 0
-                  ) {
-                    const compStrs = []
-                    for (let k = 0; k < m.complementosTabelados.length; k++) {
-                      const comp = m.complementosTabelados[k]
-                      if (comp.nome && comp.valor) compStrs.push(comp.nome + ': ' + comp.valor)
-                      else if (comp.descricao) compStrs.push(comp.descricao)
-                    }
-                    if (compStrs.length > 0) {
-                      descStr += ' - ' + compStrs.join(', ')
-                    }
+                if (data && data.hits && data.hits.hits && data.hits.hits.length > 0) {
+                  selectedStrategy = strategies[s]
+                  for (let i = 0; i < data.hits.hits.length; i++) {
+                    allHits.push(data.hits.hits[i])
                   }
 
-                  const dedupKey = dateStr + '_' + descStr
+                  let searchAfter = data.hits.hits[data.hits.hits.length - 1].sort
+                  let loopCount = 1
 
-                  if (!uniqueKeys[dedupKey]) {
-                    uniqueKeys[dedupKey] = true
-                    newLogs.push({
-                      date: dateStr,
-                      description: descStr,
-                      complementos: Array.isArray(m.complementosTabelados)
-                        ? m.complementosTabelados
-                        : [],
-                      isManual: false,
-                    })
+                  while (searchAfter && loopCount < 10) {
+                    loopCount++
+                    bodyObj.search_after = searchAfter
+
+                    let nextRes
+                    try {
+                      nextRes = $http.send({
+                        url: url,
+                        method: 'POST',
+                        headers: {
+                          Authorization: 'APIKey ' + apiKey,
+                          'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(bodyObj),
+                        timeout: 30,
+                      })
+                      if (
+                        nextRes.statusCode === 200 &&
+                        nextRes.json &&
+                        nextRes.json.hits &&
+                        nextRes.json.hits.hits.length > 0
+                      ) {
+                        for (let i = 0; i < nextRes.json.hits.hits.length; i++) {
+                          allHits.push(nextRes.json.hits.hits[i])
+                        }
+                        searchAfter = nextRes.json.hits.hits[nextRes.json.hits.hits.length - 1].sort
+                      } else {
+                        searchAfter = null
+                      }
+                    } catch (e) {
+                      searchAfter = null
+                    }
+                  }
+                  break
+                }
+              } else if (res && res.statusCode !== 200) {
+                apiStatusError = res.statusCode
+              }
+            }
+
+            if (!hasNetworkError && !formatError) {
+              if (allHits.length === 0) {
+                if (apiStatusError) {
+                  record.set('datajudStatus', 'Sync Failed')
+                  addErrorLog(record, 'A API DataJud retornou erro: ' + apiStatusError)
+                } else {
+                  record.set('datajudStatus', 'Not Found')
+                }
+              } else {
+                for (let i = 0; i < allHits.length; i++) {
+                  const proc = allHits[i] ? allHits[i]._source : null
+                  if (proc && proc.orgaoJulgador && proc.orgaoJulgador.nomeOrgao) {
+                    if (!record.get('court')) record.set('court', proc.orgaoJulgador.nomeOrgao)
+                    break
                   }
                 }
-              }
 
-              const existingLogs = getSafeLogs(record)
-              const manualLogs = []
-              const errorLogs = []
+                const newLogs = []
+                const uniqueKeys = {}
 
-              for (let i = 0; i < existingLogs.length; i++) {
-                const log = existingLogs[i]
-                if (log) {
-                  if (log.isManual) manualLogs.push(log)
-                  else if (log.description && String(log.description).startsWith('Falha'))
-                    errorLogs.push(log)
+                for (let i = 0; i < allHits.length; i++) {
+                  const proc = allHits[i] ? allHits[i]._source : null
+                  const movimentos = proc && proc.movimentos ? proc.movimentos : []
+
+                  for (let j = 0; j < movimentos.length; j++) {
+                    const m = movimentos[j]
+                    const dateStr = m.dataHora || new Date().toISOString()
+                    let descStr = m.nome || m.descricao || 'Movimentação Datajud'
+
+                    if (
+                      Array.isArray(m.complementosTabelados) &&
+                      m.complementosTabelados.length > 0
+                    ) {
+                      const compStrs = []
+                      for (let k = 0; k < m.complementosTabelados.length; k++) {
+                        const comp = m.complementosTabelados[k]
+                        if (comp.nome && comp.valor) compStrs.push(comp.nome + ': ' + comp.valor)
+                        else if (comp.descricao) compStrs.push(comp.descricao)
+                      }
+                      if (compStrs.length > 0) {
+                        descStr += ' | ' + compStrs.join(' | ')
+                      }
+                    }
+
+                    const dedupKey = dateStr + '_' + descStr
+
+                    if (!uniqueKeys[dedupKey]) {
+                      uniqueKeys[dedupKey] = true
+                      newLogs.push({
+                        date: dateStr,
+                        description: descStr,
+                        complementos: Array.isArray(m.complementosTabelados)
+                          ? m.complementosTabelados
+                          : [],
+                        isManual: false,
+                      })
+                    }
+                  }
                 }
+
+                const existingLogs = getSafeLogs(record)
+                const manualLogs = []
+                const errorLogs = []
+
+                for (let i = 0; i < existingLogs.length; i++) {
+                  const log = existingLogs[i]
+                  if (log) {
+                    if (log.isManual) manualLogs.push(log)
+                    else if (log.description && String(log.description).startsWith('Falha'))
+                      errorLogs.push(log)
+                  }
+                }
+
+                const allLogs = manualLogs.concat(errorLogs).concat(newLogs)
+                allLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+                record.set('trackingLogs', allLogs)
+                record.set('datajudStatus', 'Success')
+                success = true
               }
-
-              const allLogs = manualLogs.concat(errorLogs).concat(newLogs)
-              allLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-
-              record.set('trackingLogs', allLogs)
-              record.set('datajudStatus', 'Success')
-              success = true
+            } else if (hasNetworkError || formatError) {
+              record.set('datajudStatus', 'Sync Failed')
             }
           }
         }

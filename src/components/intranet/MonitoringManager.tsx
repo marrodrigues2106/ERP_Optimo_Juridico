@@ -9,6 +9,8 @@ import {
   syncProcesses,
   syncTerms,
   testExternalConnection,
+  getTribunals,
+  updateTribunal,
 } from '@/services/monitoring'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -22,8 +24,18 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import { Trash2, Plus, RefreshCw, Search, Activity, Wifi } from 'lucide-react'
+import {
+  Trash2,
+  Plus,
+  RefreshCw,
+  Search,
+  Activity,
+  Wifi,
+  CheckCircle2,
+  XCircle,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function MonitoringManager() {
@@ -32,6 +44,7 @@ export default function MonitoringManager() {
   const [apiKey, setApiKey] = useState('')
   const [frequency, setFrequency] = useState('Daily')
   const [terms, setTerms] = useState<any[]>([])
+  const [tribunals, setTribunals] = useState<any[]>([])
 
   const [newTerm, setNewTerm] = useState('')
   const [newType, setNewType] = useState('DataJud')
@@ -60,6 +73,7 @@ export default function MonitoringManager() {
         setFrequency(cfg.frequency)
       }
       setTerms(await getMonitoringTerms())
+      setTribunals(await getTribunals())
     } catch (e) {
       console.error(e)
     }
@@ -70,7 +84,6 @@ export default function MonitoringManager() {
       await saveMonitoringConfig(config?.id || null, { apiKey, frequency })
       toast({ title: 'Configurações salvas com sucesso' })
       load()
-      handleTest('datajud') // Trigger validation automatically
     } catch (e) {
       toast({ title: 'Erro ao salvar', variant: 'destructive' })
     }
@@ -92,6 +105,15 @@ export default function MonitoringManager() {
   const toggleTerm = async (t: any) => {
     try {
       await updateMonitoringTerm(t.id, { active: !t.active })
+      load()
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const toggleTribunalStatus = async (t: any) => {
+    try {
+      await updateTribunal(t.id, { active: !t.active })
       load()
     } catch (e) {
       console.error(e)
@@ -128,6 +150,7 @@ export default function MonitoringManager() {
       const res = await testExternalConnection(type)
       setDebugLog(res)
       toast({ title: `Teste de conexão ${type.toUpperCase()} finalizado.` })
+      load() // Reload to fetch updated config stats
     } catch (e: any) {
       toast({ title: 'Falha ao testar conexão', variant: 'destructive' })
       setDebugLog({
@@ -142,200 +165,284 @@ export default function MonitoringManager() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-serif font-bold text-primary tracking-tight">
-          Monitoramento Automatizado
+          Configurações de Monitoramento
         </h2>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="flex flex-col">
-          <CardHeader>
-            <CardTitle>Configurações Gerais & Status</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-5 flex-1">
-            <div className="space-y-2">
-              <Label>Chave da API (DataJud)</Label>
-              <Input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Insira a API Key"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Deixe em branco para usar credenciais padrão do sistema.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label>Frequência de Busca Automática</Label>
-              <Select value={frequency} onValueChange={setFrequency}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Hourly">A cada hora</SelectItem>
-                  <SelectItem value="Daily">Diariamente</SelectItem>
-                  <SelectItem value="Weekly">Semanalmente</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button onClick={handleSaveConfig} className="w-full">
-              Salvar Configurações
-            </Button>
+      <Tabs defaultValue="geral" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 mb-6">
+          <TabsTrigger value="geral">Status & Configurações</TabsTrigger>
+          <TabsTrigger value="termos">Termos de Busca</TabsTrigger>
+          <TabsTrigger value="tribunais">Tribunais</TabsTrigger>
+        </TabsList>
 
-            <div className="pt-5 mt-5 border-t space-y-3">
-              <h3 className="text-sm font-semibold">Sincronização Manual</h3>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={handleSyncP}
-                  disabled={loadingSyncP}
-                >
-                  <RefreshCw className={cn('w-4 h-4 mr-2', loadingSyncP && 'animate-spin')} />{' '}
-                  Processos Ativos
-                </Button>
-                <Button
-                  variant="secondary"
-                  className="flex-1"
-                  onClick={handleSyncT}
-                  disabled={loadingSyncT}
-                >
-                  <Search className={cn('w-4 h-4 mr-2', loadingSyncT && 'animate-spin')} /> Buscar
-                  Termos
-                </Button>
-              </div>
-            </div>
-
-            <div className="pt-5 mt-5 border-t space-y-4">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Activity className="w-4 h-4 text-primary" />
-                Diagnóstico de Conexão (Debug)
-              </h3>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => handleTest('datajud')}
-                  disabled={isTesting}
-                >
-                  <Wifi
-                    className={cn('w-4 h-4 mr-2', isTesting && 'animate-pulse text-amber-500')}
-                  />{' '}
-                  Testar DataJud
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => handleTest('dou')}
-                  disabled={isTesting}
-                >
-                  <Wifi
-                    className={cn('w-4 h-4 mr-2', isTesting && 'animate-pulse text-amber-500')}
-                  />{' '}
-                  Testar DOU
-                </Button>
-              </div>
-
-              {debugLog && (
-                <div className="bg-slate-950 text-emerald-400 p-4 rounded-lg font-mono text-xs overflow-auto max-h-[300px] mt-4 shadow-inner border border-slate-800">
-                  <div className="flex items-center flex-wrap gap-4 mb-3 border-b border-slate-800 pb-3">
-                    <span
-                      className={cn(
-                        'px-2 py-1 rounded text-[11px] font-bold',
-                        debugLog.status >= 200 && debugLog.status < 300
-                          ? 'bg-emerald-900/50 text-emerald-400'
-                          : 'bg-red-900/50 text-red-400',
+        <TabsContent value="geral" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="flex flex-col">
+              <CardHeader>
+                <CardTitle className="text-lg">Diagnóstico e Status de Conexão</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {config && config.lastStatus !== undefined ? (
+                  <div className="p-4 bg-slate-50 border rounded-lg flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-slate-700">
+                        Último Teste (DataJud)
+                      </span>
+                      {config.lastStatus === 200 ? (
+                        <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-1 rounded-md">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> ONLINE
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-100 px-2 py-1 rounded-md">
+                          <XCircle className="w-3.5 h-3.5" /> OFFLINE
+                        </span>
                       )}
-                    >
-                      HTTP {debugLog.status}
-                    </span>
-                    <span className="text-slate-400 font-semibold tracking-wider uppercase text-[10px]">
-                      Alvo: {debugLog.service}
-                    </span>
-                    <span className="text-slate-400 ml-auto">Latência: {debugLog.latency}ms</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 mt-2">
+                      <div>
+                        <p className="text-xs text-muted-foreground">HTTP Status</p>
+                        <p className="font-mono text-sm">
+                          {config.lastStatus === 0 ? 'Timeout / Erro' : config.lastStatus}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Latência</p>
+                        <p className="font-mono text-sm">{config.lastLatency}ms</p>
+                      </div>
+                    </div>
+                    {config.lastError && (
+                      <div className="mt-2 bg-red-50 text-red-700 text-xs p-2 rounded border border-red-100 font-mono">
+                        {config.lastError}
+                      </div>
+                    )}
                   </div>
-                  <pre className="whitespace-pre-wrap break-words leading-relaxed">
-                    {debugLog.snippet}
-                  </pre>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4 bg-slate-50 rounded border">
+                    Nenhum teste registrado.
+                  </p>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => handleTest('datajud')}
+                    disabled={isTesting}
+                  >
+                    <Wifi
+                      className={cn('w-4 h-4 mr-2', isTesting && 'animate-pulse text-amber-500')}
+                    />
+                    Testar Conexão (TJRJ)
+                  </Button>
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
 
-        <Card className="flex flex-col">
-          <CardHeader>
-            <CardTitle>Termos de Pesquisa (Monitoramento)</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 flex-1 flex flex-col">
-            <form onSubmit={handleAddTerm} className="flex gap-2">
-              <Input
-                value={newTerm}
-                onChange={(e) => setNewTerm(e.target.value)}
-                placeholder="Novo termo (ex: nome da empresa, OAB)"
-                className="flex-1"
-              />
-              <Select value={newType} onValueChange={setNewType}>
-                <SelectTrigger className="w-[100px] sm:w-28">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="DataJud">DataJud</SelectItem>
-                  <SelectItem value="DOU">DOU</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button type="submit" size="icon" className="shrink-0">
-                <Plus className="w-4 h-4" />
-              </Button>
-            </form>
-
-            <div className="space-y-2 flex-1 overflow-y-auto pr-2 mt-4 min-h-[200px] max-h-[500px]">
-              {terms.map((t) => (
-                <div
-                  key={t.id}
-                  className="flex items-center justify-between p-3 border rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <Switch checked={t.active} onCheckedChange={() => toggleTerm(t)} />
-                    <div>
-                      <p
+                {debugLog && (
+                  <div className="bg-slate-950 text-emerald-400 p-4 rounded-lg font-mono text-xs overflow-auto max-h-[300px] shadow-inner border border-slate-800">
+                    <div className="flex items-center flex-wrap gap-4 mb-3 border-b border-slate-800 pb-3">
+                      <span
                         className={cn(
-                          'font-semibold text-sm text-slate-800',
-                          !t.active && 'text-slate-400 line-through',
+                          'px-2 py-1 rounded text-[11px] font-bold',
+                          debugLog.status >= 200 && debugLog.status < 300
+                            ? 'bg-emerald-900/50 text-emerald-400'
+                            : 'bg-red-900/50 text-red-400',
                         )}
                       >
-                        {t.term}
+                        HTTP {debugLog.status}
+                      </span>
+                      <span className="text-slate-400 font-semibold tracking-wider uppercase text-[10px]">
+                        Alvo: {debugLog.service}
+                      </span>
+                      <span className="text-slate-400 ml-auto">Latência: {debugLog.latency}ms</span>
+                    </div>
+                    <pre className="whitespace-pre-wrap break-words leading-relaxed">
+                      {debugLog.snippet}
+                    </pre>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="flex flex-col">
+              <CardHeader>
+                <CardTitle className="text-lg">Configurações Gerais</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="space-y-2">
+                  <Label>Chave da API Pública (DataJud)</Label>
+                  <Input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="Insira a API Key"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Deixe em branco para usar credenciais padrão do sistema.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Frequência de Busca Automática</Label>
+                  <Select value={frequency} onValueChange={setFrequency}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Hourly">A cada hora</SelectItem>
+                      <SelectItem value="Daily">Diariamente</SelectItem>
+                      <SelectItem value="Weekly">Semanalmente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={handleSaveConfig} className="w-full">
+                  Salvar Configurações
+                </Button>
+
+                <div className="pt-5 mt-5 border-t space-y-3">
+                  <h3 className="text-sm font-semibold">Gatilhos Manuais</h3>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button
+                      variant="secondary"
+                      className="flex-1"
+                      onClick={handleSyncP}
+                      disabled={loadingSyncP}
+                    >
+                      <RefreshCw className={cn('w-4 h-4 mr-2', loadingSyncP && 'animate-spin')} />
+                      Sincronizar Processos
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      className="flex-1"
+                      onClick={handleSyncT}
+                      disabled={loadingSyncT}
+                    >
+                      <Search className={cn('w-4 h-4 mr-2', loadingSyncT && 'animate-spin')} />
+                      Buscar Termos
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="termos">
+          <Card>
+            <CardHeader>
+              <CardTitle>Termos de Pesquisa para Monitoramento</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <form onSubmit={handleAddTerm} className="flex gap-2">
+                <Input
+                  value={newTerm}
+                  onChange={(e) => setNewTerm(e.target.value)}
+                  placeholder="Novo termo (ex: nome da empresa, OAB)"
+                  className="flex-1"
+                />
+                <Select value={newType} onValueChange={setNewType}>
+                  <SelectTrigger className="w-[100px] sm:w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DataJud">DataJud</SelectItem>
+                    <SelectItem value="DOU">DOU</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button type="submit" size="icon" className="shrink-0">
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </form>
+
+              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 mt-4">
+                {terms.map((t) => (
+                  <div
+                    key={t.id}
+                    className="flex items-center justify-between p-3 border rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <Switch checked={t.active} onCheckedChange={() => toggleTerm(t)} />
+                      <div>
+                        <p
+                          className={cn(
+                            'font-semibold text-sm text-slate-800',
+                            !t.active && 'text-slate-400 line-through',
+                          )}
+                        >
+                          {t.term}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mt-0.5">
+                          FONTE: {t.type}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive opacity-70 hover:opacity-100"
+                      onClick={async () => {
+                        await deleteMonitoringTerm(t.id)
+                        load()
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+                {terms.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-40 text-slate-400 gap-2">
+                    <Search className="w-8 h-8 opacity-20" />
+                    <p className="text-sm">Nenhum termo configurado.</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="tribunais">
+          <Card>
+            <CardHeader>
+              <CardTitle>Tribunais Ativos para Busca</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {tribunals.map((t) => (
+                  <div
+                    key={t.id}
+                    className={cn(
+                      'flex items-center gap-3 p-3 border rounded-lg transition-colors',
+                      t.active ? 'bg-white border-primary/20' : 'bg-slate-50',
+                    )}
+                  >
+                    <Switch checked={t.active} onCheckedChange={() => toggleTribunalStatus(t)} />
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={cn(
+                          'text-xs font-semibold truncate',
+                          !t.active && 'text-slate-400',
+                        )}
+                        title={t.name}
+                      >
+                        {t.name}
                       </p>
-                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mt-0.5">
-                        FONTE: {t.type}
+                      <p className="text-[10px] font-mono text-muted-foreground uppercase">
+                        {t.alias}
                       </p>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive opacity-70 hover:opacity-100"
-                    onClick={async () => {
-                      await deleteMonitoringTerm(t.id)
-                      load()
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-              {terms.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
-                  <Search className="w-8 h-8 opacity-20" />
-                  <p className="text-sm">Nenhum termo configurado.</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                ))}
+                {tribunals.length === 0 && (
+                  <div className="col-span-full text-center text-sm text-muted-foreground py-10 border rounded-lg bg-slate-50">
+                    Nenhum tribunal registrado.
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

@@ -28,3 +28,6 @@ export const testExternalConnection = async (service: 'datajud' | 'dou') => {
     body: JSON.stringify({ service }),
   })
 }
+
+export const getTribunals = () => pb.collection('tribunals').getFullList({ sort: 'name' })
+export const updateTribunal = (id: string, data: any) => pb.collection('tribunals').update(id, data)

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-23T00:20:03.672Z",
+  "generatedAt": "2026-03-23T00:31:53.702Z",
   "collections": [
     {
       "name": "users",
@@ -894,6 +894,24 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "lastStatus",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "lastLatency",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "lastError",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []
@@ -944,6 +962,55 @@
         }
       ],
       "indexes": []
+    },
+    {
+      "name": "tribunals",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "alias",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "active",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_tribunals_name ON tribunals (name)",
+        "CREATE INDEX idx_tribunals_alias ON tribunals (alias)"
+      ]
     }
   ]
 }

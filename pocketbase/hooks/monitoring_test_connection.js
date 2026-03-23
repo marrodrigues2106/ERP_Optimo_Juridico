@@ -6,10 +6,15 @@ routerAdd(
     const service = body.service || 'datajud'
 
     let apiKey = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
+    let configRecord = null
+
     try {
       const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
-      if (configs.length > 0 && configs[0].get('apiKey')) {
-        apiKey = configs[0].get('apiKey')
+      if (configs.length > 0) {
+        configRecord = configs[0]
+        if (configRecord.get('apiKey')) {
+          apiKey = configRecord.get('apiKey')
+        }
       }
     } catch (err) {}
 
@@ -20,17 +25,16 @@ routerAdd(
     try {
       if (service === 'datajud') {
         res = $http.send({
-          url: 'https://api-publica.datajud.cnj.jus.br/api_publica_stj/_search',
+          url: 'https://api-publica.datajud.cnj.jus.br/api_publica_tjrj/_search',
           method: 'POST',
           headers: {
             Authorization: 'APIKey ' + apiKey,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ size: 1, query: { match_all: {} } }),
-          timeout: 30, // Strict 30s timeout per requirements
+          timeout: 30,
         })
       } else if (service === 'dou') {
-        // Mocking egress test for DOU (using httpbin to verify network egress is healthy + simulate delay)
         res = $http.send({
           url: 'https://httpbin.org/get?source=dou_test',
           method: 'GET',
@@ -45,7 +49,6 @@ routerAdd(
     }
 
     const latency = Date.now() - start
-
     let debugSnippet = ''
     let status = 0
 
@@ -64,6 +67,15 @@ routerAdd(
       debugSnippet =
         'Falha na conexão.\n\nA solicitação não foi concluída. Isso geralmente ocorre devido a um timeout excedido (limite de 30 segundos atingido) ou recusa de rede.\n\nDetalhe técnico: Timeout Exceeded (30s) ou Connection Refused.\n\nMensagem original: ' +
         (errorMsg || 'Timeout/Unknown')
+    }
+
+    if (configRecord) {
+      try {
+        configRecord.set('lastStatus', status)
+        configRecord.set('lastLatency', latency)
+        configRecord.set('lastError', errorMsg || '')
+        $app.saveNoValidate(configRecord)
+      } catch (saveErr) {}
     }
 
     return e.json(200, {

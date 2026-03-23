@@ -1,5 +1,3 @@
-import { AgendaWidget } from './dashboard/AgendaWidget'
-import { TasksWidget } from './dashboard/TasksWidget'
 import { PushAlertsWidget } from './dashboard/PushAlertsWidget'
 
 export default function Dashboard() {
@@ -10,14 +8,8 @@ export default function Dashboard() {
           Painel de Controle
         </h2>
       </div>
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 flex-1">
-        <div className="xl:col-span-2 space-y-6 flex flex-col h-full">
-          <PushAlertsWidget />
-        </div>
-        <div className="xl:col-span-1 space-y-6 flex flex-col">
-          <AgendaWidget />
-          <TasksWidget />
-        </div>
+      <div className="flex-1 w-full max-w-5xl mx-auto h-full flex flex-col">
+        <PushAlertsWidget />
       </div>
     </div>
   )
