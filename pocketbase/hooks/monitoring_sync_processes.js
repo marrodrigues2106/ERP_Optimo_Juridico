@@ -15,7 +15,7 @@ routerAdd(
           p.set('datajudStatus', 'Sync Requested')
           $app.saveNoValidate(p)
 
-          // Fire and forget background sync to avoid blocking the main JSVM execution thread
+          // Fire and forget background sync to orchestrator
           try {
             $http.send({
               url: url + '/backend/v1/datajud/background-sync/' + p.id,
@@ -25,7 +25,7 @@ routerAdd(
               timeout: 1, // Short timeout to immediately return control
             })
           } catch (err) {
-            // Expected timeout error from the short timeout, it means the request was successfully dispatched
+            // Expected timeout error
           }
 
           count++

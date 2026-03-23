@@ -2,14 +2,17 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { getLawsuit, updateLawsuit } from '@/services/lawsuits'
 import { getAgendaEventsByLawsuit, createAgendaEvent } from '@/services/agenda'
+import { getLawsuitMovements, createLawsuitMovement } from '@/services/lawsuit_movements'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
+import pb from '@/lib/pocketbase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -37,6 +40,11 @@ import {
   User,
   Mail,
   RefreshCw,
+  Scale,
+  Landmark,
+  BookOpen,
+  AlertCircle,
+  Edit3,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -47,6 +55,7 @@ export default function ProcessDetail() {
 
   const [lawsuit, setLawsuit] = useState<any>(null)
   const [agenda, setAgenda] = useState<any[]>([])
+  const [movements, setMovements] = useState<any[]>([])
   const [openEvent, setOpenEvent] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -57,6 +66,8 @@ export default function ProcessDetail() {
       setLawsuit(data)
       const evs = await getAgendaEventsByLawsuit(id)
       setAgenda(evs)
+      const movs = await getLawsuitMovements(id)
+      setMovements(movs)
     } catch (e) {
       toast({ title: 'Processo não encontrado', variant: 'destructive' })
       navigate('/intranet/processos')
@@ -69,13 +80,9 @@ export default function ProcessDetail() {
     loadData()
   }, [id])
 
-  useRealtime('lawsuits', () => {
-    loadData()
-  })
-
-  useRealtime('agenda_events', () => {
-    loadData()
-  })
+  useRealtime('lawsuits', () => loadData())
+  useRealtime('agenda_events', () => loadData())
+  useRealtime('lawsuit_movements', () => loadData())
 
   const handleToggleNotify = async (checked: boolean) => {
     try {
@@ -89,7 +96,13 @@ export default function ProcessDetail() {
   const handleSyncDatajud = async () => {
     try {
       await updateLawsuit(lawsuit.id, { datajudStatus: 'Sync Requested' })
-      toast({ title: 'Sincronização solicitada com sucesso. Processando...' })
+      // Fire and forget orchestrator trigger
+      pb.send(`/backend/v1/datajud/background-sync/${lawsuit.id}`, {
+        method: 'POST',
+        body: JSON.stringify({ secret: 'internal-async-trigger' }),
+      }).catch(() => {}) // Ignore fetch errors since we expect it to be async
+
+      toast({ title: 'Sincronização com Múltiplas Fontes solicitada. Processando...' })
     } catch (e) {
       toast({
         title: 'Erro ao solicitar sincronização',
@@ -103,25 +116,16 @@ export default function ProcessDetail() {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     const desc = fd.get('description') as string
-    const newLog = { date: new Date().toISOString(), description: desc, isManual: true }
-
-    let logs: any[] = []
-    if (typeof lawsuit.trackingLogs === 'string') {
-      try {
-        logs = JSON.parse(lawsuit.trackingLogs)
-        if (!Array.isArray(logs)) logs = []
-      } catch (e) {
-        logs = []
-      }
-    } else if (Array.isArray(lawsuit.trackingLogs)) {
-      logs = lawsuit.trackingLogs
-    }
-
-    const updatedLogs = [...logs, newLog]
 
     try {
-      await updateLawsuit(lawsuit.id, { trackingLogs: updatedLogs })
-      toast({ title: 'Andamento registrado com sucesso' })
+      await createLawsuitMovement({
+        lawsuit: lawsuit.id,
+        event_date: new Date().toISOString(),
+        description: desc,
+        source: 'Manual',
+        hash: `manual_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+      })
+      toast({ title: 'Andamento registrado com sucesso na linha do tempo' })
       e.currentTarget.reset()
     } catch (err) {
       toast({ title: 'Erro ao registrar andamento', variant: 'destructive' })
@@ -147,24 +151,53 @@ export default function ProcessDetail() {
     }
   }
 
+  const getSourceDetails = (source: string) => {
+    switch (source) {
+      case 'DataJud':
+        return {
+          color: 'bg-blue-500',
+          text: 'text-blue-700 bg-blue-50 border-blue-200',
+          icon: Scale,
+        }
+      case 'Tribunal':
+        return {
+          color: 'bg-indigo-500',
+          text: 'text-indigo-700 bg-indigo-50 border-indigo-200',
+          icon: Landmark,
+        }
+      case 'Diario':
+        return {
+          color: 'bg-amber-500',
+          text: 'text-amber-700 bg-amber-50 border-amber-200',
+          icon: BookOpen,
+        }
+      case 'Manual':
+        return {
+          color: 'bg-slate-500',
+          text: 'text-slate-700 bg-slate-50 border-slate-200',
+          icon: Edit3,
+        }
+      case 'Sistema':
+        return {
+          color: 'bg-red-500',
+          text: 'text-red-700 bg-red-50 border-red-200',
+          icon: AlertCircle,
+        }
+      default:
+        return {
+          color: 'bg-primary',
+          text: 'text-primary bg-primary/10 border-primary/20',
+          icon: Edit3,
+        }
+    }
+  }
+
   if (loading || !lawsuit) {
     return (
       <div className="p-8 text-center text-muted-foreground animate-pulse">
         Carregando detalhes do processo...
       </div>
     )
-  }
-
-  let displayLogs: any[] = []
-  if (typeof lawsuit.trackingLogs === 'string') {
-    try {
-      displayLogs = JSON.parse(lawsuit.trackingLogs)
-      if (!Array.isArray(displayLogs)) displayLogs = []
-    } catch (e) {
-      displayLogs = []
-    }
-  } else if (Array.isArray(lawsuit.trackingLogs)) {
-    displayLogs = lawsuit.trackingLogs
   }
 
   return (
@@ -220,13 +253,13 @@ export default function ProcessDetail() {
                           lawsuit.datajudStatus === 'Sync Requested' && 'animate-spin',
                         )}
                       />
-                      {lawsuit.datajudStatus === 'Sync Requested' ? 'Sincronizando' : 'Sincronizar'}
+                      Sincronizar
                     </Button>
                   )}
                 </div>
                 {lawsuit.datajudStatus && (
                   <p className="text-[10px] text-muted-foreground mt-1 flex items-center">
-                    Status da Integração:
+                    Integração:
                     <span
                       className={cn(
                         'ml-1 font-medium',
@@ -236,18 +269,10 @@ export default function ProcessDetail() {
                             ? 'text-blue-600 animate-pulse'
                             : lawsuit.datajudStatus === 'Not Found'
                               ? 'text-slate-500'
-                              : lawsuit.datajudStatus === 'Sync Failed'
-                                ? 'text-red-600 font-bold'
-                                : 'text-red-600',
+                              : 'text-red-600 font-bold',
                       )}
                     >
-                      {lawsuit.datajudStatus === 'Sync Failed'
-                        ? 'Falha na Sincronização'
-                        : lawsuit.datajudStatus === 'Success'
-                          ? 'Sucesso'
-                          : lawsuit.datajudStatus === 'Not Found'
-                            ? 'Não Encontrado'
-                            : lawsuit.datajudStatus}
+                      {lawsuit.datajudStatus}
                     </span>
                   </p>
                 )}
@@ -280,10 +305,6 @@ export default function ProcessDetail() {
                     >
                       {lawsuit.expand.client.fullName || lawsuit.expand.client.name}
                     </Link>
-                    <span className="text-xs text-muted-foreground flex items-center mt-1">
-                      <Mail className="w-3 h-3 mr-1" />{' '}
-                      {lawsuit.expand.client.email || 'Sem e-mail'}
-                    </span>
                   </div>
                 ) : (
                   <p className="text-sm text-slate-500 italic bg-slate-50 p-3 rounded-md border border-dashed">
@@ -304,9 +325,6 @@ export default function ProcessDetail() {
                     >
                       {lawsuit.expand.collaborator.fullName || lawsuit.expand.collaborator.name}
                     </Link>
-                    <span className="text-xs text-secondary mt-1 font-medium">
-                      {lawsuit.expand.collaborator.role}
-                    </span>
                   </div>
                 ) : (
                   <p className="text-sm text-slate-500 italic bg-slate-50 p-3 rounded-md border border-dashed">
@@ -331,15 +349,6 @@ export default function ProcessDetail() {
                       disabled={!lawsuit.expand?.client}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Ative para enviar atualizações de histórico e eventos da agenda automaticamente
-                    para o e-mail do cliente.
-                  </p>
-                  {!lawsuit.expand?.client && (
-                    <p className="text-xs text-amber-600 font-medium bg-amber-50 p-2 rounded border border-amber-100">
-                      Vincule um cliente para habilitar esta função.
-                    </p>
-                  )}
                 </div>
               </div>
             </CardContent>
@@ -354,7 +363,7 @@ export default function ProcessDetail() {
                 value="historico"
                 className="text-sm font-medium data-[state=active]:bg-white data-[state=active]:shadow-sm"
               >
-                Histórico & Movimentações
+                Linha do Tempo (Unificada)
               </TabsTrigger>
               <TabsTrigger
                 value="agenda"
@@ -370,75 +379,79 @@ export default function ProcessDetail() {
             >
               <Card className="border-border shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between border-b pb-4 bg-slate-50/50">
-                  <CardTitle className="text-lg">Linha do Tempo</CardTitle>
+                  <CardTitle className="text-lg">Movimentações do Processo</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-8">
                   <div className="relative border-l-2 border-slate-200 ml-3 md:ml-4 space-y-8 mb-8 pb-4">
-                    {displayLogs.length === 0 ? (
+                    {movements.length === 0 ? (
                       <p className="text-muted-foreground text-center py-8 ml-[-1rem]">
-                        Nenhuma movimentação registrada no sistema.
+                        Nenhuma movimentação sincronizada ainda.
                       </p>
                     ) : (
-                      [...displayLogs].reverse().map((log: any, idx: number) => {
-                        const isErrorLog =
-                          !log.isManual &&
-                          log.description &&
-                          String(log.description).startsWith('Falha')
+                      movements.map((mov: any) => {
+                        const style = getSourceDetails(mov.source)
+                        const Icon = style.icon
+
                         return (
-                          <div key={idx} className="relative pl-6 md:pl-8">
+                          <div key={mov.id} className="relative pl-6 md:pl-8 group">
                             <span
                               className={cn(
-                                'absolute -left-[9px] top-1.5 h-4 w-4 rounded-full border-2 border-white',
-                                log.isManual
-                                  ? 'bg-amber-500'
-                                  : isErrorLog
-                                    ? 'bg-red-500'
-                                    : 'bg-primary',
+                                'absolute -left-[9px] top-1.5 h-4 w-4 rounded-full border-2 border-white transition-transform group-hover:scale-110',
+                                style.color,
                               )}
                             ></span>
                             <div className="flex flex-col">
-                              <span className="text-sm font-bold text-slate-800 mb-2 flex items-center">
-                                {new Date(log.date).toLocaleString('pt-BR', {
-                                  dateStyle: 'short',
-                                  timeStyle: 'short',
-                                })}
-                              </span>
+                              <div className="flex items-center flex-wrap gap-2 mb-2">
+                                <span className="text-sm font-bold text-slate-800">
+                                  {new Date(mov.event_date).toLocaleString('pt-BR', {
+                                    dateStyle: 'short',
+                                    timeStyle: 'short',
+                                  })}
+                                </span>
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    'text-[10px] uppercase font-bold flex items-center gap-1',
+                                    style.text,
+                                  )}
+                                >
+                                  <Icon className="w-3 h-3" /> {mov.source}
+                                </Badge>
+                              </div>
                               <div
                                 className={cn(
-                                  'bg-white p-4 rounded-lg border shadow-sm text-sm leading-relaxed',
-                                  isErrorLog ? 'border-red-200 text-red-900' : 'text-slate-700',
+                                  'bg-white p-4 rounded-lg border shadow-sm text-sm leading-relaxed text-slate-700',
+                                  mov.source === 'Sistema' &&
+                                    'border-red-200 text-red-900 bg-red-50',
                                 )}
                               >
                                 <p
                                   className={cn(
-                                    'font-semibold',
-                                    isErrorLog ? 'text-red-800' : 'text-slate-800',
+                                    'font-medium',
+                                    mov.source === 'Sistema' && 'font-bold',
                                   )}
                                 >
-                                  {log.description}
+                                  {mov.description}
                                 </p>
-                                {log.complementos && log.complementos.length > 0 && (
-                                  <div className="mt-3 space-y-1 text-xs text-slate-600 bg-slate-50 p-2.5 rounded border border-dashed">
-                                    {log.complementos.map((comp: any, cIdx: number) => (
-                                      <div key={cIdx} className="grid grid-cols-[100px_1fr] gap-2">
-                                        <span className="font-medium text-slate-700">
-                                          {comp.nome}:
-                                        </span>
-                                        <span className="break-words">{comp.valor}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                                {log.isManual && (
-                                  <span className="inline-block mt-3 px-2 py-1 bg-amber-100 text-amber-800 text-[10px] rounded font-bold uppercase tracking-wider">
-                                    Registro Manual
-                                  </span>
-                                )}
-                                {isErrorLog && (
-                                  <span className="inline-block mt-3 px-2 py-1 bg-red-100 text-red-800 text-[10px] rounded font-bold uppercase tracking-wider">
-                                    Erro de Sistema
-                                  </span>
-                                )}
+
+                                {mov.metadata?.complementos &&
+                                  mov.metadata.complementos.length > 0 && (
+                                    <div className="mt-3 space-y-1 text-xs text-slate-600 bg-slate-50 p-2.5 rounded border border-dashed">
+                                      {mov.metadata.complementos.map((comp: any, cIdx: number) => (
+                                        <div
+                                          key={cIdx}
+                                          className="grid grid-cols-[100px_1fr] gap-2"
+                                        >
+                                          <span className="font-semibold text-slate-700">
+                                            {comp.nome || 'Detalhe'}:
+                                          </span>
+                                          <span className="break-words">
+                                            {comp.valor || comp.descricao}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                               </div>
                             </div>
                           </div>
@@ -447,9 +460,12 @@ export default function ProcessDetail() {
                     )}
                   </div>
 
-                  <form onSubmit={handleAddLog} className="mt-6 bg-slate-50 p-4 rounded-lg border">
-                    <h4 className="text-sm font-bold mb-3 text-slate-800">
-                      Adicionar Andamento Manual
+                  <form
+                    onSubmit={handleAddLog}
+                    className="mt-6 bg-slate-50 p-4 rounded-lg border border-dashed"
+                  >
+                    <h4 className="text-sm font-bold mb-3 text-slate-800 flex items-center gap-2">
+                      <Edit3 className="w-4 h-4 text-slate-500" /> Adicionar Andamento Manual
                     </h4>
                     <div className="flex flex-col sm:flex-row gap-3">
                       <Input
@@ -487,22 +503,7 @@ export default function ProcessDetail() {
                       <form onSubmit={handleAddEvent} className="space-y-4">
                         <div>
                           <Label>Título do Evento</Label>
-                          <Input name="title" required placeholder="Ex: Reunião com cliente" />
-                        </div>
-                        <div>
-                          <Label>Tipo</Label>
-                          <Select name="type" defaultValue="Meeting">
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Meeting">Reunião</SelectItem>
-                              <SelectItem value="Call">Ligação</SelectItem>
-                              <SelectItem value="Deadline">Prazo</SelectItem>
-                              <SelectItem value="Reminder">Lembrete</SelectItem>
-                              <SelectItem value="Alert">Alerta</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <Input name="title" required placeholder="Ex: Reunião" />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
@@ -514,13 +515,9 @@ export default function ProcessDetail() {
                             <Input type="datetime-local" name="end_date" />
                           </div>
                         </div>
-                        <div>
-                          <Label>Descrição / Notas</Label>
-                          <Input name="description" placeholder="Observações adicionais..." />
-                        </div>
                         <div className="pt-2 border-t mt-4">
                           <Button type="submit" className="w-full">
-                            Sincronizar com Agenda
+                            Salvar
                           </Button>
                         </div>
                       </form>
@@ -532,47 +529,23 @@ export default function ProcessDetail() {
                     <div className="text-center py-12 px-4 border-2 border-dashed rounded-lg bg-slate-50">
                       <Calendar className="w-10 h-10 mx-auto text-slate-300 mb-3" />
                       <p className="text-muted-foreground font-medium">Nenhum evento agendado.</p>
-                      <p className="text-sm text-slate-500 mt-1">
-                        Crie um evento para acompanhar compromissos deste processo.
-                      </p>
                     </div>
                   ) : (
                     <div className="grid gap-4">
                       {agenda.map((ev) => (
                         <div
                           key={ev.id}
-                          className="flex items-start p-5 border rounded-xl bg-white shadow-sm gap-4 hover:border-primary/20 transition-colors"
+                          className="flex items-start p-5 border rounded-xl bg-white shadow-sm gap-4"
                         >
-                          <div className="bg-slate-50 p-3.5 rounded-full shrink-0 border">
-                            {ev.type === 'Meeting' ? (
-                              <Users className="w-5 h-5 text-blue-600" />
-                            ) : ev.type === 'Call' ? (
-                              <Phone className="w-5 h-5 text-green-600" />
-                            ) : ev.type === 'Deadline' ? (
-                              <AlertTriangle className="w-5 h-5 text-red-600" />
-                            ) : (
-                              <Calendar className="w-5 h-5 text-slate-600" />
-                            )}
-                          </div>
                           <div className="flex-1">
                             <h4 className="font-bold text-slate-800 text-base">{ev.title}</h4>
-                            <div className="flex flex-wrap gap-3 mt-2">
-                              <span className="flex items-center text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-md">
-                                <Clock className="w-3 h-3 mr-1.5" />
-                                {new Date(ev.start_date).toLocaleString('pt-BR', {
-                                  dateStyle: 'short',
-                                  timeStyle: 'short',
-                                })}
-                              </span>
-                              <span className="flex items-center text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-md">
-                                {ev.type}
-                              </span>
-                            </div>
-                            {ev.description && (
-                              <p className="text-sm mt-3 text-slate-600 border-l-2 border-slate-200 pl-3 py-0.5">
-                                {ev.description}
-                              </p>
-                            )}
+                            <span className="flex items-center text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-md mt-2 w-max">
+                              <Clock className="w-3 h-3 mr-1.5" />
+                              {new Date(ev.start_date).toLocaleString('pt-BR', {
+                                dateStyle: 'short',
+                                timeStyle: 'short',
+                              })}
+                            </span>
                           </div>
                         </div>
                       ))}

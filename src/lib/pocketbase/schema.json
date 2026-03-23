@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-23T01:01:07.543Z",
+  "generatedAt": "2026-03-23T01:22:09.847Z",
   "collections": [
     {
       "name": "users",
@@ -1016,6 +1016,75 @@
       "indexes": [
         "CREATE INDEX idx_tribunals_name ON tribunals (name)",
         "CREATE INDEX idx_tribunals_alias ON tribunals (alias)"
+      ]
+    },
+    {
+      "name": "lawsuit_movements",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "lawsuit",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "lawsuits"
+        },
+        {
+          "name": "event_date",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "source",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["DataJud", "Tribunal", "Diario", "Manual", "Sistema"]
+        },
+        {
+          "name": "hash",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "metadata",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_lawsuit_movements_hash ON lawsuit_movements (hash)",
+        "CREATE INDEX idx_lawsuit_movements_lawsuit_date ON lawsuit_movements (lawsuit, event_date DESC)"
       ]
     }
   ]

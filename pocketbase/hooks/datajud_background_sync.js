@@ -1,3 +1,4 @@
+// This hook acts as the Multi-Source Sync Orchestrator
 routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
   try {
     const body = e.requestInfo().body || {}
@@ -5,36 +6,30 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
 
     const id = e.request.pathValue('id')
     const record = $app.findRecordById('lawsuits', id)
+    const movementsCol = $app.findCollectionByNameOrId('lawsuit_movements')
 
-    const getSafeLogs = (rec) => {
-      let raw = rec.get('trackingLogs')
-      if (!raw) return []
-      if (typeof raw === 'string') {
-        try {
-          const parsed = JSON.parse(raw)
-          return Array.isArray(parsed) ? parsed : []
-        } catch (err) {
-          return []
-        }
-      }
-      if (Array.isArray(raw)) return raw
+    const saveMovement = (dateStr, descStr, source, meta) => {
+      const rawString = id + '_' + dateStr + '_' + descStr + '_' + source
+      const hash = $security.sha256(rawString)
+
       try {
-        const parsed = JSON.parse(JSON.stringify(raw))
-        return Array.isArray(parsed) ? parsed : []
+        $app.findFirstRecordByFilter('lawsuit_movements', `hash = '${hash}'`)
+        return false // Duplicate avoided
       } catch (err) {
-        return []
+        const mov = new Record(movementsCol)
+        mov.set('lawsuit', id)
+        mov.set('event_date', new Date(dateStr).toISOString())
+        mov.set('description', descStr)
+        mov.set('source', source)
+        mov.set('hash', hash)
+        if (meta) mov.set('metadata', meta)
+        $app.saveNoValidate(mov)
+        return true // New movement created
       }
     }
 
-    const addErrorLog = (rec, message) => {
-      let existingLogs = getSafeLogs(rec)
-      existingLogs.push({
-        date: new Date().toISOString(),
-        description: message,
-        isManual: false,
-        complementos: [],
-      })
-      rec.set('trackingLogs', existingLogs)
+    const addErrorLog = (message) => {
+      saveMovement(new Date().toISOString(), message, 'Sistema', { error: true })
     }
 
     let success = false
@@ -44,12 +39,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
 
       if (cleanNum.length !== 20) {
         record.set('datajudStatus', 'Sync Failed')
-        addErrorLog(
-          record,
-          'Falha na sincronização: Número do processo inválido (' +
-            cleanNum +
-            '). O número deve conter 20 dígitos.',
-        )
+        addErrorLog(`Falha na sincronização: Número do processo inválido (${cleanNum}).`)
       } else {
         let alias = null
         const courtName = record.get('court')
@@ -121,28 +111,22 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
 
         if (!alias) {
           record.set('datajudStatus', 'Sync Failed')
-          addErrorLog(record, 'Falha na sincronização: Não foi possível identificar o tribunal.')
+          addErrorLog('Falha na sincronização: Não foi possível identificar o tribunal.')
         } else if (!tribunalIsActive) {
           record.set('datajudStatus', 'Sync Failed')
-          addErrorLog(
-            record,
-            `Falha na sincronização: O tribunal '${alias}' está desativado nas configurações.`,
-          )
+          addErrorLog(`Falha na sincronização: O tribunal '${alias}' está desativado.`)
         } else {
+          // --- DataJud Sync Module ---
           const url = 'https://api-publica.datajud.cnj.jus.br/api_publica_' + alias + '/_search'
-
           let apiKey = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
           try {
             const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
-            if (configs.length > 0 && configs[0].get('apiKey')) {
-              apiKey = configs[0].get('apiKey')
-            }
+            if (configs.length > 0 && configs[0].get('apiKey')) apiKey = configs[0].get('apiKey')
           } catch (err) {}
 
           const strategies = [
             { query: { term: { 'numeroProcesso.keyword': cleanNum } } },
             { query: { term: { numeroProcesso: cleanNum } } },
-            { query: { match_phrase: { numeroProcesso: cleanNum } } },
           ]
 
           let allHits = []
@@ -179,7 +163,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
                 if (retryCount >= 3) {
                   hasNetworkError = true
                   const errMsg = err && err.message ? err.message : String(err)
-                  addErrorLog(record, 'Timeout ou falha de conexão com a API DataJud: ' + errMsg)
+                  addErrorLog('Timeout ou falha de conexão com a API DataJud: ' + errMsg)
                   break
                 }
               }
@@ -195,15 +179,14 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
                 formatError = true
                 break
               }
-
               if (data && data.hits && data.hits.hits && data.hits.hits.length > 0) {
-                for (let i = 0; i < data.hits.hits.length; i++) {
-                  allHits.push(data.hits.hits[i])
-                }
+                allHits = data.hits.hits
                 break
               }
             }
           }
+
+          // --- Future Scraping / Gazette Modules will be inserted here ---
 
           if (!hasNetworkError && !formatError) {
             if (allHits.length === 0) {
@@ -216,9 +199,6 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
                   break
                 }
               }
-
-              const newLogs = []
-              const uniqueKeys = {}
 
               const lastSyncStr = record.get('last_sync')
               let lastSyncTime = lastSyncStr ? new Date(lastSyncStr).getTime() : 0
@@ -250,72 +230,39 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
                       if (comp.nome && comp.valor) compStrs.push(comp.nome + ': ' + comp.valor)
                       else if (comp.descricao) compStrs.push(comp.descricao)
                     }
-                    if (compStrs.length > 0) {
-                      descStr += ' | ' + compStrs.join(' | ')
+                    if (compStrs.length > 0) descStr += ' | ' + compStrs.join(' | ')
+                  }
+
+                  const isNew = saveMovement(dateStr, descStr, 'DataJud', { datajud_raw: m })
+
+                  // Incremental Sync Notification Check
+                  if (isNew && lastSyncTime !== 0 && movTime > lastSyncTime) {
+                    for (let u = 0; u < usersToNotify.length; u++) {
+                      const n = new Record(notifsCol)
+                      n.set('lawsuit', record.id)
+                      n.set(
+                        'update_content',
+                        `Nova movimentação no processo ${cleanNum}: ${descStr}`,
+                      )
+                      n.set('type', 'update')
+                      n.set('user', usersToNotify[u].id)
+                      n.set('is_read', false)
+                      try {
+                        $app.saveNoValidate(n)
+                      } catch (e) {}
                     }
                   }
 
-                  const dedupKey = dateStr + '_' + descStr
-
-                  if (!uniqueKeys[dedupKey]) {
-                    uniqueKeys[dedupKey] = true
-                    newLogs.push({
-                      date: dateStr,
-                      description: descStr,
-                      complementos: Array.isArray(m.complementosTabelados)
-                        ? m.complementosTabelados
-                        : [],
-                      isManual: false,
-                    })
-
-                    // Incremental Sync Notification Check
-                    if (lastSyncTime !== 0 && movTime > lastSyncTime) {
-                      for (let u = 0; u < usersToNotify.length; u++) {
-                        const n = new Record(notifsCol)
-                        n.set('lawsuit', record.id)
-                        n.set(
-                          'update_content',
-                          `Nova movimentação no processo ${cleanNum}: ${descStr}`,
-                        )
-                        n.set('type', 'update')
-                        n.set('user', usersToNotify[u].id)
-                        n.set('is_read', false)
-                        try {
-                          $app.saveNoValidate(n)
-                        } catch (e) {}
-                      }
-                    }
-
-                    if (movTime > newLastSyncTime) {
-                      newLastSyncTime = movTime
-                    }
+                  if (movTime > newLastSyncTime) {
+                    newLastSyncTime = movTime
                   }
                 }
               }
 
-              const existingLogs = getSafeLogs(record)
-              const manualLogs = []
-              const errorLogs = []
-
-              for (let i = 0; i < existingLogs.length; i++) {
-                const log = existingLogs[i]
-                if (log) {
-                  if (log.isManual) manualLogs.push(log)
-                  else if (log.description && String(log.description).startsWith('Falha'))
-                    errorLogs.push(log)
-                }
-              }
-
-              const allLogs = manualLogs.concat(errorLogs).concat(newLogs)
-              allLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-
-              record.set('trackingLogs', allLogs)
               record.set('datajudStatus', 'Success')
-
               if (newLastSyncTime > 0) {
                 record.set('last_sync', new Date(newLastSyncTime).toISOString())
               }
-
               success = true
             }
           } else if (hasNetworkError || formatError) {
@@ -325,8 +272,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
       }
     } catch (globalErr) {
       record.set('datajudStatus', 'Sync Failed')
-      const errMsg = globalErr && globalErr.message ? globalErr.message : String(globalErr)
-      addErrorLog(record, 'Falha inesperada no processamento da sincronização DataJud: ' + errMsg)
+      addErrorLog('Falha inesperada no orquestrador de sincronização: ' + String(globalErr))
     }
 
     $app.saveNoValidate(record)
@@ -336,7 +282,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
       const logRecord = new Record(logs)
       logRecord.set('collection_name', 'lawsuits')
       logRecord.set('record_id', record.id)
-      logRecord.set('action', 'datajud_sync_async')
+      logRecord.set('action', 'orchestrator_sync_async')
       logRecord.set('changes', {
         status: record.get('datajudStatus'),
         court: record.get('court'),
@@ -347,7 +293,6 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
 
     return e.json(200, { status: 'ok' })
   } catch (err) {
-    console.log('Background sync error:', err)
     return e.json(500, { error: String(err) })
   }
 })

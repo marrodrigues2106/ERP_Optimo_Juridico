@@ -35,6 +35,9 @@ import {
   Wifi,
   CheckCircle2,
   XCircle,
+  Database,
+  Landmark,
+  BookOpen,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -106,25 +109,21 @@ export default function MonitoringManager() {
     try {
       await updateMonitoringTerm(t.id, { active: !t.active })
       load()
-    } catch (e) {
-      console.error(e)
-    }
+    } catch (e) {}
   }
 
   const toggleTribunalStatus = async (t: any) => {
     try {
       await updateTribunal(t.id, { active: !t.active })
       load()
-    } catch (e) {
-      console.error(e)
-    }
+    } catch (e) {}
   }
 
   const handleSyncP = async () => {
     setLoadingSyncP(true)
     try {
       await syncProcesses()
-      toast({ title: 'Sincronização de processos iniciada' })
+      toast({ title: 'Orquestração de Múltiplas Fontes iniciada' })
     } catch (e) {
       toast({ title: 'Erro ao sincronizar', variant: 'destructive' })
     } finally {
@@ -150,15 +149,10 @@ export default function MonitoringManager() {
       const res = await testExternalConnection(type)
       setDebugLog(res)
       toast({ title: `Teste de conexão ${type.toUpperCase()} finalizado.` })
-      load() // Reload to fetch updated config stats
+      load()
     } catch (e: any) {
       toast({ title: 'Falha ao testar conexão', variant: 'destructive' })
-      setDebugLog({
-        service: type,
-        status: 0,
-        latency: 0,
-        snippet: `Erro interno ao executar teste: ${e.message}`,
-      })
+      setDebugLog({ service: type, status: 0, latency: 0, snippet: `Erro interno: ${e.message}` })
     } finally {
       setIsTesting(false)
     }
@@ -183,14 +177,38 @@ export default function MonitoringManager() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className="flex flex-col">
               <CardHeader>
-                <CardTitle className="text-lg">Diagnóstico e Status de Conexão</CardTitle>
+                <CardTitle className="text-lg">Diagnóstico e Fontes de Dados</CardTitle>
               </CardHeader>
               <CardContent className="space-y-5">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="p-3 border rounded-lg bg-slate-50 text-center shadow-sm flex flex-col items-center justify-center">
+                    <Database className="w-5 h-5 text-blue-500 mb-1" />
+                    <p className="text-[11px] font-bold text-slate-700">DataJud</p>
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded mt-1.5 inline-block">
+                      Ativo
+                    </span>
+                  </div>
+                  <div className="p-3 border rounded-lg bg-slate-50 text-center shadow-sm flex flex-col items-center justify-center opacity-80">
+                    <Landmark className="w-5 h-5 text-indigo-500 mb-1" />
+                    <p className="text-[11px] font-bold text-slate-700">Tribunais (Scraping)</p>
+                    <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded mt-1.5 inline-block">
+                      Preparado
+                    </span>
+                  </div>
+                  <div className="p-3 border rounded-lg bg-slate-50 text-center shadow-sm flex flex-col items-center justify-center opacity-80">
+                    <BookOpen className="w-5 h-5 text-amber-500 mb-1" />
+                    <p className="text-[11px] font-bold text-slate-700">Diários Oficiais</p>
+                    <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded mt-1.5 inline-block">
+                      Preparado
+                    </span>
+                  </div>
+                </div>
+
                 {config && config.lastStatus !== undefined ? (
                   <div className="p-4 bg-slate-50 border rounded-lg flex flex-col gap-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold text-slate-700">
-                        Último Teste (DataJud)
+                        Último Teste (API CNJ)
                       </span>
                       {config.lastStatus === 200 ? (
                         <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-1 rounded-md">
@@ -202,11 +220,11 @@ export default function MonitoringManager() {
                         </span>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 gap-4 mt-2">
+                    <div className="grid grid-cols-2 gap-4 mt-1">
                       <div>
                         <p className="text-xs text-muted-foreground">HTTP Status</p>
                         <p className="font-mono text-sm">
-                          {config.lastStatus === 0 ? 'Timeout / Erro' : config.lastStatus}
+                          {config.lastStatus === 0 ? 'Erro' : config.lastStatus}
                         </p>
                       </div>
                       <div>
@@ -214,17 +232,8 @@ export default function MonitoringManager() {
                         <p className="font-mono text-sm">{config.lastLatency}ms</p>
                       </div>
                     </div>
-                    {config.lastError && (
-                      <div className="mt-2 bg-red-50 text-red-700 text-xs p-2 rounded border border-red-100 font-mono">
-                        {config.lastError}
-                      </div>
-                    )}
                   </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4 bg-slate-50 rounded border">
-                    Nenhum teste registrado.
-                  </p>
-                )}
+                ) : null}
 
                 <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <Button
@@ -236,12 +245,12 @@ export default function MonitoringManager() {
                     <Wifi
                       className={cn('w-4 h-4 mr-2', isTesting && 'animate-pulse text-amber-500')}
                     />
-                    Testar Conexão (TJRJ)
+                    Testar Conexão (DataJud)
                   </Button>
                 </div>
 
                 {debugLog && (
-                  <div className="bg-slate-950 text-emerald-400 p-4 rounded-lg font-mono text-xs overflow-auto max-h-[300px] shadow-inner border border-slate-800">
+                  <div className="bg-slate-950 text-emerald-400 p-4 rounded-lg font-mono text-xs overflow-auto max-h-[200px] shadow-inner border border-slate-800">
                     <div className="flex items-center flex-wrap gap-4 mb-3 border-b border-slate-800 pb-3">
                       <span
                         className={cn(
@@ -256,7 +265,6 @@ export default function MonitoringManager() {
                       <span className="text-slate-400 font-semibold tracking-wider uppercase text-[10px]">
                         Alvo: {debugLog.service}
                       </span>
-                      <span className="text-slate-400 ml-auto">Latência: {debugLog.latency}ms</span>
                     </div>
                     <pre className="whitespace-pre-wrap break-words leading-relaxed">
                       {debugLog.snippet}
@@ -279,9 +287,6 @@ export default function MonitoringManager() {
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder="Insira a API Key"
                   />
-                  <p className="text-[11px] text-muted-foreground">
-                    Deixe em branco para usar credenciais padrão do sistema.
-                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label>Frequência de Busca Automática</Label>
@@ -302,22 +307,12 @@ export default function MonitoringManager() {
 
                 <div className="pt-5 mt-5 border-t space-y-3">
                   <h3 className="text-sm font-semibold">Gatilhos Manuais</h3>
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <Button
-                      variant="secondary"
-                      className="flex-1"
-                      onClick={handleSyncP}
-                      disabled={loadingSyncP}
-                    >
+                  <div className="flex flex-col gap-3">
+                    <Button variant="secondary" onClick={handleSyncP} disabled={loadingSyncP}>
                       <RefreshCw className={cn('w-4 h-4 mr-2', loadingSyncP && 'animate-spin')} />
-                      Sincronizar Processos
+                      Orquestrar Sincronização de Processos
                     </Button>
-                    <Button
-                      variant="secondary"
-                      className="flex-1"
-                      onClick={handleSyncT}
-                      disabled={loadingSyncT}
-                    >
+                    <Button variant="secondary" onClick={handleSyncT} disabled={loadingSyncT}>
                       <Search className={cn('w-4 h-4 mr-2', loadingSyncT && 'animate-spin')} />
                       Buscar Termos
                     </Button>
@@ -338,11 +333,11 @@ export default function MonitoringManager() {
                 <Input
                   value={newTerm}
                   onChange={(e) => setNewTerm(e.target.value)}
-                  placeholder="Novo termo (ex: nome da empresa, OAB)"
+                  placeholder="Novo termo"
                   className="flex-1"
                 />
                 <Select value={newType} onValueChange={setNewType}>
-                  <SelectTrigger className="w-[100px] sm:w-32">
+                  <SelectTrigger className="w-[120px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -354,19 +349,18 @@ export default function MonitoringManager() {
                   <Plus className="w-4 h-4" />
                 </Button>
               </form>
-
-              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 mt-4">
+              <div className="space-y-2 mt-4">
                 {terms.map((t) => (
                   <div
                     key={t.id}
-                    className="flex items-center justify-between p-3 border rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
+                    className="flex items-center justify-between p-3 border rounded-lg bg-slate-50"
                   >
                     <div className="flex items-center gap-4">
                       <Switch checked={t.active} onCheckedChange={() => toggleTerm(t)} />
                       <div>
                         <p
                           className={cn(
-                            'font-semibold text-sm text-slate-800',
+                            'font-semibold text-sm',
                             !t.active && 'text-slate-400 line-through',
                           )}
                         >
@@ -380,22 +374,15 @@ export default function MonitoringManager() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="text-destructive opacity-70 hover:opacity-100"
-                      onClick={async () => {
-                        await deleteMonitoringTerm(t.id)
-                        load()
+                      className="text-destructive opacity-70"
+                      onClick={() => {
+                        deleteMonitoringTerm(t.id).then(load)
                       }}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 ))}
-                {terms.length === 0 && (
-                  <div className="flex flex-col items-center justify-center h-40 text-slate-400 gap-2">
-                    <Search className="w-8 h-8 opacity-20" />
-                    <p className="text-sm">Nenhum termo configurado.</p>
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -433,11 +420,6 @@ export default function MonitoringManager() {
                     </div>
                   </div>
                 ))}
-                {tribunals.length === 0 && (
-                  <div className="col-span-full text-center text-sm text-muted-foreground py-10 border rounded-lg bg-slate-50">
-                    Nenhum tribunal registrado.
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
