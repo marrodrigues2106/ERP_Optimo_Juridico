@@ -109,14 +109,18 @@ export default function MonitoringManager() {
     try {
       await updateMonitoringTerm(t.id, { active: !t.active })
       load()
-    } catch (e) {}
+    } catch (e) {
+      console.error('Error toggling term', e)
+    }
   }
 
   const toggleTribunalStatus = async (t: any) => {
     try {
       await updateTribunal(t.id, { active: !t.active })
       load()
-    } catch (e) {}
+    } catch (e) {
+      console.error('Error toggling tribunal', e)
+    }
   }
 
   const handleSyncP = async () => {
