@@ -39,7 +39,7 @@ routerAdd(
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify(bodyObj),
-              timeout: 15,
+              timeout: 30, // Updated to 30s timeout
             })
 
             if (res.statusCode === 200 && res.json && res.json.hits && res.json.hits.hits) {
@@ -93,7 +93,7 @@ routerAdd(
               }
             }
           } catch (err) {
-            console.log('Error syncing term: ', query, err)
+            console.log('Error syncing term (timeout/network): ', query, err)
           }
         }
       }

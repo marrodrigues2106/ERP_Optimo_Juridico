@@ -165,14 +165,14 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
                   'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(bodyObj),
-                timeout: 15,
+                timeout: 30, // Updated to 30s timeout
               })
             } catch (err) {
               record.set('datajudStatus', 'Sync Failed')
               const errMsg = err && err.message ? err.message : String(err)
               addErrorLog(
                 record,
-                'Falha na sincronização de rede com a API DataJud (' + url + '): ' + errMsg,
+                'Falha na sincronização de rede ou timeout (30s) na API DataJud: ' + errMsg,
               )
               hasNetworkError = true
               break

@@ -19,7 +19,7 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ size: 1, query: { match_all: {} } }),
-        timeout: 15,
+        timeout: 30, // Updated to 30s
       })
     }
 
@@ -33,7 +33,10 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
         usedFallback = true
         res = checkEndpoint('https://api-publica.datajud.cnj.jus.br/api_publica_stj/_search')
       } catch (fallbackErr) {
-        return e.json(200, { status: 'error', detail: 'All connection attempts failed' })
+        return e.json(200, {
+          status: 'error',
+          detail: 'All connection attempts failed (timeout or network)',
+        })
       }
     }
 

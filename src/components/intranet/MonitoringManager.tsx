@@ -8,6 +8,7 @@ import {
   deleteMonitoringTerm,
   syncProcesses,
   syncTerms,
+  testExternalConnection,
 } from '@/services/monitoring'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -22,7 +23,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
-import { Trash2, Plus, RefreshCw, Search } from 'lucide-react'
+import { Trash2, Plus, RefreshCw, Search, Activity, Wifi } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function MonitoringManager() {
@@ -37,6 +38,14 @@ export default function MonitoringManager() {
 
   const [loadingSyncP, setLoadingSyncP] = useState(false)
   const [loadingSyncT, setLoadingSyncT] = useState(false)
+  const [isTesting, setIsTesting] = useState(false)
+
+  const [debugLog, setDebugLog] = useState<{
+    service: string
+    status: number
+    latency: number
+    snippet: string
+  } | null>(null)
 
   useEffect(() => {
     load()
@@ -61,6 +70,7 @@ export default function MonitoringManager() {
       await saveMonitoringConfig(config?.id || null, { apiKey, frequency })
       toast({ title: 'Configurações salvas com sucesso' })
       load()
+      handleTest('datajud') // Trigger validation automatically
     } catch (e) {
       toast({ title: 'Erro ao salvar', variant: 'destructive' })
     }
@@ -112,6 +122,25 @@ export default function MonitoringManager() {
     }
   }
 
+  const handleTest = async (type: 'datajud' | 'dou') => {
+    setIsTesting(true)
+    try {
+      const res = await testExternalConnection(type)
+      setDebugLog(res)
+      toast({ title: `Teste de conexão ${type.toUpperCase()} finalizado.` })
+    } catch (e: any) {
+      toast({ title: 'Falha ao testar conexão', variant: 'destructive' })
+      setDebugLog({
+        service: type,
+        status: 0,
+        latency: 0,
+        snippet: `Erro interno ao executar teste: ${e.message}`,
+      })
+    } finally {
+      setIsTesting(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -120,20 +149,23 @@ export default function MonitoringManager() {
         </h2>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="flex flex-col">
           <CardHeader>
-            <CardTitle>Configurações Gerais (DataJud/DOU)</CardTitle>
+            <CardTitle>Configurações Gerais & Status</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-5 flex-1">
             <div className="space-y-2">
               <Label>Chave da API (DataJud)</Label>
               <Input
-                type="password"
+                type="text"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="Insira a API Key"
               />
+              <p className="text-[11px] text-muted-foreground">
+                Deixe em branco para usar credenciais padrão do sistema.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Frequência de Busca Automática</Label>
@@ -152,11 +184,11 @@ export default function MonitoringManager() {
               Salvar Configurações
             </Button>
 
-            <div className="pt-6 mt-6 border-t space-y-3">
+            <div className="pt-5 mt-5 border-t space-y-3">
               <h3 className="text-sm font-semibold">Sincronização Manual</h3>
               <div className="flex flex-col sm:flex-row gap-3">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   className="flex-1"
                   onClick={handleSyncP}
                   disabled={loadingSyncP}
@@ -165,7 +197,7 @@ export default function MonitoringManager() {
                   Processos Ativos
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   className="flex-1"
                   onClick={handleSyncT}
                   disabled={loadingSyncT}
@@ -175,19 +207,74 @@ export default function MonitoringManager() {
                 </Button>
               </div>
             </div>
+
+            <div className="pt-5 mt-5 border-t space-y-4">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <Activity className="w-4 h-4 text-primary" />
+                Service Connection Status (Debug)
+              </h3>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => handleTest('datajud')}
+                  disabled={isTesting}
+                >
+                  <Wifi
+                    className={cn('w-4 h-4 mr-2', isTesting && 'animate-pulse text-amber-500')}
+                  />{' '}
+                  Testar DataJud
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => handleTest('dou')}
+                  disabled={isTesting}
+                >
+                  <Wifi
+                    className={cn('w-4 h-4 mr-2', isTesting && 'animate-pulse text-amber-500')}
+                  />{' '}
+                  Testar DOU
+                </Button>
+              </div>
+
+              {debugLog && (
+                <div className="bg-slate-950 text-emerald-400 p-4 rounded-lg font-mono text-xs overflow-auto max-h-[300px] mt-4 shadow-inner border border-slate-800">
+                  <div className="flex items-center flex-wrap gap-4 mb-3 border-b border-slate-800 pb-3">
+                    <span
+                      className={cn(
+                        'px-2 py-1 rounded text-[11px] font-bold',
+                        debugLog.status >= 200 && debugLog.status < 300
+                          ? 'bg-emerald-900/50 text-emerald-400'
+                          : 'bg-red-900/50 text-red-400',
+                      )}
+                    >
+                      HTTP {debugLog.status}
+                    </span>
+                    <span className="text-slate-400 font-semibold tracking-wider uppercase text-[10px]">
+                      Alvo: {debugLog.service}
+                    </span>
+                    <span className="text-slate-400 ml-auto">Latência: {debugLog.latency}ms</span>
+                  </div>
+                  <pre className="whitespace-pre-wrap break-words leading-relaxed">
+                    {debugLog.snippet}
+                  </pre>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="flex flex-col">
           <CardHeader>
-            <CardTitle>Termos de Pesquisa</CardTitle>
+            <CardTitle>Termos de Pesquisa (Monitoramento)</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 flex-1 flex flex-col">
             <form onSubmit={handleAddTerm} className="flex gap-2">
               <Input
                 value={newTerm}
                 onChange={(e) => setNewTerm(e.target.value)}
-                placeholder="Novo termo (ex: nome da empresa)"
+                placeholder="Novo termo (ex: nome da empresa, OAB)"
                 className="flex-1"
               />
               <Select value={newType} onValueChange={setNewType}>
@@ -204,32 +291,32 @@ export default function MonitoringManager() {
               </Button>
             </form>
 
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 mt-4">
+            <div className="space-y-2 flex-1 overflow-y-auto pr-2 mt-4 min-h-[200px] max-h-[500px]">
               {terms.map((t) => (
                 <div
                   key={t.id}
-                  className="flex items-center justify-between p-3 border rounded bg-slate-50"
+                  className="flex items-center justify-between p-3 border rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-4">
                     <Switch checked={t.active} onCheckedChange={() => toggleTerm(t)} />
                     <div>
                       <p
                         className={cn(
-                          'font-medium text-sm',
-                          !t.active && 'text-muted-foreground line-through',
+                          'font-semibold text-sm text-slate-800',
+                          !t.active && 'text-slate-400 line-through',
                         )}
                       >
                         {t.term}
                       </p>
-                      <p className="text-[10px] text-muted-foreground uppercase font-bold">
-                        {t.type}
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mt-0.5">
+                        FONTE: {t.type}
                       </p>
                     </div>
                   </div>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-destructive"
+                    className="text-destructive opacity-70 hover:opacity-100"
                     onClick={async () => {
                       await deleteMonitoringTerm(t.id)
                       load()
@@ -240,9 +327,10 @@ export default function MonitoringManager() {
                 </div>
               ))}
               {terms.length === 0 && (
-                <p className="text-sm text-center text-muted-foreground py-6">
-                  Nenhum termo configurado.
-                </p>
+                <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-2">
+                  <Search className="w-8 h-8 opacity-20" />
+                  <p className="text-sm">Nenhum termo configurado.</p>
+                </div>
               )}
             </div>
           </CardContent>
