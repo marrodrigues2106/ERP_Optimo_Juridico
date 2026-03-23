@@ -16,15 +16,21 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
       } catch (e) {}
     }
 
-    if (!cfg || !cfg.get('apiKey')) {
-      updateConfigStatus(0, 0, 'API_KEY_MISSING', 'Configuration Missing: API Key is not set')
+    const apiKey = $secrets.get('DATAJUD_API_KEY')
+    if (!apiKey) {
+      updateConfigStatus(
+        0,
+        0,
+        'API_KEY_MISSING',
+        'Configuration Missing: DATAJUD_API_KEY secret is not set',
+      )
       return e.json(200, {
         status: 'error',
-        detail: 'Configuration Missing: API Key is not set',
+        message: 'Configuration Missing: DATAJUD_API_KEY secret is not set',
         errorType: 'API_KEY_MISSING',
+        latency: 0,
       })
     }
-    const apiKey = cfg.get('apiKey')
 
     try {
       const tr = $app.findFirstRecordByFilter('tribunals', `alias = '${alias}'`)
@@ -37,8 +43,9 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
         )
         return e.json(200, {
           status: 'error',
-          detail: `Invalid Endpoint: Tribunal '${alias}' inactive`,
+          message: `Invalid Endpoint: Tribunal '${alias}' inactive`,
           errorType: 'ENDPOINT_INVALID',
+          latency: 0,
         })
       }
     } catch (err) {
@@ -50,8 +57,9 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
       )
       return e.json(200, {
         status: 'error',
-        detail: `Invalid Endpoint: Tribunal alias not recognized`,
+        message: `Invalid Endpoint: Tribunal alias not recognized`,
         errorType: 'ENDPOINT_INVALID',
+        latency: 0,
       })
     }
 
@@ -135,7 +143,7 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
     if (apiResult.errorType !== 'online') {
       return e.json(200, {
         status: 'error',
-        detail: apiResult.errorMessage,
+        message: apiResult.errorMessage,
         errorType: apiResult.errorType,
         latency: apiResult.latency,
       })
@@ -144,6 +152,7 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
     return e.json(200, {
       status: 'online',
       latency: apiResult.latency,
+      message: 'Connection successful',
       data: apiResult.rawResponse,
       errorType: 'online',
     })

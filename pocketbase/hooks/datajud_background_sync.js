@@ -49,7 +49,8 @@ routerAdd(
 
       const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
       const cfg = configs.length > 0 ? configs[0] : null
-      const apiKey = cfg ? cfg.get('apiKey') : ''
+
+      const apiKey = $secrets.get('DATAJUD_API_KEY')
 
       const updateConfigStatus = (status, latency, errType, errStr) => {
         if (!cfg) return
@@ -65,8 +66,13 @@ routerAdd(
 
       if (!apiKey) {
         record.set('datajudStatus', 'Sync Failed')
-        addErrorLog('Configuration Missing: API Key is not set.')
-        updateConfigStatus(0, 0, 'API_KEY_MISSING', 'Configuration Missing: API Key is not set')
+        addErrorLog('Configuration Missing: DATAJUD_API_KEY secret is not set.')
+        updateConfigStatus(
+          0,
+          0,
+          'API_KEY_MISSING',
+          'Configuration Missing: DATAJUD_API_KEY secret is not set',
+        )
         $app.saveNoValidate(record)
         return e.json(400, { status: 'error', errorType: 'API_KEY_MISSING' })
       }

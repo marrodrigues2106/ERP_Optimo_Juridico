@@ -40,13 +40,13 @@ import {
   Landmark,
   BookOpen,
   AlertCircle,
+  KeyRound,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function MonitoringManager() {
   const { toast } = useToast()
   const [config, setConfig] = useState<any>(null)
-  const [apiKey, setApiKey] = useState('')
   const [frequency, setFrequency] = useState('Daily')
   const [terms, setTerms] = useState<any[]>([])
   const [tribunals, setTribunals] = useState<any[]>([])
@@ -81,7 +81,6 @@ export default function MonitoringManager() {
       const cfg = await getMonitoringConfig()
       if (cfg) {
         setConfig(cfg)
-        setApiKey(cfg.apiKey || '')
         setFrequency(cfg.frequency || 'Daily')
       }
       setTerms(await getMonitoringTerms())
@@ -93,7 +92,7 @@ export default function MonitoringManager() {
 
   const handleSaveConfig = async () => {
     try {
-      await saveMonitoringConfig(config?.id || null, { apiKey, frequency })
+      await saveMonitoringConfig(config?.id || null, { frequency })
       toast({ title: 'Configurações salvas com sucesso' })
       load()
     } catch (e) {
@@ -452,18 +451,20 @@ export default function MonitoringManager() {
                 <CardTitle className="text-lg">Configurações Gerais</CardTitle>
               </CardHeader>
               <CardContent className="space-y-5">
-                <div className="space-y-2">
-                  <Label>Chave da API Pública (DataJud)</Label>
-                  <Input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Insira a API Key"
-                  />
-                  {!apiKey && (
-                    <p className="text-xs text-amber-600 font-medium mt-1 flex items-center">
-                      <AlertCircle className="w-3 h-3 mr-1" /> Chave de API é necessária para
-                      conexão.
+                <div className="space-y-3">
+                  <Label className="flex items-center gap-2">
+                    <KeyRound className="w-4 h-4" />
+                    Autenticação DataJud (API Key)
+                  </Label>
+                  <div className="rounded-md bg-muted/50 p-3 border text-sm text-muted-foreground">
+                    A chave de acesso ao DataJud agora é gerenciada de forma segura através de{' '}
+                    <strong>Variáveis de Ambiente / Secrets (DATAJUD_API_KEY)</strong>.
+                  </div>
+                  {config?.datajudStatus === 'API_KEY_MISSING' && (
+                    <p className="text-xs text-amber-600 font-medium mt-1 flex items-center bg-amber-50 p-2 rounded border border-amber-200">
+                      <AlertCircle className="w-4 h-4 mr-1.5 shrink-0" />
+                      Atenção: O Secret 'DATAJUD_API_KEY' não está configurado. A integração
+                      falhará.
                     </p>
                   )}
                 </div>

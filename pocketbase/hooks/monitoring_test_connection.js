@@ -15,7 +15,7 @@ routerAdd(
         status: 0,
         latency: 0,
         snippet: 'ERRO: Configuration Missing',
-        errorType: 'API_KEY_MISSING',
+        errorType: 'CONFIG_MISSING',
       })
     }
 
@@ -32,17 +32,22 @@ routerAdd(
         } catch (err) {}
       }
 
-      if (!cfg.get('apiKey')) {
-        updateConfigStatus(0, 0, 'API_KEY_MISSING', 'Configuration Missing: API Key is not set')
+      const apiKey = $secrets.get('DATAJUD_API_KEY')
+      if (!apiKey) {
+        updateConfigStatus(
+          0,
+          0,
+          'API_KEY_MISSING',
+          'Configuration Missing: DATAJUD_API_KEY secret is not set',
+        )
         return e.json(200, {
           service,
           status: 0,
           latency: 0,
-          snippet: 'ERRO: Configuration Missing: API Key is not set',
+          snippet: 'ERRO: Configuration Missing: DATAJUD_API_KEY secret is not set',
           errorType: 'API_KEY_MISSING',
         })
       }
-      const apiKey = cfg.get('apiKey')
 
       try {
         const tr = $app.findFirstRecordByFilter('tribunals', `alias = '${alias}'`)
