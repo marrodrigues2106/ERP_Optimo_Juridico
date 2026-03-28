@@ -146,6 +146,33 @@ export function PushAlertsWidget() {
                   >
                     {a.update_content}
                   </p>
+
+                  {a.type === 'gazette' && a.discovered_data && (
+                    <div className="mt-2 space-y-2">
+                      {a.discovered_data.excerpt && (
+                        <div className="bg-amber-50/50 border-l-2 border-amber-400 p-2.5 rounded-r-md">
+                          <p className="text-xs text-slate-700 italic line-clamp-3">
+                            "{a.discovered_data.excerpt}"
+                          </p>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                        {a.discovered_data.source && (
+                          <span>
+                            <strong className="font-semibold text-slate-700">Órgão emissor:</strong>{' '}
+                            {a.discovered_data.source}
+                          </span>
+                        )}
+                        {a.discovered_data.date && (
+                          <span>
+                            <strong className="font-semibold text-slate-700">Data:</strong>{' '}
+                            {new Date(a.discovered_data.date).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <p className="text-xs text-muted-foreground mt-1.5 font-medium flex items-center gap-2">
                     {new Date(a.created).toLocaleString()}
                     {a.type === 'discovery' && (
@@ -155,7 +182,7 @@ export function PushAlertsWidget() {
                     )}
                     {a.type === 'gazette' && (
                       <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">
-                        {a.discovered_data?.source || 'Diário Oficial'}
+                        Diário Oficial
                       </span>
                     )}
                   </p>
@@ -196,7 +223,7 @@ export function PushAlertsWidget() {
                     {a.type === 'gazette' && a.discovered_data?.url && (
                       <Button size="sm" variant="outline" className="h-8 text-xs px-3" asChild>
                         <a href={a.discovered_data.url} target="_blank" rel="noreferrer">
-                          <ArrowRight className="w-3.5 h-3.5 mr-1.5" /> Ver Documento
+                          <BookOpen className="w-3.5 h-3.5 mr-1.5" /> Ver Documento Original
                         </a>
                       </Button>
                     )}

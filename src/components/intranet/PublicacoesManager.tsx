@@ -140,9 +140,7 @@ export default function PublicacoesManager() {
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                        {n.type === 'gazette'
-                          ? n.discovered_data?.source || 'Diário Oficial'
-                          : n.type || 'Atualização'}
+                        {n.type === 'gazette' ? 'Diário Oficial' : n.type || 'Atualização'}
                       </span>
                       <span className="text-xs text-muted-foreground">
                         {new Date(n.created).toLocaleString()}
@@ -150,12 +148,43 @@ export default function PublicacoesManager() {
                     </div>
                     <p
                       className={cn(
-                        'text-sm',
+                        'text-sm mb-2',
                         !n.is_read ? 'font-semibold text-slate-900' : 'text-slate-600',
                       )}
                     >
                       {n.update_content}
                     </p>
+
+                    {n.type === 'gazette' && n.discovered_data && (
+                      <div className="space-y-2 mb-3">
+                        {n.discovered_data.excerpt && (
+                          <div className="bg-amber-50/50 border-l-2 border-amber-400 p-3 rounded-r-md">
+                            <p className="text-sm text-slate-700 italic line-clamp-4">
+                              "{n.discovered_data.excerpt}"
+                            </p>
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-slate-600">
+                          {n.discovered_data.source && (
+                            <span>
+                              <strong className="font-semibold text-slate-800">
+                                Órgão emissor:
+                              </strong>{' '}
+                              {n.discovered_data.source}
+                            </span>
+                          )}
+                          {n.discovered_data.date && (
+                            <span>
+                              <strong className="font-semibold text-slate-800">
+                                Data da Publicação:
+                              </strong>{' '}
+                              {new Date(n.discovered_data.date).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex flex-wrap items-center gap-2 mt-3">
                       <Button
                         size="sm"
@@ -179,11 +208,11 @@ export default function PublicacoesManager() {
                       {n.type === 'gazette' && n.discovered_data?.url && (
                         <Button size="sm" variant="outline" className="h-8 text-xs px-2" asChild>
                           <a href={n.discovered_data.url} target="_blank" rel="noreferrer">
-                            Ver Documento
+                            <BookOpen className="w-3.5 h-3.5 mr-1.5" /> Ver Documento Original
                           </a>
                         </Button>
                       )}
-                    </div>{' '}
+                    </div>
                   </div>
                 </div>
               ))
