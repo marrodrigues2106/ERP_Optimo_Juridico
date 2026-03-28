@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Bell, CheckCircle2, PlusCircle, Activity, ArrowRight } from 'lucide-react'
+import { Bell, CheckCircle2, PlusCircle, Activity, ArrowRight, BookOpen } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 
@@ -121,6 +121,13 @@ export function PushAlertsWidget() {
                         a.is_read ? 'text-slate-400' : 'text-blue-600 fill-blue-100',
                       )}
                     />
+                  ) : a.type === 'gazette' ? (
+                    <BookOpen
+                      className={cn(
+                        'w-5 h-5',
+                        a.is_read ? 'text-slate-400' : 'text-amber-500 fill-amber-100',
+                      )}
+                    />
                   ) : (
                     <div
                       className={cn(
@@ -144,6 +151,11 @@ export function PushAlertsWidget() {
                     {a.type === 'discovery' && (
                       <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">
                         Novo Descoberto
+                      </span>
+                    )}
+                    {a.type === 'gazette' && (
+                      <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">
+                        {a.discovered_data?.source || 'Diário Oficial'}
                       </span>
                     )}
                   </p>
@@ -179,6 +191,13 @@ export function PushAlertsWidget() {
                         <Link to={`/intranet/processos/${a.lawsuit}`}>
                           <ArrowRight className="w-3.5 h-3.5 mr-1.5" /> Ver Processo
                         </Link>
+                      </Button>
+                    )}
+                    {a.type === 'gazette' && a.discovered_data?.url && (
+                      <Button size="sm" variant="outline" className="h-8 text-xs px-3" asChild>
+                        <a href={a.discovered_data.url} target="_blank" rel="noreferrer">
+                          <ArrowRight className="w-3.5 h-3.5 mr-1.5" /> Ver Documento
+                        </a>
                       </Button>
                     )}
                   </div>

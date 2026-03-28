@@ -140,7 +140,9 @@ export default function PublicacoesManager() {
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                        {n.type || 'Atualização'}
+                        {n.type === 'gazette'
+                          ? n.discovered_data?.source || 'Diário Oficial'
+                          : n.type || 'Atualização'}
                       </span>
                       <span className="text-xs text-muted-foreground">
                         {new Date(n.created).toLocaleString()}
@@ -154,7 +156,7 @@ export default function PublicacoesManager() {
                     >
                       {n.update_content}
                     </p>
-                    <div className="flex items-center gap-2 mt-3">
+                    <div className="flex flex-wrap items-center gap-2 mt-3">
                       <Button
                         size="sm"
                         variant="ghost"
@@ -174,7 +176,14 @@ export default function PublicacoesManager() {
                           <Link to={`/intranet/processos/${n.lawsuit}`}>Ver Processo</Link>
                         </Button>
                       )}
-                    </div>
+                      {n.type === 'gazette' && n.discovered_data?.url && (
+                        <Button size="sm" variant="outline" className="h-8 text-xs px-2" asChild>
+                          <a href={n.discovered_data.url} target="_blank" rel="noreferrer">
+                            Ver Documento
+                          </a>
+                        </Button>
+                      )}
+                    </div>{' '}
                   </div>
                 </div>
               ))
