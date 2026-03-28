@@ -1,6 +1,6 @@
 routerAdd('GET', '/backend/v1/datajud/health', (e) => {
   try {
-    const alias = e.request.url.query().get('alias') || 'stf'
+    const alias = e.request.url.query().get('alias') || 'stj'
     const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
     const cfg = configs.length > 0 ? configs[0] : null
 
