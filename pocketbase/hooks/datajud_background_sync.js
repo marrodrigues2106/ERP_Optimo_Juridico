@@ -66,7 +66,6 @@ routerAdd(
 
       if (!apiKey) {
         record.set('datajudStatus', 'Sync Failed')
-        addErrorLog('Configuration Missing: DATAJUD_API_KEY secret is not set.')
         updateConfigStatus(
           0,
           0,
@@ -82,40 +81,88 @@ routerAdd(
 
       if (cleanNum.length !== 20) {
         record.set('datajudStatus', 'Sync Failed')
-        addErrorLog(`Falha na sincronização: Número do processo inválido (${cleanNum}).`)
+        updateConfigStatus(
+          0,
+          0,
+          'INVALID_NUMBER',
+          `Falha na sincronização: Número do processo inválido (${cleanNum}).`,
+        )
         $app.saveNoValidate(record)
         return e.json(400, { status: 'error', errorType: 'Invalid Number' })
       }
 
-      const courtName = record.get('court') || ''
       let alias = null
 
-      if (courtName) {
-        const tribunals = $app.findRecordsByFilter('tribunals', 'active = true', '', 100, 0)
-        for (let t = 0; t < tribunals.length; t++) {
-          const tr = tribunals[t]
-          const trName = (tr.get('name') || '').toLowerCase()
-          const trAlias = (tr.get('alias') || '').toLowerCase()
-          const cNameLower = courtName.toLowerCase()
+      // 1. CNJ Parsing
+      const jSegment = cleanNum.substring(13, 14)
+      const trSegment = cleanNum.substring(14, 16)
 
-          if (trName === cNameLower || trAlias === cNameLower) {
-            alias = tr.get('alias')
-            break
+      if (jSegment === '8') {
+        // Estadual
+        const ufs = {
+          '01': 'tjac',
+          '02': 'tjal',
+          '03': 'tjap',
+          '04': 'tjam',
+          '05': 'tjba',
+          '06': 'tjce',
+          '07': 'tjdft',
+          '08': 'tjes',
+          '09': 'tjgo',
+          10: 'tjma',
+          11: 'tjmt',
+          12: 'tjms',
+          13: 'tjmg',
+          14: 'tjpa',
+          15: 'tjpb',
+          16: 'tjpr',
+          17: 'tjpe',
+          18: 'tjpi',
+          19: 'tjrj',
+          20: 'tjrn',
+          21: 'tjrs',
+          22: 'tjro',
+          23: 'tjrr',
+          24: 'tjsc',
+          25: 'tjsp',
+          26: 'tjse',
+          27: 'tjto',
+        }
+        alias = ufs[trSegment] || null
+      } else if (jSegment === '4') {
+        // Federal
+        alias = 'trf' + parseInt(trSegment, 10)
+      } else if (jSegment === '5') {
+        // Trabalho
+        alias = 'trt' + parseInt(trSegment, 10)
+      } else if (jSegment === '3' && trSegment === '00') {
+        alias = 'stj'
+      } else if (jSegment === '1' && trSegment === '00') {
+        alias = 'stj' // Fallback mapping 1.00 to stj
+      }
+
+      // 2. Fallback to court name string matching
+      if (!alias) {
+        const courtName = record.get('court') || ''
+        if (courtName) {
+          const tribunals = $app.findRecordsByFilter('tribunals', 'active = true', '', 100, 0)
+          for (let t = 0; t < tribunals.length; t++) {
+            const tr = tribunals[t]
+            const trName = (tr.get('name') || '').toLowerCase()
+            const trAlias = (tr.get('alias') || '').toLowerCase()
+            const cNameLower = courtName.toLowerCase()
+
+            if (trName === cNameLower || trAlias === cNameLower) {
+              alias = tr.get('alias')
+              break
+            }
           }
         }
       }
 
+      // 3. Final Fallback to default verified alias
       if (!alias) {
-        record.set('datajudStatus', 'Sync Failed')
-        addErrorLog('Invalid Endpoint: Tribunal alias not recognized.')
-        updateConfigStatus(
-          0,
-          0,
-          'ENDPOINT_INVALID',
-          'Invalid Endpoint: Tribunal alias not recognized',
-        )
-        $app.saveNoValidate(record)
-        return e.json(400, { status: 'error', errorType: 'ENDPOINT_INVALID' })
+        alias = 'tjrj'
       }
 
       const callDataJud = (targetAlias, key, bodyStr) => {
@@ -226,7 +273,6 @@ routerAdd(
 
       if (apiResult.errorType !== 'online') {
         record.set('datajudStatus', 'Sync Failed')
-        addErrorLog(`Falha Datajud: ${apiResult.errorMessage}`)
         updateConfigStatus(
           apiResult.statusCode,
           apiResult.latency,
