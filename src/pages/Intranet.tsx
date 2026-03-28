@@ -44,8 +44,8 @@ export default function Intranet() {
   const navItems = [
     { id: 'dashboard', label: 'Painel de Controle', icon: LayoutDashboard, show: true },
     {
-      id: 'monitoring',
-      label: 'Monitoramento & Push',
+      id: 'publicacoes',
+      label: 'Publicações & Mailbox',
       icon: BellRing,
       show: perms.canViewProcesses,
     },

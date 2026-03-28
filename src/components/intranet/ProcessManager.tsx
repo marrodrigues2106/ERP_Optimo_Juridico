@@ -26,8 +26,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Search, Plus, Calendar as CalendarIcon, Trash2, Edit2, Eye } from 'lucide-react'
-import { getLawsuits, createLawsuit, updateLawsuit, deleteLawsuit } from '@/services/lawsuits'
+import {
+  Search,
+  Plus,
+  Calendar as CalendarIcon,
+  Trash2,
+  Edit2,
+  Eye,
+  Star,
+  Wand2,
+} from 'lucide-react'
+import {
+  getLawsuits,
+  createLawsuit,
+  updateLawsuit,
+  deleteLawsuit,
+  autofillLawsuit,
+} from '@/services/lawsuits'
 import { getClients } from '@/services/clients'
 import { getCollaborators } from '@/services/collaborators'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -41,6 +56,7 @@ export default function ProcessManager() {
   const [searchTerm, setSearchTerm] = useState('')
   const [open, setOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
+  const [autofillLoading, setAutofillLoading] = useState(false)
   const { toast } = useToast()
 
   const loadData = async () => {
@@ -80,6 +96,41 @@ export default function ProcessManager() {
   const handleEdit = (item: any) => {
     setEditingItem(item)
     setOpen(true)
+  }
+
+  const handleToggleFavorite = async (p: any) => {
+    await updateLawsuit(p.id, { isFavorite: !p.isFavorite })
+  }
+
+  const handleAutofill = async () => {
+    const numInput = document.querySelector('input[name="number"]') as HTMLInputElement
+    const num = numInput?.value
+    if (!num) return toast({ title: 'Digite um número de processo' })
+
+    setAutofillLoading(true)
+    try {
+      const res = await autofillLawsuit(num)
+      const form = document.querySelector('form') as HTMLFormElement
+      if (form) {
+        if (res.court) {
+          const c = form.querySelector('input[name="court"]') as HTMLInputElement
+          if (c) c.value = res.court
+        }
+        if (res.parties) {
+          const p = form.querySelector('input[name="parties"]') as HTMLInputElement
+          if (p) p.value = res.parties
+        }
+      }
+      toast({ title: 'Dados preenchidos via DataJud' })
+    } catch (e: any) {
+      if (e.status === 401) {
+        toast({ title: 'Erro de Autenticação na API', variant: 'destructive' })
+      } else {
+        toast({ title: 'Processo não encontrado ou erro de rede', variant: 'destructive' })
+      }
+    } finally {
+      setAutofillLoading(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -143,28 +194,63 @@ export default function ProcessManager() {
               </div>
               <div className="md:col-span-2">
                 <Label>Número do Processo (Opcional p/ Serviços)</Label>
-                <Input
-                  name="number"
-                  placeholder="0000000-00.0000.0.00.0000"
-                  defaultValue={editingItem?.number}
-                />
-                {!editingItem && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Insira o número para busca automática no Datajud.
-                  </p>
-                )}
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    name="number"
+                    placeholder="0000000-00.0000.0.00.0000"
+                    defaultValue={editingItem?.number}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleAutofill}
+                    disabled={autofillLoading}
+                  >
+                    <Wand2 className={`w-4 h-4 mr-2 ${autofillLoading ? 'animate-spin' : ''}`} />
+                    Auto-Preencher
+                  </Button>
+                </div>
               </div>
               <div>
                 <Label>Tribunal / Órgão</Label>
                 <Input name="court" placeholder="Ex: TJ-RJ" defaultValue={editingItem?.court} />
               </div>
               <div>
-                <Label>Status</Label>
+                <Label>Fase/Status do Processo</Label>
                 <Input
                   name="status"
                   placeholder="Ex: Aguardando Audiência"
                   defaultValue={editingItem?.status}
                 />
+              </div>
+              <div>
+                <Label>Status de Acompanhamento</Label>
+                <Select
+                  name="lifecycle_status"
+                  defaultValue={editingItem?.lifecycle_status || 'Acompanhado'}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Acompanhado">Acompanhado (Ativo)</SelectItem>
+                    <SelectItem value="Arquivado">Arquivado (Inativo)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Fonte de Monitoramento</Label>
+                <Select name="trackingSource" defaultValue={editingItem?.trackingSource || 'Ambos'}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Ambos">Ambos (DataJud + DOU)</SelectItem>
+                    <SelectItem value="Tribunais">Apenas Tribunais</SelectItem>
+                    <SelectItem value="Diários Oficiais">Apenas Diários</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="md:col-span-2">
                 <Label>Partes (Cliente x Parte Contraria) / Título do Serviço</Label>
@@ -263,13 +349,28 @@ export default function ProcessManager() {
                     <TableRow key={p.id}>
                       <TableCell>
                         <div className="font-medium text-primary flex items-center gap-2">
+                          <button
+                            onClick={() => handleToggleFavorite(p)}
+                            className="text-amber-400 hover:scale-110 transition-transform"
+                          >
+                            <Star
+                              className={`w-4 h-4 ${p.isFavorite ? 'fill-current' : 'text-slate-300'}`}
+                            />
+                          </button>
                           <span
                             className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${p.entryType === 'Serviço Jurídico' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}
                           >
                             {p.entryType === 'Serviço Jurídico' ? 'Serviço' : 'Processo'}
                           </span>
+                          {p.lifecycle_status === 'Arquivado' && (
+                            <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+                              Arquivado
+                            </span>
+                          )}
                         </div>
-                        <div className="text-xs text-muted-foreground mt-1">{p.number || '-'}</div>
+                        <div className="text-xs text-muted-foreground mt-1 ml-6">
+                          {p.number || '-'}
+                        </div>
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate" title={p.parties}>
                         {p.parties}

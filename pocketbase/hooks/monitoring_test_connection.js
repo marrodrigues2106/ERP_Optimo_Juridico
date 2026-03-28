@@ -32,22 +32,7 @@ routerAdd(
         } catch (err) {}
       }
 
-      const apiKey = $secrets.get('DATAJUD_API_KEY')
-      if (!apiKey) {
-        updateConfigStatus(
-          0,
-          0,
-          'API_KEY_MISSING',
-          'Configuration Missing: DATAJUD_API_KEY secret is not set',
-        )
-        return e.json(200, {
-          service,
-          status: 0,
-          latency: 0,
-          snippet: 'ERRO: Configuration Missing: DATAJUD_API_KEY secret is not set',
-          errorType: 'API_KEY_MISSING',
-        })
-      }
+      const apiKey = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
 
       try {
         const tr = $app.findFirstRecordByFilter('tribunals', `alias = '${alias}'`)

@@ -293,6 +293,25 @@ export default function ProcessDetail() {
 
               <div className="pt-4 border-t border-dashed">
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold flex items-center mb-2">
+                  Configuração de Monitoramento
+                </span>
+                <div className="flex justify-between items-center bg-slate-50 p-3 rounded-md border text-sm font-medium">
+                  <span>{lawsuit.trackingSource || 'Ambos'}</span>
+                  <Badge
+                    variant="outline"
+                    className={
+                      lawsuit.lifecycle_status === 'Arquivado'
+                        ? 'bg-slate-100 text-slate-500'
+                        : 'bg-emerald-50 text-emerald-600'
+                    }
+                  >
+                    {lawsuit.lifecycle_status || 'Acompanhado'}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-dashed">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold flex items-center mb-2">
                   <User className="w-3.5 h-3.5 mr-1" /> Cliente Vinculado
                 </span>
                 {lawsuit.expand?.client ? (

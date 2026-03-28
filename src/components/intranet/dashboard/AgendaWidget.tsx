@@ -40,7 +40,7 @@ export function AgendaWidget() {
           <CardTitle className="text-lg">Sua Agenda</CardTitle>
         </div>
       </CardHeader>
-      <div className="px-4 py-3 border-b bg-white">
+      <div className="px-4 py-3 border-b bg-white flex justify-between items-center">
         <ToggleGroup
           type="single"
           value={view}
@@ -49,7 +49,7 @@ export function AgendaWidget() {
           className="justify-start"
         >
           <ToggleGroupItem value="1" className="text-xs">
-            1 Dia
+            Hoje
           </ToggleGroupItem>
           <ToggleGroupItem value="3" className="text-xs">
             3 Dias

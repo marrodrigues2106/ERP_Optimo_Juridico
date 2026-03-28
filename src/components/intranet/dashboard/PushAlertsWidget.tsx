@@ -27,13 +27,8 @@ export function PushAlertsWidget() {
       // Sort prioritizing unread items, then by date descending
       setAlerts(
         ns
-          .filter((n) => n.user === user?.id)
-          .sort((a, b) => {
-            if (a.is_read === b.is_read) {
-              return new Date(b.created).getTime() - new Date(a.created).getTime()
-            }
-            return a.is_read ? 1 : -1
-          }),
+          .filter((n) => n.user === user?.id && !n.is_read)
+          .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime()),
       )
     } catch (e) {
       console.error(e)

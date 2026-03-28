@@ -23,7 +23,7 @@ import UsersManager from '@/components/intranet/UsersManager'
 import ProfileManager from '@/components/intranet/ProfileManager'
 import AgendaManager from '@/components/intranet/AgendaManager'
 import AuditLogs from '@/components/intranet/AuditLogs'
-import MonitoringManager from '@/components/intranet/MonitoringManager'
+import PublicacoesManager from '@/components/intranet/PublicacoesManager'
 
 function App() {
   return (
@@ -46,7 +46,7 @@ function App() {
             >
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
-              <Route path="monitoring" element={<MonitoringManager />} />
+              <Route path="publicacoes" element={<PublicacoesManager />} />
               <Route path="processos" element={<ProcessManager />} />
               <Route path="processos/:id" element={<ProcessDetail />} />
               <Route path="clientes/:id" element={<ClientDetail />} />

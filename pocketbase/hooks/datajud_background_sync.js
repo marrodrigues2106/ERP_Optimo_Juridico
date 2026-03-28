@@ -50,7 +50,7 @@ routerAdd(
       const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
       const cfg = configs.length > 0 ? configs[0] : null
 
-      const apiKey = $secrets.get('DATAJUD_API_KEY')
+      const apiKey = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
 
       const updateConfigStatus = (status, latency, errType, errStr) => {
         if (!cfg) return
@@ -186,20 +186,42 @@ routerAdd(
         return result
       }
 
-      const requestBody = JSON.stringify({
-        size: 100,
-        query: {
-          bool: {
-            should: [
-              { term: { 'numeroProcesso.keyword': cleanNum } },
-              { term: { numeroProcesso: cleanNum } },
-            ],
-          },
-        },
-        sort: [{ '@timestamp': { order: 'asc' } }],
-      })
+      // Implement pagination search_after
+      let allHits = []
+      let searchAfter = null
+      let apiResult = null
 
-      const apiResult = callDataJud(alias, apiKey, requestBody)
+      for (let page = 0; page < 5; page++) {
+        const reqPayload = {
+          size: 100,
+          query: {
+            bool: {
+              should: [
+                { term: { 'numeroProcesso.keyword': cleanNum } },
+                { term: { numeroProcesso: cleanNum } },
+              ],
+            },
+          },
+          sort: [{ '@timestamp': { order: 'asc' } }],
+        }
+        if (searchAfter) {
+          reqPayload.search_after = searchAfter
+        }
+
+        apiResult = callDataJud(alias, apiKey, JSON.stringify(reqPayload))
+        if (apiResult.errorType !== 'online') break
+
+        const data = apiResult.rawResponse
+        const hits = data && data.hits && data.hits.hits ? data.hits.hits : []
+        allHits = allHits.concat(hits)
+
+        if (hits.length < 100) break
+        searchAfter = hits[hits.length - 1].sort
+      }
+
+      if (apiResult && apiResult.errorType === 'online' && allHits.length > 0) {
+        apiResult.rawResponse.hits.hits = allHits // combine for processing
+      }
       let success = false
 
       if (apiResult.errorType !== 'online') {
