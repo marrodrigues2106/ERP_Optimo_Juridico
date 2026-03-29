@@ -33,11 +33,13 @@ import {
   ExternalLink,
   User,
   Bell,
+  CheckCircle2,
 } from 'lucide-react'
 import { searchGazettePublications, getGazettes, triggerManualIngest } from '@/services/gazettes'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
 import { cn } from '@/lib/utils'
+import pb from '@/lib/pocketbase/client'
 
 function HighlightText({ text, query }: { text: string; query: string }) {
   if (!query) return <span>{text}</span>
@@ -57,8 +59,6 @@ function HighlightText({ text, query }: { text: string; query: string }) {
     </span>
   )
 }
-
-import { CheckCircle2 } from 'lucide-react'
 
 export default function GazetteManager() {
   const [activeTab, setActiveTab] = useState('inbox')
