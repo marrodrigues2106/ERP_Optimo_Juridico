@@ -291,6 +291,50 @@ export default function ProcessDetail() {
                 </p>
               </div>
 
+              {(lawsuit.class || lawsuit.subject) && (
+                <div className="pt-4 border-t border-dashed space-y-3">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold flex items-center mb-1">
+                    Metadados Extraídos
+                  </span>
+                  {lawsuit.class && (
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-semibold block">
+                        Classe Processual
+                      </span>
+                      <span className="text-sm font-medium text-slate-800">{lawsuit.class}</span>
+                    </div>
+                  )}
+                  {lawsuit.subject && (
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-semibold block">
+                        Assunto Principal
+                      </span>
+                      <span className="text-sm font-medium text-slate-800">{lawsuit.subject}</span>
+                    </div>
+                  )}
+                  {lawsuit.processType && (
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-semibold block">
+                        Formato / Tipo
+                      </span>
+                      <span className="text-sm font-medium text-slate-800">
+                        {lawsuit.processType}
+                      </span>
+                    </div>
+                  )}
+                  {lawsuit.distributionDate && (
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-semibold block">
+                        Data de Distribuição
+                      </span>
+                      <span className="text-sm font-medium text-slate-800">
+                        {new Date(lawsuit.distributionDate).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="pt-4 border-t border-dashed">
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold flex items-center mb-2">
                   Configuração de Monitoramento
@@ -399,92 +443,141 @@ export default function ProcessDetail() {
                   <CardTitle className="text-lg">Movimentações do Processo</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-8">
-                  <div className="relative border-l-2 border-slate-200 ml-3 md:ml-4 space-y-8 mb-8 pb-4">
-                    {movements.length === 0 ? (
+                  <div className="relative border-l-2 border-slate-200 ml-3 md:ml-4 space-y-8 mb-8 pb-4 max-h-[600px] overflow-y-auto pr-4 custom-scrollbar">
+                    {movements.length === 0 && agenda.length === 0 ? (
                       <p className="text-muted-foreground text-center py-8 ml-[-1rem]">
-                        Nenhuma movimentação sincronizada ainda.
+                        Nenhuma movimentação ou evento registrado.
                       </p>
                     ) : (
-                      movements.map((mov: any) => {
-                        const style = getSourceDetails(mov.source)
-                        const Icon = style.icon
-
-                        return (
-                          <div key={mov.id} className="relative pl-6 md:pl-8 group">
-                            <span
-                              className={cn(
-                                'absolute -left-[9px] top-1.5 h-4 w-4 rounded-full border-2 border-white transition-transform group-hover:scale-110',
-                                style.color,
-                              )}
-                            ></span>
-                            <div className="flex flex-col">
-                              <div className="flex items-center flex-wrap gap-2 mb-2">
-                                <span className="text-sm font-bold text-slate-800">
-                                  {new Date(mov.event_date).toLocaleString('pt-BR', {
-                                    dateStyle: 'short',
-                                    timeStyle: 'short',
-                                  })}
-                                </span>
-                                <Badge
-                                  variant="outline"
-                                  className={cn(
-                                    'text-[10px] uppercase font-bold flex items-center gap-1',
-                                    style.text,
-                                  )}
-                                >
-                                  <Icon className="w-3 h-3" /> {mov.source}
-                                </Badge>
-                              </div>
+                      [
+                        ...movements.map((m) => ({
+                          ...m,
+                          typeObj: 'movement',
+                          sortDate: new Date(m.event_date),
+                        })),
+                        ...agenda.map((a) => ({
+                          ...a,
+                          typeObj: 'event',
+                          sortDate: new Date(a.start_date),
+                        })),
+                      ]
+                        .sort((a, b) => b.sortDate.getTime() - a.sortDate.getTime())
+                        .map((item: any, idx: number) => {
+                          if (item.typeObj === 'event') {
+                            return (
                               <div
-                                className={cn(
-                                  'bg-white p-4 rounded-lg border shadow-sm text-sm leading-relaxed text-slate-700',
-                                  mov.source === 'Sistema' &&
-                                    'border-red-200 text-red-900 bg-red-50',
-                                )}
+                                key={`ev-${item.id}-${idx}`}
+                                className="relative pl-6 md:pl-8 group"
                               >
-                                <p
+                                <span className="absolute -left-[9px] top-1.5 h-4 w-4 rounded-full border-2 border-white transition-transform group-hover:scale-110 bg-emerald-500"></span>
+                                <div className="flex flex-col">
+                                  <div className="flex items-center flex-wrap gap-2 mb-2">
+                                    <span className="text-sm font-bold text-slate-800">
+                                      {item.sortDate.toLocaleString('pt-BR', {
+                                        dateStyle: 'short',
+                                        timeStyle: 'short',
+                                      })}
+                                    </span>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] uppercase font-bold flex items-center gap-1 text-emerald-700 bg-emerald-50 border-emerald-200"
+                                    >
+                                      <Calendar className="w-3 h-3" /> Evento: {item.type}
+                                    </Badge>
+                                  </div>
+                                  <div className="bg-white p-3 rounded-lg border border-emerald-100 shadow-sm text-sm leading-relaxed text-slate-700">
+                                    <p className="font-semibold">{item.title}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          }
+
+                          const mov = item
+                          const style = getSourceDetails(mov.source)
+                          const Icon = style.icon
+
+                          return (
+                            <div
+                              key={`mov-${mov.id}-${idx}`}
+                              className="relative pl-6 md:pl-8 group"
+                            >
+                              <span
+                                className={cn(
+                                  'absolute -left-[9px] top-1.5 h-4 w-4 rounded-full border-2 border-white transition-transform group-hover:scale-110',
+                                  style.color,
+                                )}
+                              ></span>
+                              <div className="flex flex-col">
+                                <div className="flex items-center flex-wrap gap-2 mb-2">
+                                  <span className="text-sm font-bold text-slate-800">
+                                    {new Date(mov.event_date).toLocaleString('pt-BR', {
+                                      dateStyle: 'short',
+                                      timeStyle: 'short',
+                                    })}
+                                  </span>
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      'text-[10px] uppercase font-bold flex items-center gap-1',
+                                      style.text,
+                                    )}
+                                  >
+                                    <Icon className="w-3 h-3" /> {mov.source}
+                                  </Badge>
+                                </div>
+                                <div
                                   className={cn(
-                                    'font-medium',
-                                    mov.source === 'Sistema' && 'font-bold',
+                                    'bg-white p-4 rounded-lg border shadow-sm text-sm leading-relaxed text-slate-700',
+                                    mov.source === 'Sistema' &&
+                                      'border-red-200 text-red-900 bg-red-50',
                                   )}
                                 >
-                                  {mov.description}
-                                </p>
+                                  <p
+                                    className={cn(
+                                      'font-medium',
+                                      mov.source === 'Sistema' && 'font-bold',
+                                    )}
+                                  >
+                                    {mov.description}
+                                  </p>
 
-                                {mov.metadata?.sources && mov.metadata.sources.length > 1 && (
-                                  <div className="mt-2 text-[10px] text-slate-500 font-medium flex gap-1">
-                                    <span className="text-slate-400">Confirmado também por:</span>
-                                    <span className="uppercase text-slate-600">
-                                      {mov.metadata.sources
-                                        .filter((s: string) => s !== mov.source)
-                                        .join(', ')}
-                                    </span>
-                                  </div>
-                                )}
-
-                                {mov.metadata?.complementos &&
-                                  mov.metadata.complementos.length > 0 && (
-                                    <div className="mt-3 space-y-1 text-xs text-slate-600 bg-slate-50 p-2.5 rounded border border-dashed">
-                                      {mov.metadata.complementos.map((comp: any, cIdx: number) => (
-                                        <div
-                                          key={cIdx}
-                                          className="grid grid-cols-[100px_1fr] gap-2"
-                                        >
-                                          <span className="font-semibold text-slate-700">
-                                            {comp.nome || 'Detalhe'}:
-                                          </span>
-                                          <span className="break-words">
-                                            {comp.valor || comp.descricao}
-                                          </span>
-                                        </div>
-                                      ))}
+                                  {mov.metadata?.sources && mov.metadata.sources.length > 1 && (
+                                    <div className="mt-2 text-[10px] text-slate-500 font-medium flex gap-1">
+                                      <span className="text-slate-400">Confirmado também por:</span>
+                                      <span className="uppercase text-slate-600">
+                                        {mov.metadata.sources
+                                          .filter((s: string) => s !== mov.source)
+                                          .join(', ')}
+                                      </span>
                                     </div>
                                   )}
+
+                                  {mov.metadata?.complementos &&
+                                    mov.metadata.complementos.length > 0 && (
+                                      <div className="mt-3 space-y-1 text-xs text-slate-600 bg-slate-50 p-2.5 rounded border border-dashed">
+                                        {mov.metadata.complementos.map(
+                                          (comp: any, cIdx: number) => (
+                                            <div
+                                              key={cIdx}
+                                              className="grid grid-cols-[100px_1fr] gap-2"
+                                            >
+                                              <span className="font-semibold text-slate-700">
+                                                {comp.nome || 'Detalhe'}:
+                                              </span>
+                                              <span className="break-words">
+                                                {comp.valor || comp.descricao}
+                                              </span>
+                                            </div>
+                                          ),
+                                        )}
+                                      </div>
+                                    )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        )
-                      })
+                          )
+                        })
                     )}
                   </div>
 

@@ -124,16 +124,19 @@ export default function ProcessManager() {
 
       const form = document.querySelector('form') as HTMLFormElement
       if (form && data) {
-        if (data.court) {
-          const c = form.querySelector('input[name="court"]') as HTMLInputElement
-          if (c) c.value = data.court
-        }
-        if (data.parties) {
-          const p = form.querySelector('input[name="parties"]') as HTMLInputElement
-          if (p) p.value = data.parties
+        const fields = ['court', 'parties', 'class', 'subject', 'processType']
+        fields.forEach((f) => {
+          if (data[f]) {
+            const el = form.querySelector(`input[name="${f}"]`) as HTMLInputElement
+            if (el) el.value = data[f]
+          }
+        })
+        if (data.distributionDate) {
+          const el = form.querySelector('input[name="distributionDate"]') as HTMLInputElement
+          if (el) el.value = data.distributionDate.substring(0, 10)
         }
       }
-      toast({ title: 'Dados preenchidos via DataJud' })
+      toast({ title: 'Dados preenchidos via DataJud com sucesso' })
     } catch (e: any) {
       if (e.status === 401) {
         toast({ title: 'Erro de Autenticação na API', variant: 'destructive' })
@@ -319,6 +322,51 @@ export default function ProcessManager() {
                   defaultValue={editingItem?.gazetteTerms}
                 />
               </div>
+
+              <div className="md:col-span-2 pt-2 border-t mt-2">
+                <h4 className="text-sm font-semibold text-slate-700 mb-3">
+                  Dados Estruturados (DataJud)
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Classe Processual</Label>
+                    <Input
+                      name="class"
+                      placeholder="Ex: Procedimento Comum Cível"
+                      defaultValue={editingItem?.class}
+                    />
+                  </div>
+                  <div>
+                    <Label>Assunto Principal</Label>
+                    <Input
+                      name="subject"
+                      placeholder="Ex: Indenização por Dano Moral"
+                      defaultValue={editingItem?.subject}
+                    />
+                  </div>
+                  <div>
+                    <Label>Formato / Tipo</Label>
+                    <Input
+                      name="processType"
+                      placeholder="Ex: Digital"
+                      defaultValue={editingItem?.processType}
+                    />
+                  </div>
+                  <div>
+                    <Label>Data de Distribuição</Label>
+                    <Input
+                      type="date"
+                      name="distributionDate"
+                      defaultValue={
+                        editingItem?.distributionDate
+                          ? editingItem.distributionDate.substring(0, 10)
+                          : ''
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="md:col-span-2 mt-4">
                 <Button type="submit" className="w-full">
                   Salvar Registro

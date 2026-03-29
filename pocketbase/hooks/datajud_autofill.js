@@ -103,6 +103,8 @@ routerAdd(
           subject: source.assuntos?.[0]?.nome || '',
           parties: partiesStr,
           alias: targetAlias,
+          processType: source.formato?.nome || 'Digital',
+          distributionDate: source.dataAjuizamento || '',
         },
       })
     } catch (err) {
