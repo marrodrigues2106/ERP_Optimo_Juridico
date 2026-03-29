@@ -56,7 +56,7 @@ export default function Intranet() {
       show: perms.canViewProcesses,
     },
     { id: 'crm', label: 'CRM e Clientes', icon: Users, show: perms.canViewCRM },
-    { id: 'agenda', label: 'Agenda Geral', icon: Calendar, show: true },
+    { id: 'agenda', label: 'Agenda da Equipe', icon: Calendar, show: true },
     { id: 'finance', label: 'Financeiro', icon: DollarSign, show: perms.canViewFinances },
     { id: 'library', label: 'Biblioteca', icon: BookOpen, show: true },
     { id: 'blog', label: 'Blog', icon: FileText, show: perms.canViewBlog },

@@ -13,7 +13,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
       movementsCol = $app.findCollectionByNameOrId('case_movements')
     } catch (err) {}
 
-    const saveMovement = (dateStr, descStr, source, externalId) => {
+    const saveMovement = (dateStr, descStr, source, externalId, detailsStr) => {
       if (!movementsCol) return false
 
       const cleanDate = new Date(dateStr).toISOString().substring(0, 10)
@@ -27,6 +27,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
         mov.set('case', id)
         mov.set('event_date', new Date(dateStr).toISOString())
         mov.set('description', descStr || '')
+        if (detailsStr) mov.set('details', detailsStr)
         mov.set('source', source)
         mov.set('external_id', extId)
         $app.saveNoValidate(mov)
@@ -247,13 +248,20 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
           const movTime = new Date(dateStr).getTime()
           let descStr = m.nome || m.descricao || 'Movimentação Datajud'
 
+          let detailsStr = ''
+          if (m.complementosTabelados && Array.isArray(m.complementosTabelados)) {
+            detailsStr = m.complementosTabelados.map((c) => `${c.nome}: ${c.valor}`).join('\n')
+          }
+          if (m.textoCategoria) detailsStr += (detailsStr ? '\n\n' : '') + m.textoCategoria
+          if (m.descricao) detailsStr += (detailsStr ? '\n\n' : '') + m.descricao
+
           if (movTime > latestMovTime) {
             latestMovTime = movTime
             latestMovDesc = descStr
           }
 
           let extId = m.idDocumento || `${id}_${movTime}_${$security.md5(descStr)}`
-          saveMovement(dateStr, descStr, 'DataJud', extId)
+          saveMovement(dateStr, descStr, 'DataJud', extId, detailsStr)
 
           if (movTime > newLastSyncTime) newLastSyncTime = movTime
         }

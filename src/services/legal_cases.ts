@@ -6,7 +6,9 @@ export const getLegalCases = () =>
     .getFullList({ expand: 'client,responsible_collaborator', sort: '-created' })
 
 export const getLegalCase = (id: string) =>
-  pb.collection('legal_cases').getOne(id, { expand: 'client,responsible_collaborator' })
+  pb
+    .collection('legal_cases')
+    .getOne(id, { expand: 'client,responsible_collaborator,related_cases' })
 
 export const createLegalCase = (data: any) => pb.collection('legal_cases').create(data)
 

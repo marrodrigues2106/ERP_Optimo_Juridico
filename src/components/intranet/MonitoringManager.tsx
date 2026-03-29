@@ -677,8 +677,36 @@ export default function MonitoringManager() {
 
         <TabsContent value="tribunais">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Tribunais Ativos para Busca</CardTitle>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    Promise.all(
+                      tribunals.map((t) =>
+                        !t.active ? updateTribunal(t.id, { active: true }) : Promise.resolve(),
+                      ),
+                    ).then(load)
+                  }}
+                >
+                  Selecionar Todos
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    Promise.all(
+                      tribunals.map((t) =>
+                        t.active ? updateTribunal(t.id, { active: false }) : Promise.resolve(),
+                      ),
+                    ).then(load)
+                  }}
+                >
+                  Desmarcar Todos
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
