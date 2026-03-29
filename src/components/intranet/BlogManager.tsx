@@ -20,7 +20,12 @@ export default function BlogManager() {
   const [imageUrl, setImageUrl] = useState('')
   const [videoUrl, setVideoUrl] = useState('')
   const [published, setPublished] = useState(false)
+  const [actionType, setActionType] = useState<'draft' | 'publish' | 'unpublish' | 'update'>(
+    'publish',
+  )
   const { toast } = useToast()
+
+  const isValid = title.trim().length > 0 && content.trim().length > 0
 
   const loadData = async () => {
     try {
@@ -43,18 +48,41 @@ export default function BlogManager() {
     setPublished(false)
     setCurrentId(null)
     setIsEditing(false)
+    setActionType('publish')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const data = { title, category, content, imageUrl, videoUrl, published }
+
+    if ((actionType === 'publish' || actionType === 'update') && !isValid) {
+      toast({ title: 'Preencha o título e o conteúdo.', variant: 'destructive' })
+      return
+    }
+
+    let willPublish = published
+    if (actionType === 'publish') willPublish = true
+    if (actionType === 'unpublish') willPublish = false
+    if (actionType === 'draft') willPublish = false
+
+    const data = { title, category, content, imageUrl, videoUrl, published: willPublish }
+
     try {
       if (currentId) {
         await updatePost(currentId, data)
-        toast({ title: 'Artigo atualizado com sucesso!' })
+        if (actionType === 'publish' && !published) {
+          toast({ title: 'Postagem publicada com sucesso!' })
+        } else if (actionType === 'unpublish') {
+          toast({ title: 'Postagem despublicada com sucesso.' })
+        } else {
+          toast({ title: 'Artigo atualizado com sucesso!' })
+        }
       } else {
         await createPost(data)
-        toast({ title: 'Artigo publicado com sucesso!' })
+        if (actionType === 'publish') {
+          toast({ title: 'Postagem publicada com sucesso!' })
+        } else {
+          toast({ title: 'Rascunho salvo com sucesso!' })
+        }
       }
       resetForm()
     } catch (err) {
@@ -98,7 +126,7 @@ export default function BlogManager() {
                     placeholder="Digite um título chamativo..."
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="category">Categoria / Área de Atuação</Label>
                   <Input
                     id="category"
@@ -108,19 +136,7 @@ export default function BlogManager() {
                     placeholder="Ex: Direito Tributário"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="published" className="block invisible md:visible">
-                    Status
-                  </Label>
-                  <div className="flex items-center space-x-2 pt-2 border rounded-md px-4 py-2 bg-slate-50">
-                    <Switch id="published" checked={published} onCheckedChange={setPublished} />
-                    <Label htmlFor="published" className="cursor-pointer">
-                      {published ? 'Público (Visível no site)' : 'Rascunho (Privado)'}
-                    </Label>
-                  </div>
-                </div>
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="content">Conteúdo do Artigo</Label>
                 <Textarea
@@ -133,7 +149,6 @@ export default function BlogManager() {
                   placeholder="Escreva o conteúdo do artigo aqui. Suporta separação por parágrafos."
                 />
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-6">
                 <div className="space-y-2">
                   <Label htmlFor="imageUrl">URL da Imagem de Capa (Opcional)</Label>
@@ -154,18 +169,53 @@ export default function BlogManager() {
                   />
                 </div>
               </div>
-
               <div className="pt-4 flex flex-col sm:flex-row gap-4 justify-end">
                 {isEditing && (
                   <Button type="button" variant="outline" onClick={resetForm} className="sm:w-32">
                     Cancelar
                   </Button>
                 )}
-                <Button type="submit" className="sm:w-64">
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                  {isEditing ? 'Salvar Alterações' : 'Publicar Artigo'}
-                </Button>
-              </div>
+                {published ? (
+                  <>
+                    <Button
+                      type="submit"
+                      variant="secondary"
+                      onClick={() => setActionType('unpublish')}
+                      className="sm:w-32"
+                    >
+                      Despublicar
+                    </Button>
+                    <Button
+                      type="submit"
+                      onClick={() => setActionType('update')}
+                      disabled={!isValid}
+                      className="sm:w-48 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Salvar Alterações
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      type="submit"
+                      variant="secondary"
+                      onClick={() => setActionType('draft')}
+                      className="sm:w-32"
+                    >
+                      Salvar Rascunho
+                    </Button>
+                    <Button
+                      type="submit"
+                      onClick={() => setActionType('publish')}
+                      disabled={!isValid}
+                      className="sm:w-48 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                      Publicar
+                    </Button>
+                  </>
+                )}
+              </div>{' '}
             </form>
           </CardContent>
         </Card>
