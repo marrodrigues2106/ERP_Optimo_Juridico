@@ -1,15 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Calendar } from '@/components/ui/calendar'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   Select,
   SelectContent,
@@ -17,50 +12,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { getAgendaEvents, createAgendaEvent, deleteAgendaEvent } from '@/services/agenda'
-import { getLawsuits } from '@/services/lawsuits'
-import { useRealtime } from '@/hooks/use-realtime'
-import {
-  Trash2,
-  Calendar,
-  Clock,
-  Link as LinkIcon,
-  FileText,
-  Users,
-  AlertTriangle,
-  Phone,
-  ChevronLeft,
-  ChevronRight,
-  Scale,
-  CheckSquare,
-  Mail,
-} from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
-import { useAuth } from '@/hooks/use-auth'
-import { cn } from '@/lib/utils'
+import { useRealtime } from '@/hooks/use-realtime'
+import { Plus, Trash2, Clock, Calendar as CalendarIcon } from 'lucide-react'
+import pb from '@/lib/pocketbase/client'
+import { format } from 'date-fns'
+import { getLegalCases } from '@/services/legal_cases'
 
 export default function AgendaManager() {
-  const { user } = useAuth()
-  const [events, setEvents] = useState<any[]>([])
-  const [lawsuits, setLawsuits] = useState<any[]>([])
-  const [open, setOpen] = useState(false)
-  const [view, setView] = useState('7') // 1, 3, 7, 30
-  const [baseDate, setBaseDate] = useState(new Date())
   const { toast } = useToast()
+  const [date, setDate] = useState<Date | undefined>(new Date())
+  const [events, setEvents] = useState<any[]>([])
+  const [cases, setCases] = useState<any[]>([])
+  const [formOpen, setFormOpen] = useState(false)
 
   const loadData = async () => {
     try {
-      const allEvents = await getAgendaEvents()
-      const role = user?.role || 'collaborator'
-      let filtered = allEvents
-      if (role === 'collaborator') {
-        filtered = allEvents.filter((e) => e.collaborator === user?.id || e.user === user?.id)
-      } else if (role === 'coordinator') {
-        filtered = allEvents
-      }
-      setEvents(filtered)
-      setLawsuits(await getLawsuits())
+      const res = await pb.collection('agenda_events').getFullList({ sort: 'event_date' })
+      setEvents(res)
     } catch (e) {
       console.error(e)
     }
@@ -68,326 +37,188 @@ export default function AgendaManager() {
 
   useEffect(() => {
     loadData()
-  }, [user])
+    getLegalCases().then(setCases).catch(console.error)
+  }, [])
+
   useRealtime('agenda_events', loadData)
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const fd = new FormData(e.currentTarget)
-    const data = Object.fromEntries(fd.entries())
-    if (!data.linked_lawsuit || data.linked_lawsuit === 'none') delete data.linked_lawsuit
-    if (data.start_date) data.start_date = new Date(data.start_date as string).toISOString()
-    if (data.end_date) data.end_date = new Date(data.end_date as string).toISOString()
-
-    try {
-      await createAgendaEvent({ ...data, collaborator: user?.id })
-      toast({ title: 'Evento agendado com sucesso' })
-      setOpen(false)
-    } catch (err) {
-      toast({ title: 'Erro ao agendar', variant: 'destructive' })
-    }
-  }
+  const eventsOnSelectedDate = events.filter((e) => {
+    if (!date || !e.event_date) return false
+    const ed = new Date(e.event_date)
+    return (
+      ed.getDate() === date.getDate() &&
+      ed.getMonth() === date.getMonth() &&
+      ed.getFullYear() === date.getFullYear()
+    )
+  })
 
   const handleDelete = async (id: string) => {
-    if (confirm('Deseja excluir este evento da agenda?')) await deleteAgendaEvent(id)
-  }
-
-  const getIcon = (type: string) => {
-    switch (type) {
-      case 'Meeting':
-        return <Users className="w-4 h-4 text-blue-600" />
-      case 'Hearing':
-        return <Scale className="w-4 h-4 text-indigo-600" />
-      case 'Call':
-        return <Phone className="w-4 h-4 text-green-600" />
-      case 'Deadline':
-        return <AlertTriangle className="w-4 h-4 text-red-600" />
-      case 'Reminder':
-        return <Clock className="w-4 h-4 text-amber-600" />
-      case 'Task':
-        return <CheckSquare className="w-4 h-4 text-emerald-600" />
-      case 'Email':
-        return <Mail className="w-4 h-4 text-slate-600" />
-      default:
-        return <FileText className="w-4 h-4 text-slate-600" />
+    try {
+      await pb.collection('agenda_events').delete(id)
+      toast({ title: 'Evento excluído com sucesso.' })
+    } catch (e) {
+      toast({ title: 'Erro ao excluir evento', variant: 'destructive' })
     }
-  }
-
-  const moveDate = (amount: number) => {
-    const d = new Date(baseDate)
-    if (view === '30') d.setMonth(d.getMonth() + (amount > 0 ? 1 : -1))
-    else d.setDate(d.getDate() + amount)
-    setBaseDate(d)
-  }
-
-  const renderGridColumns = () => {
-    const viewDays = parseInt(view)
-    const endDate = new Date(baseDate)
-    endDate.setDate(endDate.getDate() + viewDays - 1)
-    endDate.setHours(23, 59, 59, 999)
-    const startDate = new Date(baseDate)
-    startDate.setHours(0, 0, 0, 0)
-
-    const visibleEvents = events
-      .filter((e) => {
-        const d = new Date(e.start_date)
-        return d >= startDate && d <= endDate
-      })
-      .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
-
-    const daysArray = []
-    for (let i = 0; i < viewDays; i++) {
-      const d = new Date(baseDate)
-      d.setDate(d.getDate() + i)
-      daysArray.push(d)
-    }
-
-    return (
-      <div
-        className={`grid grid-cols-1 md:grid-cols-${viewDays === 7 ? 7 : viewDays} divide-y md:divide-y-0 md:divide-x`}
-      >
-        {daysArray.map((day, idx) => {
-          const dayEvents = visibleEvents.filter(
-            (e) => new Date(e.start_date).toDateString() === day.toDateString(),
-          )
-          const isToday = day.toDateString() === new Date().toDateString()
-          return (
-            <div key={idx} className="min-h-[400px] flex flex-col">
-              <div
-                className={cn(
-                  'p-2 border-b text-center sticky top-0',
-                  isToday ? 'bg-primary/5 border-primary/20 text-primary font-bold' : 'bg-slate-50',
-                )}
-              >
-                <div className="text-xs uppercase">
-                  {day.toLocaleDateString('pt-BR', { weekday: 'short' })}
-                </div>
-                <div className="text-lg">{day.getDate()}</div>
-              </div>
-              <div className="p-2 space-y-2 flex-1 overflow-y-auto bg-slate-50/30">
-                {dayEvents.map((ev) => (
-                  <div
-                    key={ev.id}
-                    className="p-2 border rounded-md bg-white shadow-sm text-sm group relative"
-                  >
-                    <div className="flex items-center gap-1.5 mb-1">
-                      {getIcon(ev.type)}
-                      <span className="font-medium text-xs truncate">
-                        {new Date(ev.start_date).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
-                    <p className="font-semibold leading-tight line-clamp-2">{ev.title}</p>
-                    {ev.expand?.linked_lawsuit && (
-                      <div className="text-[10px] mt-1 text-slate-500 truncate flex items-center">
-                        <LinkIcon className="w-2.5 h-2.5 mr-1 shrink-0" />
-                        {ev.expand.linked_lawsuit.parties}
-                      </div>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 h-6 w-6 text-destructive"
-                      onClick={() => handleDelete(ev.id)}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    )
-  }
-
-  const renderMonthView = () => {
-    const startOfMonth = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1)
-    const startDay = startOfMonth.getDay()
-    const daysInMonth = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0).getDate()
-    const grid = []
-
-    for (let i = 0; i < startDay; i++) grid.push(null)
-    for (let i = 1; i <= daysInMonth; i++)
-      grid.push(new Date(baseDate.getFullYear(), baseDate.getMonth(), i))
-
-    return (
-      <div className="grid grid-cols-7 gap-px bg-slate-200 border">
-        {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d) => (
-          <div key={d} className="bg-slate-50 p-2 text-center text-xs font-bold uppercase">
-            {d}
-          </div>
-        ))}
-        {grid.map((day, i) => {
-          if (!day) return <div key={`empty-${i}`} className="bg-slate-50/50 min-h-[120px]"></div>
-          const dayEvents = events.filter(
-            (e) => new Date(e.start_date).toDateString() === day.toDateString(),
-          )
-          const isToday = day.toDateString() === new Date().toDateString()
-          return (
-            <div
-              key={`day-${day.getDate()}`}
-              className={cn(
-                'bg-white min-h-[120px] p-1.5 flex flex-col group',
-                isToday && 'bg-blue-50/30',
-              )}
-            >
-              <div
-                className={cn(
-                  'text-right text-xs font-semibold p-1 mb-1',
-                  isToday ? 'text-primary' : 'text-slate-500',
-                )}
-              >
-                {day.getDate()}
-              </div>
-              <div className="space-y-1 flex-1 overflow-y-auto max-h-[100px] custom-scrollbar">
-                {dayEvents.map((ev) => (
-                  <div
-                    key={ev.id}
-                    className="text-[10px] px-1.5 py-1 bg-slate-100 text-slate-700 rounded truncate border border-slate-200 hover:bg-slate-200 cursor-pointer"
-                    title={ev.title}
-                  >
-                    <span className="font-bold mr-1">
-                      {new Date(ev.start_date).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                    {ev.title}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    )
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-        <h2 className="text-2xl font-serif font-bold text-primary">Agenda da Equipe</h2>
-        <div className="flex items-center gap-4">
-          <ToggleGroup
-            type="single"
-            value={view}
-            onValueChange={(v) => {
-              if (v) {
-                setView(v)
-                setBaseDate(new Date())
-              }
-            }}
-          >
-            <ToggleGroupItem value="1">1 Dia</ToggleGroupItem>
-            <ToggleGroupItem value="3">3 Dias</ToggleGroupItem>
-            <ToggleGroupItem value="7">Semana</ToggleGroupItem>
-            <ToggleGroupItem value="30">Mês</ToggleGroupItem>
-          </ToggleGroup>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Calendar className="w-4 h-4 mr-2" /> Novo Evento
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Agendar Evento</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <Label>Título</Label>
-                  <Input name="title" required />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Tipo</Label>
-                    <Select name="type" defaultValue="Meeting">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Meeting">Reunião</SelectItem>
-                        <SelectItem value="Hearing">Audiência</SelectItem>
-                        <SelectItem value="Call">Ligação</SelectItem>
-                        <SelectItem value="Deadline">Prazo</SelectItem>
-                        <SelectItem value="Task">Tarefa</SelectItem>
-                        <SelectItem value="Reminder">Lembrete</SelectItem>
-                        <SelectItem value="Note">Anotação</SelectItem>
-                        <SelectItem value="Email">Email</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Vincular Processo</Label>
-                    <Select name="linked_lawsuit" defaultValue="none">
-                      <SelectTrigger>
-                        <SelectValue placeholder="Nenhum" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Não vincular</SelectItem>
-                        {lawsuits.map((l) => (
-                          <SelectItem key={l.id} value={l.id}>
-                            {l.parties || l.number}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Data/Hora Início</Label>
-                    <Input type="datetime-local" name="start_date" required />
-                  </div>
-                  <div>
-                    <Label>Data/Hora Fim</Label>
-                    <Input type="datetime-local" name="end_date" />
-                  </div>
-                </div>
-                <Button type="submit" className="w-full">
-                  Salvar Evento
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl font-serif font-bold text-primary">Agenda Corporativa</h2>
+        <Button onClick={() => setFormOpen(true)}>
+          <Plus className="w-4 h-4 mr-2" /> Novo Evento
+        </Button>
       </div>
 
-      <Card>
-        <CardHeader className="py-3 border-b flex flex-row items-center justify-between bg-slate-50/50">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => moveDate(view === '30' ? -1 : -parseInt(view))}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <span className="font-semibold min-w-[140px] text-center text-sm md:text-base capitalize">
-              {view === '30'
-                ? baseDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-                : `${baseDate.toLocaleDateString()} ${parseInt(view) > 1 ? '- ' + new Date(baseDate.getTime() + (parseInt(view) - 1) * 86400000).toLocaleDateString() : ''}`}
-            </span>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => moveDate(view === '30' ? 1 : parseInt(view))}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-            <Button variant="ghost" onClick={() => setBaseDate(new Date())}>
-              Hoje
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {view === '30' ? renderMonthView() : renderGridColumns()}
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-1 border shadow-sm">
+          <CardHeader className="bg-slate-50/50 pb-4 border-b">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <CalendarIcon className="w-5 h-5 text-slate-500" /> Calendário
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 flex justify-center">
+            <Calendar mode="single" selected={date} onSelect={setDate} className="rounded-md" />
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2 border shadow-sm">
+          <CardHeader className="bg-slate-50/50 pb-4 border-b">
+            <CardTitle className="text-lg">
+              Eventos de {date ? format(date, 'dd/MM/yyyy') : 'Nenhuma data selecionada'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 space-y-4">
+            {eventsOnSelectedDate.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg">
+                <p>Nenhum compromisso agendado para este dia.</p>
+              </div>
+            ) : (
+              eventsOnSelectedDate.map((ev) => (
+                <div
+                  key={ev.id}
+                  className="flex justify-between items-start p-4 border rounded-lg shadow-sm bg-white group"
+                >
+                  <div>
+                    <h4 className="font-bold text-slate-800">{ev.title}</h4>
+                    <div className="flex items-center gap-3 text-sm text-slate-500 mt-2">
+                      <span className="flex items-center font-medium">
+                        <Clock className="w-3.5 h-3.5 mr-1 text-slate-400" />
+                        {new Date(ev.event_date).toLocaleTimeString('pt-BR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                      <span className="flex items-center uppercase text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">
+                        {ev.type || 'Geral'}
+                      </span>
+                    </div>
+                    {ev.description && (
+                      <p className="text-sm mt-3 text-slate-600 bg-slate-50 p-2 rounded">
+                        {ev.description}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDelete(ev.id)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 className="w-4 h-4 text-red-500" />
+                  </Button>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <EventFormModal
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        cases={cases}
+        onSuccess={loadData}
+        defaultDate={date}
+      />
     </div>
+  )
+}
+
+function EventFormModal({ open, onOpenChange, cases, onSuccess, defaultDate }: any) {
+  const { toast } = useToast()
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    try {
+      const dateTime = new Date(`${fd.get('date')}T${fd.get('time')}`).toISOString()
+
+      await pb.collection('agenda_events').create({
+        title: fd.get('title'),
+        description: fd.get('description'),
+        type: fd.get('type'),
+        event_date: dateTime,
+      })
+
+      toast({ title: 'Evento agendado com sucesso.' })
+      onOpenChange(false)
+      onSuccess()
+    } catch (err: any) {
+      toast({ title: 'Erro ao agendar', description: err.message, variant: 'destructive' })
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Novo Compromisso</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+          <div>
+            <Label>Título / Assunto *</Label>
+            <Input name="title" required placeholder="Ex: Reunião com Cliente X" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Data *</Label>
+              <Input
+                type="date"
+                name="date"
+                required
+                defaultValue={defaultDate ? format(defaultDate, 'yyyy-MM-dd') : ''}
+              />
+            </div>
+            <div>
+              <Label>Hora *</Label>
+              <Input type="time" name="time" required defaultValue="09:00" />
+            </div>
+          </div>
+          <div>
+            <Label>Tipo de Evento</Label>
+            <Select name="type" defaultValue="Reunião">
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Reunião">Reunião</SelectItem>
+                <SelectItem value="Audiência">Audiência</SelectItem>
+                <SelectItem value="Prazo">Prazo Processual</SelectItem>
+                <SelectItem value="Atendimento">Atendimento</SelectItem>
+                <SelectItem value="Outros">Outros</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Descrição / Notas</Label>
+            <Input name="description" placeholder="Informações adicionais..." />
+          </div>
+          <Button type="submit" className="w-full mt-2">
+            Agendar Evento
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
