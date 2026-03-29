@@ -28,11 +28,13 @@ import {
 import { Button } from '@/components/ui/button'
 import { Search, UserPlus, Phone, Mail, Trash2, Edit2 } from 'lucide-react'
 import { getClients, createClient, updateClient, deleteClient } from '@/services/clients'
+import { getLegalCases } from '@/services/legal_cases'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 
 export default function CrmManager() {
   const [clients, setClients] = useState<any[]>([])
+  const [cases, setCases] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterClass, setFilterClass] = useState<string[]>([])
   const [open, setOpen] = useState(false)
@@ -41,7 +43,9 @@ export default function CrmManager() {
 
   const loadData = async () => {
     try {
-      setClients(await getClients())
+      const [clientsData, casesData] = await Promise.all([getClients(), getLegalCases()])
+      setClients(clientsData)
+      setCases(casesData)
     } catch (e) {
       console.error(e)
     }
@@ -50,16 +54,26 @@ export default function CrmManager() {
     loadData()
   }, [])
   useRealtime('clients', loadData)
+  useRealtime('legal_cases', loadData)
 
   const classifications = ['Ativo', 'Inativo', 'Lead', 'Parte Envolvida']
 
-  const filtered = clients.filter((c) => {
+  const enrichedClients = clients.map((c) => {
+    const isLinked = cases.some((lc) => lc.client === c.id)
+    let dynamicClass = c.classification || 'Lead'
+    if (isLinked && dynamicClass === 'Lead') {
+      dynamicClass = 'Parte Envolvida'
+    }
+    return { ...c, dynamicClassification: dynamicClass }
+  })
+
+  const filtered = enrichedClients.filter((c) => {
     const term = searchTerm.toLowerCase()
     const matchesSearch =
       (c.fullName || c.name || '').toLowerCase().includes(term) ||
       (c.email || '').toLowerCase().includes(term) ||
       (c.cpf || '').includes(term)
-    const matchesClass = filterClass.length === 0 || filterClass.includes(c.classification)
+    const matchesClass = filterClass.length === 0 || filterClass.includes(c.dynamicClassification)
     return matchesSearch && matchesClass
   })
 
@@ -275,16 +289,16 @@ export default function CrmManager() {
                         <TableCell>
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              client.classification === 'Ativo'
+                              client.dynamicClassification === 'Ativo'
                                 ? 'bg-green-100 text-green-700'
-                                : client.classification === 'Inativo'
+                                : client.dynamicClassification === 'Inativo'
                                   ? 'bg-slate-100 text-slate-700'
-                                  : client.classification === 'Parte Envolvida'
+                                  : client.dynamicClassification === 'Parte Envolvida'
                                     ? 'bg-amber-100 text-amber-700'
                                     : 'bg-blue-100 text-blue-700'
                             }`}
                           >
-                            {client.classification || 'Lead'}
+                            {client.dynamicClassification}
                           </span>
                         </TableCell>
                         <TableCell className="text-right pr-6">

@@ -44,6 +44,7 @@ export default function FinanceManager() {
   const [open, setOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
   const [formType, setFormType] = useState('inflow')
+  const [formStatus, setFormStatus] = useState('orçado')
   const [lawsuitFilter, setLawsuitFilter] = useState('all')
   const { toast } = useToast()
 
@@ -63,12 +64,14 @@ export default function FinanceManager() {
   const handleOpenNew = () => {
     setEditingItem(null)
     setFormType('inflow')
+    setFormStatus('orçado')
     setOpen(true)
   }
 
   const handleEdit = (item: any) => {
     setEditingItem(item)
     setFormType(item.type || 'inflow')
+    setFormStatus(item.status || 'orçado')
     setOpen(true)
   }
 
@@ -175,7 +178,14 @@ export default function FinanceManager() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Tipo</Label>
-                    <Select name="type" value={formType} onValueChange={setFormType}>
+                    <Select
+                      name="type"
+                      value={formType}
+                      onValueChange={(val) => {
+                        setFormType(val)
+                        setFormStatus(val === 'inflow' ? 'orçado' : 'orçado')
+                      }}
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -208,12 +218,7 @@ export default function FinanceManager() {
                   </div>
                   <div>
                     <Label>Status</Label>
-                    <Select
-                      name="status"
-                      defaultValue={
-                        editingItem?.status || (formType === 'inflow' ? 'orçado' : 'orçado')
-                      }
-                    >
+                    <Select name="status" value={formStatus} onValueChange={setFormStatus}>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione o status" />
                       </SelectTrigger>
