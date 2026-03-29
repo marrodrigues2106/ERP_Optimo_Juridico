@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/use-auth'
 import pb from '@/lib/pocketbase/client'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
 import { useToast } from '@/hooks/use-toast'
-import { Camera } from 'lucide-react'
+import { Camera, Building2 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import MonitoringManager from './MonitoringManager'
 
@@ -29,6 +29,48 @@ export default function ProfileManager() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [pwdErrors, setPwdErrors] = useState<any>({})
+
+  const [org, setOrg] = useState<any>(null)
+  const [orgName, setOrgName] = useState('')
+  const [orgLogoPreview, setOrgLogoPreview] = useState<string | null>(null)
+  const [orgLogoFile, setOrgLogoFile] = useState<File | null>(null)
+  const orgLogoRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (user?.active_organization) {
+      pb.collection('organizations')
+        .getOne(user.active_organization)
+        .then((o) => {
+          setOrg(o)
+          setOrgName(o.name)
+          if (o.logo) setOrgLogoPreview(pb.files.getURL(o, o.logo))
+        })
+    }
+  }, [user])
+
+  const handleOrgLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      setOrgLogoFile(file)
+      setOrgLogoPreview(URL.createObjectURL(file))
+    }
+  }
+
+  const handleOrgSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!org) return
+    try {
+      const formData = new FormData()
+      formData.append('name', orgName)
+      if (orgLogoFile) formData.append('logo', orgLogoFile)
+
+      await pb.collection('organizations').update(org.id, formData)
+      toast({ title: 'Organização atualizada com sucesso!' })
+      window.location.reload()
+    } catch (err) {
+      toast({ title: 'Erro ao atualizar organização', variant: 'destructive' })
+    }
+  }
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -76,9 +118,10 @@ export default function ProfileManager() {
 
   return (
     <Tabs defaultValue="perfil" className="w-full">
-      <TabsList className="mb-6">
+      <TabsList className="mb-6 flex-wrap">
         <TabsTrigger value="perfil">Perfil e Segurança</TabsTrigger>
         <TabsTrigger value="monitoramento">Monitoramento & Push</TabsTrigger>
+        <TabsTrigger value="organizacao">Minha Organização</TabsTrigger>
       </TabsList>
 
       <TabsContent value="perfil">
@@ -203,6 +246,73 @@ export default function ProfileManager() {
 
       <TabsContent value="monitoramento">
         <MonitoringManager />
+      </TabsContent>
+
+      <TabsContent value="organizacao">
+        <Card className="max-w-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-primary" />
+              Dados da Organização
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {org ? (
+              <form onSubmit={handleOrgSubmit} className="space-y-6">
+                <div className="flex flex-col items-center gap-4">
+                  <Label>Logotipo do Escritório</Label>
+                  <div
+                    className="relative group cursor-pointer"
+                    onClick={() => orgLogoRef.current?.click()}
+                  >
+                    <div className="w-32 h-32 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center bg-slate-50 overflow-hidden">
+                      {orgLogoPreview ? (
+                        <img
+                          src={orgLogoPreview}
+                          alt="Logo"
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <Building2 className="w-10 h-10 text-slate-300" />
+                      )}
+                    </div>
+                    <div className="absolute inset-0 bg-black/40 text-white rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <Camera className="w-6 h-6" />
+                    </div>
+                    <input
+                      type="file"
+                      ref={orgLogoRef}
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleOrgLogoChange}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Recomendado: Imagem PNG ou SVG com fundo transparente.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="orgName">Nome da Organização</Label>
+                  <Input
+                    id="orgName"
+                    value={orgName}
+                    onChange={(e) => setOrgName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <Button type="submit" className="w-full">
+                  Salvar Organização
+                </Button>
+              </form>
+            ) : (
+              <div className="text-center py-8 text-slate-500">
+                Nenhuma organização ativa encontrada.
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </TabsContent>
     </Tabs>
   )

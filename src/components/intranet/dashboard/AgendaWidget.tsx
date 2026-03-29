@@ -4,9 +4,12 @@ import { getAgendaEvents } from '@/services/agenda'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useRealtime } from '@/hooks/use-realtime'
-import { CalendarDays, Clock, Link as LinkIcon } from 'lucide-react'
+import { CalendarDays, Clock, Link as LinkIcon, Plus } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { EventFormModal } from '../cases/EventFormModal'
 
 export function AgendaWidget() {
+  const [eventModalOpen, setEventModalOpen] = useState(false)
   const [events, setEvents] = useState<any[]>([])
   const [view, setView] = useState('7')
   const navigate = useNavigate()
@@ -49,6 +52,14 @@ export function AgendaWidget() {
           <CalendarDays className="w-5 h-5 text-primary" />
           <CardTitle className="text-lg text-slate-800">Sua Agenda</CardTitle>
         </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-primary"
+          onClick={() => setEventModalOpen(true)}
+        >
+          <Plus className="w-4 h-4" />
+        </Button>
       </CardHeader>
 
       <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
@@ -148,6 +159,7 @@ export function AgendaWidget() {
           </div>
         )}
       </CardContent>
+      <EventFormModal open={eventModalOpen} onOpenChange={setEventModalOpen} onSuccess={load} />
     </Card>
   )
 }

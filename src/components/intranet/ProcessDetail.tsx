@@ -42,6 +42,7 @@ import {
 import { EventFormModal } from './cases/EventFormModal'
 import { runDatajudSync } from '@/lib/datajud/sync'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { PublicationCard } from './cases/PublicationCard'
 
 export default function ProcessDetail() {
   const { id } = useParams()
@@ -373,46 +374,27 @@ export default function ProcessDetail() {
               </p>
             ) : (
               movements.map((mov) => {
-                const { title, complementos, icon: Icon } = getMovementDisplayData(mov)
+                const { icon: Icon } = getMovementDisplayData(mov)
                 return (
                   <div key={mov.id} className="relative pl-8 group">
-                    <span className="absolute -left-[11px] top-1 h-5 w-5 rounded-full border-[3px] border-white bg-slate-200 flex items-center justify-center">
+                    <span className="absolute -left-[11px] top-4 h-5 w-5 rounded-full border-[3px] border-white bg-slate-200 flex items-center justify-center z-10">
                       <Icon className="w-2.5 h-2.5 text-slate-500" />
                     </span>
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-700">
-                          {new Date(mov.event_date).toLocaleDateString('pt-BR')}
-                        </span>
-                        <span className="text-xs text-slate-400 font-medium">
-                          {new Date(mov.event_date).toLocaleTimeString('pt-BR', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
-                        <Badge variant="outline" className="text-[9px] uppercase ml-2 bg-slate-50">
-                          {mov.source}
-                        </Badge>
-                      </div>
-                      <div className="bg-slate-50 border border-slate-100 p-3 rounded-lg text-sm text-slate-700 mt-1 relative group-hover:border-slate-200 transition-colors">
-                        <p className="font-medium text-slate-800">{title}</p>
-                        {complementos && (
-                          <p className="text-xs text-slate-500 mt-1.5">{complementos}</p>
-                        )}
-
-                        {/* Hover Actions */}
-                        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                    <div className="mb-4">
+                      <PublicationCard
+                        item={mov}
+                        showActions={
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 text-slate-400 hover:text-primary"
-                            onClick={() => openEventModal(`Ref: ${title}`)}
+                            className="h-8 w-8 text-slate-400 hover:text-primary"
+                            onClick={() => openEventModal(`Ref: ${mov.description}`)}
                             title="Criar Evento"
                           >
-                            <Bell className="w-3.5 h-3.5" />
+                            <Bell className="w-4 h-4" />
                           </Button>
-                        </div>
-                      </div>
+                        }
+                      />
                     </div>
                   </div>
                 )

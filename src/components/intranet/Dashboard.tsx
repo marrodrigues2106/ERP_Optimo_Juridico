@@ -16,9 +16,16 @@ import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { format, isBefore, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { PublicationCard } from './cases/PublicationCard'
+import { EventFormModal } from './cases/EventFormModal'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 
 export default function Dashboard() {
   const [tasks, setTasks] = useState<any[]>([])
+  const [eventModalOpen, setEventModalOpen] = useState(false)
+  const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [publications, setPublications] = useState<any[]>([])
   const [events, setEvents] = useState<any[]>([])
 
@@ -104,13 +111,7 @@ export default function Dashboard() {
               value="hoje"
               className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-blue-600 rounded-none px-6 py-3 font-semibold text-slate-500"
             >
-              Hoje
-            </TabsTrigger>
-            <TabsTrigger
-              value="oportunidades"
-              className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-blue-600 rounded-none px-6 py-3 font-semibold text-slate-500"
-            >
-              Oportunidades
+              Visão Geral
             </TabsTrigger>
           </TabsList>
 
@@ -127,31 +128,7 @@ export default function Dashboard() {
                   <p>Tudo limpo! Nenhuma publicação não lida.</p>
                 </div>
               ) : (
-                publications.map((pub) => (
-                  <div
-                    key={pub.id}
-                    className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
-                  >
-                    <h4 className="font-semibold text-sm text-slate-800 leading-tight">
-                      Novo Processo Encontrado › Nº {pub.numero_processo?.[0] || 'Desconhecido'}
-                    </h4>
-                    <p className="text-xs text-slate-500 mt-1 font-medium">
-                      {pub.orgao} › Publicação
-                    </p>
-                    <p className="text-xs text-slate-400 mt-1">
-                      {new Date(pub.data_publicacao || pub.created).toLocaleDateString('pt-BR')}
-                    </p>
-                    <p className="text-sm text-slate-600 mt-3 line-clamp-3 font-serif leading-relaxed">
-                      {pub.texto_normalizado}
-                    </p>
-                    {pub.matched_term && (
-                      <div className="mt-4 flex items-center gap-1.5 text-blue-600 text-xs font-medium">
-                        <Bell className="w-3.5 h-3.5" />
-                        Termo encontrado: {pub.matched_term}
-                      </div>
-                    )}
-                  </div>
-                ))
+                publications.map((pub) => <PublicationCard key={pub.id} item={pub} />)
               )}
             </div>
 
@@ -185,8 +162,11 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex gap-0.5 text-slate-400">
-            <button className="p-1 hover:bg-slate-100 rounded transition-colors">
-              <Plus className="w-5 h-5" />
+            <button
+              onClick={() => setEventModalOpen(true)}
+              className="p-1 bg-slate-100 hover:bg-primary hover:text-white rounded transition-colors text-slate-600 mx-1"
+            >
+              <Plus className="w-4 h-4" />
             </button>
             <button className="p-1 hover:bg-slate-100 rounded transition-colors">
               <ChevronLeft className="w-5 h-5" />
@@ -231,7 +211,10 @@ export default function Dashboard() {
               <CheckCircle2 className="w-5 h-5 text-green-600" />
               Tarefas ({tasks.length})
             </div>
-            <button className="p-1 hover:bg-slate-100 rounded transition-colors text-slate-400">
+            <button
+              onClick={() => setTaskModalOpen(true)}
+              className="p-1 bg-slate-100 hover:bg-primary hover:text-white rounded transition-colors text-slate-600"
+            >
               <Plus className="w-4 h-4" />
             </button>
           </div>
@@ -279,6 +262,33 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      <EventFormModal open={eventModalOpen} onOpenChange={setEventModalOpen} onSuccess={loadData} />
+
+      <Dialog open={taskModalOpen} onOpenChange={setTaskModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova Tarefa Rápida</DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={async (e) => {
+              e.preventDefault()
+              const fd = new FormData(e.currentTarget)
+              await pb
+                .collection('tasks')
+                .create({ title: fd.get('title'), status: 'todo', priority: 'medium' })
+              setTaskModalOpen(false)
+              loadData()
+            }}
+          >
+            <Input name="title" placeholder="Descreva a tarefa..." required autoFocus />
+            <Button type="submit" className="w-full">
+              Criar Tarefa
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -40,6 +40,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
 import { cn } from '@/lib/utils'
 import pb from '@/lib/pocketbase/client'
+import { PublicationCard } from './cases/PublicationCard'
 
 function HighlightText({ text, query }: { text: string; query: string }) {
   if (!query) return <span>{text}</span>
@@ -212,46 +213,22 @@ export default function GazetteManager() {
               ) : (
                 <div className="space-y-4">
                   {inboxPubs.map((pub: any) => (
-                    <div
+                    <PublicationCard
                       key={pub.id}
-                      className="p-4 border border-blue-200 rounded-lg bg-blue-50/30 hover:border-blue-400 transition-colors cursor-pointer"
+                      item={pub}
                       onClick={() => setSelectedPub(pub)}
-                    >
-                      <div className="flex flex-col sm:flex-row justify-between items-start mb-3 gap-4">
-                        <div>
-                          <div className="flex items-center gap-2 text-sm text-slate-600 mb-1.5">
-                            <span className="flex items-center gap-1 font-semibold text-blue-700">
-                              <Building2 className="w-4 h-4" /> {pub.orgao || 'Tribunal'}
-                            </span>
-                            •
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-4 h-4" />{' '}
-                              {new Date(pub.data_publicacao || pub.created).toLocaleDateString()}
-                            </span>
-                          </div>
-                          {pub.matched_term && (
-                            <Badge
-                              variant="secondary"
-                              className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-none"
-                            >
-                              Termo de Busca: {pub.matched_term}
-                            </Badge>
-                          )}
-                        </div>
+                      showActions={
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={(e) => markAsRead(pub.id, e)}
-                          className="shrink-0 w-full sm:w-auto"
+                          className="shrink-0"
                         >
                           <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
                           Marcar como Lido
                         </Button>
-                      </div>
-                      <p className="text-sm line-clamp-3 text-slate-700 font-serif bg-white p-3 rounded border shadow-sm">
-                        {pub.texto_normalizado}
-                      </p>
-                    </div>
+                      }
+                    />
                   ))}
                 </div>
               )}

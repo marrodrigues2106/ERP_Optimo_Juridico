@@ -6,6 +6,7 @@ import { Bell, Scale, CalendarClock, Plus } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { EventFormModal } from '../cases/EventFormModal'
+import { PublicationCard } from '../cases/PublicationCard'
 
 export function PushAlertsWidget() {
   const [alerts, setAlerts] = useState<any[]>([])
@@ -99,57 +100,21 @@ export function PushAlertsWidget() {
           ) : (
             <div className="divide-y divide-slate-100">
               {alerts.map((a) => (
-                <div
+                <PublicationCard
                   key={a.id}
+                  item={a.raw}
                   onClick={() => handleAlertClick(a)}
-                  className="p-4 hover:bg-slate-50 transition-colors flex items-start gap-4 group cursor-pointer"
-                >
-                  {a.type === 'gazette' ? (
-                    <div className="p-2 bg-blue-50 text-blue-600 rounded-md shrink-0 mt-0.5 shadow-sm border border-blue-100">
-                      <Scale className="w-4 h-4" />
-                    </div>
-                  ) : (
-                    <div className="p-2 bg-amber-50 text-amber-600 rounded-md shrink-0 mt-0.5 shadow-sm border border-amber-100">
-                      <CalendarClock className="w-4 h-4" />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <h4 className="text-sm font-semibold text-slate-800 line-clamp-1">
-                        {a.title}
-                      </h4>
-                      <span className="text-[10px] font-medium text-slate-400 whitespace-nowrap">
-                        {new Date(a.date).toLocaleDateString('pt-BR', {
-                          day: '2-digit',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 line-clamp-2 mt-1 leading-relaxed">
-                      {a.desc}
-                    </p>
-
-                    <div className="mt-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="h-7 text-xs bg-white border shadow-sm"
-                        onClick={(e) => openEvent(e, a)}
-                      >
-                        <Plus className="w-3 h-3 mr-1" /> Criar Tarefa/Evento
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 text-xs text-slate-500 hover:text-slate-800"
-                      >
-                        Visualizar
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+                  showActions={
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="h-7 text-xs bg-white border shadow-sm"
+                      onClick={(e) => openEvent(e, a)}
+                    >
+                      <Plus className="w-3 h-3 mr-1" /> Criar Evento
+                    </Button>
+                  }
+                />
               ))}
             </div>
           )}
