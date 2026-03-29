@@ -24,6 +24,7 @@ import ProfileManager from '@/components/intranet/ProfileManager'
 import AgendaManager from '@/components/intranet/AgendaManager'
 import AuditLogs from '@/components/intranet/AuditLogs'
 import PublicacoesManager from '@/components/intranet/PublicacoesManager'
+import GazetteManager from '@/components/intranet/GazetteManager'
 
 function App() {
   return (
@@ -47,6 +48,7 @@ function App() {
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="publicacoes" element={<PublicacoesManager />} />
+              <Route path="diarios" element={<GazetteManager />} />
               <Route path="processos" element={<ProcessManager />} />
               <Route path="processos/:id" element={<ProcessDetail />} />
               <Route path="clientes/:id" element={<ClientDetail />} />

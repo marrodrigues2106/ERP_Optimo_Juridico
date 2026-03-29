@@ -43,6 +43,7 @@ export default function FinanceManager() {
   const [cases, setCases] = useState<any[]>([])
   const [open, setOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
+  const [formType, setFormType] = useState('inflow')
   const [lawsuitFilter, setLawsuitFilter] = useState('all')
   const { toast } = useToast()
 
@@ -61,11 +62,13 @@ export default function FinanceManager() {
 
   const handleOpenNew = () => {
     setEditingItem(null)
+    setFormType('inflow')
     setOpen(true)
   }
 
   const handleEdit = (item: any) => {
     setEditingItem(item)
+    setFormType(item.type || 'inflow')
     setOpen(true)
   }
 
@@ -172,7 +175,7 @@ export default function FinanceManager() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Tipo</Label>
-                    <Select name="type" defaultValue={editingItem?.type || 'inflow'}>
+                    <Select name="type" value={formType} onValueChange={setFormType}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -205,12 +208,33 @@ export default function FinanceManager() {
                   </div>
                   <div>
                     <Label>Status</Label>
-                    <Input
+                    <Select
                       name="status"
-                      required
-                      placeholder="Ex: Pago"
-                      defaultValue={editingItem?.status}
-                    />
+                      defaultValue={
+                        editingItem?.status || (formType === 'inflow' ? 'orçado' : 'orçado')
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {formType === 'inflow' ? (
+                          <>
+                            <SelectItem value="orçado">Orçado</SelectItem>
+                            <SelectItem value="estimado">Estimado</SelectItem>
+                            <SelectItem value="realizada">Realizada</SelectItem>
+                            <SelectItem value="recebida">Recebida</SelectItem>
+                          </>
+                        ) : (
+                          <>
+                            <SelectItem value="orçado">Orçado</SelectItem>
+                            <SelectItem value="previsto">Previsto</SelectItem>
+                            <SelectItem value="realizado">Realizado</SelectItem>
+                            <SelectItem value="pago">Pago</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <Button type="submit" className="w-full">

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-29T05:34:15.064Z",
+  "generatedAt": "2026-03-29T05:55:02.317Z",
   "collections": [
     {
       "name": "users",
@@ -202,12 +202,6 @@
           "system": false
         },
         {
-          "name": "status",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
           "name": "created",
           "type": "autodate",
           "required": false,
@@ -227,6 +221,21 @@
           "required": false,
           "system": false,
           "collectionRef": "legal_cases"
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": [
+            "orçado",
+            "estimado",
+            "realizada",
+            "recebida",
+            "previsto",
+            "realizado",
+            "pago"
+          ]
         }
       ],
       "indexes": []
@@ -1180,6 +1189,169 @@
       ],
       "indexes": [
         "CREATE UNIQUE INDEX idx_case_movements_ext_id ON case_movements (external_id) WHERE external_id != ''"
+      ]
+    },
+    {
+      "name": "gazettes",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "data_publicacao",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "orgao_publicador",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tipo_diario",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "url_original",
+          "type": "url",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nome_arquivo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "texto_bruto_completo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status_processamento",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["COLETADO", "EXTRAIDO", "NORMALIZADO", "INDEXADO", "ERRO"]
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_gazettes_data ON gazettes (data_publicacao)"]
+    },
+    {
+      "name": "gazette_publications",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "diario",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "gazettes"
+        },
+        {
+          "name": "hash_conteudo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "numero_processo",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "partes",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "advogados",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "oabs",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cpfs_cnpjs",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "texto_normalizado",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_publicacao",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "orgao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_gazette_pubs_hash ON gazette_publications (hash_conteudo)",
+        "CREATE INDEX idx_gazette_pubs_data ON gazette_publications (data_publicacao)"
       ]
     }
   ]
