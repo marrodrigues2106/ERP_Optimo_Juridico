@@ -34,6 +34,19 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
       }
     }
 
+    const updateTribunalStatus = (aliasKey, status) => {
+      try {
+        const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
+        if (configs.length > 0) {
+          const cfg = configs[0]
+          let stats = cfg.get('datajud_tribunal_status') || {}
+          stats[aliasKey] = status
+          cfg.set('datajud_tribunal_status', stats)
+          $app.saveNoValidate(cfg)
+        }
+      } catch (e) {}
+    }
+
     const apiKey = $secrets.get('DATAJUD_API_KEY') || ''
 
     const num = record.get('case_number') || ''
@@ -135,29 +148,18 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
 
         if (res.statusCode === 401 || res.statusCode === 403) {
           result.errorType = 'AUTH_FAILURE'
-          let msg =
-            'Verifique as permissões da sua API Key no portal do CNJ. Acesso negado ao tribunal ' +
-            targetAlias +
-            '.'
-          try {
-            if (res.json && res.json.error && res.json.error.root_cause) {
-              const rc = res.json.error.root_cause[0]
-              if (
-                rc.reason &&
-                rc.reason.includes('unauthorized') &&
-                rc.reason.includes('indices:data/read/search')
-              ) {
-                msg = `A chave de API do DataJud não possui permissão de leitura para o tribunal selecionado (ex: ${targetAlias}). Verifique as permissões no portal do CNJ.`
-              }
-            }
-          } catch (err) {}
-          result.errorMessage = msg
+          result.errorMessage = `Erro de Autorização: A chave de API não tem permissão para acessar o tribunal ${targetAlias}. Verifique as configurações no portal do CNJ.`
+          updateTribunalStatus(targetAlias, 'unauthorized')
         } else if (res.statusCode === 404) {
           result.errorType = 'ENDPOINT_INVALID'
           result.errorMessage = 'Invalid Endpoint: Tribunal alias not recognized'
+          updateTribunalStatus(targetAlias, 'not_found')
         } else if (res.statusCode >= 300) {
           result.errorType = 'HTTP_STATUS_ERRORS'
           result.errorMessage = 'HTTP Error: ' + res.statusCode
+          updateTribunalStatus(targetAlias, 'error_' + res.statusCode)
+        } else {
+          updateTribunalStatus(targetAlias, 'ok')
         }
       } catch (err) {
         result.errorType = 'NETWORK_FAILURE'
@@ -230,6 +232,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
           record.set('distribution_date', new Date(dDate).toISOString())
         }
 
+        const oldStatus = record.get('status') || ''
         const lastSyncStr = record.get('datajud_last_sync')
         let lastSyncTime = lastSyncStr ? new Date(lastSyncStr).getTime() : 0
         let newLastSyncTime = lastSyncTime
@@ -255,12 +258,34 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
           if (movTime > newLastSyncTime) newLastSyncTime = movTime
         }
 
+        let newStatus = oldStatus
         if (latestMovDesc) {
-          record.set('status', latestMovDesc)
+          newStatus = latestMovDesc
         } else if (source.classe && source.classe.nome) {
-          record.set('status', source.classe.nome)
+          newStatus = source.classe.nome
         } else if (source.fase) {
-          record.set('status', source.fase)
+          newStatus = source.fase
+        }
+
+        record.set('status', newStatus)
+
+        if (newStatus && newStatus !== oldStatus && oldStatus !== '') {
+          try {
+            const eventsCol = $app.findCollectionByNameOrId('agenda_events')
+            const evt = new Record(eventsCol)
+            evt.set('title', 'Alteração de Fase: ' + (record.get('case_number') || ''))
+            evt.set('type', 'Task')
+            evt.set('description', 'O processo mudou de fase para: ' + newStatus)
+            evt.set('linked_lawsuit', record.id)
+            evt.set('start_date', new Date().toISOString())
+            const collab = record.get('responsible_collaborator')
+            if (collab) {
+              evt.set('collaborator', collab)
+            }
+            $app.saveNoValidate(evt)
+          } catch (err) {
+            console.log('Erro ao criar evento de agenda:', err)
+          }
         }
 
         record.set('datajud_sync_status', 'Success')

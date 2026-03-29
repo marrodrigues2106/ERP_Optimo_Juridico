@@ -97,9 +97,10 @@ export default function ProcessDetail() {
       if (
         errorMsg.includes('permissão de leitura') ||
         errorMsg.includes('unauthorized') ||
-        errorMsg.includes('403')
+        errorMsg.includes('403') ||
+        errorMsg.includes('Erro de Autorização')
       ) {
-        errorMsg = `A chave de API do DataJud não possui permissão de leitura para o tribunal selecionado (ex: ${legalCase.court_alias || 'tjrj'}). Verifique as permissões no portal do CNJ.`
+        errorMsg = `Erro de Autorização: A chave de API não tem permissão para acessar o tribunal ${legalCase.court_alias || 'selecionado'}. Verifique as configurações no portal do CNJ.`
       }
       toast({ title: 'Erro na Sincronização', description: errorMsg, variant: 'destructive' })
     } finally {

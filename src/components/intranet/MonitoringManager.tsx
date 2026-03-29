@@ -429,7 +429,32 @@ export default function MonitoringManager() {
                   </p>
                 )}
 
-                <div className="flex flex-col gap-2 pt-2 border-t">
+                {config?.datajud_tribunal_status &&
+                  Object.keys(config.datajud_tribunal_status).length > 0 && (
+                    <div className="pt-3 border-t space-y-2">
+                      <span className="text-xs font-semibold text-slate-700 block">
+                        Status por Tribunal (Última Sync)
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(config.datajud_tribunal_status).map(([alias, st]) => (
+                          <Badge
+                            key={alias}
+                            variant="outline"
+                            className={cn(
+                              'text-[10px] uppercase',
+                              st === 'ok'
+                                ? 'border-emerald-500 text-emerald-700 bg-emerald-50'
+                                : 'border-red-500 text-red-700 bg-red-50',
+                            )}
+                          >
+                            {alias}: {st as string}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                <div className="flex flex-col gap-2 pt-3 border-t">
                   <span className="text-xs font-semibold text-slate-700 mb-1">
                     Testes de Conexão
                   </span>

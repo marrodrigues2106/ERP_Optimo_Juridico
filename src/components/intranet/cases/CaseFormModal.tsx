@@ -171,9 +171,12 @@ export function CaseFormModal({
         if (errorMsg.includes('permissão de leitura para o tribunal')) {
           isPermissionError = true
         }
-      } else if (isPermissionError) {
-        errorMsg =
-          'A chave de API do DataJud não possui permissão de leitura para o tribunal selecionado (ex: tjrj). Verifique as permissões no portal do CNJ.'
+      }
+
+      if (isPermissionError || errorMsg.includes('Erro de Autorização')) {
+        const tAlias = watch('court_alias') || watch('court') || 'selecionado'
+        errorMsg = `Erro de Autorização: A chave de API não tem permissão para acessar o tribunal ${tAlias}. Verifique as configurações no portal do CNJ.`
+        isPermissionError = true
       }
 
       toast({

@@ -36,6 +36,8 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import { categorizeError, runDatajudSync } from '@/lib/datajud/sync'
 import { CaseFormModal } from './cases/CaseFormModal'
+import { Progress } from '@/components/ui/progress'
+import pb from '@/lib/pocketbase/client'
 
 export default function ProcessManager() {
   const navigate = useNavigate()
@@ -52,6 +54,9 @@ export default function ProcessManager() {
   const [editingCase, setEditingCase] = useState<any>(null)
   const [deletingCase, setDeletingCase] = useState<any>(null)
   const [syncingId, setSyncingId] = useState<string | null>(null)
+  const [isBatchSyncing, setIsBatchSyncing] = useState(false)
+  const [batchProgress, setBatchProgress] = useState(0)
+  const [batchTotal, setBatchTotal] = useState(0)
 
   const loadData = async () => {
     try {
@@ -120,6 +125,41 @@ export default function ProcessManager() {
     }
   }
 
+  const handleBatchSync = async () => {
+    const activeCases = cases.filter((c) => c.lifecycle_status === 'Ativo' && c.type === 'Processo')
+    if (activeCases.length === 0) {
+      toast({
+        title: 'Aviso',
+        description: 'Nenhum processo ativo encontrado para sincronizar.',
+        variant: 'default',
+      })
+      return
+    }
+
+    setIsBatchSyncing(true)
+    setBatchTotal(activeCases.length)
+    setBatchProgress(0)
+    let success = 0
+    let failed = 0
+
+    for (const c of activeCases) {
+      try {
+        await pb.send(`/backend/v1/datajud/background-sync/${c.id}`, { method: 'POST' })
+        success++
+      } catch (err) {
+        failed++
+      }
+      setBatchProgress((prev) => prev + 1)
+    }
+
+    toast({
+      title: 'Sincronização em Lote Concluída',
+      description: `${success} processos atualizados, ${failed} falharam.`,
+    })
+    setIsBatchSyncing(false)
+    loadData()
+  }
+
   const filteredCases = cases.filter((c) => {
     const matchSearch =
       (c.parties?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -133,10 +173,33 @@ export default function ProcessManager() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-serif font-bold text-primary">Gestão de Casos e Serviços</h2>
-        <Button onClick={() => handleOpenForm()}>
-          <Plus className="w-4 h-4 mr-2" /> Novo Registro
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={handleBatchSync} disabled={isBatchSyncing}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${isBatchSyncing ? 'animate-spin' : ''}`} />
+            {isBatchSyncing ? 'Sincronizando Lote...' : 'Sincronizar Ativos'}
+          </Button>
+          <Button onClick={() => handleOpenForm()}>
+            <Plus className="w-4 h-4 mr-2" /> Novo Registro
+          </Button>
+        </div>
       </div>
+
+      {isBatchSyncing && (
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="py-4">
+            <div className="flex justify-between text-sm font-medium mb-2 text-primary">
+              <span>Sincronizando processos ativos no DataJud...</span>
+              <span>
+                {batchProgress} de {batchTotal}
+              </span>
+            </div>
+            <Progress
+              value={batchTotal > 0 ? (batchProgress / batchTotal) * 100 : 0}
+              className="h-2"
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="flex flex-col md:flex-row justify-between md:items-center gap-4 bg-slate-50/50 border-b">

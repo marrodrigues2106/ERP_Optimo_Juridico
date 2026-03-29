@@ -12,66 +12,28 @@ export async function resolveCourtAlias(courtName: string): Promise<string> {
 }
 
 export async function runDatajudSync(caseRecord: any, onProgress: (msg: string) => void) {
-  if (!caseRecord.case_number) throw new Error('Número do processo ausente.')
+  if (!caseRecord.id) throw new Error('ID do processo ausente.')
   onProgress('Iniciando sincronização com DataJud...')
 
-  let alias = caseRecord.court_alias
-  if (!alias) {
-    alias = await resolveCourtAlias(caseRecord.court || '')
-  }
-
-  const num = String(caseRecord.case_number).replace(/\D/g, '')
-
-  onProgress(`Buscando dados no tribunal (${alias})...`)
-
-  const payload = {
-    size: 1,
-    query: { term: { 'numeroProcesso.keyword': num } },
-  }
-
-  const res = await pb.send('/backend/v1/datajud/search', {
-    method: 'POST',
-    body: JSON.stringify({ alias, payload }),
-  })
-
-  if (!res.hits?.hits || res.hits.hits.length === 0) {
-    throw new Error(`Processo não encontrado no DataJud (alias: ${alias})`)
-  }
-
-  const source = res.hits.hits[0]._source
-  const movements = source.movimentos || []
-
-  onProgress(`Encontrados ${movements.length} movimentos. Sincronizando...`)
-
-  let syncCount = 0
-  for (let i = 0; i < movements.length; i++) {
-    const mov = movements[i]
-    const extId = `datajud_${caseRecord.id}_${mov.identificadorMovimento || i}`
-
-    try {
-      await pb.collection('case_movements').create({
-        case: caseRecord.id,
-        event_date: mov.dataHora || new Date().toISOString(),
-        description: mov.nome || 'Movimentação registrada',
-        source: 'DataJud',
-        external_id: extId,
-      })
-      syncCount++
-    } catch (e: any) {
-      if (e instanceof ClientResponseError && e.status === 400) {
-        continue
-      }
+  try {
+    const res = await pb.send(`/backend/v1/datajud/background-sync/${caseRecord.id}`, {
+      method: 'POST',
+    })
+    if (res.status === 'ok') {
+      onProgress('Sincronização concluída com sucesso.')
+      return true
+    } else if (res.status === 'not_found') {
+      throw new Error('Processo não encontrado no tribunal.')
+    } else {
+      throw new Error(res.detail || 'Erro na sincronização.')
     }
+  } catch (err: any) {
+    let msg = err.message || 'Erro desconhecido'
+    if (err.response && err.response.detail) {
+      msg = err.response.detail
+    }
+    throw new Error(msg)
   }
-
-  await pb.collection('legal_cases').update(caseRecord.id, {
-    datajud_sync_status: 'Synced',
-    datajud_last_sync: new Date().toISOString(),
-    court_alias: alias,
-  })
-
-  onProgress(`Sincronização concluída com sucesso. ${syncCount} novos andamentos adicionados.`)
-  return syncCount
 }
 
 export function categorizeError(error: any) {
