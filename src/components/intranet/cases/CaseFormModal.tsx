@@ -30,6 +30,7 @@ const formSchema = z
     case_number: z.string().optional(),
     parties: z.string().min(1, 'As partes são obrigatórias'),
     court: z.string().optional(),
+    court_organ: z.string().optional(),
     status: z.string().optional(),
     lifecycle_status: z.enum(['Ativo', 'Arquivado', 'Suspenso']),
     client: z.string().optional(),
@@ -97,6 +98,7 @@ export function CaseFormModal({
           case_number: editingCase.case_number || '',
           parties: editingCase.parties || '',
           court: editingCase.court || '',
+          court_organ: editingCase.court_organ || '',
           status: editingCase.status || '',
           lifecycle_status: editingCase.lifecycle_status,
           client: editingCase.client || 'none',
@@ -105,7 +107,9 @@ export function CaseFormModal({
           subject: editingCase.metadata?.subject || '',
           action_class: editingCase.metadata?.action_class || '',
           process_type: editingCase.metadata?.process_type || '',
-          distribution_date: editingCase.metadata?.distribution_date || '',
+          distribution_date: editingCase.distribution_date
+            ? editingCase.distribution_date.substring(0, 10)
+            : editingCase.metadata?.distribution_date || '',
           court_alias: editingCase.court_alias || '',
         })
       } else {
@@ -134,10 +138,14 @@ export function CaseFormModal({
 
       if (res.success && res.data) {
         setValue('court', res.data.court || '')
+        setValue('court_organ', res.data.courtOrgan || '')
         setValue('parties', res.data.parties || '')
         setValue('subject', res.data.subject || '')
         setValue('action_class', res.data.class || '')
         setValue('process_type', res.data.processType || '')
+        if (res.data.status) {
+          setValue('status', res.data.status)
+        }
         if (res.data.distributionDate) {
           setValue('distribution_date', res.data.distributionDate.substring(0, 10))
         }
@@ -151,9 +159,10 @@ export function CaseFormModal({
         })
       }
     } catch (e: any) {
+      const errorMsg = e.response?.error || 'Não foi possível consultar o DataJud agora.'
       toast({
         title: 'Erro de conexão',
-        description: 'Não foi possível consultar o DataJud agora.',
+        description: errorMsg,
         variant: 'destructive',
       })
     } finally {
@@ -167,6 +176,7 @@ export function CaseFormModal({
       case_number: data.case_number,
       parties: data.parties,
       court: data.court,
+      court_organ: data.court_organ,
       status: data.status,
       lifecycle_status: data.lifecycle_status,
       client: !data.client || data.client === 'none' ? null : data.client,
@@ -175,12 +185,14 @@ export function CaseFormModal({
           ? null
           : data.responsible_collaborator,
       deadline: data.deadline ? new Date(data.deadline).toISOString() : null,
+      distribution_date: data.distribution_date
+        ? new Date(data.distribution_date).toISOString()
+        : null,
       court_alias: data.court_alias,
       metadata: {
         subject: data.subject,
         action_class: data.action_class,
         process_type: data.process_type,
-        distribution_date: data.distribution_date,
       },
     }
 
@@ -265,8 +277,13 @@ export function CaseFormModal({
             </div>
 
             <div className="col-span-1">
-              <Label>Tribunal / Órgão</Label>
-              <Input {...register('court')} />
+              <Label>Tribunal</Label>
+              <Input {...register('court')} placeholder="Ex: TJ-SP" />
+            </div>
+
+            <div className="col-span-1">
+              <Label>Órgão Julgador</Label>
+              <Input {...register('court_organ')} placeholder="Ex: 1ª Vara Cível" />
             </div>
 
             <div className="col-span-1">

@@ -52,10 +52,16 @@ routerAdd(
     }
 
     const targetAlias = body.alias || alias
-    const apiKey = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
+    const apiKey = $secrets.get('DATAJUD_API_KEY') || ''
     const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${targetAlias}/_search`
 
     try {
+      if (!apiKey) {
+        return e.json(500, {
+          error: 'A Chave da API do DataJud não está configurada no servidor (Secrets).',
+        })
+      }
+
       const res = $http.send({
         url: url,
         method: 'POST',
@@ -71,9 +77,9 @@ routerAdd(
 
       if (res.statusCode >= 400) {
         if (res.statusCode === 401 || res.statusCode === 403) {
-          return e.json(401, { error: 'Authentication Error: Invalid API Key' })
+          return e.json(403, { error: 'Verifique as permissões da sua API Key no portal do CNJ.' })
         }
-        return e.json(res.statusCode, { error: 'DataJud HTTP Error' })
+        return e.json(res.statusCode, { error: 'DataJud HTTP Error: ' + res.statusCode })
       }
 
       const hits = res.json?.hits?.hits || []
@@ -95,16 +101,28 @@ routerAdd(
         partiesStr = `${aName} x ${pName}`
       }
 
+      let statusStr = source.classe?.nome || ''
+      if (source.movimentos && source.movimentos.length > 0) {
+        const sortedMovs = source.movimentos.sort((a, b) => {
+          const tA = new Date(a.dataHora || 0).getTime()
+          const tB = new Date(b.dataHora || 0).getTime()
+          return tB - tA
+        })
+        statusStr = sortedMovs[0].nome || sortedMovs[0].descricao || statusStr
+      }
+
       return e.json(200, {
         success: true,
         data: {
-          court: source.orgaoJulgador?.nomeOrgao || '',
+          court: source.tribunal?.nome || targetAlias,
+          courtOrgan: source.orgaoJulgador?.nomeOrgao || '',
           class: source.classe?.nome || '',
           subject: source.assuntos?.[0]?.nome || '',
           parties: partiesStr,
           alias: targetAlias,
           processType: source.formato?.nome || 'Digital',
-          distributionDate: source.dataAjuizamento || '',
+          distributionDate: source.dataAjuizamento || source.dataHora || '',
+          status: statusStr,
         },
       })
     } catch (err) {
