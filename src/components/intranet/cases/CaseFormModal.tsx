@@ -149,7 +149,9 @@ export function CaseFormModal({
         if (res.data.distributionDate) {
           try {
             setValue('distribution_date', res.data.distributionDate.substring(0, 10))
-          } catch (err) {}
+          } catch (err) {
+            // Ignorar se a data estiver mal formatada
+          }
         }
         if (res.data.alias) setValue('court_alias', res.data.alias)
         toast({ title: 'Sucesso', description: 'Dados preenchidos via DataJud.' })
