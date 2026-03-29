@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-29T06:24:18.269Z",
+  "generatedAt": "2026-03-29T06:33:20.281Z",
   "collections": [
     {
       "name": "users",
@@ -1133,6 +1133,25 @@
         {
           "name": "tags",
           "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "estimated_duration",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "duration_unit",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["semanas", "meses"]
+        },
+        {
+          "name": "allocated_fixed_cost",
+          "type": "number",
           "required": false,
           "system": false
         }

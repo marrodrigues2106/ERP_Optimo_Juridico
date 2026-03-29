@@ -92,7 +92,7 @@ export default function Layout() {
               <FileText className="w-4 h-4" /> Financeiro
             </Link>
             <Link
-              to="/intranet/diarios"
+              to="/intranet/diarios-oficiais"
               className="flex items-center gap-2 text-amber-400 hover:text-amber-300 transition-colors"
             >
               <BookOpen className="w-4 h-4" /> Diários Oficiais

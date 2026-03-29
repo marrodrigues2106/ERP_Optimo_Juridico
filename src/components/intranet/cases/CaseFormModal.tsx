@@ -42,6 +42,9 @@ const formSchema = z
     distribution_date: z.string().optional(),
     court_alias: z.string().optional(),
     tags: z.string().optional(),
+    estimated_duration: z.coerce.number().min(0).optional(),
+    duration_unit: z.enum(['semanas', 'meses']).optional(),
+    allocated_fixed_cost: z.coerce.number().min(0).optional(),
   })
   .refine(
     (data) => {
@@ -113,9 +116,19 @@ export function CaseFormModal({
             : editingCase.metadata?.distribution_date || '',
           court_alias: editingCase.court_alias || '',
           tags: Array.isArray(editingCase.tags) ? editingCase.tags.join(', ') : '',
+          estimated_duration: editingCase.estimated_duration || 0,
+          duration_unit: editingCase.duration_unit || 'meses',
+          allocated_fixed_cost: editingCase.allocated_fixed_cost || 0,
         })
       } else {
-        reset({ type: 'Processo', lifecycle_status: 'Ativo', tags: '' })
+        reset({
+          type: 'Processo',
+          lifecycle_status: 'Ativo',
+          tags: '',
+          estimated_duration: 0,
+          duration_unit: 'meses',
+          allocated_fixed_cost: 0,
+        })
       }
     }
   }, [open, editingCase, reset])
@@ -216,6 +229,9 @@ export function CaseFormModal({
             .map((t) => t.trim())
             .filter(Boolean)
         : [],
+      estimated_duration: data.estimated_duration,
+      duration_unit: data.duration_unit,
+      allocated_fixed_cost: data.allocated_fixed_cost,
       metadata: {
         subject: data.subject,
         action_class: data.action_class,
@@ -423,6 +439,48 @@ export function CaseFormModal({
             <div className="col-span-1 md:col-span-2">
               <Label>Prazo / Alerta Principal</Label>
               <Input type="date" {...register('deadline')} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
+            <div className="col-span-1 md:col-span-3">
+              <h4 className="font-semibold text-sm text-slate-800">Estimativa de Prazo</h4>
+            </div>
+            <div className="col-span-1">
+              <Label>Duração do Trabalho</Label>
+              <Input
+                type="number"
+                step="0.1"
+                {...register('estimated_duration')}
+                placeholder="Ex: 6"
+              />
+            </div>
+            <div className="col-span-1">
+              <Label>Unidade</Label>
+              <Controller
+                name="duration_unit"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value || 'meses'}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="semanas">Semanas</SelectItem>
+                      <SelectItem value="meses">Meses</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+            <div className="col-span-1">
+              <Label>Custo Fixo Alocado (Mensal)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                {...register('allocated_fixed_cost')}
+                placeholder="R$ 0,00"
+              />
             </div>
           </div>
 

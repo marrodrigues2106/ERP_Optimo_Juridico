@@ -27,6 +27,8 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
 
+  const selectedCaseInfo = cases.find((c: any) => c.id === caseId)
+
   useEffect(() => {
     if (open && caseId) {
       getFinancesByLawsuit(caseId)
@@ -40,6 +42,15 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
     }
   }, [open, caseId])
 
+  const duration = selectedCaseInfo?.estimated_duration || 0
+  const unit = selectedCaseInfo?.duration_unit || 'meses'
+  const fixedCostMonthly = selectedCaseInfo?.allocated_fixed_cost || 0
+
+  const durationInMonths = unit === 'semanas' ? duration / 4 : duration
+  const totalFixedCost = fixedCostMonthly * durationInMonths
+  const totalCost = expenses + totalFixedCost
+  const estimatedValue = totalCost * (1 + margin / 100)
+
   const handleCalculate = async () => {
     if (!caseId) {
       toast({ title: 'Selecione um processo', variant: 'destructive' })
@@ -47,14 +58,13 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
     }
     setLoading(true)
     try {
-      const estimated = expenses * (1 + margin / 100)
-      const selectedCase = cases.find((c: any) => c.id === caseId)
+      const selectedCase = selectedCaseInfo
       const caseName = selectedCase?.case_number || selectedCase?.parties || 'Processo'
 
       await createFinance({
         type: 'inflow',
         description: `Honorários Estimados - ${caseName}`,
-        amount: estimated,
+        amount: estimatedValue,
         status: 'estimado',
         linked_lawsuit: caseId,
         margin_applied: margin,
@@ -71,8 +81,6 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
       setLoading(false)
     }
   }
-
-  const estimatedValue = expenses * (1 + margin / 100)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -105,24 +113,38 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 bg-slate-50 border rounded-lg">
-              <Label className="text-slate-500">Custo Total Identificado</Label>
-              <p className="text-xl font-bold text-red-600 mt-1">R$ {expenses.toFixed(2)}</p>
+            <div className="p-3 bg-slate-50 border rounded-lg">
+              <Label className="text-slate-500 text-xs uppercase">
+                Previsão de duração do trabalho
+              </Label>
+              <p className="text-lg font-bold text-slate-800 mt-1">
+                {duration} {unit}
+              </p>
+            </div>
+            <div className="p-3 bg-slate-50 border rounded-lg">
+              <Label className="text-slate-500 text-xs uppercase">Custos Fixos</Label>
+              <p className="text-lg font-bold text-red-600 mt-1">R$ {totalFixedCost.toFixed(2)}</p>
+            </div>
+            <div className="p-3 bg-slate-50 border rounded-lg">
+              <Label className="text-slate-500 text-xs uppercase">Despesas Variáveis</Label>
+              <p className="text-lg font-bold text-red-600 mt-1">R$ {expenses.toFixed(2)}</p>
             </div>
             <div>
-              <Label>Margem / Lucro (%)</Label>
+              <Label className="text-xs uppercase text-slate-500">Margem de Lucro (%)</Label>
               <Input
                 type="number"
                 value={margin}
                 onChange={(e) => setMargin(Number(e.target.value))}
                 min="0"
-                className="mt-1 text-lg font-medium"
+                className="mt-1 text-lg font-medium h-10"
               />
             </div>
           </div>
 
           <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
-            <Label className="text-primary/70">Honorários Sugeridos</Label>
+            <Label className="text-primary/70 uppercase text-xs font-bold tracking-wider">
+              Estimativa de Honorários
+            </Label>
             <p className="text-3xl font-black text-primary mt-1">R$ {estimatedValue.toFixed(2)}</p>
           </div>
         </div>

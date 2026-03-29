@@ -25,6 +25,7 @@ import {
   Calendar,
   Activity,
   BellRing,
+  Search,
 } from 'lucide-react'
 
 export default function Intranet() {
@@ -47,6 +48,12 @@ export default function Intranet() {
       id: 'publicacoes',
       label: 'Publicações & Mailbox',
       icon: BellRing,
+      show: perms.canViewProcesses,
+    },
+    {
+      id: 'diarios-oficiais',
+      label: 'Diários Oficiais',
+      icon: Search,
       show: perms.canViewProcesses,
     },
     {
