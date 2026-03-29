@@ -175,9 +175,9 @@ export default function ProcessManager() {
     if (confirm('Tem certeza que deseja excluir?')) {
       try {
         await deleteLawsuit(id)
+        setProcesses((prev) => prev.filter((p) => p.id !== id))
         toast({ title: 'Registro excluído com sucesso' })
-        loadData()
-      } catch (error) {
+      } catch (error: any) {
         toast({
           title: 'Erro ao excluir',
           description: getErrorMessage(error),
