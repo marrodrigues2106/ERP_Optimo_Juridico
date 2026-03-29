@@ -34,7 +34,7 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 223 38% 16%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
   }
 
   html {
@@ -47,6 +47,10 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  :root {
+    --radius: 0.75rem; /* Smoother border radius for modern look */
   }
 
   h1,

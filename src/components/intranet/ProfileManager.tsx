@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/use-auth'
 import pb from '@/lib/pocketbase/client'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
 import { useToast } from '@/hooks/use-toast'
-import { Camera, Building2 } from 'lucide-react'
+import { Camera, Building2, Plus } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import MonitoringManager from './MonitoringManager'
 
@@ -56,6 +56,29 @@ export default function ProfileManager() {
     }
   }
 
+  const [orgs, setOrgs] = useState<any[]>([])
+  const [isCreatingOrg, setIsCreatingOrg] = useState(false)
+  const [newOrgName, setNewOrgName] = useState('')
+
+  useEffect(() => {
+    const fetchOrgs = async () => {
+      try {
+        if (user?.organizations && user.organizations.length > 0) {
+          const orgList = await pb.collection('organizations').getFullList({
+            filter: user.organizations.map((id: string) => `id="${id}"`).join(' || '),
+          })
+          setOrgs(orgList)
+        } else if (user?.active_organization) {
+          const activeOrg = await pb.collection('organizations').getOne(user.active_organization)
+          setOrgs([activeOrg])
+        }
+      } catch (err) {
+        console.error('Error fetching orgs', err)
+      }
+    }
+    fetchOrgs()
+  }, [user])
+
   const handleOrgSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!org) return
@@ -69,6 +92,35 @@ export default function ProfileManager() {
       window.location.reload()
     } catch (err) {
       toast({ title: 'Erro ao atualizar organização', variant: 'destructive' })
+    }
+  }
+
+  const handleCreateOrg = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newOrgName) return
+    try {
+      const newOrg = await pb.collection('organizations').create({ name: newOrgName })
+      await pb.collection('users').update(user.id, {
+        'organizations+': newOrg.id,
+        active_organization: newOrg.id,
+      })
+      toast({ title: 'Organização criada com sucesso!' })
+      window.location.reload()
+    } catch (err) {
+      toast({ title: 'Erro ao criar organização', variant: 'destructive' })
+    }
+  }
+
+  const handleSwitchOrg = async (orgId: string) => {
+    if (orgId === user.active_organization) return
+    try {
+      await pb.collection('users').update(user.id, {
+        active_organization: orgId,
+      })
+      toast({ title: 'Organização alterada com sucesso!' })
+      window.location.reload()
+    } catch (err) {
+      toast({ title: 'Erro ao alterar organização', variant: 'destructive' })
     }
   }
 
@@ -249,70 +301,154 @@ export default function ProfileManager() {
       </TabsContent>
 
       <TabsContent value="organizacao">
-        <Card className="max-w-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-primary" />
-              Dados da Organização
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {org ? (
-              <form onSubmit={handleOrgSubmit} className="space-y-6">
-                <div className="flex flex-col items-center gap-4">
-                  <Label>Logotipo do Escritório</Label>
-                  <div
-                    className="relative group cursor-pointer"
-                    onClick={() => orgLogoRef.current?.click()}
-                  >
-                    <div className="w-32 h-32 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center bg-slate-50 overflow-hidden">
-                      {orgLogoPreview ? (
-                        <img
-                          src={orgLogoPreview}
-                          alt="Logo"
-                          className="w-full h-full object-contain"
-                        />
-                      ) : (
-                        <Building2 className="w-10 h-10 text-slate-300" />
-                      )}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-primary" />
+                Dados da Organização Ativa
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {org ? (
+                <form onSubmit={handleOrgSubmit} className="space-y-6">
+                  <div className="flex flex-col items-center gap-4">
+                    <Label>Logotipo do Escritório</Label>
+                    <div
+                      className="relative group cursor-pointer"
+                      onClick={() => orgLogoRef.current?.click()}
+                    >
+                      <div className="w-32 h-32 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center bg-slate-50 overflow-hidden">
+                        {orgLogoPreview ? (
+                          <img
+                            src={orgLogoPreview}
+                            alt="Logo"
+                            className="w-full h-full object-contain"
+                          />
+                        ) : (
+                          <Building2 className="w-10 h-10 text-slate-300" />
+                        )}
+                      </div>
+                      <div className="absolute inset-0 bg-black/40 text-white rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <Camera className="w-6 h-6" />
+                      </div>
+                      <input
+                        type="file"
+                        ref={orgLogoRef}
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleOrgLogoChange}
+                      />
                     </div>
-                    <div className="absolute inset-0 bg-black/40 text-white rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                      <Camera className="w-6 h-6" />
-                    </div>
-                    <input
-                      type="file"
-                      ref={orgLogoRef}
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleOrgLogoChange}
+                    <p className="text-xs text-muted-foreground text-center">
+                      Recomendado: Imagem PNG ou SVG com fundo transparente.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="orgName">Nome da Organização</Label>
+                    <Input
+                      id="orgName"
+                      value={orgName}
+                      onChange={(e) => setOrgName(e.target.value)}
+                      required
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground text-center">
-                    Recomendado: Imagem PNG ou SVG com fundo transparente.
-                  </p>
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="orgName">Nome da Organização</Label>
-                  <Input
-                    id="orgName"
-                    value={orgName}
-                    onChange={(e) => setOrgName(e.target.value)}
-                    required
-                  />
+                  <Button type="submit" className="w-full">
+                    Salvar Organização
+                  </Button>
+                </form>
+              ) : (
+                <div className="text-center py-8 text-slate-500">
+                  Nenhuma organização ativa encontrada.
                 </div>
+              )}
+            </CardContent>
+          </Card>
 
-                <Button type="submit" className="w-full">
-                  Salvar Organização
-                </Button>
-              </form>
-            ) : (
-              <div className="text-center py-8 text-slate-500">
-                Nenhuma organização ativa encontrada.
+          <Card>
+            <CardHeader>
+              <CardTitle>Minhas Organizações</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-3">
+                <Label>Alternar Organização Ativa</Label>
+                <div className="flex flex-col gap-3">
+                  {orgs.map((o) => (
+                    <div
+                      key={o.id}
+                      className={`flex items-center justify-between p-4 rounded-xl border transition-all ${o.id === user.active_organization ? 'border-primary bg-primary/5 shadow-sm' : 'border-slate-200 bg-white hover:border-primary/30 hover:bg-slate-50/50'}`}
+                    >
+                      <span className="font-medium text-base text-slate-800">{o.name}</span>
+                      {o.id === user.active_organization ? (
+                        <span className="text-xs font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-md uppercase tracking-wider">
+                          Ativa
+                        </span>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleSwitchOrg(o.id)}
+                          className="h-8 text-xs font-medium"
+                        >
+                          Trocar
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  {orgs.length === 0 && (
+                    <p className="text-sm text-slate-500">Nenhuma organização associada.</p>
+                  )}
+                </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+
+              {['admin', 'manager'].includes(user?.role) && (
+                <div className="pt-6 mt-6 border-t border-slate-100">
+                  {!isCreatingOrg ? (
+                    <Button
+                      variant="outline"
+                      className="w-full py-6 border-dashed"
+                      onClick={() => setIsCreatingOrg(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-2" /> Criar Nova Organização
+                    </Button>
+                  ) : (
+                    <form
+                      onSubmit={handleCreateOrg}
+                      className="space-y-5 bg-slate-50 p-5 rounded-xl border border-slate-100"
+                    >
+                      <div className="space-y-3">
+                        <Label htmlFor="newOrgName">Nome da Nova Organização</Label>
+                        <Input
+                          id="newOrgName"
+                          value={newOrgName}
+                          onChange={(e) => setNewOrgName(e.target.value)}
+                          placeholder="Ex: Novo Escritório"
+                          required
+                          className="bg-white"
+                        />
+                      </div>
+                      <div className="flex gap-3">
+                        <Button type="submit" className="w-full">
+                          Criar
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="w-full"
+                          onClick={() => setIsCreatingOrg(false)}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </TabsContent>
     </Tabs>
   )

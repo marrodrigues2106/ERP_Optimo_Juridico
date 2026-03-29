@@ -70,9 +70,9 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-140px)] -m-4 lg:-m-6 bg-white text-slate-800 font-sans">
+    <div className="flex h-[calc(100vh-80px)] -m-4 lg:-m-8 bg-white text-slate-800 font-sans shadow-sm rounded-xl overflow-hidden border border-slate-200/60">
       {/* Left Sidebar Filters */}
-      <div className="w-64 border-r border-slate-200 p-6 flex flex-col gap-6 shrink-0 hidden xl:flex bg-white">
+      <div className="w-72 border-r border-slate-200 p-8 flex flex-col gap-8 shrink-0 hidden xl:flex bg-slate-50/50">
         <h2 className="text-lg font-bold tracking-tight text-slate-800 uppercase">VISÃO GERAL</h2>
 
         <div>
@@ -104,24 +104,24 @@ export default function Dashboard() {
       </div>
 
       {/* Center Feed */}
-      <div className="flex-1 p-6 overflow-auto bg-[#F9FAFB]">
-        <Tabs defaultValue="hoje" className="w-full">
-          <TabsList className="bg-transparent border-b border-slate-200 w-full justify-start rounded-none p-0 h-auto">
+      <div className="flex-1 p-8 md:p-12 overflow-auto bg-white">
+        <Tabs defaultValue="hoje" className="w-full max-w-4xl mx-auto">
+          <TabsList className="bg-transparent border-b border-slate-200 w-full justify-start rounded-none p-0 h-auto mb-8">
             <TabsTrigger
               value="hoje"
-              className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-blue-600 rounded-none px-6 py-3 font-semibold text-slate-500"
+              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-2 pb-4 text-lg font-serif font-bold text-slate-500 transition-colors"
             >
-              Visão Geral
+              Visão Geral do Dia
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="hoje" className="pt-6 outline-none">
-            <div className="flex items-center gap-2 mb-4 text-slate-800 font-medium">
-              <Bell className="w-5 h-5 text-blue-600" />
+          <TabsContent value="hoje" className="outline-none space-y-8">
+            <div className="flex items-center gap-3 text-slate-800 font-semibold text-lg border-l-4 border-primary pl-3">
+              <Bell className="w-5 h-5 text-primary" />
               Publicações e Andamentos não lidos
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-5">
               {publications.length === 0 ? (
                 <div className="text-center py-12 text-slate-400 border border-dashed rounded-lg bg-white">
                   <Activity className="w-8 h-8 mx-auto mb-3 opacity-50" />
@@ -145,7 +145,7 @@ export default function Dashboard() {
       </div>
 
       {/* Right Column - Agenda & Tasks */}
-      <div className="w-80 border-l border-slate-200 p-6 flex flex-col gap-8 shrink-0 bg-white overflow-y-auto hidden md:flex">
+      <div className="w-96 border-l border-slate-200 p-8 flex flex-col gap-10 shrink-0 bg-slate-50/50 overflow-y-auto hidden md:flex">
         {/* Date Display */}
         <div className="flex items-center justify-between">
           <div className="flex items-baseline gap-2">

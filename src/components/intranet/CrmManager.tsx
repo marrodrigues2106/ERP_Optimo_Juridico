@@ -21,16 +21,23 @@ export default function CrmManager() {
 
   return (
     <div
-      className={`space-y-6 animate-fade-in-up transition-all ${isFullscreen ? 'fixed inset-0 z-50 bg-slate-50 p-6 overflow-auto' : ''}`}
+      className={`space-y-8 animate-fade-in-up transition-all ${isFullscreen ? 'fixed inset-0 z-50 bg-slate-50 p-8 overflow-auto' : ''}`}
     >
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b pb-4">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-end gap-4 border-b border-slate-200 pb-6">
         <div>
-          <h2 className="text-2xl font-serif font-bold text-primary">CRM & Relacionamento</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Gestão de clientes, funil de vendas, templates e produtividade
+          <h2 className="text-3xl font-serif font-bold text-primary tracking-tight">
+            CRM & Relacionamento
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Gestão de clientes, funil de vendas, templates e produtividade.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={toggleFullscreen}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={toggleFullscreen}
+          className="bg-white shadow-sm"
+        >
           {isFullscreen ? (
             <Minimize2 className="w-4 h-4 mr-2" />
           ) : (
@@ -41,14 +48,23 @@ export default function CrmManager() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="mb-4 flex-wrap">
-          <TabsTrigger value="contacts" className="flex items-center gap-2">
+        <TabsList className="flex w-full justify-start max-w-none bg-transparent p-0 border-b border-slate-200 rounded-none h-auto mb-8 gap-6">
+          <TabsTrigger
+            value="contacts"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-2 pb-3 text-sm font-semibold flex items-center gap-2 transition-colors"
+          >
             <Users className="w-4 h-4" /> Contatos & Funil
           </TabsTrigger>
-          <TabsTrigger value="productivity" className="flex items-center gap-2">
+          <TabsTrigger
+            value="productivity"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-2 pb-3 text-sm font-semibold flex items-center gap-2 transition-colors"
+          >
             <BarChart3 className="w-4 h-4" /> Produtividade
           </TabsTrigger>
-          <TabsTrigger value="templates" className="flex items-center gap-2">
+          <TabsTrigger
+            value="templates"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-2 pb-3 text-sm font-semibold flex items-center gap-2 transition-colors"
+          >
             <Mail className="w-4 h-4" /> Templates de Email
           </TabsTrigger>
         </TabsList>

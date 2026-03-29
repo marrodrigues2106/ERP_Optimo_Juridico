@@ -130,28 +130,28 @@ export function IntranetSidebar() {
       collapsible="icon"
       className="border-r border-slate-200 bg-slate-50 mt-[60px] lg:mt-0 z-40"
     >
-      <SidebarHeader className="p-4 border-b border-slate-200 bg-white flex flex-row items-center justify-between">
-        <Link to="/intranet/dashboard" className="flex items-center gap-3 overflow-hidden">
+      <SidebarHeader className="p-6 border-b border-slate-200 bg-white flex flex-row items-center justify-center lg:justify-start">
+        <Link
+          to="/intranet/dashboard"
+          className="flex items-center gap-4 overflow-hidden w-full transition-all"
+        >
           {org?.logo ? (
             <img
               src={pb.files.getURL(org, org.logo)}
               alt="Logo"
-              className="h-8 w-auto object-contain shrink-0"
+              className="h-10 w-auto object-contain shrink-0"
             />
           ) : (
-            <div className="w-8 h-8 bg-slate-900 rounded flex items-center justify-center text-white font-serif font-bold text-lg shrink-0">
+            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white font-serif font-bold text-xl shrink-0 shadow-sm">
               {org?.name ? org.name.substring(0, 2).toUpperCase() : 'MR'}
             </div>
           )}
           {state !== 'collapsed' && (
-            <span className="font-semibold text-slate-800 tracking-tight leading-none truncate">
+            <span className="font-semibold text-slate-800 tracking-tight leading-tight truncate">
               {org?.name || 'Escritório'}
-              <br />
-              Online
             </span>
           )}
         </Link>
-        <SidebarTrigger className="hidden lg:flex" />
       </SidebarHeader>
 
       <SidebarContent className="p-3">

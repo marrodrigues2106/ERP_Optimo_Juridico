@@ -174,11 +174,22 @@ export default function FinanceManager() {
   )
 
   return (
-    <div className="space-y-6 pb-12">
-      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 border-b pb-4">
-        <h2 className="text-2xl font-serif font-bold text-primary">Gestão Financeira</h2>
+    <div className="space-y-8 pb-12">
+      <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 border-b border-slate-200 pb-6">
+        <div>
+          <h2 className="text-3xl font-serif font-bold text-primary tracking-tight">
+            Gestão Financeira
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Acompanhe fluxo de caixa, rentabilidade e custos dos processos.
+          </p>
+        </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="secondary" onClick={() => setFeeModalOpen(true)}>
+          <Button
+            variant="outline"
+            onClick={() => setFeeModalOpen(true)}
+            className="shadow-sm bg-white"
+          >
             <Calculator className="w-4 h-4 mr-2" /> Precificação e Custos
           </Button>
           <Button
@@ -186,6 +197,7 @@ export default function FinanceManager() {
               setEditingItem(null)
               setFormOpen(true)
             }}
+            className="shadow-sm"
           >
             <Plus className="w-4 h-4 mr-2" /> Nova Transação
           </Button>
@@ -193,12 +205,22 @@ export default function FinanceManager() {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
-          <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-          <TabsTrigger value="profit">Dashboard de Rentabilidade</TabsTrigger>
+        <TabsList className="flex w-full justify-start max-w-none bg-transparent p-0 border-b border-slate-200 rounded-none h-auto mb-6">
+          <TabsTrigger
+            value="overview"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-6 pb-3 text-sm font-semibold transition-colors"
+          >
+            Visão Geral e Fluxo de Caixa
+          </TabsTrigger>
+          <TabsTrigger
+            value="profit"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-6 pb-3 text-sm font-semibold transition-colors"
+          >
+            Dashboard de Rentabilidade
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="mt-6 space-y-6">
+        <TabsContent value="overview" className="mt-8 space-y-8 outline-none">
           <div className="flex flex-col md:flex-row gap-4 mb-4 items-center">
             <Select value={lawsuitFilter} onValueChange={setLawsuitFilter}>
               <SelectTrigger className="w-full md:w-[300px] bg-white">

@@ -198,23 +198,35 @@ export default function ProcessManager() {
   })
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-serif font-bold text-primary">Gestão de Casos e Serviços</h2>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={handleBatchSync} disabled={isBatchSyncing}>
+    <div className="space-y-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-6">
+        <div>
+          <h2 className="text-3xl font-serif font-bold text-primary tracking-tight">
+            Gestão de Casos e Serviços
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Acompanhe todos os seus processos, prazos e serviços jurídicos.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Button
+            variant="outline"
+            onClick={handleBatchSync}
+            disabled={isBatchSyncing}
+            className="shadow-sm"
+          >
             <RefreshCw className={`w-4 h-4 mr-2 ${isBatchSyncing ? 'animate-spin' : ''}`} />
-            {isBatchSyncing ? 'Sincronizando Lote...' : 'Sincronizar Ativos'}
+            {isBatchSyncing ? 'Sincronizando...' : 'Sincronizar DataJud'}
           </Button>
-          <Button onClick={() => handleOpenForm()}>
+          <Button onClick={() => handleOpenForm()} className="shadow-sm">
             <Plus className="w-4 h-4 mr-2" /> Novo Registro
           </Button>
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-6 items-start">
+      <div className="flex flex-col xl:flex-row gap-8 items-start">
         {/* Sidebar */}
-        <Card className="w-full md:w-64 shrink-0 md:sticky md:top-6">
+        <Card className="w-full xl:w-72 shrink-0 xl:sticky xl:top-6 border-none shadow-none bg-slate-50/50">
           <CardHeader className="pb-3 border-b">
             <CardTitle className="text-sm">Filtros Avançados</CardTitle>
           </CardHeader>
@@ -307,20 +319,20 @@ export default function ProcessManager() {
             </Card>
           )}
 
-          <Card>
-            <CardHeader className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-slate-50/50 border-b pb-4">
-              <CardTitle className="text-lg">Portfólio</CardTitle>
-              <div className="relative w-full sm:w-72">
+          <Card className="overflow-hidden border-slate-200/60 shadow-sm">
+            <CardHeader className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white border-b border-slate-100 py-5">
+              <CardTitle className="text-xl font-serif">Portfólio Ativo</CardTitle>
+              <div className="relative w-full sm:w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
-                  placeholder="Buscar por partes ou número..."
+                  placeholder="Buscar por partes ou número do processo..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 bg-slate-50 border-transparent focus-visible:bg-white transition-colors"
                 />
               </div>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="p-0 bg-white">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -357,23 +369,25 @@ export default function ProcessManager() {
                           </button>
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium text-slate-800 line-clamp-1">{c.parties}</div>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="font-semibold text-slate-900 line-clamp-1 text-base leading-snug">
+                            {c.parties}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
                             <span
-                              className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${c.type === 'Serviço Jurídico' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}
+                              className={`text-[11px] uppercase font-bold px-2 py-0.5 rounded-md tracking-wide ${c.type === 'Serviço Jurídico' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}
                             >
                               {c.type}
                             </span>
-                            <span className="text-xs text-slate-500">
+                            <span className="text-sm font-medium text-slate-500 font-mono">
                               {c.case_number || 'Sem número'}
                             </span>
                           </div>
                           {Array.isArray(c.tags) && c.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1.5">
+                            <div className="flex flex-wrap gap-1.5 mt-2.5">
                               {c.tags.map((t: string) => (
                                 <span
                                   key={t}
-                                  className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-sm border border-slate-200"
+                                  className="text-[10px] bg-slate-50 text-slate-600 px-2 py-1 rounded-md border border-slate-200 font-medium"
                                 >
                                   {t}
                                 </span>
