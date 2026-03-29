@@ -48,7 +48,9 @@ export function IntranetSidebar() {
       pb.collection('organizations')
         .getOne(user.active_organization)
         .then(setOrg)
-        .catch(() => {})
+        .catch(() => {
+          // ignore
+        })
     }
   }, [user?.active_organization])
 

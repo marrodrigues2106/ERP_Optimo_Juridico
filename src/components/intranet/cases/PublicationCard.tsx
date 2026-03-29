@@ -20,7 +20,9 @@ export function PublicationCard({ item, onClick, showActions }: PublicationCardP
       if (parsed.complementosTabelados && Array.isArray(parsed.complementosTabelados)) {
         text = parsed.complementosTabelados.map((c: any) => `${c.nome}: ${c.valor}`).join(' • ')
       }
-    } catch (e) {}
+    } catch (e) {
+      // ignore parse errors
+    }
   }
 
   return (
