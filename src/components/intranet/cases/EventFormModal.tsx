@@ -36,7 +36,7 @@ type EventFormValues = z.infer<typeof formSchema>
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  lawsuitId: string
+  lawsuitId?: string
   prefilledDescription?: string
   onSuccess: () => void
 }
@@ -89,7 +89,7 @@ export function EventFormModal({
         type: data.type,
         start_date: new Date(data.start_date).toISOString(),
         collaborator: !data.collaborator || data.collaborator === 'none' ? null : data.collaborator,
-        linked_lawsuit: lawsuitId,
+        linked_lawsuit: lawsuitId || null,
       })
       toast({ title: 'Evento criado com sucesso' })
       onSuccess()

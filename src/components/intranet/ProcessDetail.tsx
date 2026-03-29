@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getLegalCase, updateLegalCase, getLegalCases } from '@/services/legal_cases'
-import { getFinancesByLawsuit, deleteFinance } from '@/services/finances'
-import { getCaseEstimates } from '@/services/case_estimates'
-import { FeeEstimatorModal } from './finances/FeeEstimatorModal'
-import { getCaseMovements, createCaseMovement } from '@/services/case_movements'
+import { getFinancesByLawsuit } from '@/services/finances'
+import { getPaginatedCaseMovements, createCaseMovement } from '@/services/case_movements'
 import { getAgendaEventsByLawsuit } from '@/services/agenda'
 import { getTasksByLawsuit, createTask, updateTask } from '@/services/tasks'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -14,8 +12,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import {
   Select,
   SelectContent,
@@ -23,34 +19,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   ArrowLeft,
   Briefcase,
   User,
-  Edit3,
   Plus,
   RefreshCw,
   Clock,
-  Calendar,
   Bell,
-  AlignLeft,
-  ChevronDown,
   Link as LinkIcon,
   X,
-  AlertTriangle,
-  History,
+  FileText,
+  MessageSquare,
+  Scale,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  DollarSign,
 } from 'lucide-react'
 import { EventFormModal } from './cases/EventFormModal'
 import { runDatajudSync } from '@/lib/datajud/sync'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
 export default function ProcessDetail() {
   const { id } = useParams()
@@ -59,31 +50,32 @@ export default function ProcessDetail() {
   const { user } = useAuth()
 
   const [legalCase, setLegalCase] = useState<any>(null)
+
+  // Pagination State
   const [movements, setMovements] = useState<any[]>([])
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(20)
+  const [totalMovements, setTotalMovements] = useState(0)
+
   const [events, setEvents] = useState<any[]>([])
   const [tasks, setTasks] = useState<any[]>([])
+  const [processFinances, setProcessFinances] = useState<any[]>([])
+  const [allCases, setAllCases] = useState<any[]>([])
+
   const [loading, setLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
-
   const [eventModalOpen, setEventModalOpen] = useState(false)
   const [prefilledDescription, setPrefilledDescription] = useState('')
-  const [feeModalOpen, setFeeModalOpen] = useState(false)
-  const [processFinances, setProcessFinances] = useState<any[]>([])
-  const [estimatesHistory, setEstimatesHistory] = useState<any[]>([])
-
-  const [allCases, setAllCases] = useState<any[]>([])
   const [selectedRelatedCase, setSelectedRelatedCase] = useState<string>('')
   const [newTaskTitle, setNewTaskTitle] = useState('')
 
-  const loadData = async () => {
+  const loadBaseData = async () => {
     if (!id) return
     try {
       setLegalCase(await getLegalCase(id))
-      setMovements(await getCaseMovements(id))
       setEvents(await getAgendaEventsByLawsuit(id))
       setTasks(await getTasksByLawsuit(id))
       setProcessFinances(await getFinancesByLawsuit(id))
-      setEstimatesHistory(await getCaseEstimates(id))
       const all = await getLegalCases()
       setAllCases(all.filter((c) => c.id !== id))
     } catch (e) {
@@ -94,16 +86,30 @@ export default function ProcessDetail() {
     }
   }
 
+  const loadMovements = async () => {
+    if (!id) return
+    try {
+      const res = await getPaginatedCaseMovements(id, page, perPage)
+      setMovements(res.items)
+      setTotalMovements(res.totalItems)
+    } catch (e) {
+      console.error('Error loading movements', e)
+    }
+  }
+
   useEffect(() => {
-    loadData()
+    loadBaseData()
   }, [id])
 
-  useRealtime('legal_cases', loadData)
-  useRealtime('case_movements', loadData)
-  useRealtime('agenda_events', loadData)
-  useRealtime('tasks', loadData)
-  useRealtime('finances', loadData)
-  useRealtime('case_estimates', loadData)
+  useEffect(() => {
+    loadMovements()
+  }, [id, page, perPage])
+
+  useRealtime('legal_cases', loadBaseData)
+  useRealtime('case_movements', loadMovements)
+  useRealtime('agenda_events', loadBaseData)
+  useRealtime('tasks', loadBaseData)
+  useRealtime('finances', loadBaseData)
 
   const handleAddManualMovement = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -120,6 +126,7 @@ export default function ProcessDetail() {
       })
       toast({ title: 'Andamento registrado' })
       e.currentTarget.reset()
+      setPage(1) // Go to first page to see the new movement
     } catch (err) {
       toast({ title: 'Erro ao registrar andamento', variant: 'destructive' })
     }
@@ -135,7 +142,8 @@ export default function ProcessDetail() {
       await runDatajudSync(legalCase, (msg) => {
         toast({ title: 'Sincronização', description: msg })
       })
-      await loadData()
+      await loadBaseData()
+      await loadMovements()
     } catch (err: any) {
       let errorMsg = err?.message || 'Erro desconhecido'
       toast({ title: 'Erro na Sincronização', description: errorMsg, variant: 'destructive' })
@@ -160,7 +168,7 @@ export default function ProcessDetail() {
       await updateLegalCase(id!, { related_cases: [...currentRelated, selectedRelatedCase] })
       toast({ title: 'Caso vinculado com sucesso' })
       setSelectedRelatedCase('')
-      loadData()
+      loadBaseData()
     } catch (err) {
       toast({ title: 'Erro ao vincular', variant: 'destructive' })
     }
@@ -172,7 +180,7 @@ export default function ProcessDetail() {
     try {
       await updateLegalCase(id!, { related_cases: updated })
       toast({ title: 'Vínculo removido' })
-      loadData()
+      loadBaseData()
     } catch (err) {
       toast({ title: 'Erro ao remover vínculo', variant: 'destructive' })
     }
@@ -190,7 +198,7 @@ export default function ProcessDetail() {
       })
       setNewTaskTitle('')
       toast({ title: 'Tarefa adicionada' })
-      loadData()
+      loadBaseData()
     } catch (err) {
       toast({ title: 'Erro ao adicionar tarefa', variant: 'destructive' })
     }
@@ -198,578 +206,472 @@ export default function ProcessDetail() {
 
   const toggleTask = async (t: any) => {
     await updateTask(t.id, { status: t.status === 'todo' ? 'completed' : 'todo' })
-    loadData()
+    loadBaseData()
   }
 
-  const estTotalCost = legalCase?.estimated_total_cost || 0
-  const actualCosts = processFinances
-    .filter((f) => f.type === 'outflow' && !['orçado', 'estimado'].includes(f.status))
-    .reduce((a, b) => a + b.amount, 0)
+  // Helper to parse DataJud specific details for the timeline
+  const getMovementDisplayData = (mov: any) => {
+    let title = mov.description
+    let complementos = ''
+    let icon = FileText
 
-  let alertLevel: 'none' | 'warning' | 'critical' = 'none'
-  if (estTotalCost > 0) {
-    if (actualCosts >= estTotalCost) alertLevel = 'critical'
-    else if (actualCosts >= estTotalCost * 0.8) alertLevel = 'warning'
+    if (mov.source === 'DataJud' && mov.details) {
+      try {
+        const parsed = JSON.parse(mov.details)
+        if (parsed.nome) title = parsed.nome
+        if (parsed.complementosTabelados && Array.isArray(parsed.complementosTabelados)) {
+          complementos = parsed.complementosTabelados
+            .map((c: any) => `${c.nome}: ${c.valor}`)
+            .join(' • ')
+        }
+        icon = Scale
+      } catch (e) {
+        /* fallback */
+      }
+    } else if (mov.source === 'Manual') {
+      icon = MessageSquare
+    }
+
+    return { title, complementos, icon }
   }
 
-  const canSeeAlerts =
-    (user && ['admin', 'manager', 'financial_user', 'coordinator'].includes(user.role)) ||
-    user?.isAdmin
+  const totalPages = Math.max(1, Math.ceil(totalMovements / perPage))
 
   if (loading || !legalCase)
-    return <div className="p-8 animate-pulse text-center">Carregando Detalhes...</div>
+    return (
+      <div className="p-8 animate-pulse text-center text-slate-500">Carregando processo...</div>
+    )
 
   return (
-    <div className="space-y-6 pb-12">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4 border-b pb-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => navigate('/intranet/processos')}
-          className="shrink-0"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-serif font-bold text-primary">{legalCase.parties}</h2>
-            {canSeeAlerts && alertLevel === 'critical' && (
-              <Badge variant="destructive" className="animate-pulse">
-                <AlertTriangle className="w-3 h-3 mr-1" /> Orçamento Excedido
-              </Badge>
-            )}
-            {canSeeAlerts && alertLevel === 'warning' && (
-              <Badge className="bg-amber-500 hover:bg-amber-600 text-white">
-                <AlertTriangle className="w-3 h-3 mr-1" /> Custos Próximos ao Limite
-              </Badge>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            {legalCase.type} {legalCase.case_number ? `nº ${legalCase.case_number}` : ''}
-          </p>
-        </div>
-        <div className="sm:ml-auto flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="bg-slate-100 uppercase">
-            {legalCase.lifecycle_status}
-          </Badge>
-          <Button variant="secondary" size="sm" onClick={() => openEventModal()}>
-            <Plus className="w-4 h-4 mr-2" /> Novo Alerta
-          </Button>
-          <Button variant="default" size="sm" onClick={handleSyncDatajud} disabled={isSyncing}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} /> Sincronizar
-          </Button>
-        </div>
-      </div>
-
-      <Tabs defaultValue="timeline" className="w-full">
-        <TabsList className="grid w-full grid-cols-1 md:grid-cols-4 max-w-3xl h-auto">
-          <TabsTrigger value="timeline" className="py-2">
-            Andamentos
-          </TabsTrigger>
-          <TabsTrigger value="details" className="py-2">
-            Metadados
-          </TabsTrigger>
-          <TabsTrigger value="activities" className="py-2">
-            Atividades
-          </TabsTrigger>
-          <TabsTrigger value="finance" className="py-2">
-            Financeiro
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="timeline" className="mt-6">
-          <Card className="shadow-sm">
-            <CardHeader className="bg-slate-50/50 pb-4 border-b flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">Linha do Tempo Estruturada</CardTitle>
-                <CardDescription>Histórico de movimentos do processo</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-8">
-              <div className="relative border-l-2 border-slate-200 ml-3 md:ml-4 space-y-8 mb-8 pb-4">
-                {movements.length === 0 ? (
-                  <p className="text-muted-foreground ml-[-1rem] text-sm text-center">
-                    Nenhum andamento registrado. Sincronize com o DataJud.
-                  </p>
-                ) : (
-                  movements.map((mov) => (
-                    <div key={mov.id} className="relative pl-6 md:pl-8 group">
-                      <span
-                        className={`absolute -left-[9px] top-1.5 h-4 w-4 rounded-full border-2 border-white bg-${mov.source === 'DataJud' ? 'blue' : 'slate'}-500 transition-transform group-hover:scale-110`}
-                      ></span>
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-sm font-bold text-slate-800">
-                            {new Date(mov.event_date).toLocaleString('pt-BR')}
-                          </span>
-                          <Badge variant="outline" className="text-[10px] uppercase">
-                            {mov.source}
-                          </Badge>
-                        </div>
-                        <div className="bg-white p-4 rounded-lg border shadow-sm text-sm text-slate-700 flex flex-col items-start gap-4">
-                          <div className="w-full flex justify-between items-start gap-4">
-                            <p className="flex-1 font-medium">{mov.description}</p>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="shrink-0 h-8 text-slate-500 hover:text-primary"
-                              onClick={() =>
-                                openEventModal(`Ref: ${mov.description.substring(0, 50)}...`)
-                              }
-                            >
-                              <Bell className="w-4 h-4 mr-1" /> Criar Evento
-                            </Button>
-                          </div>
-
-                          {mov.details && (
-                            <Collapsible className="w-full mt-2">
-                              <CollapsibleTrigger asChild>
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  className="w-full flex justify-between text-xs text-slate-600 h-8"
-                                >
-                                  <span>Ver Detalhes do Movimento</span>
-                                  <ChevronDown className="h-3 w-3" />
-                                </Button>
-                              </CollapsibleTrigger>
-                              <CollapsibleContent className="pt-3">
-                                <div className="bg-slate-50 p-3 rounded text-xs whitespace-pre-wrap font-mono text-slate-600 max-h-[300px] overflow-y-auto border border-slate-100">
-                                  {mov.details}
-                                </div>
-                              </CollapsibleContent>
-                            </Collapsible>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))
+    <div className="h-full flex flex-col lg:flex-row gap-6 pb-12">
+      {/* Left Column: Main Timeline & Details */}
+      <div className="flex-1 space-y-6 min-w-0">
+        {/* Header Block */}
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4">
+          <div className="flex items-start gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/intranet/processos')}
+              className="shrink-0 text-slate-500"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div className="flex-1">
+              <h2 className="text-xl font-bold text-slate-800 leading-tight mb-1">
+                {legalCase.parties}
+              </h2>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                {legalCase.case_number && (
+                  <span className="font-mono bg-slate-100 px-2 py-0.5 rounded text-xs">
+                    {legalCase.case_number}
+                  </span>
                 )}
+                {legalCase.court && <span>{legalCase.court}</span>}
               </div>
-
-              <form
-                onSubmit={handleAddManualMovement}
-                className="mt-6 bg-slate-50 p-4 rounded-lg border border-dashed"
+            </div>
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <Badge
+                variant={legalCase.lifecycle_status === 'Ativo' ? 'default' : 'secondary'}
+                className="uppercase"
               >
-                <h4 className="text-sm font-bold mb-3 flex items-center gap-2 text-slate-800">
-                  <Edit3 className="w-4 h-4" /> Inserir Movimento Manual
-                </h4>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <Input
-                    name="description"
-                    placeholder="Ex: Audiência agendada..."
-                    required
-                    className="flex-1 bg-white"
-                  />
-                  <Button type="submit">
-                    <Plus className="w-4 h-4 mr-2" /> Salvar Andamento
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="details" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="shadow-sm">
-              <CardHeader className="bg-slate-50/50 pb-4 border-b">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <AlignLeft className="w-5 h-5 text-primary" /> Metadados DataJud
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 grid grid-cols-1 gap-5">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500">
-                    Tribunal / Órgão
-                  </span>
-                  <p className="font-medium text-sm mt-1">{legalCase.court || 'N/A'}</p>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500">
-                    Classe / Espécie da Ação
-                  </span>
-                  <p className="font-medium text-sm mt-1">
-                    {legalCase.metadata?.action_class || 'Não informada'}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500">
-                    Data de Distribuição
-                  </span>
-                  <p className="font-medium text-sm mt-1">
-                    {legalCase.distribution_date
-                      ? new Date(legalCase.distribution_date).toLocaleDateString('pt-BR')
-                      : 'Não informada'}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500">
-                    Status Sincronização
-                  </span>
-                  <p className="font-medium text-sm mt-1">
-                    {legalCase.datajud_sync_status || 'Pendente'}
-                  </p>
-                  {legalCase.datajud_last_sync && (
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Última sync: {new Date(legalCase.datajud_last_sync).toLocaleString('pt-BR')}
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="space-y-6">
-              <Card className="shadow-sm">
-                <CardHeader className="bg-slate-50/50 pb-4 border-b">
-                  <CardTitle className="text-lg">Gestão Interna</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-6 space-y-5">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-500">
-                      Fase Atual
-                    </span>
-                    <p className="font-medium text-sm mt-1">
-                      {legalCase.status || 'Não informada'}
-                    </p>
-                  </div>
-                  <div className="pt-4 border-t border-dashed">
-                    <span className="flex items-center text-[10px] uppercase font-bold text-slate-500 mb-2">
-                      <User className="w-3.5 h-3.5 mr-1" /> Cliente Relacionado
-                    </span>
-                    <p className="text-sm font-medium">
-                      {legalCase.expand?.client?.name || 'Nenhum'}
-                    </p>
-                  </div>
-                  <div className="pt-4 border-t border-dashed">
-                    <span className="flex items-center text-[10px] uppercase font-bold text-slate-500 mb-2">
-                      <Briefcase className="w-3.5 h-3.5 mr-1" /> Colaborador Responsável
-                    </span>
-                    <p className="text-sm font-medium">
-                      {legalCase.expand?.responsible_collaborator?.name || 'Nenhum'}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-sm">
-                <CardHeader className="bg-slate-50/50 pb-4 border-b">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <LinkIcon className="w-4 h-4 text-primary" /> Casos Relacionados
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-6 space-y-4">
-                  <div className="flex gap-2">
-                    <Select value={selectedRelatedCase} onValueChange={setSelectedRelatedCase}>
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Selecione um caso para vincular..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allCases.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.case_number || c.parties}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button onClick={handleLinkCase} size="icon" disabled={!selectedRelatedCase}>
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-
-                  <div className="space-y-2 mt-4">
-                    {legalCase.expand?.related_cases?.length > 0 ? (
-                      legalCase.expand.related_cases.map((rc: any) => (
-                        <div
-                          key={rc.id}
-                          className="flex items-center justify-between p-3 border rounded-md bg-slate-50 hover:bg-slate-100 transition-colors"
-                        >
-                          <div
-                            className="min-w-0 flex-1 cursor-pointer"
-                            onClick={() => navigate(`/intranet/processos/${rc.id}`)}
-                          >
-                            <p className="text-sm font-medium text-primary truncate hover:underline">
-                              {rc.parties}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {rc.case_number || 'Sem número'}
-                            </p>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-red-500 ml-2"
-                            onClick={() => handleUnlinkCase(rc.id)}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        Nenhum caso vinculado.
-                      </p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                {legalCase.lifecycle_status}
+              </Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSyncDatajud}
+                disabled={isSyncing}
+                className="h-8"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />{' '}
+                Sincronizar
+              </Button>
             </div>
           </div>
-        </TabsContent>
 
-        <TabsContent value="finance" className="mt-6 space-y-6">
-          {canSeeAlerts && estTotalCost > 0 && (
-            <Card
-              className={`border-l-4 ${alertLevel === 'critical' ? 'border-l-destructive bg-destructive/5' : alertLevel === 'warning' ? 'border-l-amber-500 bg-amber-500/5' : 'border-l-green-500 bg-green-500/5'}`}
-            >
-              <CardContent className="pt-6 flex flex-col md:flex-row justify-between items-center gap-4">
-                <div>
-                  <h4 className="font-bold flex items-center gap-2">
-                    {alertLevel !== 'none' && <AlertTriangle className="w-5 h-5" />}
-                    Controle de Orçamento e Custos
-                  </h4>
-                  <p className="text-sm text-slate-600 mt-1">
-                    Custo Real: <strong>R$ {actualCosts.toFixed(2)}</strong> / Estimado:{' '}
-                    <strong>R$ {estTotalCost.toFixed(2)}</strong>
-                  </p>
-                </div>
-                <div className="w-full md:w-1/3">
-                  <div className="flex justify-between text-xs mb-1 font-bold">
-                    <span>{((actualCosts / estTotalCost) * 100).toFixed(1)}% utilizado</span>
-                  </div>
-                  <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${alertLevel === 'critical' ? 'bg-destructive' : alertLevel === 'warning' ? 'bg-amber-500' : 'bg-green-500'}`}
-                      style={{ width: `${Math.min((actualCosts / estTotalCost) * 100, 100)}%` }}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <Card className="shadow-sm">
-              <CardHeader className="bg-slate-50/50 pb-4 border-b flex flex-row justify-between items-center">
-                <div>
-                  <CardTitle className="text-lg">Extrato Financeiro</CardTitle>
-                  <CardDescription>Receitas e despesas vinculadas a este caso.</CardDescription>
-                </div>
-                <Button size="sm" onClick={() => setFeeModalOpen(true)}>
-                  Nova Estimativa
-                </Button>
-              </CardHeader>
-              <CardContent className="pt-6">
-                {processFinances.length === 0 ? (
-                  <p className="text-center text-sm text-muted-foreground py-4">
-                    Nenhum registro financeiro vinculado.
-                  </p>
-                ) : (
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-                    {processFinances.map((f) => (
-                      <div
-                        key={f.id}
-                        className="flex justify-between items-center p-3 rounded-md border bg-white shadow-sm"
-                      >
-                        <div>
-                          <p className="font-medium text-sm">{f.description}</p>
-                          <p className="text-xs text-slate-500">
-                            {new Date(f.date).toLocaleDateString('pt-BR')} -{' '}
-                            <span className="uppercase">{f.status}</span>
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <span
-                            className={`font-bold ${f.type === 'inflow' ? 'text-green-600' : 'text-red-600'}`}
-                          >
-                            {f.type === 'inflow' ? '+' : '-'} R$ {f.amount.toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-sm">
-              <CardHeader className="bg-slate-50/50 pb-4 border-b">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <History className="w-5 h-5 text-primary" /> Histórico de Precificação
-                </CardTitle>
-                <CardDescription>
-                  Registro das propostas de honorários e custos estimados
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-0 px-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="pl-6">Data</TableHead>
-                      <TableHead>Honorários (R$)</TableHead>
-                      <TableHead>Custo Previsto</TableHead>
-                      <TableHead>Overhead Alocado</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {estimatesHistory.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">
-                          Nenhuma estimativa registrada no histórico.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      estimatesHistory.map((est) => (
-                        <TableRow key={est.id}>
-                          <TableCell className="pl-6 text-xs text-slate-500 whitespace-nowrap">
-                            {new Date(est.created).toLocaleString('pt-BR', {
-                              dateStyle: 'short',
-                              timeStyle: 'short',
-                            })}
-                          </TableCell>
-                          <TableCell className="font-bold text-green-600 whitespace-nowrap">
-                            R$ {est.estimated_fees.toFixed(2)}
-                            <span className="block text-[10px] text-slate-400 font-normal">
-                              Mg: {est.margin_applied}%
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-red-600 whitespace-nowrap">
-                            R$ {est.total_estimated_costs.toFixed(2)}
-                          </TableCell>
-                          <TableCell className="text-xs text-slate-500 whitespace-nowrap">
-                            R$ {(est.weighted_fixed_cost_applied || 0).toFixed(2)}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-slate-600 border-t pt-3 mt-1 border-slate-100">
+            <div className="flex items-center gap-1">
+              <User className="w-3.5 h-3.5 text-slate-400" />
+              <span className="font-medium text-slate-700">Cliente:</span>{' '}
+              {legalCase.expand?.client?.name || 'Não vinculado'}
+            </div>
+            <div className="flex items-center gap-1">
+              <Briefcase className="w-3.5 h-3.5 text-slate-400" />
+              <span className="font-medium text-slate-700">Responsável:</span>{' '}
+              {legalCase.expand?.responsible_collaborator?.name || 'Não atribuído'}
+            </div>
+            {legalCase.metadata?.action_class && (
+              <div className="flex items-center gap-1">
+                <Info className="w-3.5 h-3.5 text-slate-400" />
+                <span className="font-medium text-slate-700">Classe:</span>{' '}
+                {legalCase.metadata.action_class}
+              </div>
+            )}
           </div>
-        </TabsContent>
+        </div>
 
-        <TabsContent value="activities" className="mt-6 space-y-6">
-          <Card className="shadow-sm">
-            <CardHeader className="bg-slate-50/50 pb-4 border-b flex flex-row justify-between items-center">
-              <CardTitle className="text-lg">Tarefas Vinculadas</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <form onSubmit={handleAddTask} className="flex gap-2 mb-6">
+        {/* Action Input Block */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <Tabs defaultValue="andamento" className="w-full">
+            <div className="bg-slate-50 px-4 border-b border-slate-200 flex items-center justify-between">
+              <TabsList className="bg-transparent h-12 p-0 gap-6">
+                <TabsTrigger
+                  value="andamento"
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-3 text-sm font-medium text-slate-600 data-[state=active]:text-primary"
+                >
+                  Novo andamento
+                </TabsTrigger>
+                <TabsTrigger
+                  value="tarefa"
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-3 text-sm font-medium text-slate-600 data-[state=active]:text-primary"
+                >
+                  Nova tarefa
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <TabsContent value="andamento" className="p-4 m-0">
+              <form onSubmit={handleAddManualMovement} className="flex gap-3">
+                <Input
+                  name="description"
+                  placeholder="Comece a digitar para adicionar um andamento manual..."
+                  required
+                  className="flex-1 bg-slate-50 border-slate-200"
+                />
+                <Button type="submit">Salvar</Button>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="tarefa" className="p-4 m-0">
+              <form onSubmit={handleAddTask} className="flex gap-3">
                 <Input
                   value={newTaskTitle}
                   onChange={(e) => setNewTaskTitle(e.target.value)}
-                  placeholder="Nova tarefa para este caso..."
-                  className="flex-1"
+                  placeholder="Título da nova tarefa para este caso..."
+                  className="flex-1 bg-slate-50 border-slate-200"
                 />
-                <Button type="submit">
-                  <Plus className="w-4 h-4 mr-2" /> Adicionar
-                </Button>
+                <Button type="submit">Adicionar</Button>
               </form>
+            </TabsContent>
+          </Tabs>
+        </div>
 
-              {tasks.length === 0 ? (
-                <p className="text-center text-sm text-muted-foreground py-4">
-                  Nenhuma tarefa vinculada.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {tasks.map((t) => (
-                    <div
-                      key={t.id}
-                      className={`flex items-center gap-3 p-3 rounded-md border ${t.status === 'completed' ? 'bg-slate-50 opacity-60' : 'bg-white hover:bg-slate-50'}`}
+        {/* Timeline Block */}
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <h3 className="font-semibold text-lg text-slate-800 mb-6 flex items-center gap-2">
+            Andamentos{' '}
+            <Badge variant="secondary" className="font-normal text-xs">
+              {totalMovements}
+            </Badge>
+          </h3>
+
+          <div className="relative border-l-2 border-slate-100 ml-4 space-y-6 pb-4">
+            {movements.length === 0 ? (
+              <p className="text-muted-foreground text-sm pl-6 py-4">
+                Nenhum andamento encontrado nesta página.
+              </p>
+            ) : (
+              movements.map((mov) => {
+                const { title, complementos, icon: Icon } = getMovementDisplayData(mov)
+                return (
+                  <div key={mov.id} className="relative pl-8 group">
+                    <span className="absolute -left-[11px] top-1 h-5 w-5 rounded-full border-[3px] border-white bg-slate-200 flex items-center justify-center">
+                      <Icon className="w-2.5 h-2.5 text-slate-500" />
+                    </span>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-slate-700">
+                          {new Date(mov.event_date).toLocaleDateString('pt-BR')}
+                        </span>
+                        <span className="text-xs text-slate-400 font-medium">
+                          {new Date(mov.event_date).toLocaleTimeString('pt-BR', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                        <Badge variant="outline" className="text-[9px] uppercase ml-2 bg-slate-50">
+                          {mov.source}
+                        </Badge>
+                      </div>
+                      <div className="bg-slate-50 border border-slate-100 p-3 rounded-lg text-sm text-slate-700 mt-1 relative group-hover:border-slate-200 transition-colors">
+                        <p className="font-medium text-slate-800">{title}</p>
+                        {complementos && (
+                          <p className="text-xs text-slate-500 mt-1.5">{complementos}</p>
+                        )}
+
+                        {/* Hover Actions */}
+                        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-slate-400 hover:text-primary"
+                            onClick={() => openEventModal(`Ref: ${title}`)}
+                            title="Criar Evento"
+                          >
+                            <Bell className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          {/* Pagination Controls */}
+          {totalMovements > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 pt-4 mt-6">
+              <div className="flex items-center gap-2 text-sm text-slate-500 mb-4 sm:mb-0">
+                <span>Exibir</span>
+                <Select
+                  value={String(perPage)}
+                  onValueChange={(v) => {
+                    setPerPage(Number(v))
+                    setPage(1)
+                  }}
+                >
+                  <SelectTrigger className="w-[70px] h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span>por página</span>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <span className="text-sm font-medium text-slate-600 min-w-[80px] text-center">
+                  Pág {page} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={page >= totalPages}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Right Column: Widgets */}
+      <div className="w-full lg:w-[320px] shrink-0 space-y-6">
+        {/* Linked Cases */}
+        <Card className="shadow-sm border-slate-200">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-sm flex items-center gap-2 text-slate-800">
+              <LinkIcon className="w-4 h-4 text-slate-400" /> Vinculados (
+              {legalCase.expand?.related_cases?.length || 0})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <div className="space-y-3 mt-3">
+              {legalCase.expand?.related_cases?.length > 0 ? (
+                legalCase.expand.related_cases.map((rc: any) => (
+                  <div
+                    key={rc.id}
+                    className="flex flex-col p-2 bg-slate-50 rounded border border-slate-100 relative group"
+                  >
+                    <span
+                      className="text-xs font-semibold text-slate-700 truncate pr-6 cursor-pointer hover:underline"
+                      onClick={() => navigate(`/intranet/processos/${rc.id}`)}
                     >
-                      <Checkbox
-                        checked={t.status === 'completed'}
-                        onCheckedChange={() => toggleTask(t)}
-                      />
-                      <span
-                        className={`flex-1 text-sm font-medium ${t.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}
-                      >
-                        {t.title}
+                      {rc.parties}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono mt-0.5">
+                      {rc.case_number || 'Sem número'}
+                    </span>
+                    <button
+                      onClick={() => handleUnlinkCase(rc.id)}
+                      className="absolute top-2 right-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-muted-foreground text-center py-2">
+                  Nenhum processo vinculado.
+                </p>
+              )}
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              <Select value={selectedRelatedCase} onValueChange={setSelectedRelatedCase}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Vincular processo..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {allCases.map((c) => (
+                    <SelectItem key={c.id} value={c.id} className="text-xs">
+                      {c.case_number || c.parties}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={handleLinkCase}
+                size="sm"
+                disabled={!selectedRelatedCase}
+                className="h-8 px-2"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tasks */}
+        <Card className="shadow-sm border-slate-200">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-sm flex items-center gap-2 text-slate-800">
+              <MessageSquare className="w-4 h-4 text-slate-400" /> Tarefas (
+              {tasks.filter((t) => t.status !== 'completed').length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            {tasks.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                Nenhuma tarefa criada.
+              </p>
+            ) : (
+              <div className="space-y-2 mt-2">
+                {tasks.map((t) => (
+                  <div
+                    key={t.id}
+                    className={`flex items-start gap-2 p-2 rounded text-sm ${t.status === 'completed' ? 'opacity-50' : 'hover:bg-slate-50'}`}
+                  >
+                    <Checkbox
+                      className="mt-0.5 h-3.5 w-3.5"
+                      checked={t.status === 'completed'}
+                      onCheckedChange={() => toggleTask(t)}
+                    />
+                    <span
+                      className={`leading-tight ${t.status === 'completed' ? 'line-through' : ''}`}
+                    >
+                      {t.title}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Events / Commitments */}
+        <Card className="shadow-sm border-slate-200">
+          <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm flex items-center gap-2 text-slate-800">
+              <Calendar className="w-4 h-4 text-slate-400" /> Compromissos ({events.length})
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => openEventModal()}
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </Button>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            {events.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                Nenhum evento agendado.
+              </p>
+            ) : (
+              <div className="space-y-3 mt-2">
+                {events.map((evt) => (
+                  <div
+                    key={evt.id}
+                    className="flex gap-3 bg-white border border-slate-100 p-2.5 rounded shadow-sm"
+                  >
+                    <div className="flex flex-col items-center justify-center bg-slate-50 rounded px-2 py-1 min-w-[45px]">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">
+                        {new Date(evt.start_date).toLocaleString('pt-BR', { month: 'short' })}
+                      </span>
+                      <span className="text-sm font-black text-slate-800">
+                        {new Date(evt.start_date).getDate()}
                       </span>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-sm">
-            <CardHeader className="bg-slate-50/50 pb-4 border-b flex flex-row justify-between items-center">
-              <CardTitle className="text-lg">Alertas e Eventos da Agenda</CardTitle>
-              <Button size="sm" onClick={() => openEventModal()}>
-                Novo Evento
-              </Button>
-            </CardHeader>
-            <CardContent className="pt-6">
-              {events.length === 0 ? (
-                <p className="text-center text-sm text-muted-foreground py-4">
-                  Nenhum evento registrado.
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {events.map((evt) => (
-                    <div
-                      key={evt.id}
-                      className="flex flex-col sm:flex-row items-start gap-4 p-4 rounded-lg border bg-white shadow-sm"
-                    >
-                      <div className="p-2 bg-slate-100 rounded-md shrink-0 self-start">
-                        {evt.type === 'Deadline' ? (
-                          <Clock className="w-5 h-5 text-red-500" />
-                        ) : evt.type === 'Meeting' ? (
-                          <Briefcase className="w-5 h-5 text-blue-500" />
-                        ) : (
-                          <Calendar className="w-5 h-5 text-slate-500" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0 w-full">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-bold text-sm text-slate-900 truncate">{evt.title}</h4>
-                          <Badge variant="secondary" className="text-[10px]">
-                            {evt.type}
-                          </Badge>
-                        </div>
-                        {evt.description && (
-                          <p className="text-xs text-slate-600 mb-2 truncate">{evt.description}</p>
-                        )}
-                        <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500 font-medium">
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />{' '}
-                            {new Date(evt.start_date).toLocaleString('pt-BR')}
-                          </span>
-                          {evt.expand?.collaborator && (
-                            <span className="flex items-center gap-1">
-                              <User className="w-3 h-3" /> {evt.expand.collaborator.name}
-                            </span>
-                          )}
-                        </div>
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className="text-xs font-semibold text-slate-800 line-clamp-1"
+                        title={evt.title}
+                      >
+                        {evt.title}
+                      </p>
+                      <div className="flex items-center gap-1 mt-1 text-[10px] text-slate-500">
+                        <Clock className="w-3 h-3" />{' '}
+                        {new Date(evt.start_date).toLocaleTimeString('pt-BR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        <span className="ml-1 px-1 bg-slate-100 rounded text-slate-600">
+                          {evt.type}
+                        </span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Simple Finance Summary */}
+        <Card className="shadow-sm border-slate-200">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-sm flex items-center gap-2 text-slate-800">
+              <DollarSign className="w-4 h-4 text-slate-400" /> Resumo Financeiro
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-2 text-sm">
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-slate-500 text-xs">Custo Previsto</span>
+              <span className="font-medium text-slate-700">
+                R$ {legalCase.estimated_total_cost?.toFixed(2) || '0.00'}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-500 text-xs">Registros ({processFinances.length})</span>
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0 text-xs"
+                onClick={() => navigate('/intranet/finance')}
+              >
+                Ver detalhes
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       <EventFormModal
         open={eventModalOpen}
         onOpenChange={setEventModalOpen}
         lawsuitId={id!}
         prefilledDescription={prefilledDescription}
-        onSuccess={() => loadData()}
+        onSuccess={() => loadBaseData()}
       />
-
-      {legalCase && (
-        <FeeEstimatorModal
-          open={feeModalOpen}
-          onOpenChange={setFeeModalOpen}
-          cases={[legalCase]}
-          defaultCaseId={legalCase.id}
-          onSuccess={loadData}
-        />
-      )}
     </div>
   )
 }
