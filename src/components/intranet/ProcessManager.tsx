@@ -18,6 +18,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -59,6 +68,7 @@ export default function ProcessManager() {
   const [editingItem, setEditingItem] = useState<any>(null)
   const [autofillLoading, setAutofillLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<any>(null)
   const { toast } = useToast()
 
   const loadData = async () => {
@@ -172,25 +182,30 @@ export default function ProcessManager() {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Tem certeza que deseja excluir?')) {
-      setDeletingId(id)
-      try {
-        await deleteLawsuit(id)
-        setProcesses((prev) => prev.filter((p) => p.id !== id))
-        toast({ title: 'Registro excluído com sucesso' })
-      } catch (error: any) {
-        console.error('Delete error:', error)
-        toast({
-          title: 'Erro ao excluir',
-          description:
-            getErrorMessage(error) ||
-            'Ocorreu um erro ao excluir o processo. Verifique as dependências.',
-          variant: 'destructive',
-        })
-      } finally {
-        setDeletingId(null)
-      }
+  const handleDeleteClick = (p: any) => {
+    setDeleteConfirmItem(p)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmItem) return
+    const id = deleteConfirmItem.id
+    setDeletingId(id)
+    try {
+      await deleteLawsuit(id)
+      setProcesses((prev) => prev.filter((p) => p.id !== id))
+      toast({ title: 'Registro excluído com sucesso' })
+      setDeleteConfirmItem(null)
+    } catch (error: any) {
+      console.error('Delete error:', error)
+      toast({
+        title: 'Erro ao excluir',
+        description:
+          getErrorMessage(error) ||
+          'Ocorreu um erro ao excluir o processo. Verifique as dependências.',
+        variant: 'destructive',
+      })
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -478,7 +493,7 @@ export default function ProcessManager() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(p.id)}
+                          onClick={() => handleDeleteClick(p)}
                           disabled={deletingId === p.id}
                         >
                           {deletingId === p.id ? (
@@ -495,6 +510,33 @@ export default function ProcessManager() {
             </CardContent>
           </Card>
         </div>
+
+        <AlertDialog
+          open={!!deleteConfirmItem}
+          onOpenChange={(open) => !open && !deletingId && setDeleteConfirmItem(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Deseja realmente excluir este processo?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta ação não pode ser desfeita e removerá todos os históricos vinculados.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={!!deletingId}>Cancelar</AlertDialogCancel>
+              <Button
+                variant="destructive"
+                onClick={(e) => {
+                  e.preventDefault()
+                  handleConfirmDelete()
+                }}
+                disabled={!!deletingId}
+              >
+                {deletingId ? 'Excluindo...' : 'Excluir'}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <div className="lg:col-span-1">
           <Card>
