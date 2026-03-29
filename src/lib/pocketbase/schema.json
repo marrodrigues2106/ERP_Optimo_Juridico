@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-29T03:37:06.022Z",
+  "generatedAt": "2026-03-29T03:48:51.402Z",
   "collections": [
     {
       "name": "users",
@@ -626,6 +626,13 @@
           "required": false,
           "system": false,
           "collectionRef": "collaborators"
+        },
+        {
+          "name": "linked_lawsuit",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "legal_cases"
         }
       ],
       "indexes": []

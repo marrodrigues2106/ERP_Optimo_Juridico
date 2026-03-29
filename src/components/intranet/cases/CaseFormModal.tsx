@@ -1,8 +1,14 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,6 +21,8 @@ import {
 } from '@/components/ui/select'
 import { createLegalCase, updateLegalCase } from '@/services/legal_cases'
 import { useToast } from '@/hooks/use-toast'
+import pb from '@/lib/pocketbase/client'
+import { Search, Loader2 } from 'lucide-react'
 
 const formSchema = z
   .object({
@@ -27,6 +35,11 @@ const formSchema = z
     client: z.string().optional(),
     responsible_collaborator: z.string().optional(),
     deadline: z.string().optional(),
+    subject: z.string().optional(),
+    action_class: z.string().optional(),
+    process_type: z.string().optional(),
+    distribution_date: z.string().optional(),
+    court_alias: z.string().optional(),
   })
   .refine(
     (data) => {
@@ -61,6 +74,7 @@ export function CaseFormModal({
   onSuccess,
 }: Props) {
   const { toast } = useToast()
+  const [isSearching, setIsSearching] = useState(false)
 
   const {
     register,
@@ -68,6 +82,7 @@ export function CaseFormModal({
     reset,
     control,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<CaseFormValues>({
     resolver: zodResolver(formSchema),
@@ -87,6 +102,11 @@ export function CaseFormModal({
           client: editingCase.client || 'none',
           responsible_collaborator: editingCase.responsible_collaborator || 'none',
           deadline: editingCase.deadline ? editingCase.deadline.substring(0, 10) : '',
+          subject: editingCase.metadata?.subject || '',
+          action_class: editingCase.metadata?.action_class || '',
+          process_type: editingCase.metadata?.process_type || '',
+          distribution_date: editingCase.metadata?.distribution_date || '',
+          court_alias: editingCase.court_alias || '',
         })
       } else {
         reset({ type: 'Processo', lifecycle_status: 'Ativo' })
@@ -94,15 +114,74 @@ export function CaseFormModal({
     }
   }, [open, editingCase, reset])
 
+  const handleDataJudSearch = async () => {
+    const num = watch('case_number')
+    if (!num) {
+      toast({
+        title: 'Aviso',
+        description: 'Digite o número CNJ primeiro.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsSearching(true)
+    try {
+      const res = await pb.send('/backend/v1/datajud/autofill', {
+        method: 'POST',
+        body: JSON.stringify({ number: num }),
+      })
+
+      if (res.success && res.data) {
+        setValue('court', res.data.court || '')
+        setValue('parties', res.data.parties || '')
+        setValue('subject', res.data.subject || '')
+        setValue('action_class', res.data.class || '')
+        setValue('process_type', res.data.processType || '')
+        if (res.data.distributionDate) {
+          setValue('distribution_date', res.data.distributionDate.substring(0, 10))
+        }
+        setValue('court_alias', res.data.alias || '')
+        toast({ title: 'Sucesso', description: 'Dados preenchidos via DataJud.' })
+      } else {
+        toast({
+          title: 'Atenção',
+          description: res.message || 'Processo não encontrado.',
+          variant: 'destructive',
+        })
+      }
+    } catch (e: any) {
+      toast({
+        title: 'Erro de conexão',
+        description: 'Não foi possível consultar o DataJud agora.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
   const onSubmit = async (data: CaseFormValues) => {
     const payload = {
-      ...data,
+      type: data.type,
+      case_number: data.case_number,
+      parties: data.parties,
+      court: data.court,
+      status: data.status,
+      lifecycle_status: data.lifecycle_status,
       client: !data.client || data.client === 'none' ? null : data.client,
       responsible_collaborator:
         !data.responsible_collaborator || data.responsible_collaborator === 'none'
           ? null
           : data.responsible_collaborator,
       deadline: data.deadline ? new Date(data.deadline).toISOString() : null,
+      court_alias: data.court_alias,
+      metadata: {
+        subject: data.subject,
+        action_class: data.action_class,
+        process_type: data.process_type,
+        distribution_date: data.distribution_date,
+      },
     }
 
     try {
@@ -123,13 +202,16 @@ export function CaseFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editingCase ? 'Editar Registro' : 'Novo Registro de Caso'}</DialogTitle>
+          <DialogDescription>
+            Preencha os dados manualmente ou busque no DataJud pelo CNJ.
+          </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 sm:col-span-1">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 mt-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
+            <div className="col-span-1 md:col-span-2">
               <Label>Tipo</Label>
               <Controller
                 name="type"
@@ -147,29 +229,64 @@ export function CaseFormModal({
                 )}
               />
             </div>
-            <div className="col-span-2 sm:col-span-1">
-              <Label>Número do Processo {selectedType === 'Processo' && '*'}</Label>
-              <Input {...register('case_number')} placeholder="0000000-00.0000.0.00.0000" />
-              {errors.case_number && (
-                <p className="text-xs text-red-500 mt-1">{errors.case_number.message}</p>
+
+            <div className="col-span-1 md:col-span-2 flex flex-col sm:flex-row items-end gap-3">
+              <div className="flex-1 w-full">
+                <Label>Número do Processo {selectedType === 'Processo' && '*'}</Label>
+                <Input {...register('case_number')} placeholder="0000000-00.0000.0.00.0000" />
+                {errors.case_number && (
+                  <p className="text-xs text-red-500 mt-1">{errors.case_number.message}</p>
+                )}
+              </div>
+              {selectedType === 'Processo' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleDataJudSearch}
+                  disabled={isSearching}
+                  className="w-full sm:w-auto"
+                >
+                  {isSearching ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Search className="w-4 h-4 mr-2" />
+                  )}
+                  Autopreencher DataJud
+                </Button>
               )}
             </div>
-            <div className="col-span-2">
+
+            <div className="col-span-1 md:col-span-2">
               <Label>Partes / Título do Serviço *</Label>
-              <Input {...register('parties')} />
+              <Input {...register('parties')} placeholder="Ex: João da Silva x INSS" />
               {errors.parties && (
                 <p className="text-xs text-red-500 mt-1">{errors.parties.message}</p>
               )}
             </div>
-            <div className="col-span-2 sm:col-span-1">
+
+            <div className="col-span-1">
               <Label>Tribunal / Órgão</Label>
               <Input {...register('court')} />
             </div>
-            <div className="col-span-2 sm:col-span-1">
-              <Label>Fase / Status</Label>
-              <Input {...register('status')} />
+
+            <div className="col-span-1">
+              <Label>Classe / Espécie da Ação</Label>
+              <Input {...register('action_class')} placeholder="Ex: Procedimento Comum Cível" />
             </div>
-            <div className="col-span-2 sm:col-span-1">
+
+            <div className="col-span-1">
+              <Label>Assunto</Label>
+              <Input {...register('subject')} placeholder="Ex: Benefício Assistencial" />
+            </div>
+
+            <div className="col-span-1">
+              <Label>Data de Distribuição</Label>
+              <Input type="date" {...register('distribution_date')} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="col-span-1">
               <Label>Status do Ciclo</Label>
               <Controller
                 name="lifecycle_status"
@@ -188,12 +305,14 @@ export function CaseFormModal({
                 )}
               />
             </div>
-            <div className="col-span-2 sm:col-span-1">
-              <Label>Data de Prazo</Label>
-              <Input type="date" {...register('deadline')} />
+
+            <div className="col-span-1">
+              <Label>Fase / Status Atual</Label>
+              <Input {...register('status')} placeholder="Ex: Conhecimento, Recursal..." />
             </div>
-            <div className="col-span-2 sm:col-span-1">
-              <Label>Cliente</Label>
+
+            <div className="col-span-1">
+              <Label>Cliente Vinculado</Label>
               <Controller
                 name="client"
                 control={control}
@@ -214,7 +333,8 @@ export function CaseFormModal({
                 )}
               />
             </div>
-            <div className="col-span-2 sm:col-span-1">
+
+            <div className="col-span-1">
               <Label>Responsável</Label>
               <Controller
                 name="responsible_collaborator"
@@ -236,8 +356,14 @@ export function CaseFormModal({
                 )}
               />
             </div>
+
+            <div className="col-span-1 md:col-span-2">
+              <Label>Prazo / Alerta Principal</Label>
+              <Input type="date" {...register('deadline')} />
+            </div>
           </div>
-          <Button type="submit" className="w-full mt-4" disabled={isSubmitting}>
+
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? 'Salvando...' : 'Salvar Registro'}
           </Button>
         </form>
