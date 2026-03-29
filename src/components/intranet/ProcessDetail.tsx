@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getLegalCase, updateLegalCase, getLegalCases } from '@/services/legal_cases'
+import { getFinancesByLawsuit, deleteFinance } from '@/services/finances'
+import { FeeEstimatorModal } from './finances/FeeEstimatorModal'
 import { getCaseMovements, createCaseMovement } from '@/services/case_movements'
 import { getAgendaEventsByLawsuit } from '@/services/agenda'
 import { getTasksByLawsuit, createTask, updateTask } from '@/services/tasks'
@@ -52,6 +54,8 @@ export default function ProcessDetail() {
 
   const [eventModalOpen, setEventModalOpen] = useState(false)
   const [prefilledDescription, setPrefilledDescription] = useState('')
+  const [feeModalOpen, setFeeModalOpen] = useState(false)
+  const [processFinances, setProcessFinances] = useState<any[]>([])
 
   const [allCases, setAllCases] = useState<any[]>([])
   const [selectedRelatedCase, setSelectedRelatedCase] = useState<string>('')
@@ -64,6 +68,7 @@ export default function ProcessDetail() {
       setMovements(await getCaseMovements(id))
       setEvents(await getAgendaEventsByLawsuit(id))
       setTasks(await getTasksByLawsuit(id))
+      setProcessFinances(await getFinancesByLawsuit(id))
       const all = await getLegalCases()
       setAllCases(all.filter((c) => c.id !== id))
     } catch (e) {
@@ -82,6 +87,7 @@ export default function ProcessDetail() {
   useRealtime('case_movements', loadData)
   useRealtime('agenda_events', loadData)
   useRealtime('tasks', loadData)
+  useRealtime('finances', loadData)
 
   const handleAddManualMovement = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -222,6 +228,9 @@ export default function ProcessDetail() {
           </TabsTrigger>
           <TabsTrigger value="activities" className="py-2">
             Atividades Relacionadas ({events.length + tasks.length})
+          </TabsTrigger>
+          <TabsTrigger value="finance" className="py-2">
+            Financeiro
           </TabsTrigger>
         </TabsList>
 
@@ -465,6 +474,51 @@ export default function ProcessDetail() {
           </div>
         </TabsContent>
 
+        <TabsContent value="finance" className="mt-6 space-y-6">
+          <Card className="shadow-sm">
+            <CardHeader className="bg-slate-50/50 pb-4 border-b flex flex-row justify-between items-center">
+              <div>
+                <CardTitle className="text-lg">Financeiro do Processo</CardTitle>
+                <CardDescription>Receitas e despesas vinculadas a este caso.</CardDescription>
+              </div>
+              <Button size="sm" onClick={() => setFeeModalOpen(true)}>
+                Estimar Honorários
+              </Button>
+            </CardHeader>
+            <CardContent className="pt-6">
+              {processFinances.length === 0 ? (
+                <p className="text-center text-sm text-muted-foreground py-4">
+                  Nenhum registro financeiro vinculado.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {processFinances.map((f) => (
+                    <div
+                      key={f.id}
+                      className="flex justify-between items-center p-3 rounded-md border bg-white shadow-sm"
+                    >
+                      <div>
+                        <p className="font-medium text-sm">{f.description}</p>
+                        <p className="text-xs text-slate-500">
+                          {new Date(f.date).toLocaleDateString('pt-BR')} -{' '}
+                          <span className="uppercase">{f.status}</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span
+                          className={`font-bold ${f.type === 'inflow' ? 'text-green-600' : 'text-red-600'}`}
+                        >
+                          {f.type === 'inflow' ? '+' : '-'} R$ {f.amount.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="activities" className="mt-6 space-y-6">
           <Card className="shadow-sm">
             <CardHeader className="bg-slate-50/50 pb-4 border-b flex flex-row justify-between items-center">
@@ -576,6 +630,16 @@ export default function ProcessDetail() {
         prefilledDescription={prefilledDescription}
         onSuccess={() => loadData()}
       />
+
+      {legalCase && (
+        <FeeEstimatorModal
+          open={feeModalOpen}
+          onOpenChange={setFeeModalOpen}
+          cases={[legalCase]}
+          defaultCaseId={legalCase.id}
+          onSuccess={loadData}
+        />
+      )}
     </div>
   )
 }
