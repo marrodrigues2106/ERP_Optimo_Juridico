@@ -84,8 +84,8 @@ export function CaseFormModal({
           court: editingCase.court || '',
           status: editingCase.status || '',
           lifecycle_status: editingCase.lifecycle_status,
-          client: editingCase.client || '',
-          responsible_collaborator: editingCase.responsible_collaborator || '',
+          client: editingCase.client || 'none',
+          responsible_collaborator: editingCase.responsible_collaborator || 'none',
           deadline: editingCase.deadline ? editingCase.deadline.substring(0, 10) : '',
         })
       } else {
@@ -97,8 +97,11 @@ export function CaseFormModal({
   const onSubmit = async (data: CaseFormValues) => {
     const payload = {
       ...data,
-      client: data.client || null,
-      responsible_collaborator: data.responsible_collaborator || null,
+      client: !data.client || data.client === 'none' ? null : data.client,
+      responsible_collaborator:
+        !data.responsible_collaborator || data.responsible_collaborator === 'none'
+          ? null
+          : data.responsible_collaborator,
       deadline: data.deadline ? new Date(data.deadline).toISOString() : null,
     }
 
@@ -195,12 +198,12 @@ export function CaseFormModal({
                 name="client"
                 control={control}
                 render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                  <Select onValueChange={field.onChange} value={field.value || 'none'}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Nenhum</SelectItem>
+                      <SelectItem value="none">Nenhum</SelectItem>
                       {clients.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.name}
@@ -217,12 +220,12 @@ export function CaseFormModal({
                 name="responsible_collaborator"
                 control={control}
                 render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value || ''}>
+                  <Select onValueChange={field.onChange} value={field.value || 'none'}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Nenhum</SelectItem>
+                      <SelectItem value="none">Nenhum</SelectItem>
                       {collaborators.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.name}
