@@ -32,6 +32,7 @@ import {
   Scale,
   ExternalLink,
   User,
+  Bell,
 } from 'lucide-react'
 import { searchGazettePublications, getGazettes, triggerManualIngest } from '@/services/gazettes'
 import { useToast } from '@/hooks/use-toast'

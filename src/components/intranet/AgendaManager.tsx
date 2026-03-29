@@ -461,14 +461,25 @@ function EventFormModal({
 
 function SyncConfigModal({ open, onOpenChange }: any) {
   const { toast } = useToast()
+  const [linking, setLinking] = useState(false)
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault()
-    toast({
-      title: 'Configurações de sincronização salvas',
-      description: 'As credenciais foram atualizadas com segurança.',
-    })
-    onOpenChange(false)
+  const handleOAuthLink = async (provider: string) => {
+    setLinking(true)
+    try {
+      await pb.send('/backend/v1/agenda/oauth', {
+        method: 'POST',
+        body: JSON.stringify({ provider }),
+      })
+      toast({
+        title: 'Conta Conectada',
+        description: `Integração com ${provider} ativada com sucesso.`,
+      })
+    } catch (err: any) {
+      toast({ title: 'Erro de Autenticação', description: err.message, variant: 'destructive' })
+    } finally {
+      setLinking(false)
+      onOpenChange(false)
+    }
   }
 
   return (
@@ -479,32 +490,70 @@ function SyncConfigModal({ open, onOpenChange }: any) {
             <CloudSync className="w-5 h-5 text-primary" /> Conectores de Calendário
           </DialogTitle>
           <DialogDescription>
-            Configure as integrações em nuvem para sincronizar a agenda da equipe.
+            Autorize o acesso via OAuth para sincronização bidirecional da agenda.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSave} className="space-y-6 pt-4">
-          <div className="space-y-3">
-            <h4 className="font-semibold text-sm flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-blue-500"></div> Google Calendar
-            </h4>
-            <div className="pl-4 space-y-2 border-l">
-              <Label>Client ID (OAuth)</Label>
-              <Input type="password" placeholder="*******************.apps.googleusercontent.com" />
+        <div className="space-y-6 pt-4">
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-50 text-red-600 rounded-full flex items-center justify-center font-bold">
+                G
+              </div>
+              <div>
+                <h4 className="font-semibold text-sm">Google Calendar</h4>
+                <p className="text-xs text-muted-foreground">Sincronizar com Workspace</p>
+              </div>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleOAuthLink('Google')}
+              disabled={linking}
+            >
+              Conectar Conta
+            </Button>
           </div>
-          <div className="space-y-3">
-            <h4 className="font-semibold text-sm flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-sky-600"></div> Microsoft Outlook
-            </h4>
-            <div className="pl-4 space-y-2 border-l">
-              <Label>Tenant ID</Label>
-              <Input type="password" placeholder="*******************" />
+
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-bold">
+                M
+              </div>
+              <div>
+                <h4 className="font-semibold text-sm">Microsoft Outlook</h4>
+                <p className="text-xs text-muted-foreground">Sincronizar com Office 365</p>
+              </div>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleOAuthLink('Outlook')}
+              disabled={linking}
+            >
+              Conectar Conta
+            </Button>
           </div>
-          <Button type="submit" className="w-full">
-            Salvar Conectores
-          </Button>
-        </form>
+
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-slate-100 text-slate-800 rounded-full flex items-center justify-center font-bold">
+                A
+              </div>
+              <div>
+                <h4 className="font-semibold text-sm">Apple iCloud</h4>
+                <p className="text-xs text-muted-foreground">Sincronizar com iCloud Cal</p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleOAuthLink('iCloud')}
+              disabled={linking}
+            >
+              Conectar Conta
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   )

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-29T19:47:15.530Z",
+  "generatedAt": "2026-03-29T20:04:59.725Z",
   "collections": [
     {
       "name": "users",
@@ -420,6 +420,13 @@
           "required": false,
           "system": false,
           "selectValues": ["Ativo", "Inativo", "Lead"]
+        },
+        {
+          "name": "funnel_stage",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Contact", "Proposal", "Negotiation", "Closed"]
         }
       ],
       "indexes": ["CREATE INDEX `idx_clients_classification` ON `clients` (classification)"]
@@ -1597,6 +1604,59 @@
           "required": false,
           "system": false,
           "selectValues": ["Pending", "Completed"]
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "communication_templates",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "subject",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "body_html",
+          "type": "editor",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "type",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Email", "WhatsApp"]
         },
         {
           "name": "created",
