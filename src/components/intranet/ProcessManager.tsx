@@ -200,8 +200,7 @@ export default function ProcessManager() {
       toast({
         title: 'Erro ao excluir',
         description:
-          getErrorMessage(error) ||
-          'Ocorreu um erro ao excluir o processo. Verifique as dependências.',
+          'Erro ao excluir o processo. Verifique se existem dependências ou tente novamente mais tarde.',
         variant: 'destructive',
       })
     } finally {
