@@ -78,8 +78,10 @@ routerAdd(
 
       const hits = res.json?.hits?.hits || []
       if (hits.length === 0) {
-        return e.json(404, {
-          error: 'Processo não encontrado no DataJud (alias: ' + targetAlias + ')',
+        return e.json(200, {
+          success: false,
+          message: 'Processo não encontrado no DataJud (alias: ' + targetAlias + ')',
+          data: null,
         })
       }
 
@@ -94,11 +96,14 @@ routerAdd(
       }
 
       return e.json(200, {
-        court: source.orgaoJulgador?.nomeOrgao || '',
-        class: source.classe?.nome || '',
-        subject: source.assuntos?.[0]?.nome || '',
-        parties: partiesStr,
-        alias: targetAlias,
+        success: true,
+        data: {
+          court: source.orgaoJulgador?.nomeOrgao || '',
+          class: source.classe?.nome || '',
+          subject: source.assuntos?.[0]?.nome || '',
+          parties: partiesStr,
+          alias: targetAlias,
+        },
       })
     } catch (err) {
       return e.json(500, { error: 'Falha de rede ou DNS' })

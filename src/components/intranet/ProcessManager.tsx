@@ -105,20 +105,32 @@ export default function ProcessManager() {
   const handleAutofill = async () => {
     const numInput = document.querySelector('input[name="number"]') as HTMLInputElement
     const num = numInput?.value
-    if (!num) return toast({ title: 'Digite um número de processo' })
+    if (!num) return toast({ title: 'Digite um número de processo', variant: 'destructive' })
 
     setAutofillLoading(true)
     try {
       const res = await autofillLawsuit(num)
+
+      if (res && res.success === false) {
+        toast({
+          title: 'Aviso',
+          description: res.message || 'Processo não encontrado.',
+          variant: 'default',
+        })
+        return
+      }
+
+      const data = res.data || res
+
       const form = document.querySelector('form') as HTMLFormElement
-      if (form) {
-        if (res.court) {
+      if (form && data) {
+        if (data.court) {
           const c = form.querySelector('input[name="court"]') as HTMLInputElement
-          if (c) c.value = res.court
+          if (c) c.value = data.court
         }
-        if (res.parties) {
+        if (data.parties) {
           const p = form.querySelector('input[name="parties"]') as HTMLInputElement
-          if (p) p.value = res.parties
+          if (p) p.value = data.parties
         }
       }
       toast({ title: 'Dados preenchidos via DataJud' })
@@ -126,7 +138,7 @@ export default function ProcessManager() {
       if (e.status === 401) {
         toast({ title: 'Erro de Autenticação na API', variant: 'destructive' })
       } else {
-        toast({ title: 'Processo não encontrado ou erro de rede', variant: 'destructive' })
+        toast({ title: 'Erro de rede ou falha ao consultar o DataJud', variant: 'destructive' })
       }
     } finally {
       setAutofillLoading(false)
