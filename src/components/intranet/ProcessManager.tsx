@@ -58,6 +58,7 @@ export default function ProcessManager() {
   const [open, setOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
   const [autofillLoading, setAutofillLoading] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const { toast } = useToast()
 
   const loadData = async () => {
@@ -173,16 +174,22 @@ export default function ProcessManager() {
 
   const handleDelete = async (id: string) => {
     if (confirm('Tem certeza que deseja excluir?')) {
+      setDeletingId(id)
       try {
         await deleteLawsuit(id)
         setProcesses((prev) => prev.filter((p) => p.id !== id))
         toast({ title: 'Registro excluído com sucesso' })
       } catch (error: any) {
+        console.error('Delete error:', error)
         toast({
           title: 'Erro ao excluir',
-          description: getErrorMessage(error),
+          description:
+            getErrorMessage(error) ||
+            'Ocorreu um erro ao excluir o processo. Verifique as dependências.',
           variant: 'destructive',
         })
+      } finally {
+        setDeletingId(null)
       }
     }
   }
@@ -460,11 +467,25 @@ export default function ProcessManager() {
                         >
                           <Eye className="w-4 h-4 text-blue-500" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleEdit(p)}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEdit(p)}
+                          disabled={deletingId === p.id}
+                        >
                           <Edit2 className="w-4 h-4 text-slate-500" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)}>
-                          <Trash2 className="w-4 h-4 text-destructive" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(p.id)}
+                          disabled={deletingId === p.id}
+                        >
+                          {deletingId === p.id ? (
+                            <div className="w-4 h-4 rounded-full border-2 border-destructive border-t-transparent animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          )}
                         </Button>
                       </TableCell>
                     </TableRow>
