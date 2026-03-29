@@ -191,16 +191,23 @@ export default function ProcessManager() {
     const id = deleteConfirmItem.id
     setDeletingId(id)
     try {
-      await deleteLawsuit(id)
-      setProcesses((prev) => prev.filter((p) => p.id !== id))
-      toast({ title: 'Registro excluído com sucesso' })
-      setDeleteConfirmItem(null)
+      const result = await deleteLawsuit(id)
+      if (result.success) {
+        setProcesses((prev) => prev.filter((p) => p.id !== id))
+        toast({ title: 'Registro excluído com sucesso' })
+        setDeleteConfirmItem(null)
+      } else {
+        toast({
+          title: `Erro ao excluir (Status ${result.status || 'N/A'})`,
+          description: result.message || 'Não foi possível excluir o processo.',
+          variant: 'destructive',
+        })
+      }
     } catch (error: any) {
-      console.error('Delete error:', error)
+      console.error('Unhandled delete error:', error)
       toast({
-        title: 'Erro ao excluir',
-        description:
-          'Erro ao excluir o processo. Verifique se existem dependências ou tente novamente mais tarde.',
+        title: 'Erro Crítico',
+        description: 'Falha inesperada ao tentar excluir o registro.',
         variant: 'destructive',
       })
     } finally {
