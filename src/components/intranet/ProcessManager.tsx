@@ -197,9 +197,43 @@ export default function ProcessManager() {
         toast({ title: 'Registro excluído com sucesso' })
         setDeleteConfirmItem(null)
       } else {
+        let errorMsg = result.message || 'Não foi possível excluir o processo.'
+        let errorTitle = 'Erro ao excluir'
+
+        if ('category' in result) {
+          switch (result.category) {
+            case 'validation':
+              errorTitle = 'Erro de Validação'
+              errorMsg = `Falha de validação: ${
+                Object.values(result.details?.data || {})
+                  .map((e: any) => e.message)
+                  .join(', ') || errorMsg
+              }`
+              break
+            case 'permission':
+              errorTitle = 'Acesso Negado'
+              errorMsg = 'Você não tem permissão para excluir este registro.'
+              break
+            case 'not_found':
+              errorTitle = 'Não Encontrado'
+              errorMsg = 'Registro não encontrado.'
+              break
+            case 'backend_hook':
+              errorTitle = 'Erro de Dependência'
+              errorMsg =
+                result.details?.message ||
+                'Ocorreu um erro interno ao processar a exclusão (conflito de dependências).'
+              break
+            case 'network':
+              errorTitle = 'Erro de Conexão'
+              errorMsg = 'Falha de rede. Verifique sua conexão.'
+              break
+          }
+        }
+
         toast({
-          title: `Erro ao excluir (Status ${result.status || 'N/A'})`,
-          description: result.message || 'Não foi possível excluir o processo.',
+          title: errorTitle,
+          description: errorMsg,
           variant: 'destructive',
         })
       }

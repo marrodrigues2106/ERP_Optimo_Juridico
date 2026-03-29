@@ -26,13 +26,54 @@ export const deleteLawsuit = async (id: string, instance = pb) => {
   } catch (error: any) {
     console.error('deleteLawsuit error details:', error, error?.response)
 
-    const status = error instanceof ClientResponseError ? error.status : 500
-    const message = normalizePocketBaseError(error)
-    const details = error instanceof ClientResponseError ? error.response : null
+    let category:
+      | 'validation'
+      | 'permission'
+      | 'not_found'
+      | 'backend_hook'
+      | 'network'
+      | 'unknown' = 'unknown'
+    let status = 500
+    let message = 'Ocorreu um erro inesperado.'
+    let details = null
+
+    if (error instanceof ClientResponseError) {
+      status = error.status
+      details = error.response
+
+      if (status === 0) {
+        category = 'network'
+        message = 'Falha de rede. Verifique sua conexão.'
+      } else if (status === 403 || status === 401) {
+        category = 'permission'
+        message = 'Você não tem permissão para excluir este registro.'
+      } else if (status === 404) {
+        category = 'not_found'
+        message = 'Registro não encontrado.'
+      } else if (status === 400) {
+        if (details?.data && Object.keys(details.data).length > 0) {
+          category = 'validation'
+          message = 'Falha de validação.'
+        } else {
+          category = 'backend_hook'
+          message =
+            details?.message ||
+            'Ocorreu um erro interno ao processar a exclusão (conflito de dependências).'
+        }
+      } else {
+        message = error.message || 'Erro desconhecido do servidor.'
+      }
+    } else if (!error.response && !error.status) {
+      category = 'network'
+      message = 'Falha de rede ou servidor inacessível.'
+    } else if (error instanceof Error) {
+      message = error.message
+    }
 
     return {
       success: false,
       message,
+      category,
       status,
       details,
     }

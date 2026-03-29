@@ -23,7 +23,9 @@ onRecordDeleteRequest((e) => {
     })
   } catch (err) {
     console.error('Failed to clean up lawsuit dependencies', err)
-    throw new BadRequestError('Falha ao limpar registros dependentes antes da exclusão.')
+    throw new BadRequestError(
+      'Ocorreu um erro interno ao processar a exclusão (conflito de dependências). Falha ao limpar registros dependentes.',
+    )
   }
 
   e.next()
