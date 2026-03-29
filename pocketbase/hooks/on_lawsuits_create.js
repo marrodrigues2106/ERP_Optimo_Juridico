@@ -80,10 +80,18 @@ onRecordAfterCreateSuccess((e) => {
       let baseUrl = $secrets.get('PB_INSTANCE_URL') || 'http://127.0.0.1:8090'
       if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1)
 
+      let token = ''
+      try {
+        token = e.requestInfo().headers['authorization'] || ''
+      } catch (reqErr) {}
+
       $http.send({
         url: baseUrl + '/backend/v1/datajud/background-sync/' + e.record.id,
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token,
+        },
         body: JSON.stringify({ secret: 'internal-async-trigger' }),
         timeout: 15,
       })

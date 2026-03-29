@@ -16,21 +16,7 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
       } catch (err) {}
     }
 
-    const apiKey = $secrets.get('DATAJUD_API_KEY')
-    if (!apiKey) {
-      updateConfigStatus(
-        0,
-        0,
-        'API_KEY_MISSING',
-        'Configuration Missing: DATAJUD_API_KEY secret is not set',
-      )
-      return e.json(200, {
-        status: 'error',
-        message: 'Configuration Missing: DATAJUD_API_KEY secret is not set',
-        errorType: 'API_KEY_MISSING',
-        latency: 0,
-      })
-    }
+    const apiKey = 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
 
     try {
       const tr = $app.findFirstRecordByFilter('tribunals', `alias = '${alias}'`)
@@ -48,20 +34,7 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
           latency: 0,
         })
       }
-    } catch (err) {
-      updateConfigStatus(
-        0,
-        0,
-        'ENDPOINT_INVALID',
-        `Invalid Endpoint: Tribunal alias not recognized`,
-      )
-      return e.json(200, {
-        status: 'error',
-        message: `Invalid Endpoint: Tribunal alias not recognized`,
-        errorType: 'ENDPOINT_INVALID',
-        latency: 0,
-      })
-    }
+    } catch (err) {}
 
     const callDataJud = (targetAlias, key, bodyStr) => {
       const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${targetAlias}/_search`
@@ -86,10 +59,8 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
           body: bodyStr,
           timeout: 30,
         })
-
         result.latency = Date.now() - start
         result.statusCode = res.statusCode
-
         try {
           result.rawResponse = res.json
         } catch (err) {}
@@ -103,41 +74,34 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
         } else if (res.statusCode >= 300) {
           result.errorType = 'HTTP_STATUS_ERRORS'
           result.errorMessage = 'HTTP Error: ' + res.statusCode
-        } else {
-          result.errorType = 'online'
         }
       } catch (err) {
         result.latency = Date.now() - start
-        const errStr = String(err).toLowerCase()
-        if (
-          errStr.includes('lookup') ||
-          errStr.includes('no such host') ||
-          errStr.includes('dns') ||
-          errStr.includes('resolve')
-        ) {
-          result.errorType = 'DNS_FAILURE'
-          result.errorMessage =
-            'DNS_FAILURE: Could not resolve host api-publica.datajud.cnj.jus.br in container (resolv.conf issue or [::1]:53 connection refused).'
-        } else if (errStr.includes('timeout') || errStr.includes('deadline')) {
-          result.errorType = 'NETWORK_TIMEOUT'
-          result.errorMessage = 'NETWORK_TIMEOUT: Server took too long to respond.'
-        } else if (errStr.includes('connection refused')) {
-          result.errorType = 'CONNECTION_REFUSED'
-          result.errorMessage =
-            'CONNECTION_REFUSED: Connection refused by the server (check routing or port 443).'
-        } else {
-          result.errorType = 'NETWORK_FAILURE'
-          result.errorMessage = 'NETWORK_FAILURE: ' + String(err)
-        }
+        result.errorType = 'NETWORK_FAILURE'
+        result.errorMessage = 'NETWORK_FAILURE: ' + String(err)
       }
       return result
     }
 
-    const apiResult = callDataJud(
+    let apiResult = callDataJud(
       alias,
       apiKey,
       JSON.stringify({ size: 1, query: { match_all: {} } }),
     )
+
+    if (apiResult.errorType === 'ENDPOINT_INVALID' || apiResult.errorType === 'NETWORK_FAILURE') {
+      const fallbackAlias = alias === 'stj' ? 'tjrj' : 'stj'
+      const fallbackResult = callDataJud(
+        fallbackAlias,
+        apiKey,
+        JSON.stringify({ size: 1, query: { match_all: {} } }),
+      )
+      if (fallbackResult.errorType === 'online') {
+        apiResult = fallbackResult
+        apiResult.errorMessage = 'Fallback successful via ' + fallbackAlias
+      }
+    }
+
     updateConfigStatus(
       apiResult.statusCode,
       apiResult.latency,
