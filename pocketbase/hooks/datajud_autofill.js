@@ -76,10 +76,27 @@ routerAdd(
       })
 
       if (res.statusCode >= 400) {
+        let msg = 'DataJud HTTP Error: ' + res.statusCode
         if (res.statusCode === 401 || res.statusCode === 403) {
-          return e.json(403, { error: 'Verifique as permissões da sua API Key no portal do CNJ.' })
+          msg =
+            'Erro de Permissão (403): Verifique as permissões da sua API Key no portal do CNJ. O acesso ao tribunal (' +
+            targetAlias +
+            ') foi negado.'
+          try {
+            if (res.json && res.json.error && res.json.error.root_cause) {
+              const rc = res.json.error.root_cause[0]
+              if (
+                rc.reason &&
+                rc.reason.includes('unauthorized') &&
+                rc.reason.includes('indices:data/read/search')
+              ) {
+                msg = `Erro de Permissão (403): A Chave de API configurada não possui permissão para consultar o índice do tribunal ${targetAlias} no DataJud. Verifique no portal do CNJ.`
+              }
+            }
+          } catch (err) {}
+          return e.json(403, { error: msg })
         }
-        return e.json(res.statusCode, { error: 'DataJud HTTP Error: ' + res.statusCode })
+        return e.json(res.statusCode, { error: msg })
       }
 
       const hits = res.json?.hits?.hits || []

@@ -159,9 +159,16 @@ export function CaseFormModal({
         })
       }
     } catch (e: any) {
-      const errorMsg = e.response?.error || 'Não foi possível consultar o DataJud agora.'
+      let errorMsg = 'Não foi possível consultar o DataJud agora.'
+      if (e.response?.error) {
+        errorMsg = e.response.error
+      } else if (e.status === 403 || e.status === 401) {
+        errorMsg =
+          'Erro de Permissão (403): A Chave de API configurada não possui privilégios de acesso para este tribunal no CNJ.'
+      }
+
       toast({
-        title: 'Erro de conexão',
+        title: e.status === 403 || e.status === 401 ? 'Acesso Negado (DataJud)' : 'Erro de conexão',
         description: errorMsg,
         variant: 'destructive',
       })
@@ -211,6 +218,20 @@ export function CaseFormModal({
   }
 
   const selectedType = watch('type')
+  const currentCaseNumber = watch('case_number')
+
+  useEffect(() => {
+    if (selectedType === 'Processo' && currentCaseNumber && !editingCase) {
+      const justNumbers = currentCaseNumber.replace(/\D/g, '')
+      if (justNumbers.length === 20 && !isSearching) {
+        const timeout = setTimeout(() => {
+          handleDataJudSearch()
+        }, 1000)
+        return () => clearTimeout(timeout)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCaseNumber, selectedType, editingCase])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

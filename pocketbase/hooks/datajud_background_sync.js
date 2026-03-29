@@ -135,7 +135,23 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
 
         if (res.statusCode === 401 || res.statusCode === 403) {
           result.errorType = 'AUTH_FAILURE'
-          result.errorMessage = 'Verifique as permissões da sua API Key no portal do CNJ.'
+          let msg =
+            'Verifique as permissões da sua API Key no portal do CNJ. Acesso negado ao tribunal ' +
+            targetAlias +
+            '.'
+          try {
+            if (res.json && res.json.error && res.json.error.root_cause) {
+              const rc = res.json.error.root_cause[0]
+              if (
+                rc.reason &&
+                rc.reason.includes('unauthorized') &&
+                rc.reason.includes('indices:data/read/search')
+              ) {
+                msg = `Erro de Permissão (403): A Chave de API não possui permissão para o índice ${targetAlias}.`
+              }
+            }
+          } catch (err) {}
+          result.errorMessage = msg
         } else if (res.statusCode === 404) {
           result.errorType = 'ENDPOINT_INVALID'
           result.errorMessage = 'Invalid Endpoint: Tribunal alias not recognized'
