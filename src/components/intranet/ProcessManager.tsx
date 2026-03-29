@@ -47,6 +47,7 @@ import { getClients } from '@/services/clients'
 import { getCollaborators } from '@/services/collaborators'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 export default function ProcessManager() {
   const navigate = useNavigate()
@@ -172,7 +173,17 @@ export default function ProcessManager() {
 
   const handleDelete = async (id: string) => {
     if (confirm('Tem certeza que deseja excluir?')) {
-      await deleteLawsuit(id)
+      try {
+        await deleteLawsuit(id)
+        toast({ title: 'Registro excluído com sucesso' })
+        loadData()
+      } catch (error) {
+        toast({
+          title: 'Erro ao excluir',
+          description: getErrorMessage(error),
+          variant: 'destructive',
+        })
+      }
     }
   }
 

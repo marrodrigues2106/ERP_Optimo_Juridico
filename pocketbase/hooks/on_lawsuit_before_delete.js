@@ -1,4 +1,4 @@
-onRecordBeforeDeleteRequest((e) => {
+onRecordDelete((e) => {
   const id = e.record.id
 
   // Safely clean up dependent records to avoid Foreign Key constraint errors (400)
