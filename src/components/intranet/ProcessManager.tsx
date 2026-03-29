@@ -12,12 +12,12 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -27,201 +27,78 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Search,
-  Plus,
-  Calendar as CalendarIcon,
-  Trash2,
-  Edit2,
-  Eye,
-  Star,
-  Wand2,
-  RefreshCw,
-} from 'lucide-react'
-import {
-  getLawsuits,
-  createLawsuit,
-  updateLawsuit,
-  deleteLawsuit,
-  autofillLawsuit,
-} from '@/services/lawsuits'
+import { Badge } from '@/components/ui/badge'
+import { Search, Plus, Trash2, Edit2, Eye, RefreshCw, Filter } from 'lucide-react'
+import { getLegalCases, deleteLegalCase, updateLegalCase } from '@/services/legal_cases'
 import { getClients } from '@/services/clients'
 import { getCollaborators } from '@/services/collaborators'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
-import { getErrorMessage } from '@/lib/pocketbase/errors'
-import { runDatajudSync, categorizeError } from '@/lib/datajud/sync'
+import { categorizeError, runDatajudSync } from '@/lib/datajud/sync'
+import { CaseFormModal } from './cases/CaseFormModal'
 
 export default function ProcessManager() {
   const navigate = useNavigate()
-  const [processes, setProcesses] = useState<any[]>([])
+  const { toast } = useToast()
+
+  const [cases, setCases] = useState<any[]>([])
   const [clients, setClients] = useState<any[]>([])
   const [collaborators, setCollaborators] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
-  const [open, setOpen] = useState(false)
-  const [editingItem, setEditingItem] = useState<any>(null)
-  const [autofillLoading, setAutofillLoading] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [deleteConfirmItem, setDeleteConfirmItem] = useState<any>(null)
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+
+  const [formOpen, setFormOpen] = useState(false)
+  const [editingCase, setEditingCase] = useState<any>(null)
+  const [deletingCase, setDeletingCase] = useState<any>(null)
   const [syncingId, setSyncingId] = useState<string | null>(null)
-  const [syncMessages, setSyncMessages] = useState<Record<string, string>>({})
-  const { toast } = useToast()
 
   const loadData = async () => {
     try {
-      setProcesses(await getLawsuits())
+      setCases(await getLegalCases())
     } catch (e) {
-      console.error(e)
-    }
-  }
-
-  const loadRelations = async () => {
-    try {
-      setClients(await getClients())
-      setCollaborators(await getCollaborators())
-    } catch (e) {
-      console.error(e)
+      console.error('Error loading cases', e)
     }
   }
 
   useEffect(() => {
     loadData()
-    loadRelations()
+    getClients().then(setClients)
+    getCollaborators().then(setCollaborators)
   }, [])
-  useRealtime('lawsuits', loadData)
 
-  const filtered = processes.filter(
-    (p) =>
-      (p.number || '').includes(searchTerm) ||
-      (p.parties || '').toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  useRealtime('legal_cases', loadData)
 
-  const handleOpenNew = () => {
-    setEditingItem(null)
-    setOpen(true)
+  const handleOpenForm = (c: any = null) => {
+    setEditingCase(c)
+    setFormOpen(true)
   }
 
-  const handleEdit = (item: any) => {
-    setEditingItem(item)
-    setOpen(true)
-  }
-
-  const handleToggleFavorite = async (p: any) => {
-    await updateLawsuit(p.id, { isFavorite: !p.isFavorite })
-  }
-
-  const handleAutofill = async () => {
-    const numInput = document.querySelector('input[name="number"]') as HTMLInputElement
-    const num = numInput?.value
-    if (!num) return toast({ title: 'Digite um número de processo', variant: 'destructive' })
-
-    setAutofillLoading(true)
+  const handleConfirmDelete = async () => {
+    if (!deletingCase) return
     try {
-      const res = await autofillLawsuit(num)
-
-      if (res && res.success === false) {
-        toast({
-          title: 'Aviso',
-          description: res.message || 'Processo não encontrado.',
-          variant: 'default',
-        })
-        return
-      }
-
-      const data = res.data || res
-
-      const form = document.querySelector('form') as HTMLFormElement
-      if (form && data) {
-        const fields = ['court', 'parties', 'class', 'subject', 'processType']
-        fields.forEach((f) => {
-          if (data[f]) {
-            const el = form.querySelector(`input[name="${f}"]`) as HTMLInputElement
-            if (el) el.value = data[f]
-          }
-        })
-        if (data.distributionDate) {
-          const el = form.querySelector('input[name="distributionDate"]') as HTMLInputElement
-          if (el) el.value = data.distributionDate.substring(0, 10)
-        }
-      }
-      toast({ title: 'Dados preenchidos via DataJud com sucesso' })
-    } catch (e: any) {
-      if (e.status === 401) {
-        toast({ title: 'Erro de Autenticação na API', variant: 'destructive' })
-      } else {
-        toast({ title: 'Erro de rede ou falha ao consultar o DataJud', variant: 'destructive' })
-      }
-    } finally {
-      setAutofillLoading(false)
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const fd = new FormData(e.currentTarget)
-    const data = Object.fromEntries(fd.entries())
-
-    if (!data.client || data.client === 'none') delete data.client
-    if (!data.collaborator || data.collaborator === 'none') delete data.collaborator
-
-    try {
-      if (editingItem) {
-        await updateLawsuit(editingItem.id, data)
-        toast({ title: 'Registro atualizado com sucesso' })
-      } else {
-        await createLawsuit(data)
-        toast({ title: 'Registro cadastrado com sucesso' })
-      }
-      setOpen(false)
+      await deleteLegalCase(deletingCase.id)
+      toast({ title: 'Registro excluído atomicamente com sucesso.' })
     } catch (error) {
-      toast({ title: 'Erro ao salvar', variant: 'destructive' })
-    }
-  }
-
-  const handleDeleteClick = (p: any) => {
-    setDeleteConfirmItem(p)
-  }
-
-  const handleSyncProcess = async (p: any) => {
-    if (!p.number) {
+      const { category, message } = categorizeError(error)
       toast({
-        title: 'Aviso',
-        description: 'Número do processo obrigatório para sincronizar.',
+        title: `Falha na Exclusão (${category})`,
+        description: message,
         variant: 'destructive',
       })
-      return
+    } finally {
+      setDeletingCase(null)
     }
-    setSyncingId(p.id)
-    setSyncMessages((prev) => ({ ...prev, [p.id]: 'Iniciando sincronização...' }))
+  }
 
+  const handleSyncDatajud = async (c: any) => {
+    setSyncingId(c.id)
     try {
-      const total = await runDatajudSync(p, (msg) => {
-        setSyncMessages((prev) => ({ ...prev, [p.id]: msg }))
-      })
-
-      toast({
-        title: 'Sincronização Concluída',
-        description: `${total} movimentos sincronizados com sucesso.`,
-      })
-      loadData()
-    } catch (err) {
-      const { category, message } = categorizeError(err)
-
-      try {
-        await updateLawsuit(p.id, { sync_message: `Erro (${category}): ${message}` })
-        loadData()
-      } catch (e) {
-        // Ignore error
-      }
-
+      await runDatajudSync(c, () => {})
+      toast({ title: 'Sincronização V2 processada.' })
+    } catch (error) {
+      const { category, message } = categorizeError(error)
+      await updateLegalCase(c.id, { datajud_sync_status: 'Error' }).catch(() => null)
       toast({
         title: `Erro de Sincronização (${category})`,
         description: message,
@@ -229,483 +106,188 @@ export default function ProcessManager() {
       })
     } finally {
       setSyncingId(null)
-      setSyncMessages((prev) => {
-        const next = { ...prev }
-        delete next[p.id]
-        return next
-      })
     }
   }
 
-  const handleConfirmDelete = async () => {
-    if (!deleteConfirmItem) return
-    const id = deleteConfirmItem.id
-    setDeletingId(id)
-    try {
-      const result = await deleteLawsuit(id)
-      if (result.success) {
-        setProcesses((prev) => prev.filter((p) => p.id !== id))
-        toast({ title: 'Registro deletado com sucesso.' })
-        setDeleteConfirmItem(null)
-      } else {
-        let errorMsg = result.message || 'Não foi possível excluir o processo.'
-        let errorTitle = 'Erro ao excluir'
-
-        if ('category' in result) {
-          // Console Debugging Payload
-          console.error('Deletion failure debug payload:', {
-            recordId: id,
-            category: result.category,
-            status: result.status,
-            code: result.code,
-            message: result.message,
-            checkedBeforeDelete: result.checkedBeforeDelete,
-            rawResponse: result.rawResponse,
-          })
-
-          switch (result.category) {
-            case 'conflict':
-              errorTitle = 'Conflito'
-              errorMsg = 'Não é possível deletar devido a vínculos existentes.'
-              break
-            case 'permission':
-              errorTitle = 'Acesso Negado'
-              errorMsg = 'Você não tem permissão para excluir este registro.'
-              break
-            case 'not_found':
-              errorTitle = 'Não Encontrado'
-              errorMsg = 'Registro não encontrado.'
-              break
-            case 'backend_hook':
-              errorTitle = 'Erro Interno'
-              errorMsg = 'Ocorreu um erro interno ao processar a exclusão.'
-              break
-            case 'network':
-              errorTitle = 'Erro de Conexão'
-              errorMsg = 'Falha de rede. Verifique sua conexão.'
-              break
-            case 'validation':
-              errorTitle = 'Erro de Validação'
-              errorMsg = `Falha de validação: ${
-                Object.values(result.details?.data || {})
-                  .map((e: any) => e.message)
-                  .join(', ') || 'Erro ao processar dados.'
-              }`
-              break
-            default:
-              errorMsg = result.message
-              break
-          }
-        }
-
-        toast({
-          title: errorTitle,
-          description: errorMsg,
-          variant: 'destructive',
-        })
-      }
-    } catch (error: any) {
-      console.error('Unhandled delete error:', error)
-      toast({
-        title: 'Erro Crítico',
-        description: 'Falha inesperada ao tentar excluir o registro.',
-        variant: 'destructive',
-      })
-    } finally {
-      setDeletingId(null)
-    }
-  }
+  const filteredCases = cases.filter((c) => {
+    const matchSearch =
+      (c.parties?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (c.case_number || '').includes(searchTerm)
+    const matchType = typeFilter === 'all' || c.type === typeFilter
+    const matchStatus = statusFilter === 'all' || c.lifecycle_status === statusFilter
+    return matchSearch && matchType && matchStatus
+  })
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-        <h2 className="text-2xl font-serif font-bold text-primary">Processos e Serviços</h2>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleOpenNew}>
-              <Plus className="w-4 h-4 mr-2" /> Novo Registro
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingItem ? 'Editar Registro' : 'Novo Registro'}</DialogTitle>
-            </DialogHeader>
-            <form
-              key={editingItem?.id || 'new'}
-              onSubmit={handleSubmit}
-              className="grid grid-cols-1 md:grid-cols-2 gap-4"
-            >
-              <div className="md:col-span-2">
-                <Label>Tipo de Registro</Label>
-                <Select name="entryType" defaultValue={editingItem?.entryType || 'Processo'}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Processo">Processo</SelectItem>
-                    <SelectItem value="Serviço Jurídico">Serviço Jurídico</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="md:col-span-2">
-                <Label>Número do Processo (Opcional p/ Serviços)</Label>
-                <div className="flex gap-2 mt-1">
-                  <Input
-                    name="number"
-                    placeholder="0000000-00.0000.0.00.0000"
-                    defaultValue={editingItem?.number}
-                    className="flex-1"
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={handleAutofill}
-                    disabled={autofillLoading}
-                  >
-                    <Wand2 className={`w-4 h-4 mr-2 ${autofillLoading ? 'animate-spin' : ''}`} />
-                    Auto-Preencher
-                  </Button>
-                </div>
-              </div>
-              <div>
-                <Label>Tribunal / Órgão</Label>
-                <Input name="court" placeholder="Ex: TJ-RJ" defaultValue={editingItem?.court} />
-              </div>
-              <div>
-                <Label>Fase/Status do Processo</Label>
-                <Input
-                  name="status"
-                  placeholder="Ex: Aguardando Audiência"
-                  defaultValue={editingItem?.status}
-                />
-              </div>
-              <div>
-                <Label>Status de Acompanhamento</Label>
-                <Select
-                  name="lifecycle_status"
-                  defaultValue={editingItem?.lifecycle_status || 'Acompanhado'}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Acompanhado">Acompanhado (Ativo)</SelectItem>
-                    <SelectItem value="Arquivado">Arquivado (Inativo)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Fonte de Monitoramento</Label>
-                <Select name="trackingSource" defaultValue={editingItem?.trackingSource || 'Ambos'}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Ambos">Ambos (DataJud + DOU)</SelectItem>
-                    <SelectItem value="Tribunais">Apenas Tribunais</SelectItem>
-                    <SelectItem value="Diários Oficiais">Apenas Diários</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="md:col-span-2">
-                <Label>Partes (Cliente x Parte Contraria) / Título do Serviço</Label>
-                <Input name="parties" required defaultValue={editingItem?.parties} />
-              </div>
-
-              <div>
-                <Label>Cliente Vinculado</Label>
-                <Select name="client" defaultValue={editingItem?.client || 'none'}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum</SelectItem>
-                    {clients.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.fullName || c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label>Membro Responsável</Label>
-                <Select name="collaborator" defaultValue={editingItem?.collaborator || 'none'}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um membro" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum</SelectItem>
-                    {collaborators.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.fullName || c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label>Próximo Prazo</Label>
-                <Input
-                  name="deadline"
-                  type="date"
-                  defaultValue={editingItem?.deadline?.split('T')[0]}
-                />
-              </div>
-              <div>
-                <Label>Termos Datajud / D.O. (Monitoramento)</Label>
-                <Input
-                  name="gazetteTerms"
-                  placeholder="Ex: Termos de pesquisa"
-                  defaultValue={editingItem?.gazetteTerms}
-                />
-              </div>
-
-              <div className="md:col-span-2 pt-2 border-t mt-2">
-                <h4 className="text-sm font-semibold text-slate-700 mb-3">
-                  Dados Estruturados (DataJud)
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Classe Processual</Label>
-                    <Input
-                      name="class"
-                      placeholder="Ex: Procedimento Comum Cível"
-                      defaultValue={editingItem?.class}
-                    />
-                  </div>
-                  <div>
-                    <Label>Assunto Principal</Label>
-                    <Input
-                      name="subject"
-                      placeholder="Ex: Indenização por Dano Moral"
-                      defaultValue={editingItem?.subject}
-                    />
-                  </div>
-                  <div>
-                    <Label>Formato / Tipo</Label>
-                    <Input
-                      name="processType"
-                      placeholder="Ex: Digital"
-                      defaultValue={editingItem?.processType}
-                    />
-                  </div>
-                  <div>
-                    <Label>Data de Distribuição</Label>
-                    <Input
-                      type="date"
-                      name="distributionDate"
-                      defaultValue={
-                        editingItem?.distributionDate
-                          ? editingItem.distributionDate.substring(0, 10)
-                          : ''
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="md:col-span-2 mt-4">
-                <Button type="submit" className="w-full">
-                  Salvar Registro
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl font-serif font-bold text-primary">Gestão de Casos e Serviços</h2>
+        <Button onClick={() => handleOpenForm()}>
+          <Plus className="w-4 h-4 mr-2" /> Novo Registro
+        </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                <CardTitle>Meus Processos e Serviços</CardTitle>
-                <div className="relative w-full md:w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar nº ou parte..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Identificação</TableHead>
-                    <TableHead>Partes/Título</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell>
-                        <div className="font-medium text-primary flex items-center gap-2">
-                          <button
-                            onClick={() => handleToggleFavorite(p)}
-                            className="text-amber-400 hover:scale-110 transition-transform"
-                          >
-                            <Star
-                              className={`w-4 h-4 ${p.isFavorite ? 'fill-current' : 'text-slate-300'}`}
-                            />
-                          </button>
-                          <span
-                            className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${p.entryType === 'Serviço Jurídico' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}
-                          >
-                            {p.entryType === 'Serviço Jurídico' ? 'Serviço' : 'Processo'}
-                          </span>
-                          {p.lifecycle_status === 'Arquivado' && (
-                            <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
-                              Arquivado
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1 ml-6">
-                          {p.number || '-'}
-                        </div>
-                        {syncMessages[p.id] && (
-                          <div className="text-xs text-emerald-600 font-medium mt-1 ml-6 animate-pulse">
-                            {syncMessages[p.id]}
-                          </div>
-                        )}
-                        {!syncMessages[p.id] && p.sync_message && (
-                          <div
-                            className="text-[10px] text-slate-500 mt-1 ml-6 max-w-[200px] truncate"
-                            title={p.sync_message}
-                          >
-                            Status: {p.sync_message}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate" title={p.parties}>
-                        {p.parties}
-                      </TableCell>
-                      <TableCell>
-                        <span className="px-2 py-1 bg-secondary/10 text-secondary rounded-full text-xs font-medium whitespace-nowrap">
-                          {p.status || 'Aberto'}
+      <Card>
+        <CardHeader className="flex flex-col md:flex-row justify-between md:items-center gap-4 bg-slate-50/50 border-b">
+          <CardTitle className="text-lg">Portfólio</CardTitle>
+          <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+            <div className="relative flex-1 md:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Buscar por partes ou número..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-full sm:w-[140px]">
+                <Filter className="w-3 h-3 mr-2 text-slate-400" />
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Tipos</SelectItem>
+                <SelectItem value="Processo">Processo</SelectItem>
+                <SelectItem value="Serviço Jurídico">Serviço Jurídico</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-[140px]">
+                <Filter className="w-3 h-3 mr-2 text-slate-400" />
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos Status</SelectItem>
+                <SelectItem value="Ativo">Ativo</SelectItem>
+                <SelectItem value="Arquivado">Arquivado</SelectItem>
+                <SelectItem value="Suspenso">Suspenso</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-6">Identificação & Partes</TableHead>
+                <TableHead>Fase / Prazo</TableHead>
+                <TableHead>Integração V2</TableHead>
+                <TableHead className="text-right pr-6">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredCases.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    Nenhum caso encontrado.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredCases.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="pl-6">
+                      <div className="font-medium text-slate-800 line-clamp-1">{c.parties}</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span
+                          className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${c.type === 'Serviço Jurídico' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}
+                        >
+                          {c.type}
                         </span>
-                      </TableCell>
-                      <TableCell className="text-right whitespace-nowrap">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Detalhes do Processo"
-                          onClick={() => navigate(`/intranet/processos/${p.id}`)}
+                        <span className="text-xs text-slate-500">
+                          {c.case_number || 'Sem número'}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm font-medium">{c.status || 'Não informado'}</div>
+                      <div className="text-xs text-slate-500 mt-1">
+                        Status Ciclo: {c.lifecycle_status}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {c.type === 'Processo' ? (
+                        <Badge
+                          className={
+                            c.datajud_sync_status === 'Synced'
+                              ? 'bg-emerald-500 hover:bg-emerald-600'
+                              : c.datajud_sync_status === 'Pending'
+                                ? 'bg-amber-500 hover:bg-amber-600'
+                                : c.datajud_sync_status === 'Error'
+                                  ? 'bg-red-500 hover:bg-red-600'
+                                  : 'bg-slate-300 hover:bg-slate-400'
+                          }
                         >
-                          <Eye className="w-4 h-4 text-blue-500" />
-                        </Button>
+                          {c.datajud_sync_status || 'Pendente'}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">N/A</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right pr-6 whitespace-nowrap">
+                      {c.type === 'Processo' && (
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleEdit(p)}
-                          disabled={deletingId === p.id}
-                        >
-                          <Edit2 className="w-4 h-4 text-slate-500" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Sincronizar DataJud"
-                          onClick={() => handleSyncProcess(p)}
-                          disabled={syncingId === p.id || deletingId === p.id}
+                          onClick={() => handleSyncDatajud(c)}
+                          disabled={syncingId === c.id}
+                          title="Sincronizar (V2)"
                         >
                           <RefreshCw
-                            className={`w-4 h-4 text-emerald-500 ${syncingId === p.id ? 'animate-spin' : ''}`}
+                            className={`w-4 h-4 text-blue-500 ${syncingId === c.id ? 'animate-spin' : ''}`}
                           />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteClick(p)}
-                          disabled={deletingId === p.id}
-                        >
-                          {deletingId === p.id ? (
-                            <div className="w-4 h-4 rounded-full border-2 border-destructive border-t-transparent animate-spin" />
-                          ) : (
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          )}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => navigate(`/intranet/processos/${c.id}`)}
+                      >
+                        <Eye className="w-4 h-4 text-emerald-600" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleOpenForm(c)}>
+                        <Edit2 className="w-4 h-4 text-slate-500" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => setDeletingCase(c)}>
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-        <AlertDialog
-          open={!!deleteConfirmItem}
-          onOpenChange={(open) => !open && !deletingId && setDeleteConfirmItem(null)}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Deseja realmente excluir este processo?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Esta ação não pode ser desfeita e removerá todos os históricos vinculados.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={!!deletingId}>Cancelar</AlertDialogCancel>
-              <Button
-                variant="destructive"
-                onClick={(e) => {
-                  e.preventDefault()
-                  handleConfirmDelete()
-                }}
-                disabled={!!deletingId}
-              >
-                {deletingId ? 'Excluindo...' : 'Excluir'}
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+      <CaseFormModal
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        editingCase={editingCase}
+        clients={clients}
+        collaborators={collaborators}
+        onSuccess={() => setFormOpen(false)}
+      />
 
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <CalendarIcon className="w-5 h-5 mr-2" /> Próximos Prazos
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[...processes]
-                  .filter((p) => p.deadline)
-                  .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
-                  .slice(0, 5)
-                  .map((p) => (
-                    <div
-                      key={`deadline-${p.id}`}
-                      className="flex justify-between items-start p-3 border rounded-lg bg-slate-50 cursor-pointer hover:bg-slate-100 transition-colors"
-                      onClick={() => navigate(`/intranet/processos/${p.id}`)}
-                    >
-                      <div className="flex-1 pr-2">
-                        <div className="font-semibold text-sm text-primary line-clamp-1">
-                          {p.parties}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                          {p.status}
-                        </div>
-                      </div>
-                      <div className="text-xs font-bold text-destructive bg-destructive/10 px-2 py-1 rounded shrink-0">
-                        {new Date(p.deadline).toLocaleDateString()}
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <AlertDialog open={!!deletingCase} onOpenChange={(open) => !open && setDeletingCase(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmação de Exclusão Atômica</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você está prestes a excluir o caso <strong>{deletingCase?.parties}</strong>.<br />
+              <br />
+              Esta ação ativará a engine de <b>exclusão em cascata (Cascade Delete)</b>, removendo
+              permanentemente o caso e todas as movimentações associadas do banco de dados. Essa
+              ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <Button variant="destructive" onClick={handleConfirmDelete}>
+              Confirmar Exclusão
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

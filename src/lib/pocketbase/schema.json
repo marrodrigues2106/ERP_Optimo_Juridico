@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-29T03:22:41.235Z",
+  "generatedAt": "2026-03-29T03:34:01.474Z",
   "collections": [
     {
       "name": "users",
@@ -161,165 +161,6 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
-        }
-      ],
-      "indexes": []
-    },
-    {
-      "name": "lawsuits",
-      "type": "base",
-      "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
-      },
-      "fields": [
-        {
-          "name": "number",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "court",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "parties",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "status",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "deadline",
-          "type": "date",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "created",
-          "type": "autodate",
-          "required": false,
-          "system": false,
-          "autodateTriggers": ["onCreate"]
-        },
-        {
-          "name": "updated",
-          "type": "autodate",
-          "required": false,
-          "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
-        },
-        {
-          "name": "entryType",
-          "type": "select",
-          "required": false,
-          "system": false,
-          "selectValues": ["Processo", "Serviço Jurídico"]
-        },
-        {
-          "name": "trackingLogs",
-          "type": "json",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "datajudStatus",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "gazetteTerms",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "client",
-          "type": "relation",
-          "required": false,
-          "system": false,
-          "collectionRef": "clients"
-        },
-        {
-          "name": "collaborator",
-          "type": "relation",
-          "required": false,
-          "system": false,
-          "collectionRef": "collaborators"
-        },
-        {
-          "name": "notifyClient",
-          "type": "bool",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "last_sync",
-          "type": "date",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "isFavorite",
-          "type": "bool",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "lifecycle_status",
-          "type": "select",
-          "required": false,
-          "system": false,
-          "selectValues": ["Acompanhado", "Arquivado"]
-        },
-        {
-          "name": "trackingSource",
-          "type": "select",
-          "required": false,
-          "system": false,
-          "selectValues": ["Diários Oficiais", "Tribunais", "Ambos"]
-        },
-        {
-          "name": "class",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "subject",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "processType",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "distributionDate",
-          "type": "date",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "sync_message",
-          "type": "text",
-          "required": false,
-          "system": false
         }
       ],
       "indexes": []
@@ -766,13 +607,6 @@
           "system": false
         },
         {
-          "name": "linked_lawsuit",
-          "type": "relation",
-          "required": false,
-          "system": false,
-          "collectionRef": "lawsuits"
-        },
-        {
           "name": "created",
           "type": "autodate",
           "required": false,
@@ -859,73 +693,6 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
-        }
-      ],
-      "indexes": []
-    },
-    {
-      "name": "lawsuit_notifications",
-      "type": "base",
-      "apiRules": {
-        "list": "@request.auth.id != '' && user = @request.auth.id",
-        "view": "@request.auth.id != '' && user = @request.auth.id",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != '' && user = @request.auth.id",
-        "delete": "@request.auth.id != '' && user = @request.auth.id"
-      },
-      "fields": [
-        {
-          "name": "lawsuit",
-          "type": "relation",
-          "required": false,
-          "system": false,
-          "collectionRef": "lawsuits"
-        },
-        {
-          "name": "update_content",
-          "type": "text",
-          "required": true,
-          "system": false
-        },
-        {
-          "name": "is_read",
-          "type": "bool",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "user",
-          "type": "relation",
-          "required": true,
-          "system": false,
-          "collectionRef": "users"
-        },
-        {
-          "name": "created",
-          "type": "autodate",
-          "required": false,
-          "system": false,
-          "autodateTriggers": ["onCreate"]
-        },
-        {
-          "name": "updated",
-          "type": "autodate",
-          "required": false,
-          "system": false,
-          "autodateTriggers": ["onCreate", "onUpdate"]
-        },
-        {
-          "name": "type",
-          "type": "select",
-          "required": false,
-          "system": false,
-          "selectValues": ["update", "discovery", "gazette", "court"]
-        },
-        {
-          "name": "discovered_data",
-          "type": "json",
-          "required": false,
-          "system": false
         }
       ],
       "indexes": []
@@ -1171,7 +938,7 @@
       ]
     },
     {
-      "name": "lawsuit_movements",
+      "name": "legal_cases",
       "type": "base",
       "apiRules": {
         "list": "@request.auth.id != ''",
@@ -1182,11 +949,133 @@
       },
       "fields": [
         {
-          "name": "lawsuit",
+          "name": "case_number",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["Processo", "Serviço Jurídico"]
+        },
+        {
+          "name": "court",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "parties",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "deadline",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "client",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clients"
+        },
+        {
+          "name": "responsible_collaborator",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "collaborators"
+        },
+        {
+          "name": "is_favorite",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "lifecycle_status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["Ativo", "Arquivado", "Suspenso"]
+        },
+        {
+          "name": "datajud_last_sync",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "datajud_sync_status",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "metadata",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "search_after_token",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "court_alias",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE INDEX idx_legal_cases_number ON legal_cases (case_number)"]
+    },
+    {
+      "name": "case_movements",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "case",
           "type": "relation",
           "required": true,
           "system": false,
-          "collectionRef": "lawsuits"
+          "collectionRef": "legal_cases"
         },
         {
           "name": "event_date",
@@ -1205,17 +1094,11 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["DataJud", "Tribunal", "Diario", "Manual", "Sistema"]
+          "selectValues": ["DataJud", "Tribunal", "Diário", "Manual"]
         },
         {
-          "name": "hash",
+          "name": "external_id",
           "type": "text",
-          "required": true,
-          "system": false
-        },
-        {
-          "name": "metadata",
-          "type": "json",
           "required": false,
           "system": false
         },
@@ -1235,8 +1118,7 @@
         }
       ],
       "indexes": [
-        "CREATE UNIQUE INDEX idx_lawsuit_movements_hash ON lawsuit_movements (hash)",
-        "CREATE INDEX idx_lawsuit_movements_lawsuit_date ON lawsuit_movements (lawsuit, event_date DESC)"
+        "CREATE UNIQUE INDEX idx_case_movements_ext_id ON case_movements (external_id) WHERE external_id != ''"
       ]
     }
   ]
