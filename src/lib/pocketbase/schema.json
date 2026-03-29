@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-29T03:12:39.610Z",
+  "generatedAt": "2026-03-29T03:22:41.235Z",
   "collections": [
     {
       "name": "users",
@@ -312,6 +312,12 @@
         {
           "name": "distributionDate",
           "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sync_message",
+          "type": "text",
           "required": false,
           "system": false
         }

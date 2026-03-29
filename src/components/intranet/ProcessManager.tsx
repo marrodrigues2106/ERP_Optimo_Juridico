@@ -44,6 +44,7 @@ import {
   Eye,
   Star,
   Wand2,
+  RefreshCw,
 } from 'lucide-react'
 import {
   getLawsuits,
@@ -57,6 +58,7 @@ import { getCollaborators } from '@/services/collaborators'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
+import { runDatajudSync, categorizeError } from '@/lib/datajud/sync'
 
 export default function ProcessManager() {
   const navigate = useNavigate()
@@ -69,6 +71,8 @@ export default function ProcessManager() {
   const [autofillLoading, setAutofillLoading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteConfirmItem, setDeleteConfirmItem] = useState<any>(null)
+  const [syncingId, setSyncingId] = useState<string | null>(null)
+  const [syncMessages, setSyncMessages] = useState<Record<string, string>>({})
   const { toast } = useToast()
 
   const loadData = async () => {
@@ -184,6 +188,51 @@ export default function ProcessManager() {
 
   const handleDeleteClick = (p: any) => {
     setDeleteConfirmItem(p)
+  }
+
+  const handleSyncProcess = async (p: any) => {
+    if (!p.number) {
+      toast({
+        title: 'Aviso',
+        description: 'Número do processo obrigatório para sincronizar.',
+        variant: 'destructive',
+      })
+      return
+    }
+    setSyncingId(p.id)
+    setSyncMessages((prev) => ({ ...prev, [p.id]: 'Iniciando sincronização...' }))
+
+    try {
+      const total = await runDatajudSync(p, (msg) => {
+        setSyncMessages((prev) => ({ ...prev, [p.id]: msg }))
+      })
+
+      toast({
+        title: 'Sincronização Concluída',
+        description: `${total} movimentos sincronizados com sucesso.`,
+      })
+      loadData()
+    } catch (err) {
+      const { category, message } = categorizeError(err)
+
+      try {
+        await updateLawsuit(p.id, { sync_message: `Erro (${category}): ${message}` })
+        loadData()
+      } catch (e) {}
+
+      toast({
+        title: `Erro de Sincronização (${category})`,
+        description: message,
+        variant: 'destructive',
+      })
+    } finally {
+      setSyncingId(null)
+      setSyncMessages((prev) => {
+        const next = { ...prev }
+        delete next[p.id]
+        return next
+      })
+    }
   }
 
   const handleConfirmDelete = async () => {
@@ -520,6 +569,19 @@ export default function ProcessManager() {
                         <div className="text-xs text-muted-foreground mt-1 ml-6">
                           {p.number || '-'}
                         </div>
+                        {syncMessages[p.id] && (
+                          <div className="text-xs text-emerald-600 font-medium mt-1 ml-6 animate-pulse">
+                            {syncMessages[p.id]}
+                          </div>
+                        )}
+                        {!syncMessages[p.id] && p.sync_message && (
+                          <div
+                            className="text-[10px] text-slate-500 mt-1 ml-6 max-w-[200px] truncate"
+                            title={p.sync_message}
+                          >
+                            Status: {p.sync_message}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate" title={p.parties}>
                         {p.parties}
@@ -545,6 +607,17 @@ export default function ProcessManager() {
                           disabled={deletingId === p.id}
                         >
                           <Edit2 className="w-4 h-4 text-slate-500" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Sincronizar DataJud"
+                          onClick={() => handleSyncProcess(p)}
+                          disabled={syncingId === p.id || deletingId === p.id}
+                        >
+                          <RefreshCw
+                            className={`w-4 h-4 text-emerald-500 ${syncingId === p.id ? 'animate-spin' : ''}`}
+                          />
                         </Button>
                         <Button
                           variant="ghost"
