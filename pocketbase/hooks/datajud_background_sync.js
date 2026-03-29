@@ -147,7 +147,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
                 rc.reason.includes('unauthorized') &&
                 rc.reason.includes('indices:data/read/search')
               ) {
-                msg = `Erro de Permissão (403): A Chave de API não possui permissão para o índice ${targetAlias}.`
+                msg = `A chave de API do DataJud não possui permissão de leitura para o tribunal selecionado (ex: ${targetAlias}). Verifique as permissões no portal do CNJ.`
               }
             }
           } catch (err) {}
@@ -217,9 +217,14 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
         if (source.tribunal && source.tribunal.nome) {
           record.set('court', source.tribunal.nome)
         }
-        if (source.orgaoJulgador && source.orgaoJulgador.nomeOrgao) {
-          record.set('court_organ', source.orgaoJulgador.nomeOrgao)
+
+        if (source.orgaoJulgador) {
+          const courtOrganName = source.orgaoJulgador.nomeOrgao || source.orgaoJulgador.nome || ''
+          if (courtOrganName) {
+            record.set('court_organ', courtOrganName)
+          }
         }
+
         if (source.dataAjuizamento || source.dataHora) {
           const dDate = source.dataAjuizamento || source.dataHora
           record.set('distribution_date', new Date(dDate).toISOString())

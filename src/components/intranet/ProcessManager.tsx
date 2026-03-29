@@ -96,12 +96,23 @@ export default function ProcessManager() {
     try {
       await runDatajudSync(c, () => {})
       toast({ title: 'Sincronização V2 processada.' })
-    } catch (error) {
+    } catch (error: any) {
       const { category, message } = categorizeError(error)
+
+      let finalMessage = message
+      const errStr = String(error?.message || message || '')
+      if (
+        errStr.includes('permissão de leitura') ||
+        errStr.includes('unauthorized') ||
+        errStr.includes('403')
+      ) {
+        finalMessage = `A chave de API do DataJud não possui permissão de leitura para o tribunal selecionado (ex: ${c.court_alias || 'tjrj'}). Verifique as permissões no portal do CNJ.`
+      }
+
       await updateLegalCase(c.id, { datajud_sync_status: 'Error' }).catch(() => null)
       toast({
         title: `Erro de Sincronização (${category})`,
-        description: message,
+        description: finalMessage,
         variant: 'destructive',
       })
     } finally {

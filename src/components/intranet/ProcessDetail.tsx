@@ -93,7 +93,15 @@ export default function ProcessDetail() {
       })
       await loadData()
     } catch (err: any) {
-      toast({ title: 'Erro na Sincronização', description: err.message, variant: 'destructive' })
+      let errorMsg = err?.message || 'Erro desconhecido'
+      if (
+        errorMsg.includes('permissão de leitura') ||
+        errorMsg.includes('unauthorized') ||
+        errorMsg.includes('403')
+      ) {
+        errorMsg = `A chave de API do DataJud não possui permissão de leitura para o tribunal selecionado (ex: ${legalCase.court_alias || 'tjrj'}). Verifique as permissões no portal do CNJ.`
+      }
+      toast({ title: 'Erro na Sincronização', description: errorMsg, variant: 'destructive' })
     } finally {
       setIsSyncing(false)
     }

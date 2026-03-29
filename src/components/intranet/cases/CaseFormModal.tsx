@@ -137,19 +137,21 @@ export function CaseFormModal({
       })
 
       if (res.success && res.data) {
-        setValue('court', res.data.court || '')
-        setValue('court_organ', res.data.courtOrgan || '')
-        setValue('parties', res.data.parties || '')
-        setValue('subject', res.data.subject || '')
-        setValue('action_class', res.data.class || '')
-        setValue('process_type', res.data.processType || '')
+        if (res.data.court) setValue('court', res.data.court)
+        if (res.data.courtOrgan) setValue('court_organ', res.data.courtOrgan)
+        if (res.data.parties) setValue('parties', res.data.parties)
+        if (res.data.subject) setValue('subject', res.data.subject)
+        if (res.data.class) setValue('action_class', res.data.class)
+        if (res.data.processType) setValue('process_type', res.data.processType)
         if (res.data.status) {
           setValue('status', res.data.status)
         }
         if (res.data.distributionDate) {
-          setValue('distribution_date', res.data.distributionDate.substring(0, 10))
+          try {
+            setValue('distribution_date', res.data.distributionDate.substring(0, 10))
+          } catch (err) {}
         }
-        setValue('court_alias', res.data.alias || '')
+        if (res.data.alias) setValue('court_alias', res.data.alias)
         toast({ title: 'Sucesso', description: 'Dados preenchidos via DataJud.' })
       } else {
         toast({
@@ -160,15 +162,20 @@ export function CaseFormModal({
       }
     } catch (e: any) {
       let errorMsg = 'Não foi possível consultar o DataJud agora.'
+      let isPermissionError = e.status === 403 || e.status === 401
+
       if (e.response?.error) {
         errorMsg = e.response.error
-      } else if (e.status === 403 || e.status === 401) {
+        if (errorMsg.includes('permissão de leitura para o tribunal')) {
+          isPermissionError = true
+        }
+      } else if (isPermissionError) {
         errorMsg =
-          'Erro de Permissão (403): A Chave de API configurada não possui privilégios de acesso para este tribunal no CNJ.'
+          'A chave de API do DataJud não possui permissão de leitura para o tribunal selecionado (ex: tjrj). Verifique as permissões no portal do CNJ.'
       }
 
       toast({
-        title: e.status === 403 || e.status === 401 ? 'Acesso Negado (DataJud)' : 'Erro de conexão',
+        title: isPermissionError ? 'Acesso Negado (DataJud)' : 'Erro de conexão',
         description: errorMsg,
         variant: 'destructive',
       })

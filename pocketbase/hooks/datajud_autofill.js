@@ -90,7 +90,7 @@ routerAdd(
                 rc.reason.includes('unauthorized') &&
                 rc.reason.includes('indices:data/read/search')
               ) {
-                msg = `Erro de Permissão (403): A Chave de API configurada não possui permissão para consultar o índice do tribunal ${targetAlias} no DataJud. Verifique no portal do CNJ.`
+                msg = `A chave de API do DataJud não possui permissão de leitura para o tribunal selecionado (ex: ${targetAlias}). Verifique as permissões no portal do CNJ.`
               }
             }
           } catch (err) {}
@@ -132,7 +132,7 @@ routerAdd(
         success: true,
         data: {
           court: source.tribunal?.nome || targetAlias,
-          courtOrgan: source.orgaoJulgador?.nomeOrgao || '',
+          courtOrgan: source.orgaoJulgador?.nomeOrgao || source.orgaoJulgador?.nome || '',
           class: source.classe?.nome || '',
           subject: source.assuntos?.[0]?.nome || '',
           parties: partiesStr,
