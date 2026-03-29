@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import pb from '@/lib/pocketbase/client'
 import {
   Dialog,
   DialogContent,
@@ -17,6 +18,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { getFinancesByLawsuit, createFinance } from '@/services/finances'
+import { createCaseEstimate } from '@/services/case_estimates'
+import { updateLegalCase } from '@/services/legal_cases'
 import { useToast } from '@/hooks/use-toast'
 import { Calculator } from 'lucide-react'
 
@@ -27,6 +30,9 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
 
+  const [activeCases, setActiveCases] = useState(1)
+  const [monthlyFixedCosts, setMonthlyFixedCosts] = useState(0)
+
   const selectedCaseInfo = cases.find((c: any) => c.id === caseId)
 
   useEffect(() => {
@@ -34,7 +40,7 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
       getFinancesByLawsuit(caseId)
         .then((finances) => {
           const total = finances
-            .filter((f: any) => f.type === 'outflow')
+            .filter((f: any) => f.type === 'outflow' && !['estimado', 'orçado'].includes(f.status))
             .reduce((acc: number, f: any) => acc + f.amount, 0)
           setExpenses(total)
         })
@@ -42,11 +48,33 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
     }
   }, [open, caseId])
 
+  useEffect(() => {
+    if (open) {
+      pb.collection('legal_cases')
+        .getList(1, 1, { filter: "lifecycle_status='Ativo'" })
+        .then((r) => setActiveCases(r.totalItems > 0 ? r.totalItems : 1))
+        .catch(() => {})
+
+      pb.collection('finances')
+        .getFullList({ filter: "type='outflow'" })
+        .then((r) => {
+          let total = 0
+          r.forEach((f) => {
+            if (f.frequency === 'mensal') total += f.amount
+            if (f.frequency === 'semanal') total += f.amount * 4.33
+            if (f.frequency === 'quinzenal') total += f.amount * 2.16
+          })
+          setMonthlyFixedCosts(total)
+        })
+        .catch(() => {})
+    }
+  }, [open])
+
   const duration = selectedCaseInfo?.estimated_duration || 0
   const unit = selectedCaseInfo?.duration_unit || 'meses'
-  const fixedCostMonthly = selectedCaseInfo?.allocated_fixed_cost || 0
-
   const durationInMonths = unit === 'semanas' ? duration / 4 : duration
+
+  const fixedCostMonthly = monthlyFixedCosts / activeCases
   const totalFixedCost = fixedCostMonthly * durationInMonths
   const totalCost = expenses + totalFixedCost
   const estimatedValue = totalCost * (1 + margin / 100)
@@ -72,7 +100,19 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
         frequency: 'única',
       })
 
-      toast({ title: 'Honorários estimados com sucesso!' })
+      await createCaseEstimate({
+        case: caseId,
+        estimated_fees: estimatedValue,
+        total_estimated_costs: totalCost,
+        margin_applied: margin,
+        estimated_duration: duration,
+        duration_unit: unit,
+        weighted_fixed_cost_applied: totalFixedCost,
+      })
+
+      await updateLegalCase(caseId, { estimated_total_cost: totalCost })
+
+      toast({ title: 'Honorários estimados e registrados no histórico com sucesso!' })
       onSuccess?.()
       onOpenChange(false)
     } catch (e) {
@@ -84,14 +124,14 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Calculator className="w-5 h-5" /> Estimar Honorários
+            <Calculator className="w-5 h-5" /> Precificação e Estimativa de Honorários
           </DialogTitle>
           <DialogDescription>
-            Calcula os honorários sugeridos aplicando uma margem de lucro sobre o total de despesas
-            (custos) vinculados ao processo.
+            Calcula os honorários sugeridos aplicando uma margem de lucro sobre as despesas
+            variáveis do caso mais o rateio de custos fixos do escritório.
           </DialogDescription>
         </DialogHeader>
 
@@ -114,23 +154,50 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
 
           <div className="grid grid-cols-2 gap-4">
             <div className="p-3 bg-slate-50 border rounded-lg">
-              <Label className="text-slate-500 text-xs uppercase">
-                Previsão de duração do trabalho
-              </Label>
+              <Label className="text-slate-500 text-xs uppercase">Duração Estimada</Label>
               <p className="text-lg font-bold text-slate-800 mt-1">
                 {duration} {unit}
               </p>
             </div>
             <div className="p-3 bg-slate-50 border rounded-lg">
-              <Label className="text-slate-500 text-xs uppercase">Custos Fixos</Label>
-              <p className="text-lg font-bold text-red-600 mt-1">R$ {totalFixedCost.toFixed(2)}</p>
-            </div>
-            <div className="p-3 bg-slate-50 border rounded-lg">
-              <Label className="text-slate-500 text-xs uppercase">Despesas Variáveis</Label>
+              <Label className="text-slate-500 text-xs uppercase">Despesas Variáveis Atuais</Label>
               <p className="text-lg font-bold text-red-600 mt-1">R$ {expenses.toFixed(2)}</p>
             </div>
+          </div>
+
+          <div className="text-xs text-slate-600 bg-slate-50 p-3 rounded-lg border border-dashed space-y-1.5">
+            <p className="font-bold text-slate-700 mb-1">
+              Cálculo de Custos Fixos Ponderados (Overhead)
+            </p>
+            <p className="flex justify-between">
+              <span>Custos Fixos Mensais do Escritório:</span>
+              <span className="font-mono">R$ {monthlyFixedCosts.toFixed(2)}</span>
+            </p>
+            <p className="flex justify-between">
+              <span>Processos Ativos:</span>
+              <span className="font-mono">{activeCases}</span>
+            </p>
+            <p className="flex justify-between">
+              <span>Custo Base (Processo/Mês):</span>
+              <span className="font-mono">R$ {fixedCostMonthly.toFixed(2)}</span>
+            </p>
+            <div className="border-t border-slate-200 mt-2 pt-2 flex justify-between font-bold text-slate-800">
+              <span>Overhead Alocado ({durationInMonths.toFixed(1)} meses):</span>
+              <span className="font-mono text-red-600">R$ {totalFixedCost.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 items-end">
             <div>
-              <Label className="text-xs uppercase text-slate-500">Margem de Lucro (%)</Label>
+              <Label className="text-xs uppercase text-slate-500 mb-2 block">
+                Custo Total Estimado
+              </Label>
+              <p className="text-xl font-bold text-red-600">R$ {totalCost.toFixed(2)}</p>
+            </div>
+            <div>
+              <Label className="text-xs uppercase text-slate-500">
+                Margem de Lucro Desejada (%)
+              </Label>
               <Input
                 type="number"
                 value={margin}
@@ -143,14 +210,14 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
 
           <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
             <Label className="text-primary/70 uppercase text-xs font-bold tracking-wider">
-              Estimativa de Honorários
+              Estimativa Final de Honorários
             </Label>
             <p className="text-3xl font-black text-primary mt-1">R$ {estimatedValue.toFixed(2)}</p>
           </div>
         </div>
 
         <Button onClick={handleCalculate} disabled={loading || !caseId} className="w-full">
-          {loading ? 'Gerando...' : 'Registrar Estimativa de Receita'}
+          {loading ? 'Gerando...' : 'Registrar Estimativa e Atualizar Histórico'}
         </Button>
       </DialogContent>
     </Dialog>

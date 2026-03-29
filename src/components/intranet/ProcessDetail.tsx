@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getLegalCase, updateLegalCase, getLegalCases } from '@/services/legal_cases'
 import { getFinancesByLawsuit, deleteFinance } from '@/services/finances'
+import { getCaseEstimates } from '@/services/case_estimates'
 import { FeeEstimatorModal } from './finances/FeeEstimatorModal'
 import { getCaseMovements, createCaseMovement } from '@/services/case_movements'
 import { getAgendaEventsByLawsuit } from '@/services/agenda'
 import { getTasksByLawsuit, createTask, updateTask } from '@/services/tasks'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
+import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -21,6 +23,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   ArrowLeft,
@@ -36,6 +46,8 @@ import {
   ChevronDown,
   Link as LinkIcon,
   X,
+  AlertTriangle,
+  History,
 } from 'lucide-react'
 import { EventFormModal } from './cases/EventFormModal'
 import { runDatajudSync } from '@/lib/datajud/sync'
@@ -44,6 +56,7 @@ export default function ProcessDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { user } = useAuth()
 
   const [legalCase, setLegalCase] = useState<any>(null)
   const [movements, setMovements] = useState<any[]>([])
@@ -56,6 +69,7 @@ export default function ProcessDetail() {
   const [prefilledDescription, setPrefilledDescription] = useState('')
   const [feeModalOpen, setFeeModalOpen] = useState(false)
   const [processFinances, setProcessFinances] = useState<any[]>([])
+  const [estimatesHistory, setEstimatesHistory] = useState<any[]>([])
 
   const [allCases, setAllCases] = useState<any[]>([])
   const [selectedRelatedCase, setSelectedRelatedCase] = useState<string>('')
@@ -69,6 +83,7 @@ export default function ProcessDetail() {
       setEvents(await getAgendaEventsByLawsuit(id))
       setTasks(await getTasksByLawsuit(id))
       setProcessFinances(await getFinancesByLawsuit(id))
+      setEstimatesHistory(await getCaseEstimates(id))
       const all = await getLegalCases()
       setAllCases(all.filter((c) => c.id !== id))
     } catch (e) {
@@ -88,6 +103,7 @@ export default function ProcessDetail() {
   useRealtime('agenda_events', loadData)
   useRealtime('tasks', loadData)
   useRealtime('finances', loadData)
+  useRealtime('case_estimates', loadData)
 
   const handleAddManualMovement = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -185,6 +201,21 @@ export default function ProcessDetail() {
     loadData()
   }
 
+  const estTotalCost = legalCase?.estimated_total_cost || 0
+  const actualCosts = processFinances
+    .filter((f) => f.type === 'outflow' && !['orçado', 'estimado'].includes(f.status))
+    .reduce((a, b) => a + b.amount, 0)
+
+  let alertLevel: 'none' | 'warning' | 'critical' = 'none'
+  if (estTotalCost > 0) {
+    if (actualCosts >= estTotalCost) alertLevel = 'critical'
+    else if (actualCosts >= estTotalCost * 0.8) alertLevel = 'warning'
+  }
+
+  const canSeeAlerts =
+    (user && ['admin', 'manager', 'financial_user', 'coordinator'].includes(user.role)) ||
+    user?.isAdmin
+
   if (loading || !legalCase)
     return <div className="p-8 animate-pulse text-center">Carregando Detalhes...</div>
 
@@ -200,7 +231,19 @@ export default function ProcessDetail() {
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div>
-          <h2 className="text-2xl font-serif font-bold text-primary">{legalCase.parties}</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-serif font-bold text-primary">{legalCase.parties}</h2>
+            {canSeeAlerts && alertLevel === 'critical' && (
+              <Badge variant="destructive" className="animate-pulse">
+                <AlertTriangle className="w-3 h-3 mr-1" /> Orçamento Excedido
+              </Badge>
+            )}
+            {canSeeAlerts && alertLevel === 'warning' && (
+              <Badge className="bg-amber-500 hover:bg-amber-600 text-white">
+                <AlertTriangle className="w-3 h-3 mr-1" /> Custos Próximos ao Limite
+              </Badge>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground mt-1">
             {legalCase.type} {legalCase.case_number ? `nº ${legalCase.case_number}` : ''}
           </p>
@@ -219,15 +262,15 @@ export default function ProcessDetail() {
       </div>
 
       <Tabs defaultValue="timeline" className="w-full">
-        <TabsList className="grid w-full grid-cols-1 md:grid-cols-3 max-w-2xl h-auto">
+        <TabsList className="grid w-full grid-cols-1 md:grid-cols-4 max-w-3xl h-auto">
           <TabsTrigger value="timeline" className="py-2">
-            Linha do Tempo
+            Andamentos
           </TabsTrigger>
           <TabsTrigger value="details" className="py-2">
-            Metadados e Ligações
+            Metadados
           </TabsTrigger>
           <TabsTrigger value="activities" className="py-2">
-            Atividades Relacionadas ({events.length + tasks.length})
+            Atividades
           </TabsTrigger>
           <TabsTrigger value="finance" className="py-2">
             Financeiro
@@ -475,48 +518,135 @@ export default function ProcessDetail() {
         </TabsContent>
 
         <TabsContent value="finance" className="mt-6 space-y-6">
-          <Card className="shadow-sm">
-            <CardHeader className="bg-slate-50/50 pb-4 border-b flex flex-row justify-between items-center">
-              <div>
-                <CardTitle className="text-lg">Financeiro do Processo</CardTitle>
-                <CardDescription>Receitas e despesas vinculadas a este caso.</CardDescription>
-              </div>
-              <Button size="sm" onClick={() => setFeeModalOpen(true)}>
-                Estimar Honorários
-              </Button>
-            </CardHeader>
-            <CardContent className="pt-6">
-              {processFinances.length === 0 ? (
-                <p className="text-center text-sm text-muted-foreground py-4">
-                  Nenhum registro financeiro vinculado.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {processFinances.map((f) => (
-                    <div
-                      key={f.id}
-                      className="flex justify-between items-center p-3 rounded-md border bg-white shadow-sm"
-                    >
-                      <div>
-                        <p className="font-medium text-sm">{f.description}</p>
-                        <p className="text-xs text-slate-500">
-                          {new Date(f.date).toLocaleDateString('pt-BR')} -{' '}
-                          <span className="uppercase">{f.status}</span>
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span
-                          className={`font-bold ${f.type === 'inflow' ? 'text-green-600' : 'text-red-600'}`}
-                        >
-                          {f.type === 'inflow' ? '+' : '-'} R$ {f.amount.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+          {canSeeAlerts && estTotalCost > 0 && (
+            <Card
+              className={`border-l-4 ${alertLevel === 'critical' ? 'border-l-destructive bg-destructive/5' : alertLevel === 'warning' ? 'border-l-amber-500 bg-amber-500/5' : 'border-l-green-500 bg-green-500/5'}`}
+            >
+              <CardContent className="pt-6 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div>
+                  <h4 className="font-bold flex items-center gap-2">
+                    {alertLevel !== 'none' && <AlertTriangle className="w-5 h-5" />}
+                    Controle de Orçamento e Custos
+                  </h4>
+                  <p className="text-sm text-slate-600 mt-1">
+                    Custo Real: <strong>R$ {actualCosts.toFixed(2)}</strong> / Estimado:{' '}
+                    <strong>R$ {estTotalCost.toFixed(2)}</strong>
+                  </p>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <div className="w-full md:w-1/3">
+                  <div className="flex justify-between text-xs mb-1 font-bold">
+                    <span>{((actualCosts / estTotalCost) * 100).toFixed(1)}% utilizado</span>
+                  </div>
+                  <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${alertLevel === 'critical' ? 'bg-destructive' : alertLevel === 'warning' ? 'bg-amber-500' : 'bg-green-500'}`}
+                      style={{ width: `${Math.min((actualCosts / estTotalCost) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <Card className="shadow-sm">
+              <CardHeader className="bg-slate-50/50 pb-4 border-b flex flex-row justify-between items-center">
+                <div>
+                  <CardTitle className="text-lg">Extrato Financeiro</CardTitle>
+                  <CardDescription>Receitas e despesas vinculadas a este caso.</CardDescription>
+                </div>
+                <Button size="sm" onClick={() => setFeeModalOpen(true)}>
+                  Nova Estimativa
+                </Button>
+              </CardHeader>
+              <CardContent className="pt-6">
+                {processFinances.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground py-4">
+                    Nenhum registro financeiro vinculado.
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                    {processFinances.map((f) => (
+                      <div
+                        key={f.id}
+                        className="flex justify-between items-center p-3 rounded-md border bg-white shadow-sm"
+                      >
+                        <div>
+                          <p className="font-medium text-sm">{f.description}</p>
+                          <p className="text-xs text-slate-500">
+                            {new Date(f.date).toLocaleDateString('pt-BR')} -{' '}
+                            <span className="uppercase">{f.status}</span>
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span
+                            className={`font-bold ${f.type === 'inflow' ? 'text-green-600' : 'text-red-600'}`}
+                          >
+                            {f.type === 'inflow' ? '+' : '-'} R$ {f.amount.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm">
+              <CardHeader className="bg-slate-50/50 pb-4 border-b">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <History className="w-5 h-5 text-primary" /> Histórico de Precificação
+                </CardTitle>
+                <CardDescription>
+                  Registro das propostas de honorários e custos estimados
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0 px-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="pl-6">Data</TableHead>
+                      <TableHead>Honorários (R$)</TableHead>
+                      <TableHead>Custo Previsto</TableHead>
+                      <TableHead>Overhead Alocado</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {estimatesHistory.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">
+                          Nenhuma estimativa registrada no histórico.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      estimatesHistory.map((est) => (
+                        <TableRow key={est.id}>
+                          <TableCell className="pl-6 text-xs text-slate-500 whitespace-nowrap">
+                            {new Date(est.created).toLocaleString('pt-BR', {
+                              dateStyle: 'short',
+                              timeStyle: 'short',
+                            })}
+                          </TableCell>
+                          <TableCell className="font-bold text-green-600 whitespace-nowrap">
+                            R$ {est.estimated_fees.toFixed(2)}
+                            <span className="block text-[10px] text-slate-400 font-normal">
+                              Mg: {est.margin_applied}%
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-red-600 whitespace-nowrap">
+                            R$ {est.total_estimated_costs.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-500 whitespace-nowrap">
+                            R$ {(est.weighted_fixed_cost_applied || 0).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="activities" className="mt-6 space-y-6">

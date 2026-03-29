@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-29T06:33:20.281Z",
+  "generatedAt": "2026-03-29T06:41:01.651Z",
   "collections": [
     {
       "name": "users",
@@ -1154,6 +1154,12 @@
           "type": "number",
           "required": false,
           "system": false
+        },
+        {
+          "name": "estimated_total_cost",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -1391,6 +1397,78 @@
         "CREATE UNIQUE INDEX idx_gazette_pubs_hash ON gazette_publications (hash_conteudo)",
         "CREATE INDEX idx_gazette_pubs_data ON gazette_publications (data_publicacao)"
       ]
+    },
+    {
+      "name": "case_estimates",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.role = 'admin' || @request.auth.role = 'manager' || @request.auth.isAdmin = true"
+      },
+      "fields": [
+        {
+          "name": "case",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "legal_cases"
+        },
+        {
+          "name": "estimated_fees",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "total_estimated_costs",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "margin_applied",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "estimated_duration",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "duration_unit",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["semanas", "meses"]
+        },
+        {
+          "name": "weighted_fixed_cost_applied",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
     }
   ]
 }
