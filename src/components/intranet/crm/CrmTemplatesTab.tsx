@@ -44,7 +44,9 @@ export function CrmTemplatesTab() {
   const loadData = async () => {
     try {
       setTemplates(await getTemplates())
-    } catch (e) {}
+    } catch (e) {
+      console.error(e)
+    }
   }
   useEffect(() => {
     loadData()

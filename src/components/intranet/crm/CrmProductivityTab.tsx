@@ -30,7 +30,9 @@ export function CrmProductivityTab() {
       setInteractions(intData)
       setTasks(taskData)
       setClients(clientsData)
-    } catch (e) {}
+    } catch (e) {
+      console.error(e)
+    }
   }
   useEffect(() => {
     loadData()
