@@ -218,7 +218,9 @@ export default function ProcessManager() {
       try {
         await updateLawsuit(p.id, { sync_message: `Erro (${category}): ${message}` })
         loadData()
-      } catch (e) {}
+      } catch (e) {
+        // Ignore error
+      }
 
       toast({
         title: `Erro de Sincronização (${category})`,
