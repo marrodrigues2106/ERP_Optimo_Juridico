@@ -194,21 +194,28 @@ export default function ProcessManager() {
       const result = await deleteLawsuit(id)
       if (result.success) {
         setProcesses((prev) => prev.filter((p) => p.id !== id))
-        toast({ title: 'Registro excluído com sucesso' })
+        toast({ title: 'Registro deletado com sucesso.' })
         setDeleteConfirmItem(null)
       } else {
         let errorMsg = result.message || 'Não foi possível excluir o processo.'
         let errorTitle = 'Erro ao excluir'
 
         if ('category' in result) {
+          // Console Debugging Payload
+          console.error('Deletion failure debug payload:', {
+            recordId: id,
+            category: result.category,
+            status: result.status,
+            code: result.code,
+            message: result.message,
+            checkedBeforeDelete: result.checkedBeforeDelete,
+            rawResponse: result.rawResponse,
+          })
+
           switch (result.category) {
-            case 'validation':
-              errorTitle = 'Erro de Validação'
-              errorMsg = `Falha de validação: ${
-                Object.values(result.details?.data || {})
-                  .map((e: any) => e.message)
-                  .join(', ') || errorMsg
-              }`
+            case 'conflict':
+              errorTitle = 'Conflito'
+              errorMsg = 'Não é possível deletar devido a vínculos existentes.'
               break
             case 'permission':
               errorTitle = 'Acesso Negado'
@@ -219,14 +226,23 @@ export default function ProcessManager() {
               errorMsg = 'Registro não encontrado.'
               break
             case 'backend_hook':
-              errorTitle = 'Erro de Dependência'
-              errorMsg =
-                result.details?.message ||
-                'Ocorreu um erro interno ao processar a exclusão (conflito de dependências).'
+              errorTitle = 'Erro Interno'
+              errorMsg = 'Ocorreu um erro interno ao processar a exclusão.'
               break
             case 'network':
               errorTitle = 'Erro de Conexão'
               errorMsg = 'Falha de rede. Verifique sua conexão.'
+              break
+            case 'validation':
+              errorTitle = 'Erro de Validação'
+              errorMsg = `Falha de validação: ${
+                Object.values(result.details?.data || {})
+                  .map((e: any) => e.message)
+                  .join(', ') || 'Erro ao processar dados.'
+              }`
+              break
+            default:
+              errorMsg = result.message
               break
           }
         }
