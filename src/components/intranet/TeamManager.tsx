@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -25,18 +26,29 @@ import {
   updateCollaborator,
   deleteCollaborator,
 } from '@/services/collaborators'
+import { getLegalCases } from '@/services/legal_cases'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 
 export default function TeamManager() {
   const [team, setTeam] = useState<any[]>([])
+  const [cases, setCases] = useState<any[]>([])
   const [open, setOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
+
+  // Filters
+  const [roleFilter, setRoleFilter] = useState<string[]>([])
+  const [caseFilter, setCaseFilter] = useState<string>('all')
+
   const { toast } = useToast()
 
   const loadData = async () => {
     try {
       setTeam(await getCollaborators())
+      const allCases = await getLegalCases()
+      setCases(
+        allCases.filter((c) => c.responsible_collaborator && c.lifecycle_status !== 'Excluído'),
+      )
     } catch (e) {
       console.error(e)
     }
@@ -60,20 +72,14 @@ export default function TeamManager() {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
     const data = Object.fromEntries(fd.entries())
-
-    // Maintain fallback 'name' field
     data.name = data.fullName
-
     try {
       if (editingItem) {
         await updateCollaborator(editingItem.id, data)
         toast({ title: 'Membro da equipe atualizado' })
       } else {
         await createCollaborator(data)
-        toast({
-          title: 'Membro da equipe adicionado',
-          description: 'Uma conta de usuário será criada automaticamente.',
-        })
+        toast({ title: 'Membro da equipe adicionado' })
       }
       setOpen(false)
     } catch (error) {
@@ -82,10 +88,20 @@ export default function TeamManager() {
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este membro da equipe?')) {
+    if (confirm('Tem certeza que deseja excluir este membro?')) {
       await deleteCollaborator(id)
     }
   }
+
+  const roles = ['Advogado', 'Associado', 'Administrativo']
+
+  const filteredTeam = team.filter((member) => {
+    const matchRole = roleFilter.length === 0 || roleFilter.includes(member.role)
+    const matchCase =
+      caseFilter === 'all' ||
+      cases.some((c) => c.id === caseFilter && c.responsible_collaborator === member.id)
+    return matchRole && matchCase
+  })
 
   return (
     <div className="space-y-6">
@@ -165,63 +181,115 @@ export default function TeamManager() {
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {team.map((member) => (
-          <Card
-            key={member.id}
-            className="hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative group"
-          >
-            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex">
-              <Button variant="ghost" size="icon" onClick={() => handleEdit(member)}>
-                <Edit2 className="w-4 h-4 text-slate-500" />
-              </Button>
-              <Button variant="ghost" size="icon" onClick={() => handleDelete(member.id)}>
-                <Trash2 className="w-4 h-4 text-destructive" />
-              </Button>
+      <div className="flex flex-col md:flex-row gap-6 items-start">
+        {/* Sidebar Filter */}
+        <Card className="w-full md:w-64 shrink-0 md:sticky md:top-6">
+          <CardHeader className="pb-3 border-b">
+            <CardTitle className="text-sm">Filtros de Equipe</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6 pt-4">
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-slate-800">Cargo</h4>
+              {roles.map((r) => (
+                <label key={r} className="flex items-center space-x-2 cursor-pointer">
+                  <Checkbox
+                    checked={roleFilter.includes(r)}
+                    onCheckedChange={(c) =>
+                      setRoleFilter((prev) => (c ? [...prev, r] : prev.filter((x) => x !== r)))
+                    }
+                  />
+                  <span className="text-sm text-slate-600">{r}</span>
+                </label>
+              ))}
             </div>
-            <CardContent className="p-6 text-center">
-              <Avatar className="h-24 w-24 mx-auto mb-4 border-4 border-slate-50">
-                <AvatarImage
-                  src={`https://img.usecurling.com/ppl/thumbnail?seed=${member.id}&gender=male`}
-                />
-                <AvatarFallback className="text-xl bg-primary text-white">
-                  {(member.fullName || member.name || 'M').substring(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="space-y-2">
-                <h3 className="font-semibold text-primary text-lg">
-                  {member.fullName || member.name}
-                </h3>
-                <span className="inline-block px-3 py-1 bg-secondary/10 text-secondary text-xs rounded-full font-medium mb-2">
-                  {member.role}
-                </span>
-                <div className="flex flex-col gap-1 pt-3 border-t">
-                  {member.email && (
-                    <a
-                      href={`mailto:${member.email}`}
-                      className="text-xs text-muted-foreground hover:text-primary flex items-center justify-center gap-2"
-                    >
-                      <Mail className="w-3 h-3" /> <span className="truncate">{member.email}</span>
-                    </a>
-                  )}
-                  {member.phone && (
-                    <a
-                      href={`tel:${member.phone.replace(/\D/g, '')}`}
-                      className="text-xs text-muted-foreground hover:text-primary flex items-center justify-center gap-2"
-                    >
-                      <Phone className="w-3 h-3" /> {member.phone}
-                    </a>
-                  )}
-                  {member.oabNumber && (
-                    <span className="text-xs text-muted-foreground flex items-center justify-center gap-2">
-                      <FileBadge className="w-3 h-3" /> OAB: {member.oabNumber}{' '}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-slate-800">Atribuído ao Processo</h4>
+              <Select value={caseFilter} onValueChange={setCaseFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um processo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os processos</SelectItem>
+                  {cases.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.case_number || c.parties}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Main Area */}
+        <div className="flex-1 w-full">
+          {filteredTeam.length === 0 ? (
+            <div className="text-center py-12 text-slate-500 border rounded-xl border-dashed">
+              Nenhum colaborador encontrado para os filtros selecionados.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredTeam.map((member) => (
+                <Card
+                  key={member.id}
+                  className="hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative group"
+                >
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex">
+                    <Button variant="ghost" size="icon" onClick={() => handleEdit(member)}>
+                      <Edit2 className="w-4 h-4 text-slate-500" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(member.id)}>
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
+                  <CardContent className="p-6 text-center">
+                    <Avatar className="h-24 w-24 mx-auto mb-4 border-4 border-slate-50">
+                      <AvatarImage
+                        src={`https://img.usecurling.com/ppl/thumbnail?seed=${member.id}&gender=male`}
+                      />
+                      <AvatarFallback className="text-xl bg-primary text-white">
+                        {(member.fullName || member.name || 'M').substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="space-y-2">
+                      <h3 className="font-semibold text-primary text-lg">
+                        {member.fullName || member.name}
+                      </h3>
+                      <span className="inline-block px-3 py-1 bg-secondary/10 text-secondary text-xs rounded-full font-medium mb-2">
+                        {member.role}
+                      </span>
+                      <div className="flex flex-col gap-1 pt-3 border-t">
+                        {member.email && (
+                          <a
+                            href={`mailto:${member.email}`}
+                            className="text-xs text-muted-foreground hover:text-primary flex items-center justify-center gap-2"
+                          >
+                            <Mail className="w-3 h-3" />{' '}
+                            <span className="truncate">{member.email}</span>
+                          </a>
+                        )}
+                        {member.phone && (
+                          <a
+                            href={`tel:${member.phone.replace(/\D/g, '')}`}
+                            className="text-xs text-muted-foreground hover:text-primary flex items-center justify-center gap-2"
+                          >
+                            <Phone className="w-3 h-3" /> {member.phone}
+                          </a>
+                        )}
+                        {member.oabNumber && (
+                          <span className="text-xs text-muted-foreground flex items-center justify-center gap-2">
+                            <FileBadge className="w-3 h-3" /> OAB: {member.oabNumber}{' '}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

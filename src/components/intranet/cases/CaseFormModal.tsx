@@ -32,7 +32,7 @@ const formSchema = z
     court: z.string().optional(),
     court_organ: z.string().optional(),
     status: z.string().optional(),
-    lifecycle_status: z.enum(['Ativo', 'Arquivado', 'Suspenso']),
+    lifecycle_status: z.enum(['Ativo', 'Arquivado', 'Suspenso', 'Excluído']),
     client: z.string().optional(),
     responsible_collaborator: z.string().optional(),
     deadline: z.string().optional(),
@@ -41,6 +41,7 @@ const formSchema = z
     process_type: z.string().optional(),
     distribution_date: z.string().optional(),
     court_alias: z.string().optional(),
+    tags: z.string().optional(),
   })
   .refine(
     (data) => {
@@ -111,9 +112,10 @@ export function CaseFormModal({
             ? editingCase.distribution_date.substring(0, 10)
             : editingCase.metadata?.distribution_date || '',
           court_alias: editingCase.court_alias || '',
+          tags: Array.isArray(editingCase.tags) ? editingCase.tags.join(', ') : '',
         })
       } else {
-        reset({ type: 'Processo', lifecycle_status: 'Ativo' })
+        reset({ type: 'Processo', lifecycle_status: 'Ativo', tags: '' })
       }
     }
   }, [open, editingCase, reset])
@@ -150,7 +152,7 @@ export function CaseFormModal({
           try {
             setValue('distribution_date', res.data.distributionDate.substring(0, 10))
           } catch (err) {
-            // Ignorar se a data estiver mal formatada
+            // Ignorar
           }
         }
         if (res.data.alias) setValue('court_alias', res.data.alias)
@@ -175,12 +177,12 @@ export function CaseFormModal({
 
       if (isPermissionError || errorMsg.includes('Erro de Autorização')) {
         const tAlias = watch('court_alias') || watch('court') || 'selecionado'
-        errorMsg = `Erro de Autorização: A chave de API não tem permissão para acessar o tribunal ${tAlias}. Verifique as configurações no portal do CNJ.`
+        errorMsg = `Erro de Autorização: A chave não tem permissão para acessar ${tAlias}.`
         isPermissionError = true
       }
 
       toast({
-        title: isPermissionError ? 'Acesso Negado (DataJud)' : 'Erro de conexão',
+        title: isPermissionError ? 'Acesso Negado' : 'Erro',
         description: errorMsg,
         variant: 'destructive',
       })
@@ -208,6 +210,12 @@ export function CaseFormModal({
         ? new Date(data.distribution_date).toISOString()
         : null,
       court_alias: data.court_alias,
+      tags: data.tags
+        ? data.tags
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean)
+        : [],
       metadata: {
         subject: data.subject,
         action_class: data.action_class,
@@ -333,6 +341,10 @@ export function CaseFormModal({
               <Label>Data de Distribuição</Label>
               <Input type="date" {...register('distribution_date')} />
             </div>
+            <div className="col-span-1 md:col-span-2">
+              <Label>Etiquetas (separadas por vírgula)</Label>
+              <Input {...register('tags')} placeholder="Ex: Trabalhista, Urgente, Cliente Vip" />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -350,6 +362,7 @@ export function CaseFormModal({
                       <SelectItem value="Ativo">Ativo</SelectItem>
                       <SelectItem value="Arquivado">Arquivado</SelectItem>
                       <SelectItem value="Suspenso">Suspenso</SelectItem>
+                      <SelectItem value="Excluído">Excluído</SelectItem>
                     </SelectContent>
                   </Select>
                 )}

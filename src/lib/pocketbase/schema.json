@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-29T05:10:06.400Z",
+  "generatedAt": "2026-03-29T05:34:15.064Z",
   "collections": [
     {
       "name": "users",
@@ -394,7 +394,7 @@
           "selectValues": ["Ativo", "Inativo", "Lead"]
         }
       ],
-      "indexes": []
+      "indexes": ["CREATE INDEX `idx_clients_classification` ON `clients` (classification)"]
     },
     {
       "name": "collaborators",
@@ -1101,9 +1101,18 @@
           "required": false,
           "system": false,
           "collectionRef": "legal_cases"
+        },
+        {
+          "name": "tags",
+          "type": "json",
+          "required": false,
+          "system": false
         }
       ],
-      "indexes": ["CREATE INDEX idx_legal_cases_number ON legal_cases (case_number)"]
+      "indexes": [
+        "CREATE INDEX idx_legal_cases_number ON legal_cases (case_number)",
+        "CREATE INDEX `idx_legal_cases_lifecycle` ON `legal_cases` (lifecycle_status)"
+      ]
     },
     {
       "name": "case_movements",
