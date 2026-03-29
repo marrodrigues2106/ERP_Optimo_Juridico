@@ -57,8 +57,11 @@ function HighlightText({ text, query }: { text: string; query: string }) {
   )
 }
 
+import { CheckCircle2 } from 'lucide-react'
+
 export default function GazetteManager() {
-  const [activeTab, setActiveTab] = useState('search')
+  const [activeTab, setActiveTab] = useState('inbox')
+  const [inboxPubs, setInboxPubs] = useState<any[]>([])
   const [gazettes, setGazettes] = useState<any[]>([])
   const [searchResults, setSearchResults] = useState<any>(null)
   const [loadingSearch, setLoadingSearch] = useState(false)
@@ -88,15 +91,41 @@ export default function GazetteManager() {
     }
   }
 
-  useEffect(() => {
-    if (activeTab === 'monitoring') {
-      loadMonitoring()
+  const loadInbox = async () => {
+    try {
+      const res = await pb.collection('gazette_publications').getFullList({
+        filter: 'is_read = false',
+        sort: '-created',
+        expand: 'diario',
+      })
+      setInboxPubs(res)
+    } catch (e) {
+      console.error(e)
     }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'monitoring') loadMonitoring()
+    if (activeTab === 'inbox') loadInbox()
   }, [activeTab])
 
   useRealtime('gazettes', () => {
     if (activeTab === 'monitoring') loadMonitoring()
   })
+  useRealtime('gazette_publications', () => {
+    if (activeTab === 'inbox') loadInbox()
+  })
+
+  const markAsRead = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await pb.collection('gazette_publications').update(id, { is_read: true })
+      toast({ title: 'Marcado como lido' })
+      loadInbox()
+    } catch (err) {
+      toast({ title: 'Erro ao atualizar', variant: 'destructive' })
+    }
+  }
 
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
@@ -145,7 +174,15 @@ export default function GazetteManager() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 flex-wrap">
+          <TabsTrigger value="inbox" className="flex items-center gap-2">
+            <Bell className="w-4 h-4" /> Caixa Postal{' '}
+            {inboxPubs.length > 0 && (
+              <Badge variant="destructive" className="ml-1 px-1.5 py-0 text-[10px]">
+                {inboxPubs.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="search" className="flex items-center gap-2">
             <Search className="w-4 h-4" /> Busca de Publicações
           </TabsTrigger>
@@ -153,6 +190,73 @@ export default function GazetteManager() {
             <Activity className="w-4 h-4" /> Monitoramento (Ingestão)
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="inbox" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Bell className="w-5 h-5 text-primary" />
+                Caixa Postal de Publicações
+              </CardTitle>
+              <CardDescription>
+                Novas ocorrências encontradas automaticamente pelos seus termos de monitoramento.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {inboxPubs.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground flex flex-col items-center gap-3">
+                  <CheckCircle2 className="w-10 h-10 text-green-500 opacity-50" />
+                  <p>Tudo limpo! Nenhuma nova publicação não lida.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {inboxPubs.map((pub: any) => (
+                    <div
+                      key={pub.id}
+                      className="p-4 border border-blue-200 rounded-lg bg-blue-50/30 hover:border-blue-400 transition-colors cursor-pointer"
+                      onClick={() => setSelectedPub(pub)}
+                    >
+                      <div className="flex flex-col sm:flex-row justify-between items-start mb-3 gap-4">
+                        <div>
+                          <div className="flex items-center gap-2 text-sm text-slate-600 mb-1.5">
+                            <span className="flex items-center gap-1 font-semibold text-blue-700">
+                              <Building2 className="w-4 h-4" /> {pub.orgao || 'Tribunal'}
+                            </span>
+                            •
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-4 h-4" />{' '}
+                              {new Date(pub.data_publicacao || pub.created).toLocaleDateString()}
+                            </span>
+                          </div>
+                          {pub.matched_term && (
+                            <Badge
+                              variant="secondary"
+                              className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-none"
+                            >
+                              Termo de Busca: {pub.matched_term}
+                            </Badge>
+                          )}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => markAsRead(pub.id, e)}
+                          className="shrink-0 w-full sm:w-auto"
+                        >
+                          <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
+                          Marcar como Lido
+                        </Button>
+                      </div>
+                      <p className="text-sm line-clamp-3 text-slate-700 font-serif bg-white p-3 rounded border shadow-sm">
+                        {pub.texto_normalizado}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="search" className="space-y-6">
           <Card>
