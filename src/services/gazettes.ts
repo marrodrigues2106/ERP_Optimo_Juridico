@@ -7,6 +7,8 @@ export const searchGazettePublications = async (params: {
   processo?: string
   oab?: string
   parte?: string
+  advogado?: string
+  orgao?: string
   dataInicio?: string
   dataFim?: string
   page?: number
@@ -17,6 +19,8 @@ export const searchGazettePublications = async (params: {
   if (params.processo) filters.push(`numero_processo ~ "${params.processo}"`)
   if (params.oab) filters.push(`oabs ~ "${params.oab}"`)
   if (params.parte) filters.push(`partes ~ "${params.parte}"`)
+  if (params.advogado) filters.push(`advogados ~ "${params.advogado}"`)
+  if (params.orgao && params.orgao !== 'todos') filters.push(`orgao = "${params.orgao}"`)
   if (params.dataInicio) filters.push(`data_publicacao >= "${params.dataInicio} 00:00:00"`)
   if (params.dataFim) filters.push(`data_publicacao <= "${params.dataFim} 23:59:59"`)
 

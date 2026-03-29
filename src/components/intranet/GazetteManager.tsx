@@ -15,6 +15,13 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Search,
   Activity,
   RefreshCw,
@@ -23,6 +30,8 @@ import {
   Building2,
   Gavel,
   Scale,
+  ExternalLink,
+  User,
 } from 'lucide-react'
 import { searchGazettePublications, getGazettes, triggerManualIngest } from '@/services/gazettes'
 import { useToast } from '@/hooks/use-toast'
@@ -63,6 +72,8 @@ export default function GazetteManager() {
     processo: '',
     oab: '',
     parte: '',
+    advogado: '',
+    orgao: 'todos',
     dataInicio: '',
     dataFim: '',
     page: 1,
@@ -177,12 +188,41 @@ export default function GazetteManager() {
                       onChange={(e) => setSearchParams({ ...searchParams, oab: e.target.value })}
                     />
                   </div>
-                  <div className="lg:col-span-2">
+                  <div>
+                    <Label>Órgão / Tribunal</Label>
+                    <Select
+                      value={searchParams.orgao}
+                      onValueChange={(val) => setSearchParams({ ...searchParams, orgao: val })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos</SelectItem>
+                        <SelectItem value="TJSP">TJSP</SelectItem>
+                        <SelectItem value="TRF3">TRF3</SelectItem>
+                        <SelectItem value="STJ">STJ</SelectItem>
+                        <SelectItem value="STF">STF</SelectItem>
+                        <SelectItem value="DOU">DOU</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
                     <Label>Nome da Parte</Label>
                     <Input
-                      placeholder="Nome do cliente ou contraparte..."
+                      placeholder="Ex: Silva..."
                       value={searchParams.parte}
                       onChange={(e) => setSearchParams({ ...searchParams, parte: e.target.value })}
+                    />
+                  </div>
+                  <div className="lg:col-span-2">
+                    <Label>Advogado</Label>
+                    <Input
+                      placeholder="Ex: João Souza..."
+                      value={searchParams.advogado}
+                      onChange={(e) =>
+                        setSearchParams({ ...searchParams, advogado: e.target.value })
+                      }
                     />
                   </div>
                   <div>
@@ -270,6 +310,14 @@ export default function GazetteManager() {
                               className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-200 text-slate-800"
                             >
                               OAB: {o}
+                            </span>
+                          ))}
+                          {pub.advogados?.slice(0, 2).map((adv: string, i: number) => (
+                            <span
+                              key={`adv-${i}`}
+                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"
+                            >
+                              <User className="w-3 h-3 mr-1" /> {adv}
                             </span>
                           ))}
                         </div>
@@ -430,6 +478,19 @@ export default function GazetteManager() {
                     {selectedPub.oabs?.map((o: string, i: number) => <div key={i}>{o}</div>) || '-'}
                   </div>
                   <div className="col-span-2">
+                    <span className="text-muted-foreground block mb-1">Advogados:</span>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedPub.advogados?.map((adv: string, i: number) => (
+                        <span
+                          key={i}
+                          className="bg-purple-50 text-purple-800 border border-purple-100 px-2 py-1 rounded text-xs"
+                        >
+                          {adv}
+                        </span>
+                      )) || '-'}
+                    </div>
+                  </div>
+                  <div className="col-span-2">
                     <span className="text-muted-foreground block mb-1">Partes Mencionadas:</span>
                     <div className="flex flex-wrap gap-2">
                       {selectedPub.partes?.map((p: string, i: number) => (
@@ -441,6 +502,20 @@ export default function GazetteManager() {
                   </div>
                 </div>
               </div>
+
+              {selectedPub.expand?.diario?.url_original && (
+                <div className="flex justify-end">
+                  <a
+                    href={selectedPub.expand.diario.url_original}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Acessar Diário Original Completo
+                  </a>
+                </div>
+              )}
 
               <div>
                 <h4 className="font-semibold text-sm mb-2 text-primary border-b pb-1">
