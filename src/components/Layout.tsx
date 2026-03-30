@@ -78,7 +78,6 @@ export default function Layout() {
           <IntranetSidebar />
           <SidebarInset className="flex-1 flex flex-col min-h-screen bg-[#f8f9fa] w-full max-w-full overflow-hidden">
             <header className="flex h-14 shrink-0 items-center gap-4 border-b bg-white px-4 z-10 sticky top-0 shadow-sm">
-              <SidebarTrigger className="-ml-1" />
               <div className="flex-1 max-w-2xl flex items-center gap-2">
                 <div className="relative w-full">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
