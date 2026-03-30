@@ -41,6 +41,7 @@ export default function ClientDetail() {
   const [interactions, setInteractions] = useState<any[]>([])
   const [cases, setCases] = useState<any[]>([])
   const [formOpen, setFormOpen] = useState(false)
+  const [editClientOpen, setEditClientOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const loadData = async () => {
@@ -66,6 +67,34 @@ export default function ClientDetail() {
   }, [id, navigate])
 
   useRealtime('crm_interactions', loadData)
+
+  const handleEditClient = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setSubmitting(true)
+    const fd = new FormData(e.currentTarget)
+    try {
+      await pb.collection('clients').update(id as string, {
+        status: fd.get('status'),
+        classification: fd.get('classification'),
+        funnel_stage: fd.get('funnel_stage'),
+        email: fd.get('email'),
+        phone: fd.get('phone'),
+        cpf: fd.get('cpf'),
+        address: fd.get('address'),
+      })
+      toast({ title: 'Cliente atualizado com sucesso.' })
+      setEditClientOpen(false)
+      loadData()
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao atualizar cliente',
+        description: err.message,
+        variant: 'destructive',
+      })
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const handleCreateInteraction = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -103,30 +132,39 @@ export default function ClientDetail() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-fade-in-up">
-      <div className="flex items-center gap-4 border-b pb-4">
-        <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <div>
-          <h2 className="text-2xl font-serif font-bold text-primary flex items-center">
-            <UserCircle className="w-6 h-6 mr-2 text-secondary" />
-            {client.fullName || client.name}
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1 font-medium">
-            Classificação:{' '}
-            <span
-              className={`px-2 py-0.5 rounded-md text-xs ml-1 ${
-                client.classification === 'Ativo'
-                  ? 'bg-green-100 text-green-800'
-                  : client.classification === 'Inativo'
-                    ? 'bg-slate-100 text-slate-800'
-                    : 'bg-blue-100 text-blue-800'
-              }`}
-            >
-              {client.classification || 'Lead'}
-            </span>
-          </p>
+      <div className="flex items-center justify-between border-b pb-4">
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <h2 className="text-2xl font-serif font-bold text-primary flex items-center">
+              <UserCircle className="w-6 h-6 mr-2 text-secondary" />
+              {client.fullName || client.name}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1 font-medium flex items-center gap-2">
+              <span>Status: {client.status || 'Não informado'}</span>
+              <span>•</span>
+              <span>
+                Classificação:{' '}
+                <span
+                  className={`px-2 py-0.5 rounded-md text-xs ml-1 ${
+                    client.classification === 'Ativo'
+                      ? 'bg-green-100 text-green-800'
+                      : client.classification === 'Inativo'
+                        ? 'bg-slate-100 text-slate-800'
+                        : 'bg-blue-100 text-blue-800'
+                  }`}
+                >
+                  {client.classification || 'Lead'}
+                </span>
+              </span>
+            </p>
+          </div>
         </div>
+        <Button variant="secondary" onClick={() => setEditClientOpen(true)}>
+          Editar Relacionamento
+        </Button>
       </div>
 
       <Tabs defaultValue="crm" className="w-full">
@@ -290,6 +328,74 @@ export default function ClientDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={editClientOpen} onOpenChange={setEditClientOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Editar Relacionamento</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditClient} className="space-y-4 pt-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Status</Label>
+                <Input
+                  name="status"
+                  defaultValue={client.status || ''}
+                  placeholder="Ex: Adimplente, Em negociação"
+                />
+              </div>
+              <div>
+                <Label>Classificação</Label>
+                <Select name="classification" defaultValue={client.classification || 'Lead'}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Ativo">Ativo</SelectItem>
+                    <SelectItem value="Inativo">Inativo</SelectItem>
+                    <SelectItem value="Lead">Lead</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Fase no Funil</Label>
+              <Select name="funnel_stage" defaultValue={client.funnel_stage || 'Contact'}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Contact">Contato</SelectItem>
+                  <SelectItem value="Proposal">Proposta</SelectItem>
+                  <SelectItem value="Negotiation">Negociação</SelectItem>
+                  <SelectItem value="Closed">Fechado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>E-mail</Label>
+                <Input name="email" type="email" defaultValue={client.email || ''} />
+              </div>
+              <div>
+                <Label>Telefone</Label>
+                <Input name="phone" defaultValue={client.phone || ''} />
+              </div>
+            </div>
+            <div>
+              <Label>CPF / CNPJ</Label>
+              <Input name="cpf" defaultValue={client.cpf || ''} />
+            </div>
+            <div>
+              <Label>Endereço</Label>
+              <Input name="address" defaultValue={client.address || ''} />
+            </div>
+            <Button type="submit" className="w-full mt-2" disabled={submitting}>
+              {submitting ? 'Salvando...' : 'Salvar Alterações'}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="sm:max-w-[500px]">

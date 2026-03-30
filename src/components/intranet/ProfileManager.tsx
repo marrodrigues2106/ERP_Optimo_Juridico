@@ -391,15 +391,25 @@ export default function ProfileManager() {
                       <Input
                         id="orgCnpj"
                         value={orgCnpj}
-                        onChange={(e) => setOrgCnpj(e.target.value)}
+                        onChange={(e) => {
+                          let val = e.target.value.replace(/\D/g, '')
+                          if (val.length > 14) val = val.slice(0, 14)
+                          val = val.replace(/^(\d{2})(\d)/, '$1.$2')
+                          val = val.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+                          val = val.replace(/\.(\d{3})(\d)/, '.$1/$2')
+                          val = val.replace(/(\d{4})(\d)/, '$1-$2')
+                          setOrgCnpj(val)
+                        }}
+                        placeholder="00.000.000/0000-00"
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="orgAddress">Endereço Completo</Label>
-                      <Input
+                      <textarea
                         id="orgAddress"
                         value={orgAddress}
                         onChange={(e) => setOrgAddress(e.target.value)}
+                        className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                       />
                     </div>
                     <div className="space-y-2">
@@ -525,18 +535,27 @@ export default function ProfileManager() {
                           <Input
                             id="newOrgCnpj"
                             value={newOrgCnpj}
-                            onChange={(e) => setNewOrgCnpj(e.target.value)}
+                            onChange={(e) => {
+                              let val = e.target.value.replace(/\D/g, '')
+                              if (val.length > 14) val = val.slice(0, 14)
+                              val = val.replace(/^(\d{2})(\d)/, '$1.$2')
+                              val = val.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+                              val = val.replace(/\.(\d{3})(\d)/, '.$1/$2')
+                              val = val.replace(/(\d{4})(\d)/, '$1-$2')
+                              setNewOrgCnpj(val)
+                            }}
                             placeholder="00.000.000/0000-00"
                             required
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="newOrgAddress">Endereço</Label>
-                          <Input
+                          <textarea
                             id="newOrgAddress"
                             value={newOrgAddress}
                             onChange={(e) => setNewOrgAddress(e.target.value)}
                             placeholder="Av. Paulista, 1000"
+                            className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                           />
                         </div>
                         <div className="space-y-2">
