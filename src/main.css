@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;0,900;1,400;1,700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,33 +6,33 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 223 38% 16%;
+    --background: 0 14% 91%; /* #ebe4e4 */
+    --foreground: 0 0% 41%; /* #696969 */
 
     --card: 0 0% 100%;
-    --card-foreground: 223 38% 16%;
+    --card-foreground: 0 0% 41%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 223 38% 16%;
+    --popover-foreground: 0 0% 41%;
 
-    --primary: 223 38% 16%; /* Navy Blue #1A233A */
+    --primary: 0 65% 51%; /* #d42f2f */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 39 46% 56%; /* Champagne Gold #C5A059 */
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 0 0% 85%; /* #d9d9d9 */
+    --secondary-foreground: 0 0% 41%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 0 0% 95%;
+    --muted-foreground: 0 0% 41%;
 
-    --accent: 39 46% 56%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 0 0% 85%;
+    --accent-foreground: 0 0% 41%;
 
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 223 38% 16%;
+    --border: 0 0% 85%;
+    --input: 0 0% 85%;
+    --ring: 0 65% 51%;
 
     --radius: 0.75rem;
   }
@@ -59,16 +59,16 @@
   h4,
   h5,
   h6 {
-    @apply font-serif;
+    @apply font-sans;
   }
 }
 
 .heading-lg {
-  @apply text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-primary mb-6 leading-tight;
+  @apply text-4xl md:text-5xl lg:text-6xl font-sans font-bold text-primary mb-6 leading-tight;
 }
 
 .heading-md {
-  @apply text-3xl md:text-4xl font-serif font-bold text-primary mb-4;
+  @apply text-3xl md:text-4xl font-sans font-bold text-primary mb-4;
 }
 
 .body-text {

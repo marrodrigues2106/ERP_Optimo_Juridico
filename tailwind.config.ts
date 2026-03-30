@@ -54,8 +54,8 @@ const config = {
         },
       },
       fontFamily: {
-        serif: ['Playfair Display', 'serif'],
-        sans: ['Inter', 'sans-serif'],
+        serif: ['Lato', 'sans-serif'],
+        sans: ['Lato', 'sans-serif'],
       },
       keyframes: {
         'accordion-down': {

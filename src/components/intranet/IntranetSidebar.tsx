@@ -130,10 +130,11 @@ export function IntranetSidebar() {
       collapsible="icon"
       className="border-r border-slate-200 bg-slate-50 mt-[60px] lg:mt-0 z-40"
     >
-      <SidebarHeader className="p-6 border-b border-slate-200 bg-white flex flex-row items-center justify-center lg:justify-start">
+      <SidebarHeader className="p-4 border-b border-slate-200 bg-white flex flex-row items-center gap-2">
+        <SidebarTrigger className="text-primary hover:bg-slate-100" />
         <Link
           to="/intranet/dashboard"
-          className="flex items-center gap-4 overflow-hidden w-full transition-all"
+          className="flex items-center gap-3 overflow-hidden flex-1 transition-all"
         >
           {org?.logo ? (
             <img

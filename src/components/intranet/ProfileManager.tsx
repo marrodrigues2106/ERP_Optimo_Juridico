@@ -32,6 +32,9 @@ export default function ProfileManager() {
 
   const [org, setOrg] = useState<any>(null)
   const [orgName, setOrgName] = useState('')
+  const [orgCnpj, setOrgCnpj] = useState('')
+  const [orgAddress, setOrgAddress] = useState('')
+  const [orgEmail, setOrgEmail] = useState('')
   const [orgLogoPreview, setOrgLogoPreview] = useState<string | null>(null)
   const [orgLogoFile, setOrgLogoFile] = useState<File | null>(null)
   const orgLogoRef = useRef<HTMLInputElement>(null)
@@ -42,7 +45,10 @@ export default function ProfileManager() {
         .getOne(user.active_organization)
         .then((o) => {
           setOrg(o)
-          setOrgName(o.name)
+          setOrgName(o.name || '')
+          setOrgCnpj(o.cnpj || '')
+          setOrgAddress(o.address || '')
+          setOrgEmail(o.email || '')
           if (o.logo) setOrgLogoPreview(pb.files.getURL(o, o.logo))
         })
     }
@@ -58,7 +64,14 @@ export default function ProfileManager() {
 
   const [orgs, setOrgs] = useState<any[]>([])
   const [isCreatingOrg, setIsCreatingOrg] = useState(false)
+
   const [newOrgName, setNewOrgName] = useState('')
+  const [newOrgCnpj, setNewOrgCnpj] = useState('')
+  const [newOrgAddress, setNewOrgAddress] = useState('')
+  const [newOrgEmail, setNewOrgEmail] = useState('')
+  const [newOrgLogoFile, setNewOrgLogoFile] = useState<File | null>(null)
+  const [newOrgLogoPreview, setNewOrgLogoPreview] = useState<string | null>(null)
+  const newOrgLogoRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const fetchOrgs = async () => {
@@ -85,6 +98,9 @@ export default function ProfileManager() {
     try {
       const formData = new FormData()
       formData.append('name', orgName)
+      formData.append('cnpj', orgCnpj)
+      formData.append('address', orgAddress)
+      formData.append('email', orgEmail)
       if (orgLogoFile) formData.append('logo', orgLogoFile)
 
       await pb.collection('organizations').update(org.id, formData)
@@ -95,11 +111,26 @@ export default function ProfileManager() {
     }
   }
 
+  const handleNewOrgLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      setNewOrgLogoFile(file)
+      setNewOrgLogoPreview(URL.createObjectURL(file))
+    }
+  }
+
   const handleCreateOrg = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newOrgName) return
     try {
-      const newOrg = await pb.collection('organizations').create({ name: newOrgName })
+      const fd = new FormData()
+      fd.append('name', newOrgName)
+      fd.append('cnpj', newOrgCnpj)
+      fd.append('address', newOrgAddress)
+      fd.append('email', newOrgEmail)
+      if (newOrgLogoFile) fd.append('logo', newOrgLogoFile)
+
+      const newOrg = await pb.collection('organizations').create(fd)
       await pb.collection('users').update(user.id, {
         'organizations+': newOrg.id,
         active_organization: newOrg.id,
@@ -189,7 +220,7 @@ export default function ProfileManager() {
                     className="relative group cursor-pointer"
                     onClick={() => fileInputRef.current?.click()}
                   >
-                    <Avatar className="w-24 h-24 border-2 border-slate-100">
+                    <Avatar className="w-24 h-24 border-2 border-slate-100 shadow-sm">
                       <AvatarImage
                         src={
                           avatarPreview ||
@@ -318,12 +349,12 @@ export default function ProfileManager() {
                       className="relative group cursor-pointer"
                       onClick={() => orgLogoRef.current?.click()}
                     >
-                      <div className="w-32 h-32 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center bg-slate-50 overflow-hidden">
+                      <div className="w-32 h-32 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center bg-slate-50 overflow-hidden shadow-sm">
                         {orgLogoPreview ? (
                           <img
                             src={orgLogoPreview}
                             alt="Logo"
-                            className="w-full h-full object-contain"
+                            className="w-full h-full object-contain p-2"
                           />
                         ) : (
                           <Building2 className="w-10 h-10 text-slate-300" />
@@ -345,14 +376,41 @@ export default function ProfileManager() {
                     </p>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="orgName">Nome da Organização</Label>
-                    <Input
-                      id="orgName"
-                      value={orgName}
-                      onChange={(e) => setOrgName(e.target.value)}
-                      required
-                    />
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="orgName">Razão Social</Label>
+                      <Input
+                        id="orgName"
+                        value={orgName}
+                        onChange={(e) => setOrgName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="orgCnpj">CNPJ</Label>
+                      <Input
+                        id="orgCnpj"
+                        value={orgCnpj}
+                        onChange={(e) => setOrgCnpj(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="orgAddress">Endereço Completo</Label>
+                      <Input
+                        id="orgAddress"
+                        value={orgAddress}
+                        onChange={(e) => setOrgAddress(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="orgEmail">E-mail Institucional</Label>
+                      <Input
+                        id="orgEmail"
+                        type="email"
+                        value={orgEmail}
+                        onChange={(e) => setOrgEmail(e.target.value)}
+                      />
+                    </div>
                   </div>
 
                   <Button type="submit" className="w-full">
@@ -380,7 +438,10 @@ export default function ProfileManager() {
                       key={o.id}
                       className={`flex items-center justify-between p-4 rounded-xl border transition-all ${o.id === user.active_organization ? 'border-primary bg-primary/5 shadow-sm' : 'border-slate-200 bg-white hover:border-primary/30 hover:bg-slate-50/50'}`}
                     >
-                      <span className="font-medium text-base text-slate-800">{o.name}</span>
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium text-base text-foreground">{o.name}</span>
+                        {o.cnpj && <span className="text-xs text-muted-foreground">{o.cnpj}</span>}
+                      </div>
                       {o.id === user.active_organization ? (
                         <span className="text-xs font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-md uppercase tracking-wider">
                           Ativa
@@ -398,7 +459,7 @@ export default function ProfileManager() {
                     </div>
                   ))}
                   {orgs.length === 0 && (
-                    <p className="text-sm text-slate-500">Nenhuma organização associada.</p>
+                    <p className="text-sm text-muted-foreground">Nenhuma organização associada.</p>
                   )}
                 </div>
               </div>
@@ -411,24 +472,85 @@ export default function ProfileManager() {
                       className="w-full py-6 border-dashed"
                       onClick={() => setIsCreatingOrg(true)}
                     >
-                      <Plus className="w-4 h-4 mr-2" /> Criar Nova Organização
+                      <Plus className="w-4 h-4 mr-2" /> Adicionar Organização
                     </Button>
                   ) : (
                     <form
                       onSubmit={handleCreateOrg}
-                      className="space-y-5 bg-slate-50 p-5 rounded-xl border border-slate-100"
+                      className="space-y-5 bg-white p-5 rounded-xl border border-slate-200 shadow-sm"
                     >
-                      <div className="space-y-3">
-                        <Label htmlFor="newOrgName">Nome da Nova Organização</Label>
-                        <Input
-                          id="newOrgName"
-                          value={newOrgName}
-                          onChange={(e) => setNewOrgName(e.target.value)}
-                          placeholder="Ex: Novo Escritório"
-                          required
-                          className="bg-white"
-                        />
+                      <div className="flex flex-col items-center gap-3">
+                        <Label>Logotipo</Label>
+                        <div
+                          className="relative group cursor-pointer"
+                          onClick={() => newOrgLogoRef.current?.click()}
+                        >
+                          <div className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center bg-slate-50 overflow-hidden">
+                            {newOrgLogoPreview ? (
+                              <img
+                                src={newOrgLogoPreview}
+                                alt="Logo"
+                                className="w-full h-full object-contain p-1"
+                              />
+                            ) : (
+                              <Camera className="w-6 h-6 text-slate-300" />
+                            )}
+                          </div>
+                          <div className="absolute inset-0 bg-black/40 text-white rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                            <Plus className="w-5 h-5" />
+                          </div>
+                          <input
+                            type="file"
+                            ref={newOrgLogoRef}
+                            className="hidden"
+                            accept="image/*"
+                            onChange={handleNewOrgLogoChange}
+                          />
+                        </div>
                       </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="newOrgName">Razão Social</Label>
+                          <Input
+                            id="newOrgName"
+                            value={newOrgName}
+                            onChange={(e) => setNewOrgName(e.target.value)}
+                            placeholder="Ex: Novo Escritório Advocacia"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="newOrgCnpj">CNPJ</Label>
+                          <Input
+                            id="newOrgCnpj"
+                            value={newOrgCnpj}
+                            onChange={(e) => setNewOrgCnpj(e.target.value)}
+                            placeholder="00.000.000/0000-00"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="newOrgAddress">Endereço</Label>
+                          <Input
+                            id="newOrgAddress"
+                            value={newOrgAddress}
+                            onChange={(e) => setNewOrgAddress(e.target.value)}
+                            placeholder="Av. Paulista, 1000"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="newOrgEmail">E-mail Institucional</Label>
+                          <Input
+                            id="newOrgEmail"
+                            type="email"
+                            value={newOrgEmail}
+                            onChange={(e) => setNewOrgEmail(e.target.value)}
+                            placeholder="contato@escritorio.com.br"
+                          />
+                        </div>
+                      </div>
+
                       <div className="flex gap-3">
                         <Button type="submit" className="w-full">
                           Criar

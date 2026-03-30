@@ -86,7 +86,7 @@ export default function Dashboard() {
               </div>
               <ul className="space-y-3 pl-6">
                 <li className="text-sm font-semibold flex items-center gap-2 text-slate-900 cursor-pointer">
-                  <CheckCircle2 className="w-4 h-4 text-blue-600" /> Todos do escritório
+                  <CheckCircle2 className="w-4 h-4 text-primary" /> Todos do escritório
                 </li>
                 <li className="text-sm text-slate-600 hover:text-slate-900 cursor-pointer transition-colors">
                   Somente você
@@ -97,7 +97,7 @@ export default function Dashboard() {
               </ul>
             </div>
           </div>
-          <button className="text-blue-600 text-xs font-bold mt-6 hover:underline transition-all uppercase tracking-wide">
+          <button className="text-primary text-xs font-bold mt-6 hover:underline transition-all uppercase tracking-wide">
             Convidar Colaborador
           </button>
         </div>
@@ -130,15 +130,6 @@ export default function Dashboard() {
               ) : (
                 publications.map((pub) => <PublicationCard key={pub.id} item={pub} />)
               )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-6 mt-6 border-t border-slate-200 pt-6 text-sm font-semibold">
-              <button className="text-blue-600 hover:text-blue-700 transition-colors">
-                + ACOMPANHAR TERMO
-              </button>
-              <button className="text-blue-600 hover:text-blue-700 transition-colors">
-                VER TODAS AS PUBLICAÇÕES E ANDAMENTOS &gt;
-              </button>
             </div>
           </TabsContent>
         </Tabs>
