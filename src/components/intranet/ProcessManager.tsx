@@ -224,9 +224,9 @@ export default function ProcessManager() {
         </div>
       </div>
 
-      <div className="flex flex-col xl:flex-row gap-8 items-start">
+      <div className="flex flex-col md:flex-row gap-8 items-start">
         {/* Sidebar */}
-        <Card className="w-full xl:w-72 shrink-0 xl:sticky xl:top-6 border-none shadow-none bg-slate-50/50">
+        <Card className="w-full md:w-64 lg:w-72 shrink-0 md:sticky md:top-6 border-none shadow-sm bg-white">
           <CardHeader className="pb-3 border-b">
             <CardTitle className="text-sm">Filtros Avançados</CardTitle>
           </CardHeader>

@@ -474,119 +474,117 @@ export default function ProfileManager() {
                 </div>
               </div>
 
-              {['admin', 'manager'].includes(user?.role) && (
-                <div className="pt-6 mt-6 border-t border-slate-100">
-                  {!isCreatingOrg ? (
-                    <Button
-                      variant="outline"
-                      className="w-full py-6 border-dashed"
-                      onClick={() => setIsCreatingOrg(true)}
-                    >
-                      <Plus className="w-4 h-4 mr-2" /> Adicionar Organização
-                    </Button>
-                  ) : (
-                    <form
-                      onSubmit={handleCreateOrg}
-                      className="space-y-5 bg-white p-5 rounded-xl border border-slate-200 shadow-sm"
-                    >
-                      <div className="flex flex-col items-center gap-3">
-                        <Label>Logotipo</Label>
-                        <div
-                          className="relative group cursor-pointer"
-                          onClick={() => newOrgLogoRef.current?.click()}
-                        >
-                          <div className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center bg-slate-50 overflow-hidden">
-                            {newOrgLogoPreview ? (
-                              <img
-                                src={newOrgLogoPreview}
-                                alt="Logo"
-                                className="w-full h-full object-contain p-1"
-                              />
-                            ) : (
-                              <Camera className="w-6 h-6 text-slate-300" />
-                            )}
-                          </div>
-                          <div className="absolute inset-0 bg-black/40 text-white rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                            <Plus className="w-5 h-5" />
-                          </div>
-                          <input
-                            type="file"
-                            ref={newOrgLogoRef}
-                            className="hidden"
-                            accept="image/*"
-                            onChange={handleNewOrgLogoChange}
-                          />
+              <div className="pt-6 mt-6 border-t border-slate-100">
+                {!isCreatingOrg ? (
+                  <Button
+                    variant="outline"
+                    className="w-full py-6 border-dashed bg-white"
+                    onClick={() => setIsCreatingOrg(true)}
+                  >
+                    <Plus className="w-4 h-4 mr-2" /> Cadastrar Organização
+                  </Button>
+                ) : (
+                  <form
+                    onSubmit={handleCreateOrg}
+                    className="space-y-5 bg-white p-5 rounded-xl border border-slate-200 shadow-sm"
+                  >
+                    <div className="flex flex-col items-center gap-3">
+                      <Label>Logotipo</Label>
+                      <div
+                        className="relative group cursor-pointer"
+                        onClick={() => newOrgLogoRef.current?.click()}
+                      >
+                        <div className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center bg-slate-50 overflow-hidden">
+                          {newOrgLogoPreview ? (
+                            <img
+                              src={newOrgLogoPreview}
+                              alt="Logo"
+                              className="w-full h-full object-contain p-1"
+                            />
+                          ) : (
+                            <Camera className="w-6 h-6 text-slate-300" />
+                          )}
                         </div>
+                        <div className="absolute inset-0 bg-black/40 text-white rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <Plus className="w-5 h-5" />
+                        </div>
+                        <input
+                          type="file"
+                          ref={newOrgLogoRef}
+                          className="hidden"
+                          accept="image/*"
+                          onChange={handleNewOrgLogoChange}
+                        />
                       </div>
+                    </div>
 
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="newOrgName">Razão Social</Label>
-                          <Input
-                            id="newOrgName"
-                            value={newOrgName}
-                            onChange={(e) => setNewOrgName(e.target.value)}
-                            placeholder="Ex: Novo Escritório Advocacia"
-                            required
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="newOrgCnpj">CNPJ</Label>
-                          <Input
-                            id="newOrgCnpj"
-                            value={newOrgCnpj}
-                            onChange={(e) => {
-                              let val = e.target.value.replace(/\D/g, '')
-                              if (val.length > 14) val = val.slice(0, 14)
-                              val = val.replace(/^(\d{2})(\d)/, '$1.$2')
-                              val = val.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-                              val = val.replace(/\.(\d{3})(\d)/, '.$1/$2')
-                              val = val.replace(/(\d{4})(\d)/, '$1-$2')
-                              setNewOrgCnpj(val)
-                            }}
-                            placeholder="00.000.000/0000-00"
-                            required
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="newOrgAddress">Endereço</Label>
-                          <textarea
-                            id="newOrgAddress"
-                            value={newOrgAddress}
-                            onChange={(e) => setNewOrgAddress(e.target.value)}
-                            placeholder="Av. Paulista, 1000"
-                            className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="newOrgEmail">E-mail Institucional</Label>
-                          <Input
-                            id="newOrgEmail"
-                            type="email"
-                            value={newOrgEmail}
-                            onChange={(e) => setNewOrgEmail(e.target.value)}
-                            placeholder="contato@escritorio.com.br"
-                          />
-                        </div>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="newOrgName">Razão Social</Label>
+                        <Input
+                          id="newOrgName"
+                          value={newOrgName}
+                          onChange={(e) => setNewOrgName(e.target.value)}
+                          placeholder="Ex: Novo Escritório Advocacia"
+                          required
+                        />
                       </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="newOrgCnpj">CNPJ</Label>
+                        <Input
+                          id="newOrgCnpj"
+                          value={newOrgCnpj}
+                          onChange={(e) => {
+                            let val = e.target.value.replace(/\D/g, '')
+                            if (val.length > 14) val = val.slice(0, 14)
+                            val = val.replace(/^(\d{2})(\d)/, '$1.$2')
+                            val = val.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+                            val = val.replace(/\.(\d{3})(\d)/, '.$1/$2')
+                            val = val.replace(/(\d{4})(\d)/, '$1-$2')
+                            setNewOrgCnpj(val)
+                          }}
+                          placeholder="00.000.000/0000-00"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="newOrgAddress">Endereço</Label>
+                        <textarea
+                          id="newOrgAddress"
+                          value={newOrgAddress}
+                          onChange={(e) => setNewOrgAddress(e.target.value)}
+                          placeholder="Av. Paulista, 1000"
+                          className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="newOrgEmail">E-mail Institucional</Label>
+                        <Input
+                          id="newOrgEmail"
+                          type="email"
+                          value={newOrgEmail}
+                          onChange={(e) => setNewOrgEmail(e.target.value)}
+                          placeholder="contato@escritorio.com.br"
+                        />
+                      </div>
+                    </div>
 
-                      <div className="flex gap-3">
-                        <Button type="submit" className="w-full">
-                          Criar
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="w-full"
-                          onClick={() => setIsCreatingOrg(false)}
-                        >
-                          Cancelar
-                        </Button>
-                      </div>
-                    </form>
-                  )}
-                </div>
-              )}
+                    <div className="flex gap-3">
+                      <Button type="submit" className="w-full">
+                        Criar
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-full"
+                        onClick={() => setIsCreatingOrg(false)}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </form>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>

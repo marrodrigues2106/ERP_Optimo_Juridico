@@ -9,10 +9,10 @@
     --background: 0 0% 85%; /* #d9d9d9 */
     --foreground: 0 0% 41%; /* #696969 */
 
-    --card: 0 14% 91%; /* #ebe4e4 */
+    --card: 0 0% 100%; /* #ffffff */
     --card-foreground: 0 0% 41%; /* #696969 */
 
-    --popover: 0 14% 91%; /* #ebe4e4 */
+    --popover: 0 0% 100%; /* #ffffff */
     --popover-foreground: 0 0% 41%; /* #696969 */
 
     --primary: 0 0% 41%; /* #696969 */
