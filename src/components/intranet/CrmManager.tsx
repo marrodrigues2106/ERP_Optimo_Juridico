@@ -4,19 +4,14 @@ import { Users, BarChart3, Mail, Maximize2, Minimize2 } from 'lucide-react'
 import { CrmContactsTab } from './crm/CrmContactsTab'
 import { CrmTemplatesTab } from './crm/CrmTemplatesTab'
 import { CrmProductivityTab } from './crm/CrmProductivityTab'
-import { useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 
 export default function CrmManager() {
   const [activeTab, setActiveTab] = useState('contacts')
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const { setOpen } = useSidebar()
 
   const toggleFullscreen = () => {
     setIsFullscreen(!isFullscreen)
-    if (!isFullscreen) {
-      setOpen(false)
-    }
   }
 
   return (
