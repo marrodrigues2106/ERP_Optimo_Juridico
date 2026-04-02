@@ -1,8 +1,16 @@
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table,
@@ -13,604 +21,436 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Search,
-  Activity,
-  RefreshCw,
-  FileText,
-  Calendar,
-  Building2,
-  Gavel,
-  Scale,
-  ExternalLink,
-  User,
-  Bell,
-  CheckCircle2,
-} from 'lucide-react'
-import { searchGazettePublications, getGazettes, triggerManualIngest } from '@/services/gazettes'
+import { Search, Plus, Trash2, Activity, Link as LinkIcon } from 'lucide-react'
+import pb from '@/lib/pocketbase/client'
+import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
-import { cn } from '@/lib/utils'
-import pb from '@/lib/pocketbase/client'
-import { PublicationCard } from './cases/PublicationCard'
-
-function HighlightText({ text, query }: { text: string; query: string }) {
-  if (!query) return <span>{text}</span>
-
-  const parts = text.split(new RegExp(`(${query})`, 'gi'))
-  return (
-    <span>
-      {parts.map((part, i) =>
-        part.toLowerCase() === query.toLowerCase() ? (
-          <mark key={i} className="bg-yellow-200 text-slate-900 px-1 rounded">
-            {part}
-          </mark>
-        ) : (
-          <span key={i}>{part}</span>
-        ),
-      )}
-    </span>
-  )
-}
 
 export default function GazetteManager() {
-  const [activeTab, setActiveTab] = useState('inbox')
-  const [inboxPubs, setInboxPubs] = useState<any[]>([])
-  const [gazettes, setGazettes] = useState<any[]>([])
-  const [searchResults, setSearchResults] = useState<any>(null)
-  const [loadingSearch, setLoadingSearch] = useState(false)
-  const [ingesting, setIngesting] = useState(false)
-  const [selectedPub, setSelectedPub] = useState<any>(null)
+  const { user } = useAuth()
   const { toast } = useToast()
 
-  // Search State
-  const [searchParams, setSearchParams] = useState({
-    q: '',
-    processo: '',
-    oab: '',
-    parte: '',
-    advogado: '',
-    orgao: 'todos',
-    dataInicio: '',
-    dataFim: '',
-    page: 1,
-  })
+  const [activeTab, setActiveTab] = useState('dashboard')
 
-  const loadMonitoring = async () => {
-    try {
-      const data = await getGazettes()
-      setGazettes(data)
-    } catch (error) {
-      console.error(error)
-    }
-  }
+  const [occurrences, setOccurrences] = useState<any[]>([])
+  const [searchOcc, setSearchOcc] = useState('')
 
-  const loadInbox = async () => {
+  const [terms, setTerms] = useState<any[]>([])
+  const [newTerm, setNewTerm] = useState('')
+  const [newType, setNewType] = useState('palavra-chave')
+  const [newObs, setNewObs] = useState('')
+
+  const [config, setConfig] = useState<any>(null)
+  const [logs, setLogs] = useState<any[]>([])
+
+  const loadData = async () => {
     try {
-      const res = await pb.collection('gazette_publications').getFullList({
-        filter: 'is_read = false',
-        sort: '-created',
-        expand: 'diario',
-      })
-      setInboxPubs(res)
+      const occ = await pb
+        .collection('ocorrencias_dou')
+        .getFullList({ expand: 'publicacao_id,termo_id', sort: '-created' })
+      setOccurrences(occ)
+
+      const tms = await pb.collection('termos_monitorados').getFullList({ sort: '-created' })
+      setTerms(tms)
+
+      if (user?.role === 'admin' || user?.isAdmin) {
+        const lgs = await pb
+          .collection('logs_processamento')
+          .getFullList({ expand: 'publicacao_id', sort: '-created' })
+        setLogs(lgs)
+      }
+
+      if (user?.id) {
+        const cfgs = await pb
+          .collection('configuracoes_alerta')
+          .getFullList({ filter: `usuario_id="${user.id}"` })
+        if (cfgs.length > 0) setConfig(cfgs[0])
+      }
     } catch (e) {
       console.error(e)
     }
   }
 
   useEffect(() => {
-    if (activeTab === 'monitoring') loadMonitoring()
-    if (activeTab === 'inbox') loadInbox()
-  }, [activeTab])
+    loadData()
+  }, [user])
+  useRealtime('ocorrencias_dou', loadData)
+  useRealtime('logs_processamento', loadData)
 
-  useRealtime('gazettes', () => {
-    if (activeTab === 'monitoring') loadMonitoring()
-  })
-  useRealtime('gazette_publications', () => {
-    if (activeTab === 'inbox') loadInbox()
-  })
-
-  const markAsRead = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleAddTerm = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newTerm || !user?.id) return
     try {
-      await pb.collection('gazette_publications').update(id, { is_read: true })
-      toast({ title: 'Marcado como lido' })
-      loadInbox()
+      await pb.collection('termos_monitorados').create({
+        termo: newTerm,
+        tipo_termo: newType,
+        usuario_id: user.id,
+        ativo: true,
+        observacoes: newObs,
+        data_cadastro: new Date().toISOString(),
+      })
+      setNewTerm('')
+      setNewObs('')
+      setNewType('palavra-chave')
+      toast({ title: 'Termo adicionado com sucesso' })
+      loadData()
     } catch (err) {
-      toast({ title: 'Erro ao atualizar', variant: 'destructive' })
+      toast({ title: 'Erro ao adicionar', variant: 'destructive' })
     }
   }
 
-  const handleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault()
-    setLoadingSearch(true)
+  const toggleTerm = async (t: any) => {
     try {
-      const results = await searchGazettePublications(searchParams)
-      setSearchResults(results)
-    } catch (error) {
-      toast({
-        title: 'Erro ao buscar',
-        description: 'Verifique os filtros e tente novamente.',
-        variant: 'destructive',
-      })
-    } finally {
-      setLoadingSearch(false)
+      await pb.collection('termos_monitorados').update(t.id, { ativo: !t.ativo })
+      loadData()
+    } catch (e) {
+      console.error(e)
     }
   }
 
-  const handleIngest = async () => {
-    setIngesting(true)
+  const deleteTerm = async (id: string) => {
     try {
-      await triggerManualIngest('TJSP')
-      toast({
-        title: 'Ingestão concluída',
-        description: 'Novas publicações foram extraídas e indexadas.',
-      })
-    } catch (error) {
-      toast({ title: 'Erro na ingestão', variant: 'destructive' })
-    } finally {
-      setIngesting(false)
+      await pb.collection('termos_monitorados').delete(id)
+      loadData()
+      toast({ title: 'Termo removido' })
+    } catch (e) {
+      console.error(e)
     }
   }
+
+  const handleSaveConfig = async (tipo_notificacao: string, frequencia: string, ativo: boolean) => {
+    try {
+      if (config?.id) {
+        await pb
+          .collection('configuracoes_alerta')
+          .update(config.id, { tipo_notificacao, frequencia, ativo })
+      } else {
+        await pb
+          .collection('configuracoes_alerta')
+          .create({ usuario_id: user?.id, tipo_notificacao, frequencia, ativo })
+      }
+      toast({ title: 'Configurações salvas' })
+      loadData()
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const filteredOcc = occurrences.filter((o) =>
+    searchOcc
+      ? o.expand?.publicacao_id?.texto_bruto?.toLowerCase().includes(searchOcc.toLowerCase()) ||
+        o.expand?.termo_id?.termo?.toLowerCase().includes(searchOcc.toLowerCase())
+      : true,
+  )
 
   return (
-    <div className="space-y-6 animate-fade-in-up">
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b pb-4">
-        <div>
-          <h2 className="text-2xl font-serif font-bold text-primary flex items-center gap-2">
-            <Scale className="w-6 h-6" />
-            Diários Oficiais
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Busca avançada e monitoramento de publicações judiciais
-          </p>
-        </div>
+    <div className="space-y-6 max-w-6xl mx-auto font-sans">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-primary tracking-tight">Monitoramento DOU</h2>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="mb-4 flex-wrap">
-          <TabsTrigger value="inbox" className="flex items-center gap-2">
-            <Bell className="w-4 h-4" /> Caixa Postal{' '}
-            {inboxPubs.length > 0 && (
-              <Badge variant="destructive" className="ml-1 px-1.5 py-0 text-[10px]">
-                {inboxPubs.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="search" className="flex items-center gap-2">
-            <Search className="w-4 h-4" /> Busca de Publicações
-          </TabsTrigger>
-          <TabsTrigger value="monitoring" className="flex items-center gap-2">
-            <Activity className="w-4 h-4" /> Monitoramento (Ingestão)
-          </TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 mb-6 bg-white border border-border">
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="termos">Termos Monitorados</TabsTrigger>
+          <TabsTrigger value="alertas">Config. Alertas</TabsTrigger>
+          {(user?.role === 'admin' || user?.isAdmin) && (
+            <TabsTrigger value="logs">Logs & Auditoria</TabsTrigger>
+          )}
         </TabsList>
 
-        <TabsContent value="inbox" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Bell className="w-5 h-5 text-primary" />
-                Caixa Postal de Publicações
-              </CardTitle>
-              <CardDescription>
-                Novas ocorrências encontradas automaticamente pelos seus termos de monitoramento.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {inboxPubs.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground flex flex-col items-center gap-3">
-                  <CheckCircle2 className="w-10 h-10 text-green-500 opacity-50" />
-                  <p>Tudo limpo! Nenhuma nova publicação não lida.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {inboxPubs.map((pub: any) => (
-                    <PublicationCard
-                      key={pub.id}
-                      item={pub}
-                      onClick={() => setSelectedPub(pub)}
-                      showActions={
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => markAsRead(pub.id, e)}
-                          className="shrink-0"
-                        >
-                          <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
-                          Marcar como Lido
-                        </Button>
-                      }
-                    />
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="search" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Filtros de Pesquisa</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSearch} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="lg:col-span-2">
-                    <Label>Termo Livre</Label>
-                    <Input
-                      placeholder="Busque por palavras no texto..."
-                      value={searchParams.q}
-                      onChange={(e) => setSearchParams({ ...searchParams, q: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label>Nº do Processo</Label>
-                    <Input
-                      placeholder="Ex: 1234567-89.2023..."
-                      value={searchParams.processo}
-                      onChange={(e) =>
-                        setSearchParams({ ...searchParams, processo: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label>OAB</Label>
-                    <Input
-                      placeholder="Ex: 12345/SP"
-                      value={searchParams.oab}
-                      onChange={(e) => setSearchParams({ ...searchParams, oab: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label>Órgão / Tribunal</Label>
-                    <Select
-                      value={searchParams.orgao}
-                      onValueChange={(val) => setSearchParams({ ...searchParams, orgao: val })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="todos">Todos</SelectItem>
-                        <SelectItem value="TJSP">TJSP</SelectItem>
-                        <SelectItem value="TRF3">TRF3</SelectItem>
-                        <SelectItem value="STJ">STJ</SelectItem>
-                        <SelectItem value="STF">STF</SelectItem>
-                        <SelectItem value="DOU">DOU</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Nome da Parte</Label>
-                    <Input
-                      placeholder="Ex: Silva..."
-                      value={searchParams.parte}
-                      onChange={(e) => setSearchParams({ ...searchParams, parte: e.target.value })}
-                    />
-                  </div>
-                  <div className="lg:col-span-2">
-                    <Label>Advogado</Label>
-                    <Input
-                      placeholder="Ex: João Souza..."
-                      value={searchParams.advogado}
-                      onChange={(e) =>
-                        setSearchParams({ ...searchParams, advogado: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label>Data Início</Label>
-                    <Input
-                      type="date"
-                      value={searchParams.dataInicio}
-                      onChange={(e) =>
-                        setSearchParams({ ...searchParams, dataInicio: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label>Data Fim</Label>
-                    <Input
-                      type="date"
-                      value={searchParams.dataFim}
-                      onChange={(e) =>
-                        setSearchParams({ ...searchParams, dataFim: e.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <Button type="submit" disabled={loadingSearch} className="w-full sm:w-auto">
-                    {loadingSearch ? (
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Search className="w-4 h-4 mr-2" />
-                    )}
-                    Pesquisar Diários
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-
-          {searchResults && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  Resultados da Busca ({searchResults.totalItems})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {searchResults.items.length === 0 ? (
-                  <div className="text-center py-10 text-muted-foreground flex flex-col items-center gap-3">
-                    <Search className="w-10 h-10 opacity-20" />
-                    <p>Nenhuma publicação encontrada para os filtros aplicados.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {searchResults.items.map((pub: any) => (
-                      <div
-                        key={pub.id}
-                        className="p-4 border rounded-lg hover:border-primary/50 transition-colors bg-slate-50/50"
-                      >
-                        <div className="flex justify-between items-start mb-2 flex-wrap gap-2">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />{' '}
-                              {new Date(pub.data_publicacao).toLocaleDateString()}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Building2 className="w-3 h-3" /> {pub.orgao}
-                            </span>
-                          </div>
-                          <Button variant="outline" size="sm" onClick={() => setSelectedPub(pub)}>
-                            Ler Íntegra
-                          </Button>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {pub.numero_processo?.map((p: string, i: number) => (
-                            <span
-                              key={i}
-                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
-                            >
-                              <Gavel className="w-3 h-3 mr-1" /> Proc: {p}
-                            </span>
-                          ))}
-                          {pub.oabs?.map((o: string, i: number) => (
-                            <span
-                              key={i}
-                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-200 text-slate-800"
-                            >
-                              OAB: {o}
-                            </span>
-                          ))}
-                          {pub.advogados?.slice(0, 2).map((adv: string, i: number) => (
-                            <span
-                              key={`adv-${i}`}
-                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"
-                            >
-                              <User className="w-3 h-3 mr-1" /> {adv}
-                            </span>
-                          ))}
-                        </div>
-
-                        <p className="text-sm line-clamp-3 text-slate-700 leading-relaxed font-serif">
-                          <HighlightText text={pub.texto_normalizado} query={searchParams.q} />
-                        </p>
-                      </div>
-                    ))}
-
-                    {searchResults.totalPages > 1 && (
-                      <div className="flex justify-center gap-2 pt-4">
-                        <Button
-                          variant="outline"
-                          disabled={searchResults.page === 1}
-                          onClick={() => {
-                            setSearchParams({ ...searchParams, page: searchParams.page - 1 })
-                            handleSearch()
-                          }}
-                        >
-                          Anterior
-                        </Button>
-                        <span className="flex items-center px-4 text-sm text-muted-foreground">
-                          Página {searchResults.page} de {searchResults.totalPages}
-                        </span>
-                        <Button
-                          variant="outline"
-                          disabled={searchResults.page === searchResults.totalPages}
-                          onClick={() => {
-                            setSearchParams({ ...searchParams, page: searchParams.page + 1 })
-                            handleSearch()
-                          }}
-                        >
-                          Próxima
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="monitoring" className="space-y-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Histórico de Ingestão</CardTitle>
-                <CardDescription>
-                  Acompanhe o processamento diário de cadernos judiciais.
-                </CardDescription>
+        <TabsContent value="dashboard" className="space-y-4">
+          <Card className="bg-white border-border shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 border-b border-border/50">
+              <CardTitle className="text-lg text-primary">Ocorrências Recentes</CardTitle>
+              <div className="relative w-64">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar ocorrências..."
+                  value={searchOcc}
+                  onChange={(e) => setSearchOcc(e.target.value)}
+                  className="pl-8 bg-white border-border"
+                />
               </div>
-              <Button onClick={handleIngest} disabled={ingesting}>
-                {ingesting ? (
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Activity className="w-4 h-4 mr-2" />
-                )}
-                Forçar Ingestão (Simulação)
-              </Button>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               <Table>
-                <TableHeader>
+                <TableHeader className="bg-slate-50/50">
                   <TableRow>
-                    <TableHead>Data de Ref.</TableHead>
-                    <TableHead>Órgão</TableHead>
-                    <TableHead>Tipo</TableHead>
+                    <TableHead className="pl-6">Data</TableHead>
+                    <TableHead>Termo</TableHead>
+                    <TableHead>Órgão / Seção</TableHead>
+                    <TableHead>Contexto</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Processado em</TableHead>
+                    <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {gazettes.map((g) => (
-                    <TableRow key={g.id}>
-                      <TableCell className="font-medium">
-                        {new Date(g.data_publicacao).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>{g.orgao_publicador}</TableCell>
-                      <TableCell>{g.tipo_diario}</TableCell>
-                      <TableCell>
-                        <span
-                          className={cn(
-                            'px-2 py-1 rounded-full text-xs font-semibold',
-                            g.status_processamento === 'INDEXADO'
-                              ? 'bg-green-100 text-green-800'
-                              : g.status_processamento === 'ERRO'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-blue-100 text-blue-800',
-                          )}
-                        >
-                          {g.status_processamento}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {new Date(g.created).toLocaleString()}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {gazettes.length === 0 && (
+                  {filteredOcc.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
-                        Nenhum registro de ingestão encontrado.
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        Nenhuma ocorrência encontrada.
                       </TableCell>
                     </TableRow>
+                  ) : (
+                    filteredOcc.map((o) => (
+                      <TableRow key={o.id}>
+                        <TableCell className="pl-6 whitespace-nowrap text-sm text-foreground">
+                          {new Date(o.data_deteccao).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="font-medium text-sm">
+                          <Badge
+                            variant="secondary"
+                            className="bg-secondary text-primary hover:bg-secondary/80 border-transparent"
+                          >
+                            {o.expand?.termo_id?.termo}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-foreground">
+                          <div className="font-semibold text-primary">
+                            {o.expand?.publicacao_id?.orgao}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {o.expand?.publicacao_id?.secao}
+                          </div>
+                        </TableCell>
+                        <TableCell
+                          className="text-sm text-foreground max-w-xs truncate"
+                          title={o.trecho_encontrado}
+                        >
+                          {o.trecho_encontrado}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={
+                              o.status_alerta === 'enviado'
+                                ? 'bg-primary text-white hover:bg-primary/80'
+                                : 'bg-muted-foreground text-white hover:bg-muted-foreground/80'
+                            }
+                          >
+                            {o.status_alerta}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {o.expand?.publicacao_id?.url_origem && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              asChild
+                              className="text-primary hover:bg-secondary/50 hover:text-primary"
+                            >
+                              <a
+                                href={o.expand?.publicacao_id?.url_origem}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                <LinkIcon className="w-4 h-4" />
+                              </a>
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
                   )}
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
 
-      <Dialog open={!!selectedPub} onOpenChange={() => setSelectedPub(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-primary" />
-              Detalhes da Publicação
-            </DialogTitle>
-          </DialogHeader>
+        <TabsContent value="termos">
+          <Card className="bg-white border-border shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-primary">Gerenciar Termos de Busca</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <form
+                onSubmit={handleAddTerm}
+                className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end bg-background p-4 rounded-lg border border-border/50"
+              >
+                <div className="space-y-2 md:col-span-2">
+                  <Label className="text-primary">Novo Termo</Label>
+                  <Input
+                    className="bg-white"
+                    value={newTerm}
+                    onChange={(e) => setNewTerm(e.target.value)}
+                    placeholder="Ex: Moraes Rodrigues"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-primary">Tipo</Label>
+                  <Select value={newType} onValueChange={setNewType}>
+                    <SelectTrigger className="bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="palavra-chave">Palavra-chave</SelectItem>
+                      <SelectItem value="frase">Frase Exata</SelectItem>
+                      <SelectItem value="regex">Expressão Regular</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="submit" className="w-full bg-primary text-white hover:bg-primary/90">
+                  <Plus className="w-4 h-4 mr-2" /> Adicionar
+                </Button>
+              </form>
 
-          {selectedPub && (
-            <div className="space-y-6 py-4">
-              <div className="flex flex-wrap gap-4 text-sm bg-slate-50 p-4 rounded-lg border">
-                <div>
-                  <span className="text-muted-foreground font-semibold">Órgão:</span>{' '}
-                  {selectedPub.orgao}
-                </div>
-                <div>
-                  <span className="text-muted-foreground font-semibold">Data:</span>{' '}
-                  {new Date(selectedPub.data_publicacao).toLocaleDateString()}
-                </div>
-                <div>
-                  <span className="text-muted-foreground font-semibold">Hash ID:</span>{' '}
-                  <span className="text-xs font-mono">
-                    {selectedPub.hash_conteudo.substring(0, 10)}...
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-semibold text-sm mb-2 text-primary border-b pb-1">
-                  Entidades Extraídas
-                </h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-muted-foreground block mb-1">Processos:</span>
-                    {selectedPub.numero_processo?.map((p: string, i: number) => (
-                      <div key={i} className="font-mono text-xs">
-                        {p}
-                      </div>
-                    )) || '-'}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block mb-1">OABs:</span>
-                    {selectedPub.oabs?.map((o: string, i: number) => <div key={i}>{o}</div>) || '-'}
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-muted-foreground block mb-1">Advogados:</span>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedPub.advogados?.map((adv: string, i: number) => (
-                        <span
-                          key={i}
-                          className="bg-purple-50 text-purple-800 border border-purple-100 px-2 py-1 rounded text-xs"
-                        >
-                          {adv}
-                        </span>
-                      )) || '-'}
-                    </div>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-muted-foreground block mb-1">Partes Mencionadas:</span>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedPub.partes?.map((p: string, i: number) => (
-                        <span key={i} className="bg-slate-100 px-2 py-1 rounded text-xs">
-                          {p}
-                        </span>
-                      )) || '-'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {selectedPub.expand?.diario?.url_original && (
-                <div className="flex justify-end">
-                  <a
-                    href={selectedPub.expand.diario.url_original}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+              <div className="space-y-3 mt-4">
+                {terms.map((t) => (
+                  <div
+                    key={t.id}
+                    className="flex items-center justify-between p-4 border border-border/50 rounded-lg bg-white shadow-sm"
                   >
-                    <ExternalLink className="w-4 h-4" />
-                    Acessar Diário Original Completo
-                  </a>
-                </div>
-              )}
-
-              <div>
-                <h4 className="font-semibold text-sm mb-2 text-primary border-b pb-1">
-                  Texto Original
-                </h4>
-                <p className="text-sm font-serif leading-relaxed text-slate-800 whitespace-pre-wrap bg-white border rounded-md p-4 shadow-sm">
-                  {selectedPub.texto_normalizado}
-                </p>
+                    <div className="flex items-center gap-4">
+                      <Switch checked={t.ativo} onCheckedChange={() => toggleTerm(t)} />
+                      <div>
+                        <p className="font-bold text-primary">{t.termo}</p>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                          {t.tipo_termo}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:bg-destructive/10"
+                      onClick={() => deleteTerm(t.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+                {terms.length === 0 && (
+                  <div className="text-center p-8 text-muted-foreground">
+                    Nenhum termo cadastrado.
+                  </div>
+                )}
               </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="alertas">
+          <Card className="bg-white border-border shadow-sm max-w-md">
+            <CardHeader>
+              <CardTitle className="text-primary">Preferências de Notificação</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="flex items-center justify-between">
+                <Label className="text-primary font-medium">Receber Alertas</Label>
+                <Switch
+                  checked={config?.ativo ?? false}
+                  onCheckedChange={(v) =>
+                    handleSaveConfig(
+                      config?.tipo_notificacao || 'app',
+                      config?.frequencia || 'diario',
+                      v,
+                    )
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-primary font-medium">Meio de Notificação</Label>
+                <Select
+                  value={config?.tipo_notificacao || 'app'}
+                  onValueChange={(v) =>
+                    handleSaveConfig(v, config?.frequencia || 'diario', config?.ativo ?? false)
+                  }
+                >
+                  <SelectTrigger className="bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="app">Notificação no App</SelectItem>
+                    <SelectItem value="email">Por E-mail</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-primary font-medium">Frequência</Label>
+                <Select
+                  value={config?.frequencia || 'diario'}
+                  onValueChange={(v) =>
+                    handleSaveConfig(config?.tipo_notificacao || 'app', v, config?.ativo ?? false)
+                  }
+                >
+                  <SelectTrigger className="bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="imediato">Imediato (Logo que detectado)</SelectItem>
+                    <SelectItem value="diario">Resumo Diário</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {(user?.role === 'admin' || user?.isAdmin) && (
+          <TabsContent value="logs">
+            <Card className="bg-white border-border shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-primary">
+                  <Activity className="w-5 h-5" /> Logs de Processamento DOU
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader className="bg-slate-50/50">
+                    <TableRow>
+                      <TableHead className="pl-6">Data/Hora</TableHead>
+                      <TableHead>Etapa</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Mensagem</TableHead>
+                      <TableHead>Publicação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {logs.map((l) => (
+                      <TableRow key={l.id}>
+                        <TableCell className="pl-6 text-sm whitespace-nowrap text-foreground">
+                          {new Date(l.data_hora).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-sm font-bold text-primary">{l.etapa}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={
+                              l.status === 'Sucesso'
+                                ? 'text-primary border-primary bg-secondary/30'
+                                : 'text-destructive border-destructive bg-destructive/10'
+                            }
+                          >
+                            {l.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell
+                          className="text-sm text-foreground max-w-sm truncate"
+                          title={l.mensagem}
+                        >
+                          {l.mensagem}
+                        </TableCell>
+                        <TableCell className="text-xs font-mono text-muted-foreground">
+                          {l.expand?.publicacao_id?.titulo || '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {logs.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          Nenhum log registrado.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   )
 }
