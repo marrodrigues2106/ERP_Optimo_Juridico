@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Camera, Building2, Plus } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import MonitoringManager from './MonitoringManager'
+import AuditLogs from './AuditLogs'
 
 export default function ProfileManager() {
   const { user } = useAuth()
@@ -203,8 +204,9 @@ export default function ProfileManager() {
     <Tabs defaultValue="perfil" className="w-full">
       <TabsList className="mb-6 flex-wrap">
         <TabsTrigger value="perfil">Perfil e Segurança</TabsTrigger>
-        <TabsTrigger value="monitoramento">Monitoramento & Push</TabsTrigger>
+        <TabsTrigger value="monitoramento">Monitoramento & APIs</TabsTrigger>
         <TabsTrigger value="organizacao">Minha Organização</TabsTrigger>
+        <TabsTrigger value="auditoria">Logs de Auditoria</TabsTrigger>
       </TabsList>
 
       <TabsContent value="perfil">
@@ -329,6 +331,10 @@ export default function ProfileManager() {
 
       <TabsContent value="monitoramento">
         <MonitoringManager />
+      </TabsContent>
+
+      <TabsContent value="auditoria">
+        <AuditLogs />
       </TabsContent>
 
       <TabsContent value="organizacao">
