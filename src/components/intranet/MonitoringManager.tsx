@@ -58,7 +58,9 @@ export default function MonitoringManager() {
                 ? JSON.parse(confRes[0].douCredentials)
                 : confRes[0].douCredentials
             if (creds?.priority) setDouPriority(creds.priority)
-          } catch (e) {}
+          } catch (e) {
+            // ignore parsing error
+          }
         }
       }
     } catch (err) {
