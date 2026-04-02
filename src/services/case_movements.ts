@@ -14,6 +14,11 @@ export const getPaginatedCaseMovements = async (
   })
 }
 
-export const createCaseMovement = (data: any) => pb.collection('case_movements').create(data)
+export const createCaseMovement = (data: any) => {
+  if (pb.authStore.record?.active_organization) {
+    data.organization = pb.authStore.record.active_organization
+  }
+  return pb.collection('case_movements').create(data)
+}
 
 export const deleteCaseMovement = (id: string) => pb.collection('case_movements').delete(id)

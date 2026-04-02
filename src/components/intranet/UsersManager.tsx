@@ -136,6 +136,10 @@ export default function UsersManager() {
           setErrors({ password: 'Senha é obrigatória para novos usuários' })
           return
         }
+        if (currentUser?.active_organization) {
+          data.organizations = [currentUser.active_organization]
+          data.active_organization = currentUser.active_organization
+        }
         await createUser(data)
         toast({ title: 'Usuário criado com sucesso' })
       }

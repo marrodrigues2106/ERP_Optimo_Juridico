@@ -41,6 +41,8 @@ export default function TeamManager() {
   const [caseFilter, setCaseFilter] = useState<string>('all')
 
   const { toast } = useToast()
+  const { user: currentUser } = useAuth()
+  const [users, setUsers] = useState<any[]>([])
 
   const loadData = async () => {
     try {
@@ -49,6 +51,14 @@ export default function TeamManager() {
       setCases(
         allCases.filter((c) => c.responsible_collaborator && c.lifecycle_status !== 'Excluído'),
       )
+      if (
+        currentUser?.isAdmin ||
+        currentUser?.role === 'admin' ||
+        currentUser?.role === 'manager'
+      ) {
+        const uList = await pb.collection('users').getFullList()
+        setUsers(uList)
+      }
     } catch (e) {
       console.error(e)
     }
@@ -71,8 +81,10 @@ export default function TeamManager() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
-    const data = Object.fromEntries(fd.entries())
+    const data: any = Object.fromEntries(fd.entries())
     data.name = data.fullName
+    if (data.user === 'none') data.user = null
+
     try {
       if (editingItem) {
         await updateCollaborator(editingItem.id, data)
@@ -171,6 +183,26 @@ export default function TeamManager() {
                   defaultValue={editingItem?.personalSearchTerms}
                 />
               </div>
+              {(currentUser?.isAdmin ||
+                currentUser?.role === 'admin' ||
+                currentUser?.role === 'manager') && (
+                <div className="md:col-span-2">
+                  <Label>Vincular a Usuário do Sistema</Label>
+                  <Select name="user" defaultValue={editingItem?.user || 'none'}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um usuário" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {users.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name || u.email}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="md:col-span-2 mt-4">
                 <Button type="submit" className="w-full">
                   Salvar Membro

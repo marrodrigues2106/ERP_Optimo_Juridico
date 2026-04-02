@@ -40,6 +40,7 @@ export default function ClientDetail() {
   const [client, setClient] = useState<any>(null)
   const [interactions, setInteractions] = useState<any[]>([])
   const [cases, setCases] = useState<any[]>([])
+  const [collaborators, setCollaborators] = useState<any[]>([])
   const [formOpen, setFormOpen] = useState(false)
   const [editClientOpen, setEditClientOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -50,12 +51,14 @@ export default function ClientDetail() {
       const clientData = await getClient(id)
       setClient(clientData)
 
-      const [ints, clientCases] = await Promise.all([
+      const [ints, clientCases, collabs] = await Promise.all([
         getClientInteractions(id),
         pb.collection('legal_cases').getFullList({ filter: `client = '${id}'` }),
+        pb.collection('collaborators').getFullList(),
       ])
       setInteractions(ints)
       setCases(clientCases)
+      setCollaborators(collabs)
     } catch (e) {
       console.error(e)
       navigate('/intranet/crm')
@@ -111,6 +114,7 @@ export default function ClientDetail() {
           : null,
         linked_case: fd.get('linked_case') !== 'none' ? fd.get('linked_case') : null,
         status: 'Pending',
+        responsible: fd.get('responsible') !== 'none' ? fd.get('responsible') : null,
       })
       toast({ title: 'Interação registrada no CRM com sucesso.' })
       setFormOpen(false)
@@ -119,6 +123,23 @@ export default function ClientDetail() {
       toast({ title: 'Erro ao registrar', description: err.message, variant: 'destructive' })
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleDeleteClient = async () => {
+    if (client?.classification !== 'Inativo') return
+    if (
+      confirm(
+        'Tem certeza que deseja excluir permanentemente este cliente e todos os seus registros vinculados?',
+      )
+    ) {
+      try {
+        await pb.collection('clients').delete(id as string)
+        toast({ title: 'Cliente excluído com sucesso.' })
+        navigate('/intranet/crm')
+      } catch (err: any) {
+        toast({ title: 'Erro ao excluir', description: err.message, variant: 'destructive' })
+      }
     }
   }
 
@@ -162,9 +183,16 @@ export default function ClientDetail() {
             </p>
           </div>
         </div>
-        <Button variant="secondary" onClick={() => setEditClientOpen(true)}>
-          Editar Relacionamento
-        </Button>
+        <div className="flex gap-2">
+          {client.classification === 'Inativo' && (
+            <Button variant="destructive" onClick={handleDeleteClient}>
+              Excluir Cliente
+            </Button>
+          )}
+          <Button variant="secondary" onClick={() => setEditClientOpen(true)}>
+            Editar Relacionamento
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="crm" className="w-full">
@@ -425,21 +453,39 @@ export default function ClientDetail() {
                 <Input type="date" name="follow_up_date" />
               </div>
             </div>
-            <div>
-              <Label>Processo Vinculado (Opcional)</Label>
-              <Select name="linked_case" defaultValue="none">
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum processo</SelectItem>
-                  {cases.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.case_number || c.parties}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Processo Vinculado (Opcional)</Label>
+                <Select name="linked_case" defaultValue="none">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum processo</SelectItem>
+                    {cases.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.case_number || c.parties}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Responsável (Opcional)</Label>
+                <Select name="responsible" defaultValue="none">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum responsável</SelectItem>
+                    {collaborators.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div>
               <Label>Descrição / Notas *</Label>

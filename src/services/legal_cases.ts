@@ -10,7 +10,12 @@ export const getLegalCase = (id: string) =>
     .collection('legal_cases')
     .getOne(id, { expand: 'client,responsible_collaborator,related_cases' })
 
-export const createLegalCase = (data: any) => pb.collection('legal_cases').create(data)
+export const createLegalCase = (data: any) => {
+  if (pb.authStore.record?.active_organization) {
+    data.organization = pb.authStore.record.active_organization
+  }
+  return pb.collection('legal_cases').create(data)
+}
 
 export const updateLegalCase = (id: string, data: any) =>
   pb.collection('legal_cases').update(id, data)
