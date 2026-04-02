@@ -21,8 +21,10 @@ import { EventFormModal } from './cases/EventFormModal'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { useNavigate } from 'react-router-dom'
 
 export default function Dashboard() {
+  const navigate = useNavigate()
   const [tasks, setTasks] = useState<any[]>([])
   const [eventModalOpen, setEventModalOpen] = useState(false)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
@@ -97,7 +99,10 @@ export default function Dashboard() {
               </ul>
             </div>
           </div>
-          <button className="text-primary text-xs font-bold mt-6 hover:underline transition-all uppercase tracking-wide">
+          <button
+            onClick={() => navigate('/intranet/team')}
+            className="text-primary text-xs font-bold mt-6 hover:underline transition-all uppercase tracking-wide"
+          >
             Convidar Colaborador
           </button>
         </div>

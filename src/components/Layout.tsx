@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/sheet'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/hooks/use-auth'
 
 export default function Layout() {
   const { pathname } = useLocation()
@@ -71,14 +72,45 @@ export default function Layout() {
 
   const isIntranet = pathname.startsWith('/intranet')
 
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin' || user?.isAdmin
+
   if (isIntranet) {
-    const navItems = [
-      { title: 'Dashboard', url: '/intranet/dashboard' },
-      { title: 'CRM', url: '/intranet/crm' },
-      { title: 'Agenda', url: '/intranet/agenda' },
-      { title: 'Diários Oficiais', url: '/intranet/diarios-oficiais' },
-      { title: 'Processos', url: '/intranet/processos' },
-      { title: 'Configurações', url: '/intranet/profile' },
+    const navCategories = [
+      {
+        label: 'Principal',
+        items: [{ title: 'Dashboard', url: '/intranet/dashboard' }],
+      },
+      {
+        label: 'Jurídico',
+        items: [
+          { title: 'Processos', url: '/intranet/processos' },
+          { title: 'CRM', url: '/intranet/crm' },
+          { title: 'Agenda', url: '/intranet/agenda' },
+          { title: 'Diários Oficiais', url: '/intranet/diarios-oficiais' },
+        ],
+      },
+      {
+        label: 'Gestão',
+        items: [
+          { title: 'Equipe', url: '/intranet/team' },
+          { title: 'Usuários', url: '/intranet/users', adminOnly: true },
+        ],
+      },
+      {
+        label: 'Institucional',
+        items: [
+          { title: 'Blog', url: '/intranet/blog' },
+          { title: 'Biblioteca', url: '/intranet/library' },
+        ],
+      },
+      {
+        label: 'Administração',
+        items: [
+          { title: 'Financeiro', url: '/intranet/finance' },
+          { title: 'Auditoria', url: '/intranet/audit', adminOnly: true },
+        ],
+      },
     ]
 
     return (
@@ -87,47 +119,47 @@ export default function Layout() {
           <header className="flex h-14 shrink-0 items-center gap-4 border-b bg-white px-4 z-10 sticky top-0 shadow-sm">
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="lg:hidden shrink-0">
+                <Button variant="ghost" size="icon" className="shrink-0">
                   <Menu className="w-5 h-5 text-primary" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-[280px] sm:w-[320px] bg-white p-0">
+              <SheetContent
+                side="left"
+                className="w-[280px] sm:w-[320px] bg-white p-0 overflow-y-auto"
+              >
                 <div className="flex flex-col py-6 gap-2">
                   <div className="px-6 pb-4 font-bold text-xl text-primary border-b mb-2">Menu</div>
-                  {navItems.map((item) => (
-                    <Link
-                      key={item.url}
-                      to={item.url}
-                      className={cn(
-                        'px-6 py-3 text-base font-medium transition-colors',
-                        pathname.startsWith(item.url)
-                          ? 'text-primary bg-secondary'
-                          : 'text-foreground hover:bg-slate-50 hover:text-primary',
-                      )}
-                    >
-                      {item.title}
-                    </Link>
-                  ))}
+                  {navCategories.map((cat) => {
+                    const visibleItems = cat.items.filter((item) => !item.adminOnly || isAdmin)
+                    if (visibleItems.length === 0) return null
+                    return (
+                      <div key={cat.label} className="mb-4">
+                        <div className="px-6 py-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                          {cat.label}
+                        </div>
+                        {visibleItems.map((item) => (
+                          <Link
+                            key={item.url}
+                            to={item.url}
+                            className={cn(
+                              'block px-6 py-2 text-sm font-medium transition-colors',
+                              pathname.startsWith(item.url)
+                                ? 'text-primary bg-secondary/50 border-r-2 border-primary'
+                                : 'text-foreground hover:bg-slate-50 hover:text-primary',
+                            )}
+                          >
+                            {item.title}
+                          </Link>
+                        ))}
+                      </div>
+                    )
+                  })}
                 </div>
               </SheetContent>
             </Sheet>
 
-            <div className="hidden lg:flex items-center gap-1 overflow-x-auto no-scrollbar mx-2">
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar mx-2">
               <span className="font-bold text-primary mr-4 text-lg">MRA</span>
-              {navItems.map((item) => (
-                <Link
-                  key={item.url}
-                  to={item.url}
-                  className={cn(
-                    'px-3 py-2 text-sm font-medium rounded-md transition-colors whitespace-nowrap',
-                    pathname.startsWith(item.url)
-                      ? 'bg-secondary text-primary'
-                      : 'text-foreground hover:bg-slate-50 hover:text-primary',
-                  )}
-                >
-                  {item.title}
-                </Link>
-              ))}
             </div>
 
             <div className="flex-1 hidden md:flex items-center justify-center max-w-md mx-auto">

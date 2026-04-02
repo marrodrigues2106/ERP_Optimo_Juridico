@@ -329,6 +329,12 @@ export default function ProcessDetail() {
                 >
                   Nova tarefa
                 </TabsTrigger>
+                <TabsTrigger
+                  value="evento"
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-3 text-sm font-medium text-slate-600 data-[state=active]:text-primary"
+                >
+                  Ocorrência Processual
+                </TabsTrigger>
               </TabsList>
             </div>
 
@@ -353,6 +359,53 @@ export default function ProcessDetail() {
                   className="flex-1 bg-slate-50 border-slate-200"
                 />
                 <Button type="submit">Adicionar</Button>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="evento" className="p-4 m-0">
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault()
+                  const fd = new FormData(e.currentTarget)
+                  const tipo = fd.get('tipo') as string
+                  const desc = fd.get('description') as string
+                  try {
+                    await createCaseMovement({
+                      case: id,
+                      event_date: new Date().toISOString(),
+                      description: `[${tipo}] ${desc}`,
+                      source: 'Manual',
+                      external_id: `evento_${Date.now()}`,
+                    })
+                    toast({ title: 'Ocorrência registrada no processo' })
+                    e.currentTarget.reset()
+                    setPage(1)
+                  } catch (err) {
+                    toast({ title: 'Erro ao registrar ocorrência', variant: 'destructive' })
+                  }
+                }}
+                className="flex gap-3 flex-wrap sm:flex-nowrap"
+              >
+                <Select name="tipo" defaultValue="Audiência">
+                  <SelectTrigger className="w-[150px] bg-slate-50 border-slate-200">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Audiência">Audiência</SelectItem>
+                    <SelectItem value="Despacho">Despacho</SelectItem>
+                    <SelectItem value="Juntada">Juntada</SelectItem>
+                    <SelectItem value="Sentença">Sentença</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  name="description"
+                  placeholder="Detalhes da ocorrência..."
+                  required
+                  className="flex-1 bg-slate-50 border-slate-200"
+                />
+                <Button type="submit" className="w-full sm:w-auto">
+                  Registrar
+                </Button>
               </form>
             </TabsContent>
           </Tabs>
