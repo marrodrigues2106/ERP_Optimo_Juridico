@@ -24,7 +24,7 @@ import {
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from '@/components/ui/navigation-menu'
-import { Plus } from 'lucide-react'
+import { Plus, Sparkles } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { CaseFormModal } from '@/components/intranet/cases/CaseFormModal'
 import { getClients } from '@/services/clients'
@@ -42,6 +42,7 @@ export default function Header() {
   const [clients, setClients] = useState<any[]>([])
   const [collaborators, setCollaborators] = useState<any[]>([])
   const [orgLogo, setOrgLogo] = useState<string | null>(null)
+  const [orgName, setOrgName] = useState<string>('')
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -59,6 +60,7 @@ export default function Header() {
             if (org.logo) {
               setOrgLogo(pb.files.getURL(org, org.logo))
             }
+            setOrgName(org.name)
           })
           .catch(() => {})
       }
@@ -91,20 +93,30 @@ export default function Header() {
       <div className="container mx-auto px-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link to="/" className="flex items-center gap-2" onClick={closeMenu}>
-            <div className="bg-[#4B4B4B] p-2 rounded-sm flex items-center justify-center">
-              <img
-                src={logoImg}
-                alt={firmData.name}
-                className="h-10 md:h-12 w-auto object-contain transition-all duration-300"
-              />
-            </div>
+            {isAuthenticated && user?.active_organization ? (
+              <div className="flex items-center">
+                {orgLogo ? (
+                  <img
+                    src={orgLogo}
+                    alt={orgName || 'Organização'}
+                    className="h-10 md:h-12 w-auto object-contain transition-all duration-300"
+                  />
+                ) : (
+                  <span className="font-bold text-xl md:text-2xl text-primary tracking-tight whitespace-nowrap">
+                    {orgName}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="bg-[#4B4B4B] p-2 rounded-sm flex items-center justify-center">
+                <img
+                  src={logoImg}
+                  alt={firmData.name}
+                  className="h-10 md:h-12 w-auto object-contain transition-all duration-300"
+                />
+              </div>
+            )}
           </Link>
-
-          {isAuthenticated && orgLogo && (
-            <div className="hidden md:flex items-center ml-2 border-l pl-4 border-gray-300">
-              <img src={orgLogo} alt="Organização" className="h-8 w-auto object-contain" />
-            </div>
-          )}
         </div>
 
         {/* Desktop Nav */}
@@ -222,13 +234,23 @@ export default function Header() {
 
           <div className="flex items-center gap-5 text-primary/80 ml-2">
             {isAuthenticated && (
-              <button
-                onClick={() => setCaseModalOpen(true)}
-                className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors text-sm font-medium mr-2"
-              >
-                <Plus size={16} />
-                Adicionar
-              </button>
+              <>
+                <button
+                  onClick={() => window.dispatchEvent(new CustomEvent('toggle-ai-chat'))}
+                  className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-2 rounded-md hover:bg-primary/20 transition-colors text-sm font-medium"
+                  title="Assistente IA"
+                >
+                  <Sparkles size={16} />
+                  IA
+                </button>
+                <button
+                  onClick={() => setCaseModalOpen(true)}
+                  className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors text-sm font-medium mr-2"
+                >
+                  <Plus size={16} />
+                  Adicionar
+                </button>
+              </>
             )}
             <a
               href={firmData.socials.whatsapp}
@@ -340,15 +362,26 @@ export default function Header() {
             Acesso Restrito
           </Link>
           {isAuthenticated && (
-            <button
-              className="text-lg font-medium py-2 border-b text-primary text-left w-full"
-              onClick={() => {
-                closeMenu()
-                setLogoutDialogOpen(true)
-              }}
-            >
-              Sair
-            </button>
+            <>
+              <button
+                className="text-lg font-medium py-2 border-b text-primary text-left w-full flex items-center gap-2"
+                onClick={() => {
+                  closeMenu()
+                  window.dispatchEvent(new CustomEvent('toggle-ai-chat'))
+                }}
+              >
+                <Sparkles size={20} /> Assistente IA
+              </button>
+              <button
+                className="text-lg font-medium py-2 border-b text-primary text-left w-full"
+                onClick={() => {
+                  closeMenu()
+                  setLogoutDialogOpen(true)
+                }}
+              >
+                Sair
+              </button>
+            </>
           )}
           <a href="/#contato" className="text-lg font-medium py-2 text-primary" onClick={closeMenu}>
             Contato

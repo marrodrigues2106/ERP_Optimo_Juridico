@@ -32,6 +32,12 @@ export function IAChatSidebar() {
     }
   }, [messages, isLoading])
 
+  useEffect(() => {
+    const handleToggle = () => setIsOpen((prev) => !prev)
+    window.addEventListener('toggle-ai-chat', handleToggle)
+    return () => window.removeEventListener('toggle-ai-chat', handleToggle)
+  }, [])
+
   if (!isAuthenticated) return null
 
   const handleSend = async (e: React.FormEvent) => {
