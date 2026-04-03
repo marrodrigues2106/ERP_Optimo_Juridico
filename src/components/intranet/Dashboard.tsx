@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -10,13 +10,16 @@ import {
   ChevronLeft,
   ChevronRight,
   Activity,
+  BookOpen,
+  Landmark,
+  Archive,
+  Check,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { format, isBefore, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { PublicationCard } from './cases/PublicationCard'
 import { EventFormModal } from './cases/EventFormModal'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -25,36 +28,104 @@ import { useNavigate } from 'react-router-dom'
 import { useToast } from '@/hooks/use-toast'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
 
+type FeedItem = {
+  id: string
+  source: 'gazette' | 'dou' | 'movement'
+  title: string
+  description: string
+  date: string
+  isRead: boolean
+  tags: string[]
+  raw: any
+}
+
 export default function Dashboard() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const [tasks, setTasks] = useState<any[]>([])
   const [eventModalOpen, setEventModalOpen] = useState(false)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
-  const [publications, setPublications] = useState<any[]>([])
+  const [feedItems, setFeedItems] = useState<FeedItem[]>([])
   const [events, setEvents] = useState<any[]>([])
+  const [activeTab, setActiveTab] = useState('unread')
 
   const today = new Date()
 
   const loadData = async () => {
     try {
-      const [fetchedTasks, fetchedPubs, fetchedEvents] = await Promise.all([
+      const [fetchedTasks, fetchedEvents] = await Promise.all([
         pb
           .collection('tasks')
           .getFullList({ filter: 'status = "todo" && deleted_at = ""', sort: 'due_date' }),
-        pb
-          .collection('gazette_publications')
-          .getFullList({ filter: 'is_read = false', sort: '-created' }),
         pb.collection('agenda_events').getFullList({
           filter: `start_date >= "${startOfDay(today).toISOString()}" && deleted_at = ""`,
           sort: 'start_date',
         }),
       ])
       setTasks(fetchedTasks)
-      setPublications(fetchedPubs)
       setEvents(fetchedEvents)
+      await loadFeed()
     } catch (e) {
       console.error('Error loading dashboard data', e)
+    }
+  }
+
+  const loadFeed = async () => {
+    try {
+      const [gUnread, gRead, dUnread, dRead, mUnread, mRead] = await Promise.all([
+        pb
+          .collection('gazette_publications')
+          .getFullList({ filter: 'is_read = false', sort: '-created' }),
+        pb
+          .collection('gazette_publications')
+          .getList(1, 20, { filter: 'is_read = true', sort: '-updated' }),
+        pb
+          .collection('ocorrencias_dou')
+          .getFullList({ filter: 'status_alerta = "pendente"', sort: '-created' }),
+        pb
+          .collection('ocorrencias_dou')
+          .getList(1, 20, { filter: 'status_alerta != "pendente"', sort: '-updated' }),
+        pb.collection('case_movements').getFullList({
+          filter: 'notified_client = false && deleted_at = ""',
+          sort: '-event_date',
+          expand: 'case',
+        }),
+        pb.collection('case_movements').getList(1, 20, {
+          filter: 'notified_client = true && deleted_at = ""',
+          sort: '-event_date',
+          expand: 'case',
+        }),
+      ])
+
+      const mapItems = (items: any[], source: any, isRead: boolean): FeedItem[] =>
+        items.map((i) => ({
+          id: i.id,
+          source,
+          title:
+            source === 'gazette'
+              ? 'Diário Oficial'
+              : source === 'dou'
+                ? 'Ocorrência DOU'
+                : `Movimentação: ${i.expand?.case?.case_number || 'Processo'}`,
+          description: i.texto_normalizado || i.trecho_encontrado || i.description || '',
+          date: i.data_publicacao || i.data_deteccao || i.event_date || i.created,
+          isRead,
+          tags: [i.orgao || i.source || 'Tribunal'],
+          raw: i,
+        }))
+
+      const all = [
+        ...mapItems(gUnread, 'gazette', false),
+        ...mapItems(gRead.items, 'gazette', true),
+        ...mapItems(dUnread, 'dou', false),
+        ...mapItems(dRead.items, 'dou', true),
+        ...mapItems(mUnread, 'movement', false),
+        ...mapItems(mRead.items, 'movement', true),
+      ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+      setFeedItems(all)
+    } catch (e) {
+      console.error('Error loading feed', e)
     }
   }
 
@@ -63,7 +134,9 @@ export default function Dashboard() {
   }, [])
 
   useRealtime('tasks', loadData)
-  useRealtime('gazette_publications', loadData)
+  useRealtime('gazette_publications', loadFeed)
+  useRealtime('ocorrencias_dou', loadFeed)
+  useRealtime('case_movements', loadFeed)
   useRealtime('agenda_events', loadData)
 
   const toggleTask = async (id: string, currentStatus: string) => {
@@ -72,7 +145,6 @@ export default function Dashboard() {
         .collection('tasks')
         .update(id, { status: currentStatus === 'todo' ? 'completed' : 'todo' })
     } catch (error) {
-      console.error(error)
       toast({
         title: 'Erro ao atualizar tarefa',
         description: getErrorMessage(error),
@@ -80,6 +152,29 @@ export default function Dashboard() {
       })
     }
   }
+
+  const toggleRead = async (item: FeedItem) => {
+    try {
+      if (item.source === 'gazette') {
+        await pb.collection('gazette_publications').update(item.id, { is_read: !item.isRead })
+      } else if (item.source === 'dou') {
+        await pb
+          .collection('ocorrencias_dou')
+          .update(item.id, { status_alerta: item.isRead ? 'pendente' : 'visualizado' })
+      } else if (item.source === 'movement') {
+        await pb.collection('case_movements').update(item.id, { notified_client: !item.isRead })
+      }
+      toast({ title: item.isRead ? 'Marcado como não lido' : 'Marcado como lido' })
+      loadFeed()
+    } catch (e) {
+      toast({ title: 'Erro ao atualizar item', variant: 'destructive' })
+    }
+  }
+
+  const visibleFeed = useMemo(
+    () => feedItems.filter((i) => (activeTab === 'unread' ? !i.isRead : i.isRead)),
+    [feedItems, activeTab],
+  )
 
   return (
     <div className="flex h-[calc(100vh-80px)] -m-4 lg:-m-8 bg-white text-slate-800 font-sans shadow-sm rounded-xl overflow-hidden border border-slate-200/60">
@@ -119,33 +214,119 @@ export default function Dashboard() {
       </div>
 
       {/* Center Feed */}
-      <div className="flex-1 p-8 md:p-12 overflow-auto bg-white">
-        <Tabs defaultValue="hoje" className="w-full max-w-4xl mx-auto">
-          <TabsList className="bg-transparent border-b border-slate-200 w-full justify-start rounded-none p-0 h-auto mb-8">
+      <div className="flex-1 p-8 md:p-12 overflow-auto bg-white flex flex-col">
+        <div className="flex items-center justify-between mb-6 border-b pb-4">
+          <div className="flex items-center gap-3 text-slate-800 font-semibold text-lg border-l-4 border-primary pl-3">
+            <Bell className="w-5 h-5 text-primary" />
+            Central de Atualizações
+          </div>
+        </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-4xl mx-auto">
+          <TabsList className="bg-slate-100/50 p-1 mb-6 rounded-lg inline-flex">
             <TabsTrigger
-              value="hoje"
-              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-2 pb-4 text-lg font-serif font-bold text-slate-500 transition-colors"
+              value="unread"
+              className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-4 py-2"
             >
-              Visão Geral do Dia
+              Não Lidos
+              {feedItems.filter((i) => !i.isRead).length > 0 && (
+                <span className="ml-2 bg-primary text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                  {feedItems.filter((i) => !i.isRead).length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger
+              value="read"
+              className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-4 py-2"
+            >
+              Arquivados
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="hoje" className="outline-none space-y-8">
-            <div className="flex items-center gap-3 text-slate-800 font-semibold text-lg border-l-4 border-primary pl-3">
-              <Bell className="w-5 h-5 text-primary" />
-              Publicações e Andamentos não lidos
-            </div>
-
-            <div className="space-y-5">
-              {publications.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 border border-dashed rounded-lg bg-white">
-                  <Activity className="w-8 h-8 mx-auto mb-3 opacity-50" />
-                  <p>Tudo limpo! Nenhuma publicação não lida.</p>
+          <TabsContent value={activeTab} className="outline-none space-y-4">
+            {visibleFeed.length === 0 ? (
+              <div className="text-center py-16 text-slate-400 border border-dashed rounded-xl bg-slate-50/50">
+                <Archive className="w-10 h-10 mx-auto mb-4 opacity-50 text-slate-300" />
+                <p className="text-sm font-medium">Nenhum item nesta lista.</p>
+                <p className="text-xs mt-1">Sua caixa de entrada está limpa.</p>
+              </div>
+            ) : (
+              visibleFeed.map((item) => (
+                <div
+                  key={item.id}
+                  className={cn(
+                    'p-5 border rounded-xl flex gap-4 transition-all hover:shadow-md group',
+                    item.isRead ? 'bg-slate-50/50 border-slate-100' : 'bg-white border-blue-100',
+                  )}
+                >
+                  <div className="pt-1">
+                    {item.source === 'gazette' ? (
+                      <BookOpen
+                        className={cn('w-5 h-5', item.isRead ? 'text-slate-400' : 'text-amber-500')}
+                      />
+                    ) : item.source === 'dou' ? (
+                      <Landmark
+                        className={cn(
+                          'w-5 h-5',
+                          item.isRead ? 'text-slate-400' : 'text-emerald-500',
+                        )}
+                      />
+                    ) : (
+                      <Activity
+                        className={cn('w-5 h-5', item.isRead ? 'text-slate-400' : 'text-blue-500')}
+                      />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <h4
+                        className={cn(
+                          'font-bold text-sm',
+                          item.isRead ? 'text-slate-600' : 'text-slate-900',
+                        )}
+                      >
+                        {item.title}
+                      </h4>
+                      <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                        {new Date(item.date).toLocaleDateString('pt-BR')}
+                      </span>
+                    </div>
+                    <p
+                      className={cn(
+                        'text-sm leading-relaxed mb-3 line-clamp-3',
+                        item.isRead ? 'text-slate-500' : 'text-slate-700',
+                      )}
+                    >
+                      {item.description}
+                    </p>
+                    <div className="flex items-center gap-2 mt-auto">
+                      {item.tags.map((t, idx) => (
+                        <span
+                          key={idx}
+                          className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 px-2 py-1 rounded"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          'ml-auto h-8 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity',
+                          item.isRead
+                            ? 'text-slate-500 hover:text-slate-700'
+                            : 'text-primary hover:text-primary/80',
+                        )}
+                        onClick={() => toggleRead(item)}
+                      >
+                        <Check className="w-3.5 h-3.5 mr-1" />
+                        {item.isRead ? 'Mover para Não Lidos' : 'Marcar como Lido'}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                publications.map((pub) => <PublicationCard key={pub.id} item={pub} />)
-              )}
-            </div>
+              ))
+            )}
           </TabsContent>
         </Tabs>
       </div>
@@ -195,7 +376,7 @@ export default function Dashboard() {
               {events.slice(0, 3).map((e) => (
                 <div
                   key={e.id}
-                  className="p-3 border border-slate-100 rounded-md text-sm shadow-sm"
+                  className="p-3 border border-slate-100 rounded-md text-sm shadow-sm bg-white"
                 >
                   <p className="font-semibold text-slate-800">{e.title}</p>
                   <p className="text-slate-500 text-xs mt-1 font-medium">
@@ -212,20 +393,20 @@ export default function Dashboard() {
 
         {/* Tasks Section */}
         <div className="flex-1 flex flex-col">
-          <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
-            <div className="flex items-center gap-2 text-slate-700 font-medium">
-              <CheckCircle2 className="w-5 h-5 text-green-600" />
+          <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
+            <div className="flex items-center gap-2 text-slate-700 font-bold">
+              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
               Tarefas ({tasks.length})
             </div>
             <button
               onClick={() => setTaskModalOpen(true)}
-              className="p-1 bg-slate-100 hover:bg-primary hover:text-white rounded transition-colors text-slate-600"
+              className="p-1.5 bg-white shadow-sm border hover:bg-slate-50 rounded transition-colors text-slate-600"
             >
               <Plus className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="space-y-4 overflow-y-auto">
+          <div className="space-y-3 overflow-y-auto pr-2">
             {tasks.length === 0 ? (
               <p className="text-sm text-slate-400 text-center py-4">Nenhuma tarefa pendente.</p>
             ) : (
@@ -233,7 +414,10 @@ export default function Dashboard() {
                 const isOverdue =
                   task.due_date && isBefore(new Date(task.due_date), startOfDay(today))
                 return (
-                  <div key={task.id} className="flex items-start gap-3 group">
+                  <div
+                    key={task.id}
+                    className="flex items-start gap-3 group bg-white p-3 rounded-lg border shadow-sm"
+                  >
                     <Checkbox
                       className="mt-0.5 border-slate-300"
                       checked={task.status === 'completed'}
@@ -251,9 +435,9 @@ export default function Dashboard() {
                       {task.due_date && (
                         <p
                           className={cn(
-                            'text-xs mt-1 font-medium',
+                            'text-xs mt-1.5 font-semibold',
                             isOverdue && task.status !== 'completed'
-                              ? 'text-red-500'
+                              ? 'text-red-500 bg-red-50 px-1.5 py-0.5 rounded inline-block'
                               : 'text-slate-400',
                           )}
                         >

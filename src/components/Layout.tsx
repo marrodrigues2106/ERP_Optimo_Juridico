@@ -12,7 +12,9 @@ import {
   Briefcase,
   FileText,
   Menu,
+  LogOut,
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import WhatsAppFAB from './WhatsAppFAB'
 import { Toaster } from '@/components/ui/toaster'
 import pb from '@/lib/pocketbase/client'
@@ -38,13 +40,16 @@ import { useAuth } from '@/hooks/use-auth'
 
 export default function Layout() {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
   const [apiStatus, setApiStatus] = useState<'loading' | 'online' | 'error'>('loading')
+  const { user, isAuthenticated, signOut } = useAuth()
 
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [pathname])
 
   useEffect(() => {
+    if (!isAuthenticated) return
     let mounted = true
     const checkHealth = async () => {
       try {
@@ -68,11 +73,9 @@ export default function Layout() {
       mounted = false
       clearInterval(interval)
     }
-  }, [])
+  }, [isAuthenticated])
 
   const isIntranet = pathname.startsWith('/intranet')
-
-  const { user } = useAuth()
   const isAdmin = user?.role === 'admin' || user?.isAdmin
 
   if (isIntranet) {
@@ -289,7 +292,16 @@ export default function Layout() {
                       Configurações
                     </Link>
                   </DropdownMenuItem>
-                </DropdownMenuContent>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      signOut()
+                      navigate('/login')
+                    }}
+                    className="cursor-pointer text-red-600 font-medium focus:text-red-700 focus:bg-red-50 mt-1"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" /> Sair
+                  </DropdownMenuItem>
+                </DropdownMenuContent>{' '}
               </DropdownMenu>
             </div>
           </header>
