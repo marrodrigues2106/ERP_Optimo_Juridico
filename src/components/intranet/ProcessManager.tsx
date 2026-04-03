@@ -51,6 +51,7 @@ export default function ProcessManager() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingCase, setEditingCase] = useState<any>(null)
   const [deletingCase, setDeletingCase] = useState<any>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [syncingId, setSyncingId] = useState<string | null>(null)
   const [isBatchSyncing, setIsBatchSyncing] = useState(false)
   const [batchProgress, setBatchProgress] = useState(0)
@@ -100,6 +101,7 @@ export default function ProcessManager() {
 
   const handleConfirmDelete = async () => {
     if (!deletingCase) return
+    setIsDeleting(true)
     try {
       if (deletingCase.lifecycle_status === 'Excluído') {
         await deleteLegalCase(deletingCase.id)
@@ -116,6 +118,7 @@ export default function ProcessManager() {
         variant: 'destructive',
       })
     } finally {
+      setIsDeleting(false)
       setDeletingCase(null)
       loadData()
     }
@@ -521,11 +524,13 @@ export default function ProcessManager() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <Button variant="destructive" onClick={handleConfirmDelete}>
-              {deletingCase?.lifecycle_status === 'Excluído'
-                ? 'Excluir Permanentemente'
-                : 'Mover para Lixeira'}
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeleting}>
+              {isDeleting
+                ? 'Processando...'
+                : deletingCase?.lifecycle_status === 'Excluído'
+                  ? 'Excluir Permanentemente'
+                  : 'Mover para Lixeira'}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

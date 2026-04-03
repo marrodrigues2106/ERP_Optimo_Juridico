@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-02T20:17:01.898Z",
+  "generatedAt": "2026-04-03T00:46:23.187Z",
   "collections": [
     {
       "name": "users",
@@ -572,7 +572,9 @@
           "collectionRef": "users"
         }
       ],
-      "indexes": []
+      "indexes": [
+        "CREATE UNIQUE INDEX `idx_collaborators_user_unique` ON `collaborators` (user) WHERE user != ''"
+      ]
     },
     {
       "name": "audit_logs",

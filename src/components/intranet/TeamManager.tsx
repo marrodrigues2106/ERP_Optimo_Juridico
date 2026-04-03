@@ -78,8 +78,11 @@ export default function TeamManager() {
     setOpen(true)
   }
 
+  const [submitting, setSubmitting] = useState(false)
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    setSubmitting(true)
     const fd = new FormData(e.currentTarget)
     const data: any = Object.fromEntries(fd.entries())
     data.name = data.fullName
@@ -94,8 +97,12 @@ export default function TeamManager() {
         toast({ title: 'Membro da equipe adicionado' })
       }
       setOpen(false)
-    } catch (error) {
-      toast({ title: 'Erro ao salvar', variant: 'destructive' })
+      loadData()
+    } catch (error: any) {
+      const msg = error?.response?.data?.user?.message || error.message || 'Erro ao salvar'
+      toast({ title: 'Erro ao salvar', description: msg, variant: 'destructive' })
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -204,8 +211,8 @@ export default function TeamManager() {
                 </div>
               )}
               <div className="md:col-span-2 mt-4">
-                <Button type="submit" className="w-full">
-                  Salvar Membro
+                <Button type="submit" className="w-full" disabled={submitting}>
+                  {submitting ? 'Salvando...' : 'Salvar Membro'}
                 </Button>
               </div>
             </form>

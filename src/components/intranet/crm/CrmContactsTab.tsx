@@ -58,7 +58,7 @@ export function CrmContactsTab() {
         email: fd.get('email'),
         phone: fd.get('phone'),
         cpf: fd.get('cpf'),
-        status: 'Lead',
+        status: 'Prospect',
         classification: 'Lead',
         funnel_stage: 'Contact',
       })

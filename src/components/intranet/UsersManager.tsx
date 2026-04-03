@@ -106,9 +106,12 @@ export default function UsersManager() {
     setOpen(true)
   }
 
+  const [submitting, setSubmitting] = useState(false)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrors({})
+    setSubmitting(true)
     try {
       const data: any = {
         name: fullName,
@@ -147,6 +150,8 @@ export default function UsersManager() {
       loadData()
     } catch (err) {
       setErrors(extractFieldErrors(err))
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -264,8 +269,8 @@ export default function UsersManager() {
                 />
               </div>
               <div className="md:col-span-2 pt-2">
-                <Button type="submit" className="w-full">
-                  Salvar
+                <Button type="submit" className="w-full" disabled={submitting}>
+                  {submitting ? 'Salvando...' : 'Salvar'}
                 </Button>
               </div>
             </form>

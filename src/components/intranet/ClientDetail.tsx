@@ -71,14 +71,33 @@ export default function ClientDetail() {
 
   useRealtime('crm_interactions', loadData)
 
+  const [classification, setClassification] = useState(client?.classification || 'Lead')
+  const [status, setStatus] = useState(client?.status || '')
+
+  // Update states when client loads
+  useEffect(() => {
+    if (client) {
+      setClassification(client.classification || 'Lead')
+      setStatus(client.status || '')
+    }
+  }, [client])
+
+  const handleClassificationChange = (val: string) => {
+    setClassification(val)
+    if (val === 'Lead') setStatus('Prospect')
+    else if (val === 'Potencial') setStatus('Negociação')
+    else if (val === 'Ativo') setStatus('Ativo')
+    else if (val === 'Inativo') setStatus('Inativo')
+  }
+
   const handleEditClient = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setSubmitting(true)
     const fd = new FormData(e.currentTarget)
     try {
       await pb.collection('clients').update(id as string, {
-        status: fd.get('status'),
-        classification: fd.get('classification'),
+        status: status,
+        classification: classification,
         funnel_stage: fd.get('funnel_stage'),
         email: fd.get('email'),
         phone: fd.get('phone'),
@@ -127,15 +146,18 @@ export default function ClientDetail() {
   }
 
   const handleDeleteClient = async () => {
-    if (client?.classification !== 'Inativo') return
+    if (client?.classification !== 'Inativo' && client?.status !== 'Inativo') return
     if (
       confirm(
-        'Tem certeza que deseja excluir permanentemente este cliente e todos os seus registros vinculados?',
+        'Tem certeza que deseja arquivar/excluir este cliente? Ele não aparecerá mais nas listas ativas.',
       )
     ) {
       try {
-        await pb.collection('clients').delete(id as string)
-        toast({ title: 'Cliente excluído com sucesso.' })
+        await pb.collection('clients').update(id as string, {
+          status: 'Excluído',
+          classification: 'Inativo',
+        })
+        toast({ title: 'Cliente arquivado/excluído com sucesso.' })
         navigate('/intranet/crm')
       } catch (err: any) {
         toast({ title: 'Erro ao excluir', description: err.message, variant: 'destructive' })
@@ -365,25 +387,27 @@ export default function ClientDetail() {
           <form onSubmit={handleEditClient} className="space-y-4 pt-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Status</Label>
-                <Input
-                  name="status"
-                  defaultValue={client.status || ''}
-                  placeholder="Ex: Adimplente, Em negociação"
-                />
-              </div>
-              <div>
                 <Label>Classificação</Label>
-                <Select name="classification" defaultValue={client.classification || 'Lead'}>
+                <Select value={classification} onValueChange={handleClassificationChange}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Ativo">Ativo</SelectItem>
+                    <SelectItem value="Potencial">Potencial</SelectItem>
                     <SelectItem value="Inativo">Inativo</SelectItem>
                     <SelectItem value="Lead">Lead</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Input
+                  name="status"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  placeholder="Ex: Prospect, Ativo, Inativo"
+                />
               </div>
             </div>
             <div>

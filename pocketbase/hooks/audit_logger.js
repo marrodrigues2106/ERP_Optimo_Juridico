@@ -36,6 +36,7 @@ onRecordUpdateRequest(
   'lawsuits',
   'clients',
   'finances',
+  'monitoring_configs',
 )
 
 onRecordDeleteRequest(
@@ -46,4 +47,5 @@ onRecordDeleteRequest(
   'lawsuits',
   'clients',
   'finances',
+  'monitoring_configs',
 )
