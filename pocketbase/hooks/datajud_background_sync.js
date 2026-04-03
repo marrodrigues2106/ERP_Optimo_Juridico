@@ -78,6 +78,9 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
     }
 
     let alias = record.get('court_alias')
+    if (alias && alias.startsWith('api_publica_')) {
+      alias = alias.replace('api_publica_', '')
+    }
 
     if (!alias) {
       const jSegment = cleanNum.substring(13, 14)

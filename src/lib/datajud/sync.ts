@@ -2,13 +2,13 @@ import pb from '@/lib/pocketbase/client'
 import { ClientResponseError } from 'pocketbase'
 
 export async function resolveCourtAlias(courtName: string): Promise<string> {
-  if (!courtName) return 'api_publica_tjrj'
+  if (!courtName) return 'tjrj'
   const normalized = courtName.toLowerCase().replace(/[^a-z0-9]/g, '')
-  if (normalized.startsWith('tjrj')) return 'api_publica_tjrj'
-  if (normalized.startsWith('trf1')) return 'api_publica_trf1'
-  if (normalized.startsWith('trf')) return `api_publica_${normalized.substring(0, 4)}`
-  if (normalized.startsWith('tj')) return `api_publica_${normalized.substring(0, 4)}`
-  return 'api_publica_tjrj'
+  if (normalized.startsWith('tjrj')) return 'tjrj'
+  if (normalized.startsWith('trf1')) return 'trf1'
+  if (normalized.startsWith('trf')) return normalized.substring(0, 4)
+  if (normalized.startsWith('tj')) return normalized.substring(0, 4)
+  return 'tjrj'
 }
 
 export async function runDatajudSync(caseRecord: any, onProgress: (msg: string) => void) {
@@ -30,9 +30,15 @@ export async function runDatajudSync(caseRecord: any, onProgress: (msg: string) 
     if (configs.length > 0) {
       const config = configs[0]
       const tribunais = config.tribunais || []
-      if (caseRecord.court_alias && !tribunais.includes(caseRecord.court_alias)) {
+      const aliasToCheck = caseRecord.court_alias?.replace('api_publica_', '')
+
+      if (
+        aliasToCheck &&
+        !tribunais.includes(aliasToCheck) &&
+        !tribunais.includes(`api_publica_${aliasToCheck}`)
+      ) {
         throw new Error(
-          `O tribunal '${caseRecord.court_alias}' não está habilitado nas configurações de monitoramento. Acesse a Intranet > Monitoramento e adicione-o.`,
+          `O tribunal '${aliasToCheck}' não está habilitado nas configurações de monitoramento. Acesse a Intranet > Monitoramento e adicione-o.`,
         )
       }
     }
