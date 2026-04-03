@@ -1,4 +1,5 @@
 import pb from '@/lib/pocketbase/client'
+import { sanitizePayload } from '@/lib/pocketbase/sanitize'
 
 const generateId = () => Math.random().toString(36).substring(2, 15) + Date.now().toString(36)
 
@@ -12,6 +13,9 @@ export const getFinancesByLawsuit = (lawsuitId: string) =>
 
 const sanitizeFinance = (data: any) => {
   if (data.linked_lawsuit === 'none') data.linked_lawsuit = null
+
+  if (data.type === 'Receita') data.type = 'inflow'
+  if (data.type === 'Despesa') data.type = 'outflow'
   if (data.type && !['inflow', 'outflow'].includes(data.type)) data.type = 'inflow'
 
   const inStatuses = ['orçado', 'estimado', 'realizada', 'recebida']
@@ -31,41 +35,43 @@ export const createFinance = async (data: any) => {
   const orgId = pb.authStore.record?.active_organization
   if (!orgId) throw new Error('Organização ativa não encontrada. Atualize seu perfil.')
   data = sanitizeFinance(data)
-  data.organization = orgId
+  const sanitized = sanitizePayload('finances', data, orgId)
 
-  if (!data.frequency || data.frequency === 'única') {
-    return pb.collection('finances').create(data)
+  if (!sanitized.frequency || sanitized.frequency === 'única') {
+    return pb.collection('finances').create(sanitized)
   }
 
   const recurrenceId = generateId()
   const records = []
-  const currentDate = new Date(data.date)
+  const currentDate = new Date(sanitized.date)
 
   let count = 1
-  if (data.frequency === 'semanal') count = 52
-  else if (data.frequency === 'quinzenal') count = 26
-  else if (data.frequency === 'mensal') count = 12
+  if (sanitized.frequency === 'semanal') count = 52
+  else if (sanitized.frequency === 'quinzenal') count = 26
+  else if (sanitized.frequency === 'mensal') count = 12
 
   for (let i = 0; i < count; i++) {
     const newDate = new Date(currentDate)
     const recordData = {
-      ...data,
+      ...sanitized,
       date: newDate.toISOString(),
       recurrence_id: recurrenceId,
     }
     records.push(await pb.collection('finances').create(recordData))
 
-    if (data.frequency === 'semanal') currentDate.setDate(currentDate.getDate() + 7)
-    else if (data.frequency === 'quinzenal') currentDate.setDate(currentDate.getDate() + 14)
-    else if (data.frequency === 'mensal') currentDate.setMonth(currentDate.getMonth() + 1)
+    if (sanitized.frequency === 'semanal') currentDate.setDate(currentDate.getDate() + 7)
+    else if (sanitized.frequency === 'quinzenal') currentDate.setDate(currentDate.getDate() + 14)
+    else if (sanitized.frequency === 'mensal') currentDate.setMonth(currentDate.getMonth() + 1)
   }
 
   return records[0]
 }
 
 export const updateFinance = (id: string, data: any) => {
+  const orgId = pb.authStore.record?.active_organization
   data = sanitizeFinance(data)
-  return pb.collection('finances').update(id, data)
+  const sanitized = sanitizePayload('finances', data, orgId)
+  return pb.collection('finances').update(id, sanitized)
 }
 
 export const deleteFinance = (id: string) => pb.collection('finances').delete(id)

@@ -1,4 +1,5 @@
 import pb from '@/lib/pocketbase/client'
+import { sanitizePayload } from '@/lib/pocketbase/sanitize'
 
 export const getClientInteractions = (clientId: string) =>
   pb.collection('crm_interactions').getFullList({
@@ -24,7 +25,6 @@ export const createInteraction = (data: any) => {
   const orgId = pb.authStore.record?.active_organization
   if (!orgId) throw new Error('Organização ativa não encontrada. Atualize seu perfil.')
   data = sanitizeInteraction(data)
-  data.organization = orgId
 
   if (data.date) {
     const d = new Date(data.date)
@@ -34,10 +34,12 @@ export const createInteraction = (data: any) => {
     const d = new Date(data.follow_up_date)
     if (!isNaN(d.getTime())) data.follow_up_date = d.toISOString()
   }
-  return pb.collection('crm_interactions').create(data)
+  const sanitized = sanitizePayload('crm_interactions', data, orgId)
+  return pb.collection('crm_interactions').create(sanitized)
 }
 
 export const updateInteraction = (id: string, data: any) => {
+  const orgId = pb.authStore.record?.active_organization
   data = sanitizeInteraction(data)
   if (data.date) {
     const d = new Date(data.date)
@@ -47,7 +49,8 @@ export const updateInteraction = (id: string, data: any) => {
     const d = new Date(data.follow_up_date)
     if (!isNaN(d.getTime())) data.follow_up_date = d.toISOString()
   }
-  return pb.collection('crm_interactions').update(id, data)
+  const sanitized = sanitizePayload('crm_interactions', data, orgId)
+  return pb.collection('crm_interactions').update(id, sanitized)
 }
 
 export const deleteInteraction = (id: string) => pb.collection('crm_interactions').delete(id)

@@ -1,4 +1,5 @@
 import pb from '@/lib/pocketbase/client'
+import { sanitizePayload } from '@/lib/pocketbase/sanitize'
 
 export const getTasks = () =>
   pb.collection('tasks').getFullList({
@@ -26,22 +27,24 @@ export const createTask = (data: any) => {
   const orgId = pb.authStore.record?.active_organization
   if (!orgId) throw new Error('Organização ativa não encontrada. Atualize seu perfil.')
   data = sanitizeTask(data)
-  data.organization = orgId
 
   if (data.due_date) {
     const d = new Date(data.due_date)
     if (!isNaN(d.getTime())) data.due_date = d.toISOString()
   }
-  return pb.collection('tasks').create(data)
+  const sanitized = sanitizePayload('tasks', data, orgId)
+  return pb.collection('tasks').create(sanitized)
 }
 
 export const updateTask = (id: string, data: any) => {
+  const orgId = pb.authStore.record?.active_organization
   data = sanitizeTask(data)
   if (data.due_date) {
     const d = new Date(data.due_date)
     if (!isNaN(d.getTime())) data.due_date = d.toISOString()
   }
-  return pb.collection('tasks').update(id, data)
+  const sanitized = sanitizePayload('tasks', data, orgId)
+  return pb.collection('tasks').update(id, sanitized)
 }
 
 export const deleteTask = (id: string) =>

@@ -1,4 +1,5 @@
 import pb from '@/lib/pocketbase/client'
+import { sanitizePayload } from '@/lib/pocketbase/sanitize'
 
 export const getClients = () =>
   pb.collection('clients').getFullList({ filter: 'deleted_at = ""', sort: '-created' })
@@ -30,13 +31,15 @@ export const createClient = (data: any) => {
   const orgId = pb.authStore.record?.active_organization
   if (!orgId) throw new Error('Organização ativa não encontrada. Atualize seu perfil.')
   data = syncCrmStatus(data)
-  data.organization = orgId
-  return pb.collection('clients').create(data)
+  const sanitized = sanitizePayload('clients', data, orgId)
+  return pb.collection('clients').create(sanitized)
 }
 
 export const updateClient = (id: string, data: any) => {
+  const orgId = pb.authStore.record?.active_organization
   data = syncCrmStatus(data)
-  return pb.collection('clients').update(id, data)
+  const sanitized = sanitizePayload('clients', data, orgId)
+  return pb.collection('clients').update(id, sanitized)
 }
 
 export const deleteClient = async (id: string) => {

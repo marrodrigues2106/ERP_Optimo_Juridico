@@ -1,4 +1,5 @@
 import pb from '@/lib/pocketbase/client'
+import { sanitizePayload } from '@/lib/pocketbase/sanitize'
 
 export const getLegalCases = () =>
   pb
@@ -27,13 +28,15 @@ export const createLegalCase = (data: any) => {
   const orgId = pb.authStore.record?.active_organization
   if (!orgId) throw new Error('Organização ativa não encontrada. Atualize seu perfil.')
   data = sanitizeCase(data)
-  data.organization = orgId
-  return pb.collection('legal_cases').create(data)
+  const sanitized = sanitizePayload('legal_cases', data, orgId)
+  return pb.collection('legal_cases').create(sanitized)
 }
 
 export const updateLegalCase = (id: string, data: any) => {
+  const orgId = pb.authStore.record?.active_organization
   data = sanitizeCase(data)
-  return pb.collection('legal_cases').update(id, data)
+  const sanitized = sanitizePayload('legal_cases', data, orgId)
+  return pb.collection('legal_cases').update(id, sanitized)
 }
 
 export const deleteLegalCase = (id: string) => pb.collection('legal_cases').delete(id)
