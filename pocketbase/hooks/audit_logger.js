@@ -15,9 +15,10 @@ onRecordCreateRequest(
       console.log('Audit log err:', err)
     }
   },
-  'lawsuits',
+  'legal_cases',
   'clients',
   'finances',
+  'agenda_events',
 )
 
 onRecordUpdateRequest(
@@ -37,10 +38,11 @@ onRecordUpdateRequest(
       console.log('Audit log err:', err)
     }
   },
-  'lawsuits',
+  'legal_cases',
   'clients',
   'finances',
   'monitoring_configs',
+  'agenda_events',
 )
 
 onRecordDeleteRequest(
@@ -59,8 +61,9 @@ onRecordDeleteRequest(
     }
     e.next()
   },
-  'lawsuits',
+  'legal_cases',
   'clients',
   'finances',
   'monitoring_configs',
+  'agenda_events',
 )

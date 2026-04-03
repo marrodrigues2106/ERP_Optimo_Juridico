@@ -39,12 +39,14 @@ export default function Dashboard() {
   const loadData = async () => {
     try {
       const [fetchedTasks, fetchedPubs, fetchedEvents] = await Promise.all([
-        pb.collection('tasks').getFullList({ filter: 'status = "todo"', sort: 'due_date' }),
+        pb
+          .collection('tasks')
+          .getFullList({ filter: 'status = "todo" && deleted_at = ""', sort: 'due_date' }),
         pb
           .collection('gazette_publications')
           .getFullList({ filter: 'is_read = false', sort: '-created' }),
         pb.collection('agenda_events').getFullList({
-          filter: `start_date >= "${startOfDay(today).toISOString()}"`,
+          filter: `start_date >= "${startOfDay(today).toISOString()}" && deleted_at = ""`,
           sort: 'start_date',
         }),
       ])

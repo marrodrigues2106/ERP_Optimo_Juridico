@@ -3,6 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -12,20 +13,33 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
-import { Save } from 'lucide-react'
+import { Save, X, RefreshCw } from 'lucide-react'
 
-import { testExternalConnection } from '@/services/monitoring'
+import { testExternalConnection, syncProcesses } from '@/services/monitoring'
+import { useAuth } from '@/hooks/use-auth'
 
 export default function MonitoringManager() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin' || user?.isAdmin || user?.role === 'manager'
+
   const [config, setConfig] = useState<any>(null)
   const [douPriority, setDouPriority] = useState('XML/ZIP')
   const [douPriority2, setDouPriority2] = useState('HTTP')
   const [douUsername, setDouUsername] = useState('')
   const [douPassword, setDouPassword] = useState('')
   const [datajudApiKey, setDatajudApiKey] = useState('')
+  const [frequency, setFrequency] = useState('Daily')
+  const [syncProcessos, setSyncProcessos] = useState(true)
+
+  const [termosBusca, setTermosBusca] = useState<string[]>([])
+  const [termoInput, setTermoInput] = useState('')
+  const [tribunais, setTribunais] = useState<string[]>([])
+  const [tribunalInput, setTribunalInput] = useState('')
+
   const [submitting, setSubmitting] = useState(false)
   const [testingDou, setTestingDou] = useState(false)
   const [testingDatajud, setTestingDatajud] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const { toast } = useToast()
 
   const loadData = async () => {
@@ -35,6 +49,11 @@ export default function MonitoringManager() {
         const c = records[0]
         setConfig(c)
         setDatajudApiKey(c.apiKey || '')
+        setFrequency(c.frequency || 'Daily')
+        setSyncProcessos(c.sync_processos ?? true)
+        setTermosBusca(c.termos_busca || [])
+        setTribunais(c.tribunais || [])
+
         if (c.douCredentials) {
           setDouPriority(c.douCredentials.priority || 'XML/ZIP')
           setDouPriority2(c.douCredentials.priority2 || 'HTTP')
@@ -51,6 +70,14 @@ export default function MonitoringManager() {
     loadData()
   }, [])
 
+  if (!isAdmin) {
+    return (
+      <div className="p-8 text-center text-muted-foreground bg-white rounded-xl border">
+        Você não tem permissão para acessar as configurações de Monitoramento e API.
+      </div>
+    )
+  }
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
@@ -61,17 +88,20 @@ export default function MonitoringManager() {
         username: douUsername,
         password: douPassword,
       }
+
+      const payload = {
+        apiKey: datajudApiKey,
+        douCredentials,
+        frequency,
+        sync_processos: syncProcessos,
+        termos_busca: termosBusca,
+        tribunais: tribunais,
+      }
+
       if (config?.id) {
-        await pb.collection('monitoring_configs').update(config.id, {
-          apiKey: datajudApiKey,
-          douCredentials,
-        })
+        await pb.collection('monitoring_configs').update(config.id, payload)
       } else {
-        await pb.collection('monitoring_configs').create({
-          apiKey: datajudApiKey,
-          douCredentials,
-          frequency: 'Daily',
-        })
+        await pb.collection('monitoring_configs').create(payload)
       }
       toast({ title: 'Configurações de monitoramento salvas com sucesso!' })
       loadData()
@@ -102,40 +132,160 @@ export default function MonitoringManager() {
     }
   }
 
+  const handleManualSync = async () => {
+    setSyncing(true)
+    try {
+      await syncProcesses()
+      toast({ title: 'Sincronização manual iniciada com sucesso!' })
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao iniciar sincronização',
+        description: err.message,
+        variant: 'destructive',
+      })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const handleAddTermo = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && termoInput.trim()) {
+      e.preventDefault()
+      if (!termosBusca.includes(termoInput.trim())) {
+        setTermosBusca([...termosBusca, termoInput.trim()])
+      }
+      setTermoInput('')
+    }
+  }
+
+  const handleAddTribunal = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && tribunalInput.trim()) {
+      e.preventDefault()
+      const val = tribunalInput.trim().toUpperCase()
+      if (!tribunais.includes(val)) {
+        setTribunais([...tribunais, val])
+      }
+      setTribunalInput('')
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>Configurações de APIs e Monitoramento</CardTitle>
           <CardDescription>
-            Gerencie as credenciais e prioridades de fontes para o monitoramento de processos e
-            diários oficiais.
+            Gerencie as credenciais, prioridades de fontes, termos e tribunais monitorados.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSave} className="space-y-6">
+          <form onSubmit={handleSave} className="space-y-8">
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-slate-800 border-b pb-2">
                 Integração DataJud
               </h3>
-              <div className="space-y-2">
-                <Label>Chave da API (DataJud)</Label>
-                <div className="flex gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Chave da API (DataJud)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="password"
+                      value={datajudApiKey}
+                      onChange={(e) => setDatajudApiKey(e.target.value)}
+                      placeholder="Insira a chave da API"
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleTestConnection('datajud')}
+                      disabled={testingDatajud || !datajudApiKey}
+                    >
+                      {testingDatajud ? 'Testando...' : 'Testar Conexão'}
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Frequência de Sincronização</Label>
+                  <Select value={frequency} onValueChange={setFrequency}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Hourly">Horária</SelectItem>
+                      <SelectItem value="Daily">Diária</SelectItem>
+                      <SelectItem value="Weekly">Semanal</SelectItem>
+                      <SelectItem value="Monthly">Mensal</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center justify-between border p-4 rounded-lg bg-slate-50/50">
+                  <div>
+                    <Label className="text-base font-medium">Sincronizar Processos</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Habilitar sincronização automática de andamentos.
+                    </p>
+                  </div>
+                  <Switch checked={syncProcessos} onCheckedChange={setSyncProcessos} />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-slate-800 border-b pb-2">
+                Filtros e Termos Monitorados (Datajud/DOU)
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label>Termos de Busca (Pressione Enter para adicionar)</Label>
                   <Input
-                    type="password"
-                    value={datajudApiKey}
-                    onChange={(e) => setDatajudApiKey(e.target.value)}
-                    placeholder="Insira a chave da API"
-                    className="flex-1"
+                    placeholder="Ex: licitação, contrato"
+                    value={termoInput}
+                    onChange={(e) => setTermoInput(e.target.value)}
+                    onKeyDown={handleAddTermo}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleTestConnection('datajud')}
-                    disabled={testingDatajud || !datajudApiKey}
-                  >
-                    {testingDatajud ? 'Testando...' : 'Testar Conexão'}
-                  </Button>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {termosBusca.map((t) => (
+                      <span
+                        key={t}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800 border border-slate-200 shadow-sm"
+                      >
+                        {t}{' '}
+                        <X
+                          className="w-3 h-3 cursor-pointer hover:text-destructive transition-colors"
+                          onClick={() => setTermosBusca(termosBusca.filter((x) => x !== t))}
+                        />
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Tribunais (Pressione Enter para adicionar)</Label>
+                  <Input
+                    placeholder="Ex: STF, TJRJ"
+                    value={tribunalInput}
+                    onChange={(e) => setTribunalInput(e.target.value)}
+                    onKeyDown={handleAddTribunal}
+                  />
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {tribunais.map((t) => (
+                      <span
+                        key={t}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 shadow-sm"
+                      >
+                        {t}{' '}
+                        <X
+                          className="w-3 h-3 cursor-pointer hover:text-destructive transition-colors"
+                          onClick={() => setTribunais(tribunais.filter((x) => x !== t))}
+                        />
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -214,10 +364,22 @@ export default function MonitoringManager() {
               </div>
             </div>
 
-            <Button type="submit" disabled={submitting}>
-              <Save className="w-4 h-4 mr-2" />{' '}
-              {submitting ? 'Salvando...' : 'Salvar Configurações'}
-            </Button>
+            <div className="flex gap-4 pt-4 border-t border-slate-200">
+              <Button type="submit" disabled={submitting}>
+                <Save className="w-4 h-4 mr-2" />
+                {submitting ? 'Salvando...' : 'Salvar Configurações'}
+              </Button>
+
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleManualSync}
+                disabled={syncing}
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'Sincronizando...' : 'Buscar Agora (Sincronização Manual)'}
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>

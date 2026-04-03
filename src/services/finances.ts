@@ -4,12 +4,14 @@ import { sanitizePayload } from '@/lib/pocketbase/sanitize'
 const generateId = () => Math.random().toString(36).substring(2, 15) + Date.now().toString(36)
 
 export const getFinances = () =>
-  pb.collection('finances').getFullList({ sort: '-date', expand: 'linked_lawsuit' })
+  pb
+    .collection('finances')
+    .getFullList({ filter: 'deleted_at = ""', sort: '-date', expand: 'linked_lawsuit' })
 
 export const getFinancesByLawsuit = (lawsuitId: string) =>
   pb
     .collection('finances')
-    .getFullList({ filter: `linked_lawsuit = '${lawsuitId}'`, sort: '-date' })
+    .getFullList({ filter: `linked_lawsuit = '${lawsuitId}' && deleted_at = ""`, sort: '-date' })
 
 const sanitizeFinance = (data: any) => {
   if (data.linked_lawsuit === 'none') data.linked_lawsuit = null
@@ -74,7 +76,8 @@ export const updateFinance = (id: string, data: any) => {
   return pb.collection('finances').update(id, sanitized)
 }
 
-export const deleteFinance = (id: string) => pb.collection('finances').delete(id)
+export const deleteFinance = (id: string) =>
+  pb.collection('finances').update(id, { deleted_at: new Date().toISOString() })
 
 export const deleteRecurringFinances = async (recurrenceId: string) => {
   const records = await pb

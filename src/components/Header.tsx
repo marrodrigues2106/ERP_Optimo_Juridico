@@ -4,6 +4,16 @@ import { useAuth } from '@/hooks/use-auth'
 import { Menu, X, Instagram, Facebook, Phone as WhatsappIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { firmData, specialtiesData } from '@/data/content'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import logoImg from '../assets/logo-mr-advocacia-mk39e5yk0rfrezeo-007ff.png'
 import {
   NavigationMenu,
@@ -22,7 +32,10 @@ export default function Header() {
   const { isAuthenticated, signOut } = useAuth()
   const navigate = useNavigate()
 
-  const handleLogout = () => {
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
+
+  const confirmLogout = () => {
+    setLogoutDialogOpen(false)
     signOut()
     navigate('/login')
   }
@@ -154,7 +167,7 @@ export default function Header() {
                 <NavigationMenuItem>
                   <NavigationMenuLink asChild>
                     <button
-                      onClick={handleLogout}
+                      onClick={() => setLogoutDialogOpen(true)}
                       className={cn(
                         navigationMenuTriggerStyle(),
                         'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium cursor-pointer',
@@ -218,6 +231,22 @@ export default function Header() {
         </button>
       </div>
 
+      <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deseja sair?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso encerrará sua sessão na intranet. Você precisará fazer login novamente para
+              acessar o painel.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmLogout}>Sair da conta</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="lg:hidden absolute top-full left-0 w-full bg-white border-t shadow-lg py-4 px-4 flex flex-col gap-4 animate-in slide-in-from-top-2">
@@ -265,7 +294,7 @@ export default function Header() {
                 className="text-lg font-medium py-2 border-b text-primary text-left w-full"
                 onClick={() => {
                   closeMenu()
-                  handleLogout()
+                  setLogoutDialogOpen(true)
                 }}
               >
                 Sair
