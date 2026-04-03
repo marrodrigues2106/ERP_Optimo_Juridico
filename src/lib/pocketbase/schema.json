@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-03T20:24:09.004Z",
+  "generatedAt": "2026-04-03T21:02:17.990Z",
   "collections": [
     {
       "name": "users",
@@ -108,6 +108,32 @@
           "required": false,
           "system": false,
           "collectionRef": "organizations"
+        },
+        {
+          "name": "calendar_provider",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Google", "Outlook", "iCloud", "Local"]
+        },
+        {
+          "name": "calendar_status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Connected", "Pending", "Disconnected", "Error"]
+        },
+        {
+          "name": "calendar_token",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ical_token",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [

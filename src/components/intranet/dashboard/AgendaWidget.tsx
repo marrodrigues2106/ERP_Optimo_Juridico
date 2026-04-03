@@ -100,57 +100,68 @@ export function AgendaWidget() {
                 <div
                   key={e.id}
                   onClick={() => handleEventClick(e.expand?.linked_lawsuit?.id)}
-                  className={`flex gap-3 bg-white border border-slate-100 p-3 rounded-lg shadow-sm transition-all ${isLinked ? 'cursor-pointer hover:border-slate-300 hover:shadow-md' : ''}`}
+                  className={`flex gap-3 bg-white border-b border-slate-100 p-2 last:border-0 transition-colors hover:bg-slate-50 ${isLinked ? 'cursor-pointer' : ''}`}
                 >
-                  <div
-                    className={`flex flex-col items-center justify-center rounded-md px-2 py-1 min-w-[50px] shrink-0 border
-                    ${
-                      e.type === 'Meeting'
-                        ? 'bg-blue-50 border-blue-100 text-blue-700'
-                        : e.type === 'Deadline'
-                          ? 'bg-red-50 border-red-100 text-red-700'
-                          : e.type === 'Call'
-                            ? 'bg-green-50 border-green-100 text-green-700'
-                            : 'bg-slate-50 border-slate-200 text-slate-700'
-                    }`}
-                  >
-                    <span className="text-[10px] font-bold uppercase">
+                  <div className="flex flex-col items-center justify-center min-w-[45px] shrink-0">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
                       {new Date(e.start_date).toLocaleString('pt-BR', { month: 'short' })}
                     </span>
-                    <span className="text-lg font-black leading-none my-0.5">
+                    <span className="text-[18px] font-bold text-slate-700 leading-tight">
                       {new Date(e.start_date).getDate()}
                     </span>
                   </div>
 
+                  <div
+                    className="w-[3px] rounded-full shrink-0"
+                    style={{
+                      backgroundColor:
+                        e.type === 'Meeting'
+                          ? '#3b82f6'
+                          : e.type === 'Hearing'
+                            ? '#8b5cf6'
+                            : e.type === 'Deadline'
+                              ? '#ef4444'
+                              : e.type === 'Call'
+                                ? '#10b981'
+                                : '#94a3b8',
+                    }}
+                  />
+
                   <div className="flex-1 min-w-0 flex flex-col justify-center">
-                    <p
-                      className="text-sm font-semibold text-slate-800 line-clamp-1"
-                      title={e.title}
-                    >
-                      {e.title}
-                    </p>
-
-                    {isLinked && (
-                      <p className="text-[10px] text-primary flex items-center mt-0.5 truncate">
-                        <LinkIcon className="w-3 h-3 mr-1 shrink-0" />
-                        <span className="truncate">
-                          {e.expand.linked_lawsuit.case_number || e.expand.linked_lawsuit.parties}
-                        </span>
+                    <div className="flex items-center justify-between gap-2">
+                      <p
+                        className="text-[13px] font-semibold text-slate-800 truncate"
+                        title={e.title}
+                      >
+                        {e.title}
                       </p>
-                    )}
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 shrink-0 font-medium">
+                        {e.type === 'Hearing'
+                          ? 'Audiência'
+                          : e.type === 'Meeting'
+                            ? 'Reunião'
+                            : e.type === 'Deadline'
+                              ? 'Prazo'
+                              : e.type}
+                      </span>
+                    </div>
 
-                    <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-500 font-medium">
-                      <span className="flex items-center">
-                        <Clock className="w-3.5 h-3.5 mr-1" />
+                    <div className="flex items-center gap-3 mt-1 text-[11px] text-slate-500">
+                      <span className="flex items-center font-medium">
+                        <Clock className="w-3 h-3 mr-1" />
                         {new Date(e.start_date).toLocaleTimeString('pt-BR', {
                           hour: '2-digit',
                           minute: '2-digit',
                         })}
                       </span>
-                      <span className="w-1 h-1 rounded-full bg-slate-300" />
-                      <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
-                        {e.type}
-                      </span>
+                      {isLinked && (
+                        <span className="flex items-center truncate text-primary/70">
+                          <LinkIcon className="w-3 h-3 mr-1 shrink-0" />
+                          <span className="truncate">
+                            {e.expand.linked_lawsuit.case_number || 'Processo vinculado'}
+                          </span>
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

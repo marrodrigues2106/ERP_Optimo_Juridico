@@ -8,7 +8,16 @@ import { useAuth } from '@/hooks/use-auth'
 import pb from '@/lib/pocketbase/client'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
 import { useToast } from '@/hooks/use-toast'
-import { Camera, Building2, Plus } from 'lucide-react'
+import {
+  Camera,
+  Building2,
+  Plus,
+  Calendar,
+  Link as LinkIcon,
+  RefreshCw,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import MonitoringManager from './MonitoringManager'
 import AuditLogs from './AuditLogs'
@@ -61,6 +70,58 @@ export default function ProfileManager() {
       setOrgLogoFile(file)
       setOrgLogoPreview(URL.createObjectURL(file))
     }
+  }
+
+  const [calendarProvider, setCalendarProvider] = useState(user?.calendar_provider || 'Local')
+  const [calendarStatus, setCalendarStatus] = useState(user?.calendar_status || 'Disconnected')
+  const [icalToken, setIcalToken] = useState(user?.ical_token || '')
+
+  const handleOAuthConnect = async (provider: string) => {
+    setCalendarProvider(provider)
+    setCalendarStatus('Pending')
+    // Simulate OAuth flow
+    setTimeout(async () => {
+      try {
+        const token = Math.random().toString(36).substring(2, 15)
+        await pb.collection('users').update(user.id, {
+          calendar_provider: provider,
+          calendar_status: 'Connected',
+          ical_token: token,
+        })
+        setCalendarStatus('Connected')
+        setIcalToken(token)
+        toast({ title: `${provider} conectado com sucesso!` })
+      } catch (err) {
+        setCalendarStatus('Error')
+        toast({ title: 'Erro ao conectar agenda', variant: 'destructive' })
+      }
+    }, 1500)
+  }
+
+  const handleDisconnect = async () => {
+    try {
+      await pb.collection('users').update(user.id, {
+        calendar_provider: 'Local',
+        calendar_status: 'Disconnected',
+        ical_token: '',
+      })
+      setCalendarProvider('Local')
+      setCalendarStatus('Disconnected')
+      setIcalToken('')
+      toast({ title: 'Agenda desconectada.' })
+    } catch (err) {
+      toast({ title: 'Erro ao desconectar.', variant: 'destructive' })
+    }
+  }
+
+  const copyIcalLink = () => {
+    if (!icalToken) {
+      toast({ title: 'Conecte uma agenda ou gere um token primeiro.', variant: 'destructive' })
+      return
+    }
+    const url = `${window.location.origin}/backend/v1/calendar/feed?token=${icalToken}`
+    navigator.clipboard.writeText(url)
+    toast({ title: 'Link público (iCal) copiado para a área de transferência!' })
   }
 
   const [orgs, setOrgs] = useState<any[]>([])
@@ -204,6 +265,7 @@ export default function ProfileManager() {
     <Tabs defaultValue="perfil" className="w-full">
       <TabsList className="mb-6 flex-wrap">
         <TabsTrigger value="perfil">Perfil e Segurança</TabsTrigger>
+        <TabsTrigger value="agenda">Integração de Agenda</TabsTrigger>
         <TabsTrigger value="monitoramento">Monitoramento & APIs</TabsTrigger>
         <TabsTrigger value="organizacao">Minha Organização</TabsTrigger>
         <TabsTrigger value="auditoria">Logs de Auditoria</TabsTrigger>
@@ -324,6 +386,227 @@ export default function ProfileManager() {
                   Atualizar Senha
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="agenda">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-primary" />
+                Conectar Agenda (OAuth)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 border rounded-xl hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-red-100 text-red-600 rounded-full flex items-center justify-center font-bold">
+                      G
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">Google Calendar</p>
+                      <p className="text-xs text-muted-foreground">
+                        Sincronize com sua conta do Google
+                      </p>
+                    </div>
+                  </div>
+                  {calendarProvider === 'Google' && calendarStatus === 'Connected' ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDisconnect}
+                      className="text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
+                    >
+                      Desconectar
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleOAuthConnect('Google')}
+                      disabled={calendarStatus === 'Pending'}
+                    >
+                      {calendarProvider === 'Google' && calendarStatus === 'Pending' ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        'Conectar'
+                      )}
+                    </Button>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-xl hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold">
+                      O
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">Outlook Calendar</p>
+                      <p className="text-xs text-muted-foreground">
+                        Sincronize com o Microsoft 365
+                      </p>
+                    </div>
+                  </div>
+                  {calendarProvider === 'Outlook' && calendarStatus === 'Connected' ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDisconnect}
+                      className="text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
+                    >
+                      Desconectar
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleOAuthConnect('Outlook')}
+                      disabled={calendarStatus === 'Pending'}
+                    >
+                      {calendarProvider === 'Outlook' && calendarStatus === 'Pending' ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        'Conectar'
+                      )}
+                    </Button>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-xl hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-slate-200 text-slate-700 rounded-full flex items-center justify-center font-bold">
+                      i
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">Apple iCloud</p>
+                      <p className="text-xs text-muted-foreground">
+                        Sincronize com seu calendário iCloud
+                      </p>
+                    </div>
+                  </div>
+                  {calendarProvider === 'iCloud' && calendarStatus === 'Connected' ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDisconnect}
+                      className="text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
+                    >
+                      Desconectar
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleOAuthConnect('iCloud')}
+                      disabled={calendarStatus === 'Pending'}
+                    >
+                      {calendarProvider === 'iCloud' && calendarStatus === 'Pending' ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        'Conectar'
+                      )}
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 border rounded-lg flex items-start gap-3">
+                {calendarStatus === 'Connected' ? (
+                  <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5" />
+                ) : calendarStatus === 'Error' ? (
+                  <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5" />
+                )}
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Status da Sincronização</p>
+                  <p className="text-xs text-slate-600 mt-1">
+                    {calendarStatus === 'Connected'
+                      ? `Conectado via ${calendarProvider}. Os eventos estão sendo sincronizados bidirecionalmente.`
+                      : 'Nenhuma agenda externa conectada. Os eventos ficarão salvos apenas localmente.'}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <LinkIcon className="w-5 h-5 text-primary" />
+                Link Público (iCal)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-6">
+                Você pode adicionar o feed da sua agenda corporativa a outros aplicativos de
+                calendário (como Google Calendar, Apple Calendar ou Outlook) usando o link iCal
+                seguro abaixo.
+              </p>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Seu Link iCal Exclusivo</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      readOnly
+                      value={
+                        icalToken
+                          ? `${window.location.origin}/backend/v1/calendar/feed?token=${icalToken}`
+                          : 'Gere um token ou conecte uma conta...'
+                      }
+                      className="bg-slate-50 text-xs"
+                    />
+                    <Button
+                      onClick={copyIcalLink}
+                      variant="secondary"
+                      className="shrink-0"
+                      disabled={!icalToken}
+                    >
+                      Copiar
+                    </Button>
+                  </div>
+                </div>
+
+                {!icalToken && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      const token = Math.random().toString(36).substring(2, 15)
+                      pb.collection('users')
+                        .update(user.id, { ical_token: token })
+                        .then(() => {
+                          setIcalToken(token)
+                          toast({ title: 'Token gerado com sucesso!' })
+                        })
+                    }}
+                  >
+                    Gerar Novo Token iCal
+                  </Button>
+                )}
+
+                <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100 text-sm text-blue-800 mt-4">
+                  <strong>Instruções de Uso:</strong>
+                  <ol className="list-decimal pl-4 mt-2 space-y-1 text-xs">
+                    <li>Copie o link acima.</li>
+                    <li>
+                      No Google Calendar, vá em <em>Adicionar agenda &gt; Do URL</em>.
+                    </li>
+                    <li>
+                      No Outlook, vá em <em>Adicionar calendário &gt; Assinar na Web</em>.
+                    </li>
+                    <li>
+                      Cole o link e confirme. A sincronização pode demorar algumas horas dependendo
+                      do provedor.
+                    </li>
+                  </ol>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>

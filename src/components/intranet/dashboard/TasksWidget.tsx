@@ -155,66 +155,65 @@ export function TasksWidget() {
                     key={t.id}
                     onClick={(e) => handleTaskClick(e, t.expand?.linked_lawsuit?.id)}
                     className={cn(
-                      'flex items-start gap-3 p-3 rounded-lg group border border-transparent transition-all',
+                      'flex items-center gap-2 p-2 rounded group border-b border-slate-100 last:border-0 transition-colors',
                       t.status === 'completed'
                         ? 'bg-slate-50/50 opacity-60'
-                        : 'bg-white hover:border-slate-200 hover:shadow-sm',
+                        : 'bg-white hover:bg-slate-50',
                       isLinked && t.status !== 'completed' ? 'cursor-pointer' : '',
                     )}
                   >
                     <Checkbox
-                      className="mt-0.5"
+                      className="h-4 w-4 rounded-sm shrink-0"
                       checked={t.status === 'completed'}
                       onCheckedChange={() => toggle(t)}
                     />
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 flex items-center gap-2">
                       <span
                         className={cn(
-                          'text-sm font-medium block text-slate-800',
-                          t.status === 'completed' && 'line-through text-slate-500',
+                          'text-[13px] font-medium text-slate-700 truncate',
+                          t.status === 'completed' && 'line-through text-slate-400',
                         )}
+                        title={t.title}
                       >
                         {t.title}
                       </span>
                       {isLinked && (
-                        <span className="text-[10px] text-primary hover:underline flex items-center mt-1 w-fit">
-                          <LinkIcon className="w-3 h-3 mr-1" />
-                          {t.expand.linked_lawsuit.case_number || t.expand.linked_lawsuit.parties}
+                        <span className="text-[10px] text-primary/70 bg-primary/5 px-1.5 py-0.5 rounded truncate max-w-[120px] hidden sm:inline-block">
+                          {t.expand.linked_lawsuit.case_number || 'Processo'}
                         </span>
                       )}
                     </div>
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      <span
-                        className={cn(
-                          'px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider',
-                          t.priority === 'high'
-                            ? 'bg-red-50 text-red-600 border border-red-100'
-                            : t.priority === 'medium'
-                              ? 'bg-amber-50 text-amber-600 border border-amber-100'
-                              : 'bg-slate-50 text-slate-600 border border-slate-100',
-                        )}
-                      >
-                        {t.priority === 'high'
-                          ? 'Alta'
-                          : t.priority === 'medium'
-                            ? 'Média'
-                            : 'Baixa'}
-                      </span>
+
+                    <div className="flex items-center gap-2 shrink-0">
                       {t.due_date && (
-                        <span className="text-[10px] text-slate-500 flex items-center font-medium">
-                          <CalendarClock className="w-3 h-3 mr-1" />
-                          {new Date(t.due_date).toLocaleDateString('pt-BR')}
+                        <span className="text-[10px] text-slate-400 flex items-center">
+                          {new Date(t.due_date).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                          })}
                         </span>
                       )}
+                      <div
+                        className={cn(
+                          'w-2 h-2 rounded-full',
+                          t.priority === 'high'
+                            ? 'bg-red-500'
+                            : t.priority === 'medium'
+                              ? 'bg-amber-400'
+                              : 'bg-slate-300',
+                        )}
+                        title={`Prioridade: ${t.priority}`}
+                      />
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-50 shrink-0 transition-opacity"
+                        onClick={() => deleteTask(t.id)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-50 shrink-0 mt-0.5 transition-opacity"
-                      onClick={() => deleteTask(t.id)}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
                   </div>
                 )
               })}

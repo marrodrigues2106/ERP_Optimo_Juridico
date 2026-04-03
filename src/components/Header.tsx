@@ -24,8 +24,9 @@ import {
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from '@/components/ui/navigation-menu'
-import { Plus, Sparkles } from 'lucide-react'
+import { Plus, Sparkles, Search } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
+import { Input } from '@/components/ui/input'
 import { CaseFormModal } from '@/components/intranet/cases/CaseFormModal'
 import { getClients } from '@/services/clients'
 import { getCollaborators } from '@/services/collaborators'
@@ -134,6 +135,16 @@ export default function Header() {
 
         {/* Desktop Nav */}
         <div className="hidden lg:flex items-center gap-8">
+          {isIntranet && (
+            <div className="hidden md:flex relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Buscar processos, clientes..."
+                className="pl-8 h-9 w-64 bg-slate-50 border-slate-200 focus-visible:ring-1"
+              />
+            </div>
+          )}
           {!isIntranet ? (
             <NavigationMenu>
               <NavigationMenuList>
@@ -421,6 +432,16 @@ export default function Header() {
             </>
           ) : (
             <>
+              <div className="py-2 border-b">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    placeholder="Buscar processos..."
+                    className="pl-8 h-10 w-full bg-slate-50 border-slate-200"
+                  />
+                </div>
+              </div>
               <Link
                 to="/"
                 className="text-lg font-medium py-2 border-b text-primary"
