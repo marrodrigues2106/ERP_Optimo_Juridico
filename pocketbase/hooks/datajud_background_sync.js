@@ -52,6 +52,12 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
     let monitoredTribunals = []
 
     try {
+      const activeTribunals = $app.findRecordsByFilter('tribunals', 'active = true', '', 1000, 0)
+      activeTribunals.forEach((t) => {
+        let a = t.get('alias')
+        if (a) monitoredTribunals.push(String(a).toLowerCase().trim())
+      })
+
       const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
       if (configs.length > 0) {
         const dbApiKey = configs[0].get('apiKey')
@@ -59,7 +65,9 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
           apiKey = dbApiKey
         }
         const tList = configs[0].get('tribunais') || []
-        monitoredTribunals = tList.map((t) => String(t).toLowerCase())
+        tList.forEach((t) => {
+          if (t) monitoredTribunals.push(String(t).toLowerCase().trim())
+        })
       }
     } catch (err) {}
 
@@ -80,7 +88,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
 
     let alias = record.get('court_alias')
     if (alias) {
-      alias = alias.toLowerCase()
+      alias = String(alias).toLowerCase().trim()
       if (alias.startsWith('api_publica_')) {
         alias = alias.replace('api_publica_', '')
       }

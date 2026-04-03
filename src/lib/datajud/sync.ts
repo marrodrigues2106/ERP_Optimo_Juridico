@@ -29,21 +29,35 @@ export async function runDatajudSync(caseRecord: any, onProgress: (msg: string) 
   onProgress('Verificando configurações de monitoramento...')
   try {
     const configs = await pb.collection('monitoring_configs').getFullList()
-    if (configs.length > 0) {
-      const config = configs[0]
-      const tribunais = config.tribunais || []
-      const rawAlias = caseRecord.court_alias || caseRecord.court
-      const aliasToCheck = rawAlias?.replace('api_publica_', '')
+    const activeTribunals = await pb
+      .collection('tribunals')
+      .getFullList({ filter: 'active = true' })
 
-      if (
-        aliasToCheck &&
-        !tribunais.includes(aliasToCheck) &&
-        !tribunais.includes(`api_publica_${aliasToCheck}`)
-      ) {
-        throw new Error(
-          `O tribunal '${aliasToCheck}' não está habilitado nas configurações de monitoramento. Acesse a Intranet > Monitoramento e adicione-o.`,
-        )
-      }
+    let monitoredTribunals: string[] = []
+
+    if (configs.length > 0) {
+      const configTribs = configs[0].tribunais || []
+      configTribs.forEach((t: any) => monitoredTribunals.push(String(t).toLowerCase().trim()))
+    }
+
+    activeTribunals.forEach((t: any) => {
+      if (t.alias) monitoredTribunals.push(String(t.alias).toLowerCase().trim())
+    })
+
+    const rawAlias = caseRecord.court_alias || caseRecord.court
+    let aliasToCheck = rawAlias
+      ? String(rawAlias).toLowerCase().replace('api_publica_', '').trim()
+      : ''
+
+    if (
+      aliasToCheck &&
+      monitoredTribunals.length > 0 &&
+      !monitoredTribunals.includes(aliasToCheck) &&
+      !monitoredTribunals.includes(`api_publica_${aliasToCheck}`)
+    ) {
+      throw new Error(
+        `O tribunal '${aliasToCheck}' não está habilitado nas configurações de monitoramento. Acesse a Intranet > Monitoramento e adicione-o.`,
+      )
     }
   } catch (err: any) {
     if (err.message && err.message.includes('O tribunal')) throw err

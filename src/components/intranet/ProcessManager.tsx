@@ -409,11 +409,13 @@ export default function ProcessManager() {
                           {c.type === 'Processo' ? (
                             <Badge
                               className={
-                                c.datajud_sync_status === 'Synced'
+                                c.datajud_sync_status === 'Synced' ||
+                                c.datajud_sync_status === 'Success'
                                   ? 'bg-emerald-500 hover:bg-emerald-600'
                                   : c.datajud_sync_status === 'Pending'
                                     ? 'bg-amber-500 hover:bg-amber-600'
-                                    : c.datajud_sync_status === 'Error'
+                                    : c.datajud_sync_status === 'Error' ||
+                                        c.datajud_sync_status === 'Sync Failed'
                                       ? 'bg-red-500 hover:bg-red-600'
                                       : 'bg-slate-300 hover:bg-slate-400'
                               }

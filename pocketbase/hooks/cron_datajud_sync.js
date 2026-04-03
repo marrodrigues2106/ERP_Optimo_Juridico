@@ -6,6 +6,19 @@ cronAdd('datajud_background_sync', '0 */2 * * *', () => {
 
     if (!config.get('sync_processos')) return
 
+    let monitoredTribunals = []
+    try {
+      const activeTribunals = $app.findRecordsByFilter('tribunals', 'active = true', '', 1000, 0)
+      activeTribunals.forEach((t) => {
+        let a = t.get('alias')
+        if (a) monitoredTribunals.push(String(a).toLowerCase().trim())
+      })
+      const tList = config.get('tribunais') || []
+      tList.forEach((t) => {
+        if (t) monitoredTribunals.push(String(t).toLowerCase().trim())
+      })
+    } catch (e) {}
+
     const cases = $app.findRecordsByFilter(
       'legal_cases',
       "lifecycle_status = 'Ativo' && case_number != ''",
@@ -23,6 +36,14 @@ cronAdd('datajud_background_sync', '0 */2 * * *', () => {
 
     for (let c of cases) {
       try {
+        let courtAlias = c.get('court_alias')
+        if (courtAlias) {
+          courtAlias = String(courtAlias).toLowerCase().replace('api_publica_', '').trim()
+          if (monitoredTribunals.length > 0 && !monitoredTribunals.includes(courtAlias)) {
+            continue
+          }
+        }
+
         $http.send({
           url: localUrl + c.id,
           method: 'POST',
