@@ -53,14 +53,23 @@ routerAdd(
 
     const targetAlias = body.alias || alias
     let apiKey = $secrets.get('DATAJUD_API_KEY') || ''
+    let configuredTribunals = []
 
-    if (!apiKey) {
-      try {
-        const config = $app.findFirstRecordByFilter('monitoring_configs', "id != ''")
-        if (config && config.get('apiKey')) {
+    try {
+      const config = $app.findFirstRecordByFilter('monitoring_configs', "id != ''")
+      if (config) {
+        if (!apiKey && config.get('apiKey')) {
           apiKey = config.get('apiKey')
         }
-      } catch (_) {}
+        configuredTribunals = config.get('tribunais') || []
+      }
+    } catch (_) {}
+
+    if (configuredTribunals.length > 0 && !configuredTribunals.includes(targetAlias)) {
+      return e.json(400, {
+        success: false,
+        error: `O tribunal '${targetAlias}' não está habilitado no Monitoramento. Acesse a aba Configurações de Monitoramento e ative-o para poder usar a busca do DataJud.`,
+      })
     }
 
     const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${targetAlias}/_search`

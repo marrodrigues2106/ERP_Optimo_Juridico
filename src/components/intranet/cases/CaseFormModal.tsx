@@ -81,6 +81,11 @@ export function CaseFormModal({
 }: Props) {
   const { toast } = useToast()
   const [isSearching, setIsSearching] = useState(false)
+  const [tribunals, setTribunals] = useState<any[]>([])
+
+  useEffect(() => {
+    pb.collection('tribunals').getFullList({ sort: 'name' }).then(setTribunals).catch(console.error)
+  }, [])
 
   const {
     register,
@@ -153,7 +158,18 @@ export function CaseFormModal({
       })
 
       if (res.success && res.data) {
-        if (res.data.court) setValue('court', res.data.court)
+        if (res.data.alias) {
+          const matched = tribunals.find((t) => t.alias === res.data.alias)
+          if (matched) {
+            setValue('court', matched.name)
+            setValue('court_alias', matched.alias)
+          } else {
+            setValue('court', res.data.court || '')
+            setValue('court_alias', res.data.alias)
+          }
+        } else if (res.data.court) {
+          setValue('court', res.data.court)
+        }
         if (res.data.courtOrgan) setValue('court_organ', res.data.courtOrgan)
         if (res.data.parties) setValue('parties', res.data.parties)
         if (res.data.subject) setValue('subject', res.data.subject)
@@ -167,21 +183,24 @@ export function CaseFormModal({
             // Ignorar
           }
         }
-        if (res.data.alias) setValue('court_alias', res.data.alias)
         toast({ title: 'Sucesso', description: 'Dados preenchidos via DataJud.' })
       } else {
         toast({
           title: 'Atenção',
           description:
+            res.error ||
             'Não foi possível localizar os dados do processo via DataJud. Por favor, preencha manualmente.',
           variant: 'destructive',
         })
       }
     } catch (e: any) {
+      const msg =
+        e.response?.error ||
+        e.message ||
+        'Não foi possível localizar os dados do processo via DataJud. Por favor, preencha manualmente.'
       toast({
-        title: 'Erro',
-        description:
-          'Não foi possível localizar os dados do processo via DataJud. Por favor, preencha manualmente.',
+        title: 'Atenção',
+        description: msg,
         variant: 'destructive',
       })
     } finally {
@@ -343,11 +362,54 @@ export function CaseFormModal({
 
             <div className="col-span-1">
               <Label>Tribunal</Label>
-              <Input
-                {...register('court')}
-                placeholder="Ex: TJ-SP"
-                disabled={selectedType === 'Serviço Jurídico'}
-                className={selectedType === 'Serviço Jurídico' ? 'opacity-50' : ''}
+              <Controller
+                name="court"
+                control={control}
+                render={({ field }) => {
+                  const currentCourt = field.value || 'none'
+                  const courtOptions = [...tribunals]
+                  if (
+                    currentCourt !== 'none' &&
+                    !courtOptions.find((t) => t.name === currentCourt)
+                  ) {
+                    courtOptions.push({
+                      id: 'custom',
+                      name: currentCourt,
+                      alias: watch('court_alias') || '',
+                    })
+                  }
+
+                  return (
+                    <Select
+                      onValueChange={(val) => {
+                        if (val === 'none') {
+                          field.onChange('')
+                          setValue('court_alias', '')
+                        } else {
+                          field.onChange(val)
+                          const t = courtOptions.find((x) => x.name === val)
+                          if (t && t.alias) setValue('court_alias', t.alias)
+                        }
+                      }}
+                      value={currentCourt}
+                      disabled={selectedType === 'Serviço Jurídico'}
+                    >
+                      <SelectTrigger
+                        className={selectedType === 'Serviço Jurídico' ? 'opacity-50' : ''}
+                      >
+                        <SelectValue placeholder="Selecione o tribunal" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Selecione...</SelectItem>
+                        {courtOptions.map((t) => (
+                          <SelectItem key={t.id || t.name} value={t.name}>
+                            {t.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )
+                }}
               />
             </div>
 

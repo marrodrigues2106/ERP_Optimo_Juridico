@@ -13,6 +13,34 @@ export async function resolveCourtAlias(courtName: string): Promise<string> {
 
 export async function runDatajudSync(caseRecord: any, onProgress: (msg: string) => void) {
   if (!caseRecord.id) throw new Error('ID do processo ausente.')
+
+  if (!caseRecord.court_alias && caseRecord.case_number) {
+    onProgress(
+      'Aviso: Tribunal não especificado no processo. Tentando deduzir a partir do número...',
+    )
+  } else if (!caseRecord.court_alias) {
+    throw new Error(
+      'Tribunal não especificado no processo. Edite o processo e selecione um tribunal válido para sincronização.',
+    )
+  }
+
+  onProgress('Verificando configurações de monitoramento...')
+  try {
+    const configs = await pb.collection('monitoring_configs').getFullList()
+    if (configs.length > 0) {
+      const config = configs[0]
+      const tribunais = config.tribunais || []
+      if (caseRecord.court_alias && !tribunais.includes(caseRecord.court_alias)) {
+        throw new Error(
+          `O tribunal '${caseRecord.court_alias}' não está habilitado nas configurações de monitoramento. Acesse a Intranet > Monitoramento e adicione-o.`,
+        )
+      }
+    }
+  } catch (err: any) {
+    if (err.message && err.message.includes('O tribunal')) throw err
+    // ignore se configs não puderem ser acessadas
+  }
+
   onProgress('Iniciando sincronização com DataJud...')
 
   try {
