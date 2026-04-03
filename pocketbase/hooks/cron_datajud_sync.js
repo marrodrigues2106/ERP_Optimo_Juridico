@@ -19,11 +19,12 @@ cronAdd('datajud_background_sync', '0 */2 * * *', () => {
       })
     } catch (e) {}
 
+    // Increased batch size and ordered by oldest sync to ensure proper cycling
     const cases = $app.findRecordsByFilter(
       'legal_cases',
       "lifecycle_status = 'Ativo' && case_number != ''",
-      'updated ASC',
-      50,
+      'datajud_last_sync ASC',
+      100,
       0,
     )
 

@@ -24,11 +24,11 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
     ) => {
       if (!movementsCol) return false
 
-      const cleanDate = new Date(dateStr).toISOString().substring(0, 10)
-      const extId = externalId || `${id}_${cleanDate}_${$security.md5(descStr)}`
-
       try {
-        const existing = $app.findFirstRecordByFilter('case_movements', `external_id = '${extId}'`)
+        const existing = $app.findFirstRecordByFilter(
+          'case_movements',
+          `external_id = '${externalId}'`,
+        )
         let updated = false
         if (existing.get('description') !== descStr) {
           existing.set('description', descStr)
@@ -53,12 +53,12 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
       } catch (err) {
         const mov = new Record(movementsCol)
         mov.set('case', id)
-        mov.set('event_date', new Date(dateStr).toISOString())
+        mov.set('event_date', dateStr)
         mov.set('description', descStr || '')
         if (detailsStr) mov.set('details', detailsStr)
         if (movementDetailsObj) mov.set('movement_details', movementDetailsObj)
         mov.set('source', source)
-        mov.set('external_id', extId)
+        mov.set('external_id', externalId)
         if (orgId) mov.set('organization', orgId)
         $app.saveNoValidate(mov)
         return true
@@ -127,7 +127,6 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
     if (!alias) {
       const jSegment = cleanNum.substring(13, 14)
       const trSegment = cleanNum.substring(14, 16)
-
       if (jSegment === '1') alias = 'stf'
       else if (jSegment === '2') alias = 'cnj'
       else if (jSegment === '3') alias = 'stj'
@@ -173,9 +172,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
       }
     }
 
-    if (!alias) {
-      alias = 'tjrj'
-    }
+    if (!alias) alias = 'tjrj'
 
     if (
       monitoredTribunals.length > 0 &&
@@ -193,9 +190,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
     }
 
     if (!apiKey) {
-      return e.json(500, {
-        error: 'A Chave da API do DataJud não está configurada no servidor (Secrets).',
-      })
+      return e.json(500, { error: 'A Chave da API do DataJud não está configurada no servidor.' })
     }
 
     const callDataJud = (targetAlias, key, bodyStr) => {
@@ -221,7 +216,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
 
         if (res.statusCode === 401 || res.statusCode === 403) {
           result.errorType = 'AUTH_FAILURE'
-          result.errorMessage = `Erro de Autorização: A chave de API não tem permissão para acessar o tribunal ${targetAlias}. Verifique as configurações no portal do CNJ.`
+          result.errorMessage = `Erro de Autorização: Sem permissão para o tribunal ${targetAlias}.`
           updateTribunalStatus(targetAlias, 'unauthorized')
         } else if (res.statusCode === 404) {
           result.errorType = 'ENDPOINT_INVALID'
@@ -241,49 +236,79 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
       return result
     }
 
-    const reqPayload = {
-      size: 1000,
-      query: {
-        bool: {
-          should: [
-            { term: { 'numeroProcesso.keyword': cleanNum } },
-            { term: { numeroProcesso: cleanNum } },
-          ],
+    let allHits = []
+    let searchAfter = null
+    let hasMore = true
+    let fallbackUsed = false
+    let currentAlias = alias
+    let maxPages = 5 // Limit to prevent infinite loop
+
+    // Fetch loop to handle pagination properly
+    while (hasMore && maxPages > 0) {
+      maxPages--
+      const reqPayload = {
+        size: 1000,
+        query: {
+          bool: {
+            should: [
+              { term: { 'numeroProcesso.keyword': cleanNum } },
+              { term: { numeroProcesso: cleanNum } },
+            ],
+          },
         },
-      },
-      sort: [{ '@timestamp': { order: 'asc' } }],
-    }
+        sort: [{ '@timestamp': { order: 'asc' } }],
+      }
+      if (searchAfter) {
+        reqPayload.search_after = searchAfter
+      }
 
-    let apiResult = callDataJud(alias, apiKey, JSON.stringify(reqPayload))
+      let apiResult = callDataJud(currentAlias, apiKey, JSON.stringify(reqPayload))
 
-    if (apiResult.errorType === 'ENDPOINT_INVALID' || apiResult.errorType === 'NETWORK_FAILURE') {
-      const fallbackAlias = alias.includes('stj') ? 'tjrj' : 'stj'
-      const fallbackResult = callDataJud(fallbackAlias, apiKey, JSON.stringify(reqPayload))
-      if (fallbackResult.errorType === 'online') {
-        apiResult = fallbackResult
+      if (apiResult.errorType === 'ENDPOINT_INVALID' || apiResult.errorType === 'NETWORK_FAILURE') {
+        if (!fallbackUsed) {
+          currentAlias = currentAlias.includes('stj') ? 'tjrj' : 'stj'
+          fallbackUsed = true
+          apiResult = callDataJud(currentAlias, apiKey, JSON.stringify(reqPayload))
+        }
+      }
+
+      if (apiResult.errorType !== 'online') {
+        if (allHits.length === 0) {
+          record.set('datajud_sync_status', 'Sync Failed')
+          try {
+            $app.saveNoValidate(record)
+          } catch (err) {}
+          return e.json(400, { status: 'error', detail: apiResult.errorMessage })
+        } else {
+          break // Stop paginating, keep what we have
+        }
+      }
+
+      const data = apiResult.rawResponse
+      const hits = data && data.hits && data.hits.hits ? data.hits.hits : []
+      allHits = allHits.concat(hits)
+
+      if (hits.length < 1000) {
+        hasMore = false
+      } else {
+        const lastHit = hits[hits.length - 1]
+        if (lastHit.sort && lastHit.sort.length > 0) {
+          searchAfter = lastHit.sort
+        } else {
+          hasMore = false
+        }
       }
     }
 
-    if (apiResult.errorType !== 'online') {
-      record.set('datajud_sync_status', 'Sync Failed')
-      try {
-        $app.saveNoValidate(record)
-      } catch (err) {}
-      return e.json(400, { status: 'error', detail: apiResult.errorMessage })
-    }
-
-    const data = apiResult.rawResponse
-    const hits = data && data.hits && data.hits.hits ? data.hits.hits : []
-
     let foundMatchingProc = false
 
-    if (hits.length === 0) {
+    if (allHits.length === 0) {
       record.set('datajud_sync_status', 'Not Found')
     } else {
-      let procs = hits.filter(
+      let procs = allHits.filter(
         (h) => h._source && String(h._source.numeroProcesso).replace(/\D/g, '') === cleanNum,
       )
-      if (procs.length === 0 && hits.length > 0) procs = [hits[0]]
+      if (procs.length === 0 && allHits.length > 0) procs = [allHits[0]]
 
       if (procs.length > 0) {
         foundMatchingProc = true
@@ -310,32 +335,46 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
         }
 
         const oldStatus = record.get('status') || ''
-        const lastSyncStr = record.get('datajud_last_sync')
-        let lastSyncTime = lastSyncStr ? new Date(lastSyncStr).getTime() : 0
-        let newLastSyncTime = lastSyncTime
         let latestMovTime = 0
         let latestMovDesc = ''
 
         procs.forEach((proc) => {
           const source = proc._source
-          const organName = source.orgaoJulgador?.nomeOrgao || source.orgaoJulgador?.nome || ''
+          const caseOrganName = source.orgaoJulgador?.nomeOrgao || source.orgaoJulgador?.nome || ''
           const movimentos = source.movimentos || []
 
           for (let j = 0; j < movimentos.length; j++) {
             const m = movimentos[j]
-            const dateStr = m.dataHora || new Date().toISOString()
-            const movTime = new Date(dateStr).getTime()
-            let descStr = m.nome || m.descricao || 'Movimentação Datajud'
 
+            // Date mapping & timezone handling
+            const dateStrRaw = m.dataHora || new Date().toISOString()
+            let dDate = new Date(dateStrRaw)
+            if (isNaN(dDate.getTime())) dDate = new Date()
+            const isoDate = dDate.toISOString()
+            const movTime = dDate.getTime()
+
+            // Name mapping
+            const descStr = m.nome || m.descricao || 'Movimentação Datajud'
+
+            // Details and complements mapping
             let detailsStr = ''
             if (m.complementosTabelados && Array.isArray(m.complementosTabelados)) {
-              detailsStr = m.complementosTabelados.map((c) => `${c.nome}: ${c.valor}`).join('\n')
+              detailsStr = m.complementosTabelados
+                .map((c) => {
+                  const val = c.valor || c.descricao || ''
+                  return val ? `${c.nome}: ${val}` : c.nome
+                })
+                .join('\n')
             }
             if (m.textoCategoria) detailsStr += (detailsStr ? '\n\n' : '') + m.textoCategoria
-            if (m.descricao) detailsStr += (detailsStr ? '\n\n' : '') + m.descricao
+            if (m.descricao && m.descricao !== descStr)
+              detailsStr += (detailsStr ? '\n\n' : '') + m.descricao
 
+            // Organ mapping
+            const movOrganName =
+              m.orgaoJulgador?.nomeOrgao || m.orgaoJulgador?.nome || caseOrganName
             const movementDetailsObj = {
-              orgaoJulgador: organName,
+              orgaoJulgador: movOrganName,
               complementosTabelados: m.complementosTabelados || [],
             }
 
@@ -344,9 +383,12 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
               latestMovDesc = descStr
             }
 
-            let extId = m.idDocumento || `${id}_${movTime}_${$security.md5(descStr)}`
+            // Duplicate prevention logic
+            const uniqueStr = `${id}_${isoDate}_${descStr}`
+            const extId = m.id || m.idMovimento || `${id}_${$security.md5(uniqueStr)}`
+
             saveMovement(
-              dateStr,
+              isoDate,
               descStr,
               'DataJud',
               extId,
@@ -354,8 +396,6 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
               movementDetailsObj,
               record.get('organization'),
             )
-
-            if (movTime > newLastSyncTime) newLastSyncTime = movTime
           }
         })
 
@@ -381,18 +421,14 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
             evt.set('start_date', new Date().toISOString())
             if (record.get('organization')) evt.set('organization', record.get('organization'))
             const collab = record.get('responsible_collaborator')
-            if (collab) {
-              evt.set('collaborator', collab)
-            }
+            if (collab) evt.set('collaborator', collab)
             $app.saveNoValidate(evt)
-          } catch (err) {
-            console.log('Erro ao criar evento de agenda:', err)
-          }
+          } catch (err) {}
         }
 
+        // Sync metadata mapping
         record.set('datajud_sync_status', 'Success')
-        if (newLastSyncTime > 0)
-          record.set('datajud_last_sync', new Date(newLastSyncTime).toISOString())
+        record.set('datajud_last_sync', new Date().toISOString())
       } else {
         record.set('datajud_sync_status', 'Not Found')
       }
