@@ -471,13 +471,15 @@ export default function ProcessManager() {
                               <Button variant="ghost" size="icon" onClick={() => handleOpenForm(c)}>
                                 <Edit2 className="w-4 h-4 text-slate-500" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setDeletingCase(c)}
-                              >
-                                <Trash2 className="w-4 h-4 text-red-500" />
-                              </Button>
+                              {['Arquivado', 'Suspenso'].includes(c.lifecycle_status) && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setDeletingCase(c)}
+                                >
+                                  <Trash2 className="w-4 h-4 text-red-500" />
+                                </Button>
+                              )}
                             </>
                           )}
                         </TableCell>

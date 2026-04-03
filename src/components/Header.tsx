@@ -24,15 +24,46 @@ import {
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from '@/components/ui/navigation-menu'
+import { Plus } from 'lucide-react'
+import pb from '@/lib/pocketbase/client'
+import { CaseFormModal } from '@/components/intranet/cases/CaseFormModal'
+import { getClients } from '@/services/clients'
+import { getCollaborators } from '@/services/collaborators'
 
 export default function Header() {
   const [isScrolled, setIsScrolled] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { pathname } = useLocation()
-  const { isAuthenticated, signOut } = useAuth()
+  const { isAuthenticated, signOut, user } = useAuth()
   const navigate = useNavigate()
 
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
+  const [caseModalOpen, setCaseModalOpen] = useState(false)
+  const [clients, setClients] = useState<any[]>([])
+  const [collaborators, setCollaborators] = useState<any[]>([])
+  const [orgLogo, setOrgLogo] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      getClients()
+        .then(setClients)
+        .catch(() => {})
+      getCollaborators()
+        .then(setCollaborators)
+        .catch(() => {})
+
+      if (user?.active_organization) {
+        pb.collection('organizations')
+          .getOne(user.active_organization)
+          .then((org) => {
+            if (org.logo) {
+              setOrgLogo(pb.files.getURL(org, org.logo))
+            }
+          })
+          .catch(() => {})
+      }
+    }
+  }, [isAuthenticated, user])
 
   const confirmLogout = () => {
     setLogoutDialogOpen(false)
@@ -58,15 +89,23 @@ export default function Header() {
       )}
     >
       <div className="container mx-auto px-4 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2" onClick={closeMenu}>
-          <div className="bg-[#4B4B4B] p-2 rounded-sm flex items-center justify-center">
-            <img
-              src={logoImg}
-              alt={firmData.name}
-              className="h-10 md:h-12 w-auto object-contain transition-all duration-300"
-            />
-          </div>
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link to="/" className="flex items-center gap-2" onClick={closeMenu}>
+            <div className="bg-[#4B4B4B] p-2 rounded-sm flex items-center justify-center">
+              <img
+                src={logoImg}
+                alt={firmData.name}
+                className="h-10 md:h-12 w-auto object-contain transition-all duration-300"
+              />
+            </div>
+          </Link>
+
+          {isAuthenticated && orgLogo && (
+            <div className="hidden md:flex items-center ml-2 border-l pl-4 border-gray-300">
+              <img src={orgLogo} alt="Organização" className="h-8 w-auto object-contain" />
+            </div>
+          )}
+        </div>
 
         {/* Desktop Nav */}
         <div className="hidden lg:flex items-center gap-8">
@@ -133,35 +172,35 @@ export default function Header() {
                 </NavigationMenuLink>
               </NavigationMenuItem>
               <NavigationMenuItem>
-                {isAuthenticated ? (
-                  <NavigationMenuLink asChild active={pathname.includes('/intranet')}>
-                    <Link
-                      to="/intranet"
-                      className={cn(
-                        navigationMenuTriggerStyle(),
-                        'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
-                        pathname.includes('/intranet') &&
-                          'border-b-2 border-secondary rounded-none text-secondary',
-                      )}
-                    >
-                      Painel
-                    </Link>
-                  </NavigationMenuLink>
-                ) : (
-                  <NavigationMenuLink asChild active={pathname.includes('/login')}>
-                    <Link
-                      to="/login"
-                      className={cn(
-                        navigationMenuTriggerStyle(),
-                        'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
-                        pathname.includes('/login') &&
-                          'border-b-2 border-secondary rounded-none text-secondary',
-                      )}
-                    >
-                      Acesso Restrito
-                    </Link>
-                  </NavigationMenuLink>
-                )}
+                <NavigationMenuLink
+                  asChild
+                  active={pathname.includes('/intranet') || pathname.includes('/login')}
+                >
+                  <Link
+                    to={isAuthenticated ? '/intranet' : '/login'}
+                    className={cn(
+                      navigationMenuTriggerStyle(),
+                      'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
+                      (pathname.includes('/intranet') || pathname.includes('/login')) &&
+                        'border-b-2 border-secondary rounded-none text-secondary',
+                    )}
+                  >
+                    Acesso Restrito
+                  </Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+              <NavigationMenuItem>
+                <NavigationMenuLink asChild>
+                  <a
+                    href="/#contato"
+                    className={cn(
+                      navigationMenuTriggerStyle(),
+                      'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
+                    )}
+                  >
+                    Contato
+                  </a>
+                </NavigationMenuLink>
               </NavigationMenuItem>
               {isAuthenticated && (
                 <NavigationMenuItem>
@@ -178,23 +217,19 @@ export default function Header() {
                   </NavigationMenuLink>
                 </NavigationMenuItem>
               )}
-              <NavigationMenuItem>
-                <NavigationMenuLink asChild>
-                  <a
-                    href="/#contato"
-                    className={cn(
-                      navigationMenuTriggerStyle(),
-                      'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
-                    )}
-                  >
-                    Contato
-                  </a>
-                </NavigationMenuLink>
-              </NavigationMenuItem>
             </NavigationMenuList>
           </NavigationMenu>
 
-          <div className="flex items-center gap-5 text-primary/80">
+          <div className="flex items-center gap-5 text-primary/80 ml-2">
+            {isAuthenticated && (
+              <button
+                onClick={() => setCaseModalOpen(true)}
+                className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors text-sm font-medium mr-2"
+              >
+                <Plus size={16} />
+                Adicionar
+              </button>
+            )}
             <a
               href={firmData.socials.whatsapp}
               target="_blank"
@@ -247,6 +282,22 @@ export default function Header() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {isAuthenticated && (
+        <CaseFormModal
+          open={caseModalOpen}
+          onOpenChange={setCaseModalOpen}
+          editingCase={null}
+          clients={clients}
+          collaborators={collaborators}
+          onSuccess={() => {
+            setCaseModalOpen(false)
+            if (!pathname.includes('/processos')) {
+              navigate('/intranet/processos')
+            }
+          }}
+        />
+      )}
+
       {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="lg:hidden absolute top-full left-0 w-full bg-white border-t shadow-lg py-4 px-4 flex flex-col gap-4 animate-in slide-in-from-top-2">
@@ -281,33 +332,23 @@ export default function Header() {
           >
             Artigos
           </Link>
-          {isAuthenticated ? (
-            <>
-              <Link
-                to="/intranet"
-                className="text-lg font-medium py-2 border-b text-primary"
-                onClick={closeMenu}
-              >
-                Painel
-              </Link>
-              <button
-                className="text-lg font-medium py-2 border-b text-primary text-left w-full"
-                onClick={() => {
-                  closeMenu()
-                  setLogoutDialogOpen(true)
-                }}
-              >
-                Sair
-              </button>
-            </>
-          ) : (
-            <Link
-              to="/login"
-              className="text-lg font-medium py-2 border-b text-primary"
-              onClick={closeMenu}
+          <Link
+            to={isAuthenticated ? '/intranet' : '/login'}
+            className="text-lg font-medium py-2 border-b text-primary"
+            onClick={closeMenu}
+          >
+            Acesso Restrito
+          </Link>
+          {isAuthenticated && (
+            <button
+              className="text-lg font-medium py-2 border-b text-primary text-left w-full"
+              onClick={() => {
+                closeMenu()
+                setLogoutDialogOpen(true)
+              }}
             >
-              Acesso Restrito
-            </Link>
+              Sair
+            </button>
           )}
           <a href="/#contato" className="text-lg font-medium py-2 text-primary" onClick={closeMenu}>
             Contato

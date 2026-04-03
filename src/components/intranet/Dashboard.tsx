@@ -61,7 +61,7 @@ export default function Dashboard() {
           .collection('tasks')
           .getFullList({ filter: 'status = "todo" && deleted_at = ""', sort: 'due_date' }),
         pb.collection('agenda_events').getFullList({
-          filter: `start_date >= "${startOfDay(selectedDate).toISOString()}" && deleted_at = ""`,
+          filter: `start_date >= "${startOfDay(selectedDate).toISOString()}" && start_date <= "${new Date(startOfDay(selectedDate).getTime() + 24 * 60 * 60 * 1000 - 1).toISOString()}" && deleted_at = ""`,
           sort: 'start_date',
         }),
       ])
@@ -413,7 +413,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="space-y-3">
-              {events.slice(0, 5).map((e) => (
+              {events.map((e) => (
                 <div
                   key={e.id}
                   className="p-3 border border-slate-200 rounded-lg text-sm shadow-sm bg-white hover:border-primary/30 transition-colors"
