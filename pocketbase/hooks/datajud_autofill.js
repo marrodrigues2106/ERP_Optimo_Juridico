@@ -51,7 +51,7 @@ routerAdd(
       alias = 'tse'
     }
 
-    const targetAlias = body.alias || alias
+    const targetAlias = String(body.alias || alias).toLowerCase()
     let apiKey = $secrets.get('DATAJUD_API_KEY') || ''
     let configuredTribunals = []
 
@@ -156,7 +156,7 @@ routerAdd(
           class: source.classe?.nome || '',
           subject: source.assuntos?.[0]?.nome || '',
           parties: partiesStr,
-          alias: targetAlias,
+          alias: targetAlias.toLowerCase(),
           processType: source.formato?.nome || 'Digital',
           distributionDate: source.dataAjuizamento || source.dataHora || '',
           status: statusStr,

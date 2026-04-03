@@ -78,8 +78,11 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
     }
 
     let alias = record.get('court_alias')
-    if (alias && alias.startsWith('api_publica_')) {
-      alias = alias.replace('api_publica_', '')
+    if (alias) {
+      alias = alias.toLowerCase()
+      if (alias.startsWith('api_publica_')) {
+        alias = alias.replace('api_publica_', '')
+      }
     }
 
     if (!alias) {
@@ -248,8 +251,8 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
         const source = proc._source
 
         if (alias) {
-          record.set('court', alias)
-          record.set('court_alias', alias)
+          record.set('court', alias.toLowerCase())
+          record.set('court_alias', alias.toLowerCase())
         } else if (source.tribunal && source.tribunal.nome) {
           record.set('court', source.tribunal.nome)
         }

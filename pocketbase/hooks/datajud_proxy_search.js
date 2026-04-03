@@ -3,7 +3,7 @@ routerAdd(
   '/backend/v1/datajud/search',
   (e) => {
     const body = e.requestInfo().body
-    const alias = body.alias
+    const alias = body.alias?.toLowerCase()
     const payload = body.payload
 
     if (!alias) {

@@ -60,7 +60,7 @@ export default function MonitoringManager() {
         setFrequency(c.frequency || 'Daily')
         setSyncProcessos(c.sync_processos ?? true)
         setTermosBusca(c.termos_busca || [])
-        setTribunais(c.tribunais || [])
+        setTribunais((c.tribunais || []).map((t: string) => t.toLowerCase()))
 
         if (c.douCredentials) {
           setDouPriority(c.douCredentials.priority || 'XML/ZIP')
@@ -103,7 +103,7 @@ export default function MonitoringManager() {
         frequency,
         sync_processos: syncProcessos,
         termos_busca: termosBusca,
-        tribunais: tribunais,
+        tribunais: tribunais.map((t) => t.toLowerCase()),
       }
 
       if (config?.id) {
@@ -268,12 +268,13 @@ export default function MonitoringManager() {
                       <div key={t.id} className="flex items-center space-x-2">
                         <Checkbox
                           id={`tribunal-${t.id}`}
-                          checked={tribunais.includes(t.alias)}
+                          checked={tribunais.includes(t.alias?.toLowerCase())}
                           onCheckedChange={(checked) => {
+                            const aliasLower = t.alias?.toLowerCase()
                             if (checked) {
-                              setTribunais([...tribunais, t.alias])
+                              setTribunais([...tribunais, aliasLower])
                             } else {
-                              setTribunais(tribunais.filter((x) => x !== t.alias))
+                              setTribunais(tribunais.filter((x) => x !== aliasLower))
                             }
                           }}
                         />

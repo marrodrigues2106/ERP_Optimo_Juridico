@@ -107,7 +107,7 @@ export function CaseFormModal({
           type: editingCase.type,
           case_number: editingCase.case_number || '',
           parties: editingCase.parties || '',
-          court: editingCase.court_alias || editingCase.court || '',
+          court: (editingCase.court_alias || editingCase.court || '').toLowerCase(),
           court_organ: editingCase.court_organ || '',
           status: editingCase.status || '',
           lifecycle_status: editingCase.lifecycle_status,
@@ -120,7 +120,7 @@ export function CaseFormModal({
           distribution_date: editingCase.distribution_date
             ? editingCase.distribution_date.substring(0, 10)
             : editingCase.metadata?.distribution_date || '',
-          court_alias: editingCase.court_alias || editingCase.court || '',
+          court_alias: (editingCase.court_alias || editingCase.court || '').toLowerCase(),
           tags: Array.isArray(editingCase.tags) ? editingCase.tags.join(', ') : '',
           estimated_duration: editingCase.estimated_duration || 0,
           duration_unit: editingCase.duration_unit || 'meses',
@@ -207,7 +207,7 @@ export function CaseFormModal({
       type: data.type,
       case_number: data.type === 'Serviço Jurídico' ? '' : data.case_number,
       parties: data.parties,
-      court: data.court,
+      court: data.court?.toLowerCase(),
       court_organ: data.court_organ,
       status: data.status,
       lifecycle_status: data.lifecycle_status,
@@ -224,7 +224,7 @@ export function CaseFormModal({
         data.distribution_date && !isNaN(new Date(data.distribution_date).getTime())
           ? new Date(data.distribution_date).toISOString()
           : null,
-      court_alias: data.court_alias,
+      court_alias: data.court_alias?.toLowerCase(),
       tags: data.tags
         ? data.tags
             .split(',')
@@ -364,12 +364,12 @@ export function CaseFormModal({
                   const courtOptions = [...tribunals]
                   if (
                     currentCourt !== 'none' &&
-                    !courtOptions.find((t) => t.alias === currentCourt)
+                    !courtOptions.find((t) => t.alias?.toLowerCase() === currentCourt.toLowerCase())
                   ) {
                     courtOptions.push({
                       id: 'custom',
-                      name: currentCourt,
-                      alias: currentCourt,
+                      name: currentCourt.toUpperCase(),
+                      alias: currentCourt.toLowerCase(),
                     })
                   }
 
@@ -397,8 +397,15 @@ export function CaseFormModal({
                       <SelectContent>
                         <SelectItem value="none">Selecione...</SelectItem>
                         {courtOptions.map((t) => (
-                          <SelectItem key={t.id || t.alias} value={t.alias} className="uppercase">
-                            {t.alias} {t.name && t.name !== t.alias ? `- ${t.name}` : ''}
+                          <SelectItem
+                            key={t.id || t.alias}
+                            value={t.alias?.toLowerCase()}
+                            className="uppercase"
+                          >
+                            {t.alias?.toLowerCase()}{' '}
+                            {t.name && t.name.toLowerCase() !== t.alias?.toLowerCase()
+                              ? `- ${t.name}`
+                              : ''}
                           </SelectItem>
                         ))}
                       </SelectContent>
