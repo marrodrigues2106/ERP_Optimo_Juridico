@@ -111,6 +111,15 @@ export default function MonitoringManager() {
       } else {
         await pb.collection('monitoring_configs').create(payload)
       }
+
+      for (const t of tribunalsList) {
+        const aliasLower = t.alias?.toLowerCase()
+        const isActive = tribunais.includes(aliasLower)
+        if (t.active !== isActive) {
+          await pb.collection('tribunals').update(t.id, { active: isActive })
+        }
+      }
+
       toast({ title: 'Configurações de monitoramento salvas com sucesso!' })
       loadData()
     } catch (err: any) {
@@ -280,9 +289,9 @@ export default function MonitoringManager() {
                         />
                         <label
                           htmlFor={`tribunal-${t.id}`}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer uppercase"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                         >
-                          {t.alias}
+                          {t.alias?.toLowerCase()}
                         </label>
                       </div>
                     ))}

@@ -58,7 +58,8 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
         if (dbApiKey) {
           apiKey = dbApiKey
         }
-        monitoredTribunals = configs[0].get('tribunais') || []
+        const tList = configs[0].get('tribunais') || []
+        monitoredTribunals = tList.map((t) => String(t).toLowerCase())
       }
     } catch (err) {}
 

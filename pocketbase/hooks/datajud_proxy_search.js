@@ -11,13 +11,23 @@ routerAdd(
     }
 
     let apiKey = $secrets.get('DATAJUD_API_KEY') || ''
-    if (!apiKey) {
-      try {
-        const config = $app.findFirstRecordByFilter('monitoring_configs', "id != ''")
-        if (config && config.get('apiKey')) {
+    let configuredTribunals = []
+
+    try {
+      const config = $app.findFirstRecordByFilter('monitoring_configs', "id != ''")
+      if (config) {
+        if (!apiKey && config.get('apiKey')) {
           apiKey = config.get('apiKey')
         }
-      } catch (_) {}
+        const tList = config.get('tribunais') || []
+        configuredTribunals = tList.map((t) => String(t).toLowerCase())
+      }
+    } catch (_) {}
+
+    if (configuredTribunals.length > 0 && !configuredTribunals.includes(alias)) {
+      return e.badRequestError(
+        `O tribunal '${alias}' não está habilitado no Monitoramento. Acesse a aba Configurações de Monitoramento e ative-o para poder usar a busca do DataJud.`,
+      )
     }
 
     if (!apiKey) {

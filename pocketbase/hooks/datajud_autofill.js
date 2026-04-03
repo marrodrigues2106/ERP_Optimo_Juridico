@@ -61,7 +61,8 @@ routerAdd(
         if (!apiKey && config.get('apiKey')) {
           apiKey = config.get('apiKey')
         }
-        configuredTribunals = config.get('tribunais') || []
+        const tList = config.get('tribunais') || []
+        configuredTribunals = tList.map((t) => String(t).toLowerCase())
       }
     } catch (_) {}
 
