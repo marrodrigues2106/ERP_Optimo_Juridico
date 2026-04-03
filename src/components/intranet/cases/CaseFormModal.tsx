@@ -22,6 +22,7 @@ import {
 import { createLegalCase, updateLegalCase } from '@/services/legal_cases'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { Search, Loader2 } from 'lucide-react'
 
 const formSchema = z
@@ -218,10 +219,14 @@ export function CaseFormModal({
         !data.responsible_collaborator || data.responsible_collaborator === 'none'
           ? null
           : data.responsible_collaborator,
-      deadline: data.deadline ? new Date(data.deadline).toISOString() : null,
-      distribution_date: data.distribution_date
-        ? new Date(data.distribution_date).toISOString()
-        : null,
+      deadline:
+        data.deadline && !isNaN(new Date(data.deadline).getTime())
+          ? new Date(data.deadline).toISOString()
+          : null,
+      distribution_date:
+        data.distribution_date && !isNaN(new Date(data.distribution_date).getTime())
+          ? new Date(data.distribution_date).toISOString()
+          : null,
       court_alias: data.court_alias,
       tags: data.tags
         ? data.tags
@@ -249,7 +254,7 @@ export function CaseFormModal({
       }
       onSuccess()
     } catch (e: any) {
-      toast({ title: 'Erro ao salvar', description: e.message, variant: 'destructive' })
+      toast({ title: 'Erro ao salvar', description: getErrorMessage(e), variant: 'destructive' })
     }
   }
 

@@ -15,6 +15,14 @@ export const getPaginatedCaseMovements = async (
 }
 
 export const createCaseMovement = (data: any) => {
+  if (!data.case || typeof data.case !== 'string') {
+    throw new Error('ID do processo inválido.')
+  }
+  if (data.event_date) {
+    const d = new Date(data.event_date)
+    if (isNaN(d.getTime())) throw new Error('Data do evento inválida.')
+    data.event_date = d.toISOString()
+  }
   if (pb.authStore.record?.active_organization) {
     data.organization = pb.authStore.record.active_organization
   }

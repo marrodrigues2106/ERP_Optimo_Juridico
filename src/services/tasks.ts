@@ -12,10 +12,20 @@ export const getTasksByLawsuit = (lawsuitId: string) =>
     expand: 'collaborator',
   })
 export const createTask = (data: any) => {
+  if (data.due_date) {
+    const d = new Date(data.due_date)
+    if (!isNaN(d.getTime())) data.due_date = d.toISOString()
+  }
   if (pb.authStore.record?.active_organization) {
     data.organization = pb.authStore.record.active_organization
   }
   return pb.collection('tasks').create(data)
 }
-export const updateTask = (id: string, data: any) => pb.collection('tasks').update(id, data)
+export const updateTask = (id: string, data: any) => {
+  if (data.due_date) {
+    const d = new Date(data.due_date)
+    if (!isNaN(d.getTime())) data.due_date = d.toISOString()
+  }
+  return pb.collection('tasks').update(id, data)
+}
 export const deleteTask = (id: string) => pb.collection('tasks').delete(id)

@@ -121,7 +121,10 @@ export default function UsersManager() {
         idNumber,
         phone,
         address,
-        birthDate: birthDate ? new Date(birthDate).toISOString() : null,
+        birthDate:
+          birthDate && !isNaN(new Date(birthDate).getTime())
+            ? new Date(birthDate).toISOString()
+            : null,
         role,
         isAdmin: role === 'admin',
       }
@@ -137,6 +140,7 @@ export default function UsersManager() {
       } else {
         if (!password) {
           setErrors({ password: 'Senha é obrigatória para novos usuários' })
+          setSubmitting(false)
           return
         }
         if (currentUser?.active_organization) {
@@ -148,8 +152,18 @@ export default function UsersManager() {
       }
       setOpen(false)
       loadData()
-    } catch (err) {
+    } catch (err: any) {
       setErrors(extractFieldErrors(err))
+      const msg = err.response?.data
+        ? Object.values(err.response.data)
+            .map((e: any) => e.message)
+            .join(', ')
+        : err.message
+      toast({
+        title: 'Erro ao salvar usuário',
+        description: msg || 'Verifique os campos.',
+        variant: 'destructive',
+      })
     } finally {
       setSubmitting(false)
     }

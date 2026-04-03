@@ -8,11 +8,28 @@ export const getClientInteractions = (clientId: string) =>
   })
 
 export const createInteraction = (data: any) => {
+  if (data.date) {
+    const d = new Date(data.date)
+    if (!isNaN(d.getTime())) data.date = d.toISOString()
+  }
+  if (data.follow_up_date) {
+    const d = new Date(data.follow_up_date)
+    if (!isNaN(d.getTime())) data.follow_up_date = d.toISOString()
+  }
   if (pb.authStore.record?.active_organization) {
     data.organization = pb.authStore.record.active_organization
   }
   return pb.collection('crm_interactions').create(data)
 }
-export const updateInteraction = (id: string, data: any) =>
-  pb.collection('crm_interactions').update(id, data)
+export const updateInteraction = (id: string, data: any) => {
+  if (data.date) {
+    const d = new Date(data.date)
+    if (!isNaN(d.getTime())) data.date = d.toISOString()
+  }
+  if (data.follow_up_date) {
+    const d = new Date(data.follow_up_date)
+    if (!isNaN(d.getTime())) data.follow_up_date = d.toISOString()
+  }
+  return pb.collection('crm_interactions').update(id, data)
+}
 export const deleteInteraction = (id: string) => pb.collection('crm_interactions').delete(id)

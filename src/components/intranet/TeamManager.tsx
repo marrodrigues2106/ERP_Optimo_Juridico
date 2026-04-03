@@ -29,6 +29,9 @@ import {
 import { getLegalCases } from '@/services/legal_cases'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
+import { useAuth } from '@/hooks/use-auth'
+import pb from '@/lib/pocketbase/client'
 
 export default function TeamManager() {
   const [team, setTeam] = useState<any[]>([])
@@ -89,6 +92,11 @@ export default function TeamManager() {
     if (data.user === 'none') data.user = null
 
     try {
+      if (data.birthDate) {
+        const d = new Date(data.birthDate)
+        if (!isNaN(d.getTime())) data.birthDate = d.toISOString()
+      }
+
       if (editingItem) {
         await updateCollaborator(editingItem.id, data)
         toast({ title: 'Membro da equipe atualizado' })
@@ -99,8 +107,11 @@ export default function TeamManager() {
       setOpen(false)
       loadData()
     } catch (error: any) {
-      const msg = error?.response?.data?.user?.message || error.message || 'Erro ao salvar'
-      toast({ title: 'Erro ao salvar', description: msg, variant: 'destructive' })
+      toast({
+        title: 'Erro ao salvar',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      })
     } finally {
       setSubmitting(false)
     }

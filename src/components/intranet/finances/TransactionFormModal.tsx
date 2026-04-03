@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { createFinance, updateFinance } from '@/services/finances'
 import { useToast } from '@/hooks/use-toast'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 export function TransactionFormModal({ open, onOpenChange, cases, editingItem, onSuccess }: any) {
   const { toast } = useToast()
@@ -51,6 +52,14 @@ export function TransactionFormModal({ open, onOpenChange, cases, editingItem, o
     data.frequency = frequency
     if (data.linked_lawsuit === 'none') data.linked_lawsuit = null
 
+    const d = new Date(data.date)
+    if (isNaN(d.getTime())) {
+      toast({ title: 'Erro de Validação', description: 'Data inválida.', variant: 'destructive' })
+      return
+    }
+    data.date = d.toISOString()
+
+    setSubmitting(true)
     try {
       if (editingItem) {
         await updateFinance(editingItem.id, data)
@@ -61,10 +70,18 @@ export function TransactionFormModal({ open, onOpenChange, cases, editingItem, o
       }
       onSuccess?.()
       onOpenChange(false)
-    } catch (error) {
-      toast({ title: 'Erro ao salvar', variant: 'destructive' })
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao salvar',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      })
+    } finally {
+      setSubmitting(false)
     }
   }
+
+  const [submitting, setSubmitting] = useState(false)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -162,8 +179,8 @@ export function TransactionFormModal({ open, onOpenChange, cases, editingItem, o
               </Select>
             </div>
           </div>
-          <Button type="submit" className="w-full">
-            Salvar Transação
+          <Button type="submit" className="w-full" disabled={submitting}>
+            {submitting ? 'Salvando...' : 'Salvar Transação'}
           </Button>
         </form>
       </DialogContent>

@@ -22,6 +22,7 @@ import {
 import { createAgendaEvent } from '@/services/agenda'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 const formSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
@@ -83,11 +84,14 @@ export function EventFormModal({
 
   const onSubmit = async (data: EventFormValues) => {
     try {
+      const d = new Date(data.start_date)
+      if (isNaN(d.getTime())) throw new Error('Data ou hora inválida.')
+
       await createAgendaEvent({
         title: data.title,
         description: data.description,
         type: data.type,
-        start_date: new Date(data.start_date).toISOString(),
+        start_date: d.toISOString(),
         collaborator: !data.collaborator || data.collaborator === 'none' ? null : data.collaborator,
         linked_lawsuit: lawsuitId || null,
       })
@@ -95,7 +99,11 @@ export function EventFormModal({
       onSuccess()
       onOpenChange(false)
     } catch (e: any) {
-      toast({ title: 'Erro ao criar evento', description: e.message, variant: 'destructive' })
+      toast({
+        title: 'Erro ao criar evento',
+        description: getErrorMessage(e),
+        variant: 'destructive',
+      })
     }
   }
 

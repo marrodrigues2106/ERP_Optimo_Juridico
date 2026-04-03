@@ -33,6 +33,7 @@ import {
   User,
 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 import {
   format,
   addDays,
@@ -322,7 +323,10 @@ function EventFormModal({
     setSubmitting(true)
     const fd = new FormData(e.currentTarget)
     try {
-      const dateTime = new Date(`${fd.get('date')}T${fd.get('time')}`).toISOString()
+      const dateTimeStr = `${fd.get('date')}T${fd.get('time')}`
+      const d = new Date(dateTimeStr)
+      if (isNaN(d.getTime())) throw new Error('Data ou hora inválida.')
+      const dateTime = d.toISOString()
 
       await pb.collection('agenda_events').create({
         title: fd.get('title'),
@@ -340,7 +344,7 @@ function EventFormModal({
       onOpenChange(false)
       onSuccess()
     } catch (err: any) {
-      toast({ title: 'Erro ao agendar', description: err.message, variant: 'destructive' })
+      toast({ title: 'Erro ao agendar', description: getErrorMessage(err), variant: 'destructive' })
     } finally {
       setSubmitting(false)
     }

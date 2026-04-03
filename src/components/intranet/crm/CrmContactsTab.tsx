@@ -1,31 +1,50 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { getClients, createClient } from '@/services/clients'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Eye, Plus, Search, User } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
-import { useRealtime } from '@/hooks/use-realtime'
+import { getClients, createClient, updateClient, deleteClient } from '@/services/clients'
+import { useAuth } from '@/hooks/use-auth'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
+import { Loader2, Plus, Search, Trash2, Edit } from 'lucide-react'
 
 export function CrmContactsTab() {
   const [clients, setClients] = useState<any[]>([])
-  const [filtered, setFiltered] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<any>(null)
   const [submitting, setSubmitting] = useState(false)
-  const navigate = useNavigate()
+
   const { toast } = useToast()
+  const { user } = useAuth()
+  const isAdmin = user?.isAdmin || user?.role === 'admin'
 
   const loadData = async () => {
     try {
       const data = await getClients()
       setClients(data)
-      setFiltered(data)
     } catch (e) {
       console.error(e)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -33,135 +52,182 @@ export function CrmContactsTab() {
     loadData()
   }, [])
 
-  useRealtime('clients', loadData)
-
-  useEffect(() => {
-    const q = search.toLowerCase()
-    setFiltered(
-      clients.filter(
-        (c) =>
-          (c.name || '').toLowerCase().includes(q) ||
-          (c.email || '').toLowerCase().includes(q) ||
-          (c.cpf || '').toLowerCase().includes(q),
-      ),
-    )
-  }, [search, clients])
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setSubmitting(true)
     const fd = new FormData(e.currentTarget)
+    const data = Object.fromEntries(fd.entries())
+
     try {
-      const newClient = await createClient({
-        name: fd.get('name'),
-        fullName: fd.get('name'),
-        email: fd.get('email'),
-        phone: fd.get('phone'),
-        cpf: fd.get('cpf'),
-        status: 'Prospect',
-        classification: 'Lead',
-        funnel_stage: 'Contact',
-      })
-      toast({ title: 'Cliente criado com sucesso!' })
+      if (editing) {
+        await updateClient(editing.id, data)
+        toast({ title: 'Cliente atualizado com sucesso!' })
+      } else {
+        await createClient(data)
+        toast({ title: 'Cliente criado com sucesso!' })
+      }
       setOpen(false)
-      navigate(`/intranet/clientes/${newClient.id}`)
-    } catch (err: any) {
-      toast({ title: 'Erro ao criar cliente', description: err.message, variant: 'destructive' })
+      loadData()
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao salvar',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      })
     } finally {
       setSubmitting(false)
     }
   }
 
+  const handleDelete = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir permanentemente este cliente?')) return
+    try {
+      await deleteClient(id)
+      toast({ title: 'Cliente excluído!' })
+      loadData()
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao excluir',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const filtered = clients.filter(
+    (c) =>
+      (c.name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (c.email || '').toLowerCase().includes(search.toLowerCase()),
+  )
+
   return (
-    <Card className="border-slate-200 shadow-sm">
-      <CardHeader className="flex flex-row items-center justify-between bg-slate-50/50 border-b pb-4">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <User className="w-5 h-5 text-primary" />
-          Carteira de Clientes
-        </CardTitle>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <Input
-              placeholder="Buscar cliente..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 w-64 bg-white"
-            />
-          </div>
-          <Button onClick={() => setOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" /> Novo Cliente
-          </Button>
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+        <div className="relative w-full sm:w-72">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Input
+            placeholder="Buscar contatos..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
         </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="divide-y divide-slate-100">
-          {filtered.length === 0 ? (
-            <div className="p-8 text-center text-slate-500">Nenhum cliente encontrado.</div>
-          ) : (
-            filtered.map((c) => (
-              <div
-                key={c.id}
-                className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors group"
-              >
-                <div>
-                  <h4 className="font-semibold text-slate-800">{c.name || c.fullName}</h4>
-                  <div className="flex gap-3 text-sm text-slate-500 mt-1">
-                    {c.email && <span>{c.email}</span>}
-                    {c.phone && <span>{c.phone}</span>}
-                    {c.cpf && <span>CPF: {c.cpf}</span>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`px-2 py-1 rounded text-xs font-medium ${c.classification === 'Ativo' ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-800'}`}
-                  >
-                    {c.classification || 'Lead'}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => navigate(`/intranet/clientes/${c.id}`)}
-                  >
-                    <Eye className="w-5 h-5 text-slate-400 group-hover:text-primary transition-colors" />
-                  </Button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </CardContent>
+        <Button
+          onClick={() => {
+            setEditing(null)
+            setOpen(true)
+          }}
+        >
+          <Plus className="w-4 h-4 mr-2" /> Novo Contato
+        </Button>
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cadastrar Novo Cliente</DialogTitle>
+            <DialogTitle>{editing ? 'Editar Contato' : 'Novo Contato'}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+          <form key={editing?.id || 'new'} onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label>Nome Completo *</Label>
-              <Input name="name" required placeholder="Nome do cliente ou empresa" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>E-mail</Label>
-                <Input name="email" type="email" placeholder="contato@email.com" />
-              </div>
-              <div>
-                <Label>Telefone / WhatsApp</Label>
-                <Input name="phone" placeholder="(00) 00000-0000" />
-              </div>
+              <Label>Nome Completo</Label>
+              <Input name="name" defaultValue={editing?.name} required />
             </div>
             <div>
-              <Label>CPF / CNPJ</Label>
-              <Input name="cpf" placeholder="000.000.000-00" />
+              <Label>Email</Label>
+              <Input name="email" type="email" defaultValue={editing?.email} />
             </div>
-            <Button type="submit" className="w-full mt-4" disabled={submitting}>
-              {submitting ? 'Salvando...' : 'Salvar e Ver Detalhes'}
+            <div>
+              <Label>Telefone</Label>
+              <Input name="phone" defaultValue={editing?.phone} />
+            </div>
+            <div>
+              <Label>Classificação</Label>
+              <Select name="classification" defaultValue={editing?.classification || 'Ativo'}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Ativo">Ativo</SelectItem>
+                  <SelectItem value="Inativo">Inativo</SelectItem>
+                  <SelectItem value="Lead">Lead</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              {submitting ? 'Salvando...' : 'Salvar Contato'}
             </Button>
           </form>
         </DialogContent>
       </Dialog>
-    </Card>
+
+      <Card>
+        <CardContent className="p-0 overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nome</TableHead>
+                <TableHead>Contato</TableHead>
+                <TableHead>Classificação</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />
+                  </TableCell>
+                </TableRow>
+              ) : filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-slate-500">
+                    Nenhum contato encontrado.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filtered.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell>
+                      <div className="text-sm">{c.email}</div>
+                      <div className="text-xs text-slate-500">{c.phone}</div>
+                    </TableCell>
+                    <TableCell>{c.classification}</TableCell>
+                    <TableCell>{c.status}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setEditing(c)
+                          setOpen(true)
+                        }}
+                      >
+                        <Edit className="w-4 h-4 text-slate-500" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={!isAdmin || c.classification !== 'Inativo'}
+                        onClick={() => handleDelete(c.id)}
+                        title={
+                          !isAdmin || c.classification !== 'Inativo'
+                            ? 'Apenas admins podem excluir clientes inativos'
+                            : 'Excluir'
+                        }
+                      >
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
