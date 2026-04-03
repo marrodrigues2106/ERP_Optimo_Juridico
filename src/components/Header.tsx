@@ -148,13 +148,13 @@ export default function Header() {
                     </Link>
                   </NavigationMenuLink>
                 ) : (
-                  <NavigationMenuLink asChild active={pathname.includes('/intranet')}>
+                  <NavigationMenuLink asChild active={pathname.includes('/login')}>
                     <Link
-                      to="/intranet"
+                      to="/login"
                       className={cn(
                         navigationMenuTriggerStyle(),
                         'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
-                        pathname.includes('/intranet') &&
+                        pathname.includes('/login') &&
                           'border-b-2 border-secondary rounded-none text-secondary',
                       )}
                     >
@@ -302,7 +302,7 @@ export default function Header() {
             </>
           ) : (
             <Link
-              to="/intranet"
+              to="/login"
               className="text-lg font-medium py-2 border-b text-primary"
               onClick={closeMenu}
             >

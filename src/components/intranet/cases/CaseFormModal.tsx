@@ -208,7 +208,7 @@ export function CaseFormModal({
   const onSubmit = async (data: CaseFormValues) => {
     const payload = {
       type: data.type,
-      case_number: data.case_number,
+      case_number: data.type === 'Serviço Jurídico' ? '' : data.case_number,
       parties: data.parties,
       court: data.court,
       court_organ: data.court_organ,
@@ -253,6 +253,7 @@ export function CaseFormModal({
         toast({ title: 'Caso criado com sucesso' })
       }
       onSuccess()
+      onOpenChange(false)
     } catch (e: any) {
       toast({ title: 'Erro ao salvar', description: getErrorMessage(e), variant: 'destructive' })
     }
@@ -317,6 +318,7 @@ export function CaseFormModal({
                   {...register('case_number')}
                   placeholder="0000000-00.0000.0.00.0000"
                   disabled={selectedType === 'Serviço Jurídico'}
+                  className={selectedType === 'Serviço Jurídico' ? 'bg-slate-100' : ''}
                 />
                 {errors.case_number && selectedType === 'Processo' && (
                   <p className="text-xs text-red-500 mt-1">{errors.case_number.message}</p>
@@ -350,27 +352,52 @@ export function CaseFormModal({
 
             <div className="col-span-1">
               <Label>Tribunal</Label>
-              <Input {...register('court')} placeholder="Ex: TJ-SP" />
+              <Input
+                {...register('court')}
+                placeholder="Ex: TJ-SP"
+                disabled={selectedType === 'Serviço Jurídico'}
+                className={selectedType === 'Serviço Jurídico' ? 'opacity-50' : ''}
+              />
             </div>
 
             <div className="col-span-1">
               <Label>Órgão Julgador</Label>
-              <Input {...register('court_organ')} placeholder="Ex: 1ª Vara Cível" />
+              <Input
+                {...register('court_organ')}
+                placeholder="Ex: 1ª Vara Cível"
+                disabled={selectedType === 'Serviço Jurídico'}
+                className={selectedType === 'Serviço Jurídico' ? 'opacity-50' : ''}
+              />
             </div>
 
             <div className="col-span-1">
               <Label>Classe / Espécie da Ação</Label>
-              <Input {...register('action_class')} placeholder="Ex: Procedimento Comum Cível" />
+              <Input
+                {...register('action_class')}
+                placeholder="Ex: Procedimento Comum Cível"
+                disabled={selectedType === 'Serviço Jurídico'}
+                className={selectedType === 'Serviço Jurídico' ? 'opacity-50' : ''}
+              />
             </div>
 
             <div className="col-span-1">
               <Label>Assunto</Label>
-              <Input {...register('subject')} placeholder="Ex: Benefício Assistencial" />
+              <Input
+                {...register('subject')}
+                placeholder="Ex: Benefício Assistencial"
+                disabled={selectedType === 'Serviço Jurídico'}
+                className={selectedType === 'Serviço Jurídico' ? 'opacity-50' : ''}
+              />
             </div>
 
             <div className="col-span-1">
               <Label>Data de Distribuição</Label>
-              <Input type="date" {...register('distribution_date')} />
+              <Input
+                type="date"
+                {...register('distribution_date')}
+                disabled={selectedType === 'Serviço Jurídico'}
+                className={selectedType === 'Serviço Jurídico' ? 'opacity-50' : ''}
+              />
             </div>
             <div className="col-span-1 md:col-span-2">
               <Label>Etiquetas (separadas por vírgula)</Label>

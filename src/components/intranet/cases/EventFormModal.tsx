@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { createAgendaEvent } from '@/services/agenda'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
@@ -29,8 +28,12 @@ const formSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
   description: z.string().optional(),
   type: z.enum(['Note', 'Meeting', 'Call', 'Deadline', 'Reminder', 'Hearing', 'Task', 'Email']),
-  start_date: z.string().min(1, 'Data é obrigatória'),
+  start_date: z.string().min(1, 'Data de início é obrigatória'),
+  end_date: z.string().optional(),
   collaborator: z.string().optional(),
+  linked_lawsuit: z.string().optional(),
+  client: z.string().optional(),
+  sync_provider: z.enum(['Google', 'iCloud', 'Outlook', 'Local']).optional(),
 })
 
 type EventFormValues = z.infer<typeof formSchema>
@@ -40,7 +43,8 @@ interface Props {
   onOpenChange: (open: boolean) => void
   lawsuitId?: string
   prefilledDescription?: string
-  onSuccess: () => void
+  defaultDate?: Date
+  onSuccess?: () => void
 }
 
 export function EventFormModal({
@@ -48,10 +52,13 @@ export function EventFormModal({
   onOpenChange,
   lawsuitId,
   prefilledDescription,
+  defaultDate,
   onSuccess,
 }: Props) {
   const { toast } = useToast()
   const [collaborators, setCollaborators] = useState<any[]>([])
+  const [clients, setClients] = useState<any[]>([])
+  const [cases, setCases] = useState<any[]>([])
 
   const {
     register,
@@ -61,43 +68,77 @@ export function EventFormModal({
     formState: { errors, isSubmitting },
   } = useForm<EventFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { type: 'Task', start_date: new Date().toISOString().substring(0, 16) },
+    defaultValues: { type: 'Task', sync_provider: 'Local' },
   })
 
   useEffect(() => {
-    pb.collection('collaborators')
-      .getFullList()
-      .then(setCollaborators)
-      .catch(() => {})
-  }, [])
+    if (open) {
+      Promise.all([
+        pb.collection('collaborators').getFullList(),
+        pb.collection('clients').getFullList(),
+        pb.collection('legal_cases').getFullList(),
+      ])
+        .then(([colRes, cliRes, caseRes]) => {
+          setCollaborators(colRes)
+          setClients(cliRes)
+          setCases(caseRes)
+        })
+        .catch(console.error)
+    }
+  }, [open])
 
   useEffect(() => {
     if (open) {
+      const initDate = defaultDate ? new Date(defaultDate) : new Date()
+      if (defaultDate && initDate.getHours() === 0 && initDate.getMinutes() === 0) {
+        initDate.setHours(9, 0, 0, 0)
+      }
+      const tzOffset = initDate.getTimezoneOffset() * 60000
+
       reset({
         title: '',
         description: prefilledDescription || '',
         type: 'Task',
-        start_date: new Date().toISOString().substring(0, 16),
+        start_date: new Date(initDate.getTime() - tzOffset).toISOString().substring(0, 16),
+        end_date: new Date(initDate.getTime() + 3600000 - tzOffset).toISOString().substring(0, 16),
         collaborator: 'none',
+        client: 'none',
+        linked_lawsuit: lawsuitId || 'none',
+        sync_provider: 'Local',
       })
     }
-  }, [open, prefilledDescription, reset])
+  }, [open, prefilledDescription, lawsuitId, defaultDate, reset])
 
   const onSubmit = async (data: EventFormValues) => {
     try {
-      const d = new Date(data.start_date)
-      if (isNaN(d.getTime())) throw new Error('Data ou hora inválida.')
+      const startD = new Date(data.start_date)
+      if (isNaN(startD.getTime())) throw new Error('Data inicial inválida.')
 
-      await createAgendaEvent({
+      const payload: any = {
         title: data.title,
         description: data.description,
         type: data.type,
-        start_date: d.toISOString(),
-        collaborator: !data.collaborator || data.collaborator === 'none' ? null : data.collaborator,
-        linked_lawsuit: lawsuitId || null,
-      })
+        start_date: startD.toISOString(),
+        organization: pb.authStore.record?.active_organization,
+        sync_provider: data.sync_provider,
+        sync_status: data.sync_provider === 'Local' ? 'Local Only' : 'Pending',
+      }
+
+      if (data.end_date) {
+        const endD = new Date(data.end_date)
+        if (!isNaN(endD.getTime())) payload.end_date = endD.toISOString()
+      }
+
+      if (data.collaborator && data.collaborator !== 'none')
+        payload.collaborator = data.collaborator
+      if (data.linked_lawsuit && data.linked_lawsuit !== 'none')
+        payload.linked_lawsuit = data.linked_lawsuit
+      if (data.client && data.client !== 'none') payload.client = data.client
+
+      await pb.collection('agenda_events').create(payload)
+
       toast({ title: 'Evento criado com sucesso' })
-      onSuccess()
+      if (onSuccess) onSuccess()
       onOpenChange(false)
     } catch (e: any) {
       toast({
@@ -110,28 +151,36 @@ export function EventFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Vincular Evento/Alerta</DialogTitle>
           <DialogDescription>
-            Crie um evento na agenda vinculado a este processo ou movimento.
+            Crie um evento na agenda integrado ao sistema e notificações.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4">
-          <div>
-            <Label>Título *</Label>
-            <Input {...register('title')} placeholder="Ex: Peticionar recurso..." />
-            {errors.title && <p className="text-xs text-red-500 mt-1">{errors.title.message}</p>}
-          </div>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <Label>Título / Assunto *</Label>
+              <Input {...register('title')} placeholder="Ex: Audiência de Conciliação..." />
+              {errors.title && <p className="text-xs text-red-500 mt-1">{errors.title.message}</p>}
+            </div>
 
-          <div>
-            <Label>Descrição</Label>
-            <Input {...register('description')} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Tipo</Label>
+              <Label>Data Inicial *</Label>
+              <Input type="datetime-local" {...register('start_date')} />
+              {errors.start_date && (
+                <p className="text-xs text-red-500 mt-1">{errors.start_date.message}</p>
+              )}
+            </div>
+
+            <div>
+              <Label>Data Final</Label>
+              <Input type="datetime-local" {...register('end_date')} />
+            </div>
+
+            <div>
+              <Label>Tipo de Evento</Label>
               <Controller
                 name="type"
                 control={control}
@@ -141,59 +190,124 @@ export function EventFormModal({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Deadline">Prazo</SelectItem>
-                      <SelectItem value="Reminder">Lembrete</SelectItem>
-                      <SelectItem value="Task">Tarefa</SelectItem>
-                      <SelectItem value="Hearing">Audiência</SelectItem>
                       <SelectItem value="Meeting">Reunião</SelectItem>
-                      <SelectItem value="Call">Chamada</SelectItem>
-                      <SelectItem value="Email">E-mail</SelectItem>
+                      <SelectItem value="Hearing">Audiência</SelectItem>
+                      <SelectItem value="Deadline">Prazo Processual</SelectItem>
+                      <SelectItem value="Call">Atendimento Cliente</SelectItem>
+                      <SelectItem value="Task">Tarefa</SelectItem>
                       <SelectItem value="Note">Anotação</SelectItem>
+                      <SelectItem value="Email">E-mail</SelectItem>
+                      <SelectItem value="Reminder">Lembrete</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
               />
             </div>
+
             <div>
-              <Label>Data e Hora *</Label>
-              <Input type="datetime-local" {...register('start_date')} />
-              {errors.start_date && (
-                <p className="text-xs text-red-500 mt-1">{errors.start_date.message}</p>
-              )}
+              <Label>Provedor de Nuvem</Label>
+              <Controller
+                name="sync_provider"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Local">Somente Local</SelectItem>
+                      <SelectItem value="Google">Google Calendar</SelectItem>
+                      <SelectItem value="Outlook">Outlook 365</SelectItem>
+                      <SelectItem value="iCloud">Apple iCloud</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+
+            <div>
+              <Label>Cliente Vinculado</Label>
+              <Controller
+                name="client"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value || 'none'}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {clients.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name || c.fullName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+
+            <div>
+              <Label>Processo Vinculado</Label>
+              <Controller
+                name="linked_lawsuit"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value || 'none'}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {cases.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.case_number || c.parties}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <Label>Responsável Primário</Label>
+              <Controller
+                name="collaborator"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value || 'none'}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {collaborators.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <Label>Descrição / Links</Label>
+              <Input {...register('description')} placeholder="Pauta da reunião, link do meet..." />
             </div>
           </div>
 
-          <div>
-            <Label>Responsável</Label>
-            <Controller
-              name="collaborator"
-              control={control}
-              render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value || 'none'}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum</SelectItem>
-                    {collaborators.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </div>
-
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
+          <Button type="submit" className="w-full mt-4" disabled={isSubmitting}>
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Salvando...
               </>
             ) : (
-              'Salvar Evento'
+              'Confirmar Agendamento'
             )}
           </Button>
         </form>

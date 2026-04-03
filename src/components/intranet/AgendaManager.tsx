@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Dialog,
   DialogContent,
@@ -10,17 +8,10 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
-import { createAgendaEvent } from '@/services/agenda'
+import { EventFormModal } from './cases/EventFormModal'
 import {
   Plus,
   Trash2,
@@ -32,10 +23,8 @@ import {
   Settings2,
   Users,
   User,
-  Loader2,
 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
-import { getErrorMessage } from '@/lib/pocketbase/errors'
 import {
   format,
   addDays,
@@ -53,28 +42,18 @@ export default function AgendaManager() {
   const [view, setView] = useState('week')
   const [currentDate, setCurrentDate] = useState(new Date())
   const [events, setEvents] = useState<any[]>([])
-  const [cases, setCases] = useState<any[]>([])
-  const [clients, setClients] = useState<any[]>([])
-  const [collaborators, setCollaborators] = useState<any[]>([])
   const [formOpen, setFormOpen] = useState(false)
   const [syncModalOpen, setSyncModalOpen] = useState(false)
 
   const loadData = async () => {
     try {
-      const [evRes, casesRes, clientsRes, collabRes] = await Promise.all([
-        pb.collection('agenda_events').getFullList({
-          filter: 'deleted_at = ""',
-          sort: 'start_date',
-          expand: 'linked_lawsuit,client,participants',
-        }),
-        pb.collection('legal_cases').getFullList(),
-        pb.collection('clients').getFullList(),
-        pb.collection('collaborators').getFullList(),
-      ])
+      const orgId = pb.authStore.record?.active_organization
+      const evRes = await pb.collection('agenda_events').getFullList({
+        filter: `deleted_at = ""${orgId ? ` && organization = "${orgId}"` : ''}`,
+        sort: 'start_date',
+        expand: 'linked_lawsuit,client,participants',
+      })
       setEvents(evRes)
-      setCases(casesRes)
-      setClients(clientsRes)
-      setCollaborators(collabRes)
     } catch (e) {
       console.error(e)
     }
@@ -83,6 +62,7 @@ export default function AgendaManager() {
   useEffect(() => {
     loadData()
   }, [])
+
   useRealtime('agenda_events', loadData)
 
   const handleDelete = async (id: string) => {
@@ -297,178 +277,11 @@ export default function AgendaManager() {
       <EventFormModal
         open={formOpen}
         onOpenChange={setFormOpen}
-        cases={cases}
-        clients={clients}
-        collaborators={collaborators}
-        onSuccess={loadData}
         defaultDate={currentDate}
+        onSuccess={loadData}
       />
       <SyncConfigModal open={syncModalOpen} onOpenChange={setSyncModalOpen} />
     </div>
-  )
-}
-
-function EventFormModal({
-  open,
-  onOpenChange,
-  cases,
-  clients,
-  collaborators,
-  onSuccess,
-  defaultDate,
-}: any) {
-  const { toast } = useToast()
-  const [submitting, setSubmitting] = useState(false)
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setSubmitting(true)
-    const fd = new FormData(e.currentTarget)
-    try {
-      const dateTimeStr = `${fd.get('date')}T${fd.get('time')}`
-      const d = new Date(dateTimeStr)
-      if (isNaN(d.getTime())) throw new Error('Data ou hora inválida.')
-      const dateTime = d.toISOString()
-
-      await createAgendaEvent({
-        title: fd.get('title'),
-        description: fd.get('description'),
-        type: fd.get('type'),
-        start_date: dateTime,
-        end_date: dateTime,
-        client: fd.get('client'),
-        linked_lawsuit: fd.get('linked_lawsuit'),
-        sync_provider: fd.get('sync_provider'),
-        sync_status: fd.get('sync_provider') === 'Local' ? 'Local Only' : 'Pending',
-      })
-
-      toast({ title: 'Evento agendado com sucesso.' })
-      onOpenChange(false)
-      onSuccess()
-    } catch (err: any) {
-      toast({ title: 'Erro ao agendar', description: getErrorMessage(err), variant: 'destructive' })
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Novo Compromisso</DialogTitle>
-          <DialogDescription>
-            Crie um evento vinculando participantes, clientes e integrações de calendário.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <Label>Título / Assunto *</Label>
-              <Input name="title" required placeholder="Ex: Audiência de Conciliação..." />
-            </div>
-
-            <div>
-              <Label>Data *</Label>
-              <Input
-                type="date"
-                name="date"
-                required
-                defaultValue={defaultDate ? format(defaultDate, 'yyyy-MM-dd') : ''}
-              />
-            </div>
-            <div>
-              <Label>Hora *</Label>
-              <Input type="time" name="time" required defaultValue="09:00" />
-            </div>
-
-            <div>
-              <Label>Tipo de Evento</Label>
-              <Select name="type" defaultValue="Meeting">
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Meeting">Reunião</SelectItem>
-                  <SelectItem value="Hearing">Audiência</SelectItem>
-                  <SelectItem value="Deadline">Prazo Processual</SelectItem>
-                  <SelectItem value="Call">Atendimento Cliente</SelectItem>
-                  <SelectItem value="Task">Tarefa / Outros</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>Provedor de Sincronização (Nuvem)</Label>
-              <Select name="sync_provider" defaultValue="Local">
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Local">Somente Local</SelectItem>
-                  <SelectItem value="Google">Google Calendar</SelectItem>
-                  <SelectItem value="Outlook">Outlook 365</SelectItem>
-                  <SelectItem value="iCloud">Apple iCloud</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>Cliente Relacionado</Label>
-              <Select name="client" defaultValue="none">
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum cliente</SelectItem>
-                  {clients.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name || c.fullName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>Processo Vinculado</Label>
-              <Select name="linked_lawsuit" defaultValue="none">
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum processo</SelectItem>
-                  {cases.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.case_number || c.parties}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="md:col-span-2">
-              <Label>Descrição / Links da Reunião</Label>
-              <Input
-                name="description"
-                placeholder="Informações adicionais, pauta, link do Google Meet..."
-              />
-            </div>
-          </div>
-
-          <Button type="submit" className="w-full mt-4" disabled={submitting}>
-            {submitting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Salvando...
-              </>
-            ) : (
-              'Confirmar Agendamento'
-            )}
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
   )
 }
 

@@ -18,7 +18,7 @@ import {
 import { cn } from '@/lib/utils'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
-import { format, isBefore, startOfDay } from 'date-fns'
+import { format, isBefore, startOfDay, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { EventFormModal } from './cases/EventFormModal'
 import { CaseFormModal } from './cases/CaseFormModal'
@@ -52,8 +52,7 @@ export default function Dashboard() {
   const [collaborators, setCollaborators] = useState<any[]>([])
   const [events, setEvents] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState('unread')
-
-  const today = new Date()
+  const [selectedDate, setSelectedDate] = useState(new Date())
 
   const loadData = async () => {
     try {
@@ -62,7 +61,7 @@ export default function Dashboard() {
           .collection('tasks')
           .getFullList({ filter: 'status = "todo" && deleted_at = ""', sort: 'due_date' }),
         pb.collection('agenda_events').getFullList({
-          filter: `start_date >= "${startOfDay(today).toISOString()}" && deleted_at = ""`,
+          filter: `start_date >= "${startOfDay(selectedDate).toISOString()}" && deleted_at = ""`,
           sort: 'start_date',
         }),
       ])
@@ -143,7 +142,7 @@ export default function Dashboard() {
       .getFullList()
       .then(setCollaborators)
       .catch(() => {})
-  }, [])
+  }, [selectedDate])
 
   useRealtime('tasks', loadData)
   useRealtime('gazette_publications', loadFeed)
@@ -187,6 +186,10 @@ export default function Dashboard() {
     () => feedItems.filter((i) => (activeTab === 'unread' ? !i.isRead : i.isRead)),
     [feedItems, activeTab],
   )
+
+  const navigateDate = (dir: 'prev' | 'next') => {
+    setSelectedDate((prev) => addDays(prev, dir === 'next' ? 1 : -1))
+  }
 
   return (
     <div className="flex h-[calc(100vh-80px)] -m-4 lg:-m-8 bg-white text-slate-800 font-sans shadow-sm rounded-xl overflow-hidden border border-slate-200/60">
@@ -353,28 +356,35 @@ export default function Dashboard() {
         <div className="flex items-center justify-between">
           <div className="flex items-baseline gap-2">
             <span className="text-5xl font-light text-slate-800 tracking-tighter">
-              {format(today, 'dd')}
+              {format(selectedDate, 'dd')}
             </span>
             <div className="flex flex-col">
               <span className="text-lg font-medium text-slate-700 leading-none capitalize">
-                {format(today, 'MMMM', { locale: ptBR })}
+                {format(selectedDate, 'MMMM', { locale: ptBR })}
               </span>
               <span className="text-sm text-slate-500 lowercase">
-                {format(today, 'EEEE', { locale: ptBR })}
+                {format(selectedDate, 'EEEE', { locale: ptBR })}
               </span>
             </div>
           </div>
           <div className="flex gap-0.5 text-slate-400">
             <button
               onClick={() => setEventModalOpen(true)}
-              className="p-1 bg-slate-100 hover:bg-primary hover:text-white rounded transition-colors text-slate-600 mx-1"
+              className="px-2 py-1 bg-slate-100 hover:bg-primary hover:text-white rounded transition-colors text-slate-600 mx-1 flex items-center gap-1 text-xs font-semibold border"
+              title="Adicionar Evento"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" /> Evento
             </button>
-            <button className="p-1 hover:bg-slate-100 rounded transition-colors">
+            <button
+              className="p-1 hover:bg-slate-100 rounded transition-colors"
+              onClick={() => navigateDate('prev')}
+            >
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <button className="p-1 hover:bg-slate-100 rounded transition-colors">
+            <button
+              className="p-1 hover:bg-slate-100 rounded transition-colors"
+              onClick={() => navigateDate('next')}
+            >
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
@@ -382,24 +392,41 @@ export default function Dashboard() {
 
         {/* Agenda Events */}
         <div>
+          <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
+            <div className="flex items-center gap-2 text-slate-700 font-bold">
+              Próximos Eventos/Prazos
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => navigate('/intranet/agenda')}
+            >
+              Ver Agenda Completa
+            </Button>
+          </div>
+
           {events.length === 0 ? (
-            <div className="text-center py-10 rounded-lg text-slate-500 flex flex-col items-center">
-              <CalendarIcon className="w-10 h-10 mb-3 text-blue-100" />
-              <p className="text-sm">Você não tem nenhum compromisso para essa data</p>
+            <div className="text-center py-8 rounded-lg text-slate-500 flex flex-col items-center">
+              <CalendarIcon className="w-8 h-8 mb-3 text-slate-300" />
+              <p className="text-sm">Nenhum compromisso pendente</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {events.slice(0, 3).map((e) => (
+              {events.slice(0, 5).map((e) => (
                 <div
                   key={e.id}
-                  className="p-3 border border-slate-100 rounded-md text-sm shadow-sm bg-white"
+                  className="p-3 border border-slate-200 rounded-lg text-sm shadow-sm bg-white hover:border-primary/30 transition-colors"
                 >
-                  <p className="font-semibold text-slate-800">{e.title}</p>
-                  <p className="text-slate-500 text-xs mt-1 font-medium">
-                    {new Date(e.start_date).toLocaleTimeString('pt-BR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                  <div className="flex justify-between items-start">
+                    <p className="font-semibold text-slate-800 line-clamp-1">{e.title}</p>
+                    <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap">
+                      {e.type}
+                    </span>
+                  </div>
+                  <p className="text-slate-500 text-xs mt-1.5 font-medium flex items-center gap-1.5">
+                    <CalendarIcon className="w-3 h-3" />
+                    {format(new Date(e.start_date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                   </p>
                 </div>
               ))}
@@ -428,7 +455,7 @@ export default function Dashboard() {
             ) : (
               tasks.map((task) => {
                 const isOverdue =
-                  task.due_date && isBefore(new Date(task.due_date), startOfDay(today))
+                  task.due_date && isBefore(new Date(task.due_date), startOfDay(new Date()))
                 return (
                   <div
                     key={task.id}
@@ -469,7 +496,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <EventFormModal open={eventModalOpen} onOpenChange={setEventModalOpen} onSuccess={loadData} />
+      <EventFormModal
+        open={eventModalOpen}
+        onOpenChange={setEventModalOpen}
+        defaultDate={selectedDate}
+        onSuccess={loadData}
+      />
       <CaseFormModal
         open={caseModalOpen}
         onOpenChange={setCaseModalOpen}
