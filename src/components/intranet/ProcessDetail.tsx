@@ -42,7 +42,22 @@ import {
 import { EventFormModal } from './cases/EventFormModal'
 import { runDatajudSync } from '@/lib/datajud/sync'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { PublicationCard } from './cases/PublicationCard'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination'
 
 export default function ProcessDetail() {
   const { id } = useParams()
@@ -210,33 +225,18 @@ export default function ProcessDetail() {
     loadBaseData()
   }
 
-  // Helper to parse DataJud specific details for the timeline
-  const getMovementDisplayData = (mov: any) => {
-    let title = mov.description
-    let complementos = ''
-    let icon = FileText
-
-    if (mov.source === 'DataJud' && mov.details) {
-      try {
-        const parsed = JSON.parse(mov.details)
-        if (parsed.nome) title = parsed.nome
-        if (parsed.complementosTabelados && Array.isArray(parsed.complementosTabelados)) {
-          complementos = parsed.complementosTabelados
-            .map((c: any) => `${c.nome}: ${c.valor}`)
-            .join(' • ')
-        }
-        icon = Scale
-      } catch (e) {
-        /* fallback */
-      }
-    } else if (mov.source === 'Manual') {
-      icon = MessageSquare
-    }
-
-    return { title, complementos, icon }
-  }
-
   const totalPages = Math.max(1, Math.ceil(totalMovements / perPage))
+
+  const formatMovementDate = (dateStr: string) => {
+    if (!dateStr) return '-'
+    return new Date(dateStr).toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
 
   if (loading || !legalCase)
     return (
@@ -415,97 +415,157 @@ export default function ProcessDetail() {
           </Tabs>
         </div>
 
-        {/* Timeline Block */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="font-semibold text-lg text-slate-800 mb-6 flex items-center gap-2">
-            Andamentos{' '}
-            <Badge variant="secondary" className="font-normal text-xs">
-              {totalMovements}
-            </Badge>
-          </h3>
+        {/* Movements Table Block */}
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <h3 className="font-semibold text-lg text-slate-800 flex items-center gap-2">
+              Histórico de Andamentos
+              <Badge variant="secondary" className="font-normal text-xs">
+                {totalMovements}
+              </Badge>
+            </h3>
 
-          <div className="relative border-l-2 border-slate-100 ml-4 space-y-6 pb-4">
-            {movements.length === 0 ? (
-              <p className="text-muted-foreground text-sm pl-6 py-4">
-                Nenhum andamento encontrado nesta página.
-              </p>
-            ) : (
-              movements.map((mov) => {
-                const { icon: Icon } = getMovementDisplayData(mov)
-                return (
-                  <div key={mov.id} className="relative pl-8 group">
-                    <span className="absolute -left-[11px] top-4 h-5 w-5 rounded-full border-[3px] border-white bg-slate-200 flex items-center justify-center z-10">
-                      <Icon className="w-2.5 h-2.5 text-slate-500" />
-                    </span>
-                    <div className="mb-4">
-                      <PublicationCard
-                        item={mov}
-                        showActions={
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-slate-400 hover:text-primary"
-                            onClick={() => openEventModal(`Ref: ${mov.description}`)}
-                            title="Criar Evento"
-                          >
-                            <Bell className="w-4 h-4" />
-                          </Button>
-                        }
-                      />
-                    </div>
-                  </div>
-                )
-              })
-            )}
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <span>Itens por página:</span>
+              <Select
+                value={String(perPage)}
+                onValueChange={(v) => {
+                  setPerPage(Number(v))
+                  setPage(1)
+                }}
+              >
+                <SelectTrigger className="w-[70px] h-8 bg-slate-50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[140px]">Data/Hora</TableHead>
+                <TableHead>Movimento</TableHead>
+                <TableHead className="hidden md:table-cell">Detalhes</TableHead>
+                <TableHead className="w-[60px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {movements.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-24 text-center text-slate-500">
+                    Nenhum andamento encontrado.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                movements.map((mov) => {
+                  let organName = '-'
+                  let complements = ''
+
+                  if (mov.movement_details) {
+                    const detailsObj =
+                      typeof mov.movement_details === 'string'
+                        ? JSON.parse(mov.movement_details)
+                        : mov.movement_details
+                    organName = detailsObj.orgaoJulgador || '-'
+                    if (
+                      detailsObj.complementosTabelados &&
+                      Array.isArray(detailsObj.complementosTabelados)
+                    ) {
+                      complements = detailsObj.complementosTabelados
+                        .map((c: any) => `${c.nome}: ${c.valor}`)
+                        .join(' • ')
+                    }
+                  } else if (mov.source === 'DataJud' && mov.details) {
+                    // Fallback to legacy string details
+                    complements =
+                      mov.details.substring(0, 100) + (mov.details.length > 100 ? '...' : '')
+                  } else if (mov.details) {
+                    complements = mov.details
+                  }
+
+                  return (
+                    <TableRow key={mov.id}>
+                      <TableCell className="font-mono text-xs whitespace-nowrap text-slate-600">
+                        {formatMovementDate(mov.event_date)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium text-slate-800 text-sm">{mov.description}</div>
+                        <div className="text-xs text-slate-500 md:hidden mt-1">
+                          {organName !== '-' && (
+                            <span className="block text-slate-600 font-semibold mb-0.5">
+                              {organName}
+                            </span>
+                          )}
+                          {complements}
+                        </div>
+                        <Badge variant="outline" className="mt-2 text-[10px] bg-slate-50">
+                          {mov.source}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-xs text-slate-600">
+                        <div className="flex flex-col gap-1">
+                          {organName !== '-' && (
+                            <span className="font-semibold text-slate-700">{organName}</span>
+                          )}
+                          {complements && <span className="text-slate-500">{complements}</span>}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-slate-400 hover:text-primary"
+                          onClick={() => openEventModal(`Ref: ${mov.description}`)}
+                          title="Criar Evento a partir deste andamento"
+                        >
+                          <Bell className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
+              )}
+            </TableBody>
+          </Table>
 
           {/* Pagination Controls */}
           {totalMovements > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 pt-4 mt-6">
-              <div className="flex items-center gap-2 text-sm text-slate-500 mb-4 sm:mb-0">
-                <span>Exibir</span>
-                <Select
-                  value={String(perPage)}
-                  onValueChange={(v) => {
-                    setPerPage(Number(v))
-                    setPage(1)
-                  }}
-                >
-                  <SelectTrigger className="w-[70px] h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="20">20</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
-                <span>por página</span>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-2"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <span className="text-sm font-medium text-slate-600 min-w-[80px] text-center">
-                  Pág {page} de {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-2"
-                  onClick={() => setPage((p) => p + 1)}
-                  disabled={page >= totalPages}
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
+            <div className="mt-4">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        if (page > 1) setPage(page - 1)
+                      }}
+                      className={page === 1 ? 'pointer-events-none opacity-50' : ''}
+                    />
+                  </PaginationItem>
+                  <PaginationItem>
+                    <span className="text-sm font-medium text-slate-600 px-4">
+                      Página {page} de {totalPages}
+                    </span>
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        if (page < totalPages) setPage(page + 1)
+                      }}
+                      className={page >= totalPages ? 'pointer-events-none opacity-50' : ''}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
             </div>
           )}
         </div>

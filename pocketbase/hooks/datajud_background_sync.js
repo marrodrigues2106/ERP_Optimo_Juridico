@@ -13,14 +13,42 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
       movementsCol = $app.findCollectionByNameOrId('case_movements')
     } catch (err) {}
 
-    const saveMovement = (dateStr, descStr, source, externalId, detailsStr) => {
+    const saveMovement = (
+      dateStr,
+      descStr,
+      source,
+      externalId,
+      detailsStr,
+      movementDetailsObj,
+      orgId,
+    ) => {
       if (!movementsCol) return false
 
       const cleanDate = new Date(dateStr).toISOString().substring(0, 10)
       const extId = externalId || `${id}_${cleanDate}_${$security.md5(descStr)}`
 
       try {
-        $app.findFirstRecordByFilter('case_movements', `external_id = '${extId}'`)
+        const existing = $app.findFirstRecordByFilter('case_movements', `external_id = '${extId}'`)
+        let updated = false
+        if (existing.get('description') !== descStr) {
+          existing.set('description', descStr)
+          updated = true
+        }
+        if (detailsStr && existing.get('details') !== detailsStr) {
+          existing.set('details', detailsStr)
+          updated = true
+        }
+        if (movementDetailsObj) {
+          const currJson = JSON.stringify(existing.get('movement_details') || {})
+          const newJson = JSON.stringify(movementDetailsObj)
+          if (currJson !== newJson) {
+            existing.set('movement_details', movementDetailsObj)
+            updated = true
+          }
+        }
+        if (updated) {
+          $app.saveNoValidate(existing)
+        }
         return false
       } catch (err) {
         const mov = new Record(movementsCol)
@@ -28,8 +56,10 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
         mov.set('event_date', new Date(dateStr).toISOString())
         mov.set('description', descStr || '')
         if (detailsStr) mov.set('details', detailsStr)
+        if (movementDetailsObj) mov.set('movement_details', movementDetailsObj)
         mov.set('source', source)
         mov.set('external_id', extId)
+        if (orgId) mov.set('organization', orgId)
         $app.saveNoValidate(mov)
         return true
       }
@@ -212,7 +242,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
     }
 
     const reqPayload = {
-      size: 100,
+      size: 1000,
       query: {
         bool: {
           should: [
@@ -250,31 +280,32 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
     if (hits.length === 0) {
       record.set('datajud_sync_status', 'Not Found')
     } else {
-      let proc = hits.find(
+      let procs = hits.filter(
         (h) => h._source && String(h._source.numeroProcesso).replace(/\D/g, '') === cleanNum,
       )
-      if (!proc && hits.length > 0) proc = hits[0]
+      if (procs.length === 0 && hits.length > 0) procs = [hits[0]]
 
-      if (proc) {
+      if (procs.length > 0) {
         foundMatchingProc = true
-        const source = proc._source
+        const primarySource = procs[0]._source
 
         if (alias) {
           record.set('court', alias.toLowerCase())
           record.set('court_alias', alias.toLowerCase())
-        } else if (source.tribunal && source.tribunal.nome) {
-          record.set('court', source.tribunal.nome)
+        } else if (primarySource.tribunal && primarySource.tribunal.nome) {
+          record.set('court', primarySource.tribunal.nome)
         }
 
-        if (source.orgaoJulgador) {
-          const courtOrganName = source.orgaoJulgador.nomeOrgao || source.orgaoJulgador.nome || ''
+        if (primarySource.orgaoJulgador) {
+          const courtOrganName =
+            primarySource.orgaoJulgador.nomeOrgao || primarySource.orgaoJulgador.nome || ''
           if (courtOrganName) {
             record.set('court_organ', courtOrganName)
           }
         }
 
-        if (source.dataAjuizamento || source.dataHora) {
-          const dDate = source.dataAjuizamento || source.dataHora
+        if (primarySource.dataAjuizamento || primarySource.dataHora) {
+          const dDate = primarySource.dataAjuizamento || primarySource.dataHora
           record.set('distribution_date', new Date(dDate).toISOString())
         }
 
@@ -282,42 +313,59 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
         const lastSyncStr = record.get('datajud_last_sync')
         let lastSyncTime = lastSyncStr ? new Date(lastSyncStr).getTime() : 0
         let newLastSyncTime = lastSyncTime
-
-        const movimentos = source.movimentos || []
         let latestMovTime = 0
         let latestMovDesc = ''
 
-        for (let j = 0; j < movimentos.length; j++) {
-          const m = movimentos[j]
-          const dateStr = m.dataHora || new Date().toISOString()
-          const movTime = new Date(dateStr).getTime()
-          let descStr = m.nome || m.descricao || 'Movimentação Datajud'
+        procs.forEach((proc) => {
+          const source = proc._source
+          const organName = source.orgaoJulgador?.nomeOrgao || source.orgaoJulgador?.nome || ''
+          const movimentos = source.movimentos || []
 
-          let detailsStr = ''
-          if (m.complementosTabelados && Array.isArray(m.complementosTabelados)) {
-            detailsStr = m.complementosTabelados.map((c) => `${c.nome}: ${c.valor}`).join('\n')
+          for (let j = 0; j < movimentos.length; j++) {
+            const m = movimentos[j]
+            const dateStr = m.dataHora || new Date().toISOString()
+            const movTime = new Date(dateStr).getTime()
+            let descStr = m.nome || m.descricao || 'Movimentação Datajud'
+
+            let detailsStr = ''
+            if (m.complementosTabelados && Array.isArray(m.complementosTabelados)) {
+              detailsStr = m.complementosTabelados.map((c) => `${c.nome}: ${c.valor}`).join('\n')
+            }
+            if (m.textoCategoria) detailsStr += (detailsStr ? '\n\n' : '') + m.textoCategoria
+            if (m.descricao) detailsStr += (detailsStr ? '\n\n' : '') + m.descricao
+
+            const movementDetailsObj = {
+              orgaoJulgador: organName,
+              complementosTabelados: m.complementosTabelados || [],
+            }
+
+            if (movTime > latestMovTime) {
+              latestMovTime = movTime
+              latestMovDesc = descStr
+            }
+
+            let extId = m.idDocumento || `${id}_${movTime}_${$security.md5(descStr)}`
+            saveMovement(
+              dateStr,
+              descStr,
+              'DataJud',
+              extId,
+              detailsStr,
+              movementDetailsObj,
+              record.get('organization'),
+            )
+
+            if (movTime > newLastSyncTime) newLastSyncTime = movTime
           }
-          if (m.textoCategoria) detailsStr += (detailsStr ? '\n\n' : '') + m.textoCategoria
-          if (m.descricao) detailsStr += (detailsStr ? '\n\n' : '') + m.descricao
-
-          if (movTime > latestMovTime) {
-            latestMovTime = movTime
-            latestMovDesc = descStr
-          }
-
-          let extId = m.idDocumento || `${id}_${movTime}_${$security.md5(descStr)}`
-          saveMovement(dateStr, descStr, 'DataJud', extId, detailsStr)
-
-          if (movTime > newLastSyncTime) newLastSyncTime = movTime
-        }
+        })
 
         let newStatus = oldStatus
         if (latestMovDesc) {
           newStatus = latestMovDesc
-        } else if (source.classe && source.classe.nome) {
-          newStatus = source.classe.nome
-        } else if (source.fase) {
-          newStatus = source.fase
+        } else if (primarySource.classe && primarySource.classe.nome) {
+          newStatus = primarySource.classe.nome
+        } else if (primarySource.fase) {
+          newStatus = primarySource.fase
         }
 
         record.set('status', newStatus)
@@ -331,6 +379,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
             evt.set('description', 'O processo mudou de fase para: ' + newStatus)
             evt.set('linked_lawsuit', record.id)
             evt.set('start_date', new Date().toISOString())
+            if (record.get('organization')) evt.set('organization', record.get('organization'))
             const collab = record.get('responsible_collaborator')
             if (collab) {
               evt.set('collaborator', collab)
