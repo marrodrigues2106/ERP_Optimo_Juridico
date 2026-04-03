@@ -13,7 +13,7 @@ routerAdd(
       const cases = $app.findRecordsByFilter(
         'legal_cases',
         "lifecycle_status = 'Ativo' && case_number != ''",
-        'updated ASC',
+        'updated',
         5,
         0,
       )
