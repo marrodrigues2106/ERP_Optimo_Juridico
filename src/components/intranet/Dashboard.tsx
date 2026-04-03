@@ -22,9 +22,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useNavigate } from 'react-router-dom'
+import { useToast } from '@/hooks/use-toast'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const { toast } = useToast()
   const [tasks, setTasks] = useState<any[]>([])
   const [eventModalOpen, setEventModalOpen] = useState(false)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
@@ -68,6 +71,11 @@ export default function Dashboard() {
         .update(id, { status: currentStatus === 'todo' ? 'completed' : 'todo' })
     } catch (error) {
       console.error(error)
+      toast({
+        title: 'Erro ao atualizar tarefa',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      })
     }
   }
 
@@ -271,11 +279,37 @@ export default function Dashboard() {
             onSubmit={async (e) => {
               e.preventDefault()
               const fd = new FormData(e.currentTarget)
-              await pb
-                .collection('tasks')
-                .create({ title: fd.get('title'), status: 'todo', priority: 'medium' })
-              setTaskModalOpen(false)
-              loadData()
+              const title = fd.get('title')?.toString() || ''
+
+              if (!title.trim()) {
+                toast({
+                  title: 'Erro',
+                  description: 'O título da tarefa é obrigatório.',
+                  variant: 'destructive',
+                })
+                return
+              }
+
+              try {
+                await pb.collection('tasks').create({
+                  title: title.trim(),
+                  status: 'todo',
+                  priority: 'medium',
+                  organization: pb.authStore.record?.active_organization,
+                })
+                toast({
+                  title: 'Sucesso',
+                  description: 'Tarefa criada com sucesso.',
+                })
+                setTaskModalOpen(false)
+                loadData()
+              } catch (error) {
+                toast({
+                  title: 'Erro ao criar tarefa',
+                  description: getErrorMessage(error),
+                  variant: 'destructive',
+                })
+              }
             }}
           >
             <Input name="title" placeholder="Descreva a tarefa..." required autoFocus />
