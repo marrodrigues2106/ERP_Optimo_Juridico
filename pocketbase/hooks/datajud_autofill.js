@@ -151,7 +151,7 @@ routerAdd(
       return e.json(200, {
         success: true,
         data: {
-          court: source.tribunal?.nome || targetAlias,
+          court: targetAlias,
           courtOrgan: source.orgaoJulgador?.nomeOrgao || source.orgaoJulgador?.nome || '',
           class: source.classe?.nome || '',
           subject: source.assuntos?.[0]?.nome || '',

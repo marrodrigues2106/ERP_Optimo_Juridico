@@ -268,7 +268,11 @@ export default function ProcessDetail() {
                     {legalCase.case_number}
                   </span>
                 )}
-                {legalCase.court && <span>{legalCase.court}</span>}
+                {legalCase.court && (
+                  <span className="uppercase font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-xs">
+                    {legalCase.court}
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex flex-col items-end gap-2 shrink-0">

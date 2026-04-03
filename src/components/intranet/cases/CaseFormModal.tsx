@@ -107,7 +107,7 @@ export function CaseFormModal({
           type: editingCase.type,
           case_number: editingCase.case_number || '',
           parties: editingCase.parties || '',
-          court: editingCase.court || '',
+          court: editingCase.court_alias || editingCase.court || '',
           court_organ: editingCase.court_organ || '',
           status: editingCase.status || '',
           lifecycle_status: editingCase.lifecycle_status,
@@ -120,7 +120,7 @@ export function CaseFormModal({
           distribution_date: editingCase.distribution_date
             ? editingCase.distribution_date.substring(0, 10)
             : editingCase.metadata?.distribution_date || '',
-          court_alias: editingCase.court_alias || '',
+          court_alias: editingCase.court_alias || editingCase.court || '',
           tags: Array.isArray(editingCase.tags) ? editingCase.tags.join(', ') : '',
           estimated_duration: editingCase.estimated_duration || 0,
           duration_unit: editingCase.duration_unit || 'meses',
@@ -159,14 +159,8 @@ export function CaseFormModal({
 
       if (res.success && res.data) {
         if (res.data.alias) {
-          const matched = tribunals.find((t) => t.alias === res.data.alias)
-          if (matched) {
-            setValue('court', matched.name)
-            setValue('court_alias', matched.alias)
-          } else {
-            setValue('court', res.data.court || '')
-            setValue('court_alias', res.data.alias)
-          }
+          setValue('court', res.data.alias)
+          setValue('court_alias', res.data.alias)
         } else if (res.data.court) {
           setValue('court', res.data.court)
         }
@@ -361,7 +355,7 @@ export function CaseFormModal({
             </div>
 
             <div className="col-span-1">
-              <Label>Tribunal</Label>
+              <Label>Tribunal (Alias)</Label>
               <Controller
                 name="court"
                 control={control}
@@ -370,12 +364,12 @@ export function CaseFormModal({
                   const courtOptions = [...tribunals]
                   if (
                     currentCourt !== 'none' &&
-                    !courtOptions.find((t) => t.name === currentCourt)
+                    !courtOptions.find((t) => t.alias === currentCourt)
                   ) {
                     courtOptions.push({
                       id: 'custom',
                       name: currentCourt,
-                      alias: watch('court_alias') || '',
+                      alias: currentCourt,
                     })
                   }
 
@@ -387,23 +381,24 @@ export function CaseFormModal({
                           setValue('court_alias', '')
                         } else {
                           field.onChange(val)
-                          const t = courtOptions.find((x) => x.name === val)
-                          if (t && t.alias) setValue('court_alias', t.alias)
+                          setValue('court_alias', val)
                         }
                       }}
                       value={currentCourt}
                       disabled={selectedType === 'Serviço Jurídico'}
                     >
                       <SelectTrigger
-                        className={selectedType === 'Serviço Jurídico' ? 'opacity-50' : ''}
+                        className={
+                          selectedType === 'Serviço Jurídico' ? 'opacity-50 uppercase' : 'uppercase'
+                        }
                       >
                         <SelectValue placeholder="Selecione o tribunal" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Selecione...</SelectItem>
                         {courtOptions.map((t) => (
-                          <SelectItem key={t.id || t.name} value={t.name}>
-                            {t.name}
+                          <SelectItem key={t.id || t.alias} value={t.alias} className="uppercase">
+                            {t.alias} {t.name && t.name !== t.alias ? `- ${t.name}` : ''}
                           </SelectItem>
                         ))}
                       </SelectContent>

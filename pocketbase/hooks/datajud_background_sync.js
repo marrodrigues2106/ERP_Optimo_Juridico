@@ -247,7 +247,10 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
         foundMatchingProc = true
         const source = proc._source
 
-        if (source.tribunal && source.tribunal.nome) {
+        if (alias) {
+          record.set('court', alias)
+          record.set('court_alias', alias)
+        } else if (source.tribunal && source.tribunal.nome) {
           record.set('court', source.tribunal.nome)
         }
 

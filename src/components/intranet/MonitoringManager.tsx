@@ -279,9 +279,9 @@ export default function MonitoringManager() {
                         />
                         <label
                           htmlFor={`tribunal-${t.id}`}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer uppercase"
                         >
-                          {t.name}
+                          {t.alias}
                         </label>
                       </div>
                     ))}

@@ -14,13 +14,15 @@ export async function resolveCourtAlias(courtName: string): Promise<string> {
 export async function runDatajudSync(caseRecord: any, onProgress: (msg: string) => void) {
   if (!caseRecord.id) throw new Error('ID do processo ausente.')
 
-  if (!caseRecord.court_alias && caseRecord.case_number) {
+  const targetAlias = caseRecord.court_alias || caseRecord.court
+
+  if (!targetAlias && caseRecord.case_number) {
     onProgress(
       'Aviso: Tribunal não especificado no processo. Tentando deduzir a partir do número...',
     )
-  } else if (!caseRecord.court_alias) {
+  } else if (!targetAlias) {
     throw new Error(
-      'Tribunal não especificado no processo. Edite o processo e selecione um tribunal válido para sincronização.',
+      'Tribunal (Alias) não especificado no processo. Edite o processo e selecione um tribunal válido para sincronização.',
     )
   }
 
@@ -30,7 +32,8 @@ export async function runDatajudSync(caseRecord: any, onProgress: (msg: string) 
     if (configs.length > 0) {
       const config = configs[0]
       const tribunais = config.tribunais || []
-      const aliasToCheck = caseRecord.court_alias?.replace('api_publica_', '')
+      const rawAlias = caseRecord.court_alias || caseRecord.court
+      const aliasToCheck = rawAlias?.replace('api_publica_', '')
 
       if (
         aliasToCheck &&
