@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,7 +14,7 @@ export default function Login() {
   const [successMsg, setSuccessMsg] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
-  const { signIn } = useAuth()
+  const { signIn, isAuthenticated } = useAuth()
   const navigate = useNavigate()
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -56,6 +56,10 @@ export default function Login() {
       setErrorMsg('Por favor, informe seu e-mail.')
     }
     setIsLoading(false)
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/intranet" replace />
   }
 
   return (

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '@/hooks/use-auth'
 import { Menu, X, Instagram, Facebook, Phone as WhatsappIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { firmData, specialtiesData } from '@/data/content'
@@ -18,6 +19,13 @@ export default function Header() {
   const [isScrolled, setIsScrolled] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { pathname } = useLocation()
+  const { isAuthenticated, signOut } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    signOut()
+    navigate('/login')
+  }
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20)
@@ -112,20 +120,51 @@ export default function Header() {
                 </NavigationMenuLink>
               </NavigationMenuItem>
               <NavigationMenuItem>
-                <NavigationMenuLink asChild active={pathname.includes('/intranet')}>
-                  <Link
-                    to="/intranet"
-                    className={cn(
-                      navigationMenuTriggerStyle(),
-                      'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
-                      pathname.includes('/intranet') &&
-                        'border-b-2 border-secondary rounded-none text-secondary',
-                    )}
-                  >
-                    Acesso Restrito
-                  </Link>
-                </NavigationMenuLink>
+                {isAuthenticated ? (
+                  <NavigationMenuLink asChild active={pathname.includes('/intranet')}>
+                    <Link
+                      to="/intranet"
+                      className={cn(
+                        navigationMenuTriggerStyle(),
+                        'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
+                        pathname.includes('/intranet') &&
+                          'border-b-2 border-secondary rounded-none text-secondary',
+                      )}
+                    >
+                      Painel
+                    </Link>
+                  </NavigationMenuLink>
+                ) : (
+                  <NavigationMenuLink asChild active={pathname.includes('/intranet')}>
+                    <Link
+                      to="/intranet"
+                      className={cn(
+                        navigationMenuTriggerStyle(),
+                        'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
+                        pathname.includes('/intranet') &&
+                          'border-b-2 border-secondary rounded-none text-secondary',
+                      )}
+                    >
+                      Acesso Restrito
+                    </Link>
+                  </NavigationMenuLink>
+                )}
               </NavigationMenuItem>
+              {isAuthenticated && (
+                <NavigationMenuItem>
+                  <NavigationMenuLink asChild>
+                    <button
+                      onClick={handleLogout}
+                      className={cn(
+                        navigationMenuTriggerStyle(),
+                        'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium cursor-pointer',
+                      )}
+                    >
+                      Sair
+                    </button>
+                  </NavigationMenuLink>
+                </NavigationMenuItem>
+              )}
               <NavigationMenuItem>
                 <NavigationMenuLink asChild>
                   <a
@@ -213,13 +252,34 @@ export default function Header() {
           >
             Artigos
           </Link>
-          <Link
-            to="/intranet"
-            className="text-lg font-medium py-2 border-b text-primary"
-            onClick={closeMenu}
-          >
-            Acesso Restrito
-          </Link>
+          {isAuthenticated ? (
+            <>
+              <Link
+                to="/intranet"
+                className="text-lg font-medium py-2 border-b text-primary"
+                onClick={closeMenu}
+              >
+                Painel
+              </Link>
+              <button
+                className="text-lg font-medium py-2 border-b text-primary text-left w-full"
+                onClick={() => {
+                  closeMenu()
+                  handleLogout()
+                }}
+              >
+                Sair
+              </button>
+            </>
+          ) : (
+            <Link
+              to="/intranet"
+              className="text-lg font-medium py-2 border-b text-primary"
+              onClick={closeMenu}
+            >
+              Acesso Restrito
+            </Link>
+          )}
           <a href="/#contato" className="text-lg font-medium py-2 text-primary" onClick={closeMenu}>
             Contato
           </a>
