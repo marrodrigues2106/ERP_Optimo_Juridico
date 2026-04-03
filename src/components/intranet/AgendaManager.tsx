@@ -62,13 +62,11 @@ export default function AgendaManager() {
   const loadData = async () => {
     try {
       const [evRes, casesRes, clientsRes, collabRes] = await Promise.all([
-        pb
-          .collection('agenda_events')
-          .getFullList({
-            filter: 'deleted_at = ""',
-            sort: 'start_date',
-            expand: 'linked_lawsuit,client,participants',
-          }),
+        pb.collection('agenda_events').getFullList({
+          filter: 'deleted_at = ""',
+          sort: 'start_date',
+          expand: 'linked_lawsuit,client,participants',
+        }),
         pb.collection('legal_cases').getFullList(),
         pb.collection('clients').getFullList(),
         pb.collection('collaborators').getFullList(),
@@ -108,8 +106,9 @@ export default function AgendaManager() {
   }
 
   const renderEventsList = (days: Date[]) => {
-  return days.map((d) => {
-    const dayEvents = events.filter((e) => isSameDay(new Date(e.start_date), d))      return (
+    return days.map((d) => {
+      const dayEvents = events.filter((e) => isSameDay(new Date(e.start_date), d))
+      return (
         <div key={d.toISOString()} className="mb-6">
           <h3 className="font-bold text-slate-700 mb-3 pb-2 border-b">
             {format(d, 'EEEE, dd/MM/yyyy')}
@@ -250,9 +249,7 @@ export default function AgendaManager() {
                 start: startOfWeek(startOfMonth(currentDate)),
                 end: addDays(endOfMonth(currentDate), 6 - endOfMonth(currentDate).getDay()),
               }).map((d) => {
-                const dayEvents = events.filter((e) =>
-                  isSameDay(new Date(e.start_date), d),
-                )
+                const dayEvents = events.filter((e) => isSameDay(new Date(e.start_date), d))
                 return (
                   <div
                     key={d.toISOString()}
