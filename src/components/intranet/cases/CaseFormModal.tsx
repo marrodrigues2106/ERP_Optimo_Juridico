@@ -453,26 +453,6 @@ export function CaseFormModal({
             </div>
             <div className="col-span-1 md:col-span-2">
               <Label>Etiquetas</Label>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {watch('tags')?.map((tag, index) => (
-                  <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                    {tag}
-                    <button
-                      type="button"
-                      className="hover:bg-slate-200 rounded-full p-0.5"
-                      onClick={() => {
-                        const current = watch('tags') || []
-                        setValue(
-                          'tags',
-                          current.filter((_, i) => i !== index),
-                        )
-                      }}
-                    >
-                      <X className="w-3 h-3 text-slate-500 hover:text-slate-800" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
               <Input
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
@@ -489,7 +469,32 @@ export function CaseFormModal({
                   }
                 }}
                 placeholder="Digite uma etiqueta e pressione Enter"
+                className="mb-2"
               />
+              <div className="flex flex-wrap gap-2">
+                {watch('tags')?.map((tag, index) => (
+                  <Badge
+                    key={index}
+                    variant="secondary"
+                    className="flex items-center gap-1 px-2 py-1"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      className="hover:bg-slate-200 rounded-full p-0.5 transition-colors"
+                      onClick={() => {
+                        const current = watch('tags') || []
+                        setValue(
+                          'tags',
+                          current.filter((_, i) => i !== index),
+                        )
+                      }}
+                    >
+                      <X className="w-3 h-3 text-slate-500 hover:text-slate-800" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
             </div>
           </div>
 

@@ -528,8 +528,22 @@ export default function ProcessDetail() {
                       {formatMovementDate(mov.event_date)}
                     </div>
 
-                    <div className="text-sm text-slate-600 leading-relaxed uppercase whitespace-pre-wrap">
-                      {renderMovementText(complements || mov.description)}
+                    <div className="flex flex-col gap-2">
+                      <div className="text-sm font-semibold text-slate-700 leading-relaxed uppercase whitespace-pre-wrap">
+                        {renderMovementText(mov.description)}
+                      </div>
+                      {mov.details && mov.details !== mov.description && (
+                        <div className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap border-l-2 border-slate-200 pl-3">
+                          {renderMovementText(mov.details)}
+                        </div>
+                      )}
+                      {complements &&
+                        complements !== mov.details &&
+                        complements !== mov.description && (
+                          <div className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap border-l-2 border-slate-200 pl-3">
+                            {renderMovementText(complements)}
+                          </div>
+                        )}
                     </div>
 
                     {matchedTerms && (

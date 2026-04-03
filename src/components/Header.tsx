@@ -235,15 +235,17 @@ export default function Header() {
               <NavigationMenuList>
                 <NavigationMenuItem>
                   <NavigationMenuLink asChild>
-                    <Link
-                      to="/"
+                    <a
+                      href="https://www.moraesrodriguesadvocacia.com.br"
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className={cn(
                         navigationMenuTriggerStyle(),
                         'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
                       )}
                     >
                       Ver Site Público
-                    </Link>
+                    </a>
                   </NavigationMenuLink>
                 </NavigationMenuItem>
                 <NavigationMenuItem>
@@ -396,13 +398,15 @@ export default function Header() {
                   />
                 </div>
               </div>
-              <Link
-                to="/"
+              <a
+                href="https://www.moraesrodriguesadvocacia.com.br"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-lg font-medium py-2 border-b text-primary"
                 onClick={closeMenu}
               >
                 Ver Site Público
-              </Link>
+              </a>
               <button
                 className="text-lg font-medium py-2 border-b text-primary text-left w-full"
                 onClick={() => {

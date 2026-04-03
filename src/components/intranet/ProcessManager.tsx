@@ -104,18 +104,12 @@ export default function ProcessManager() {
     if (!deletingCase) return
     setIsDeleting(true)
     try {
-      if (deletingCase.lifecycle_status === 'Excluído') {
-        await updateLegalCase(deletingCase.id, { deleted_at: new Date().toISOString() })
-        toast({ title: 'Registro excluído permanentemente.' })
-      } else {
-        await updateLegalCase(deletingCase.id, { lifecycle_status: 'Excluído' })
-        toast({ title: 'Registro movido para lixeira.' })
-      }
-    } catch (error) {
-      const { category, message } = categorizeError(error)
+      await deleteLegalCase(deletingCase.id)
+      toast({ title: 'Registro excluído permanentemente.' })
+    } catch (error: any) {
       toast({
-        title: `Falha na Exclusão (${category})`,
-        description: message,
+        title: 'Falha na Exclusão',
+        description: error?.message || 'Erro ao excluir o registro.',
         variant: 'destructive',
       })
     } finally {
@@ -476,6 +470,7 @@ export default function ProcessManager() {
                                   variant="ghost"
                                   size="icon"
                                   onClick={() => setDeletingCase(c)}
+                                  title="Excluir Permanentemente"
                                 >
                                   <Trash2 className="w-4 h-4 text-red-500" />
                                 </Button>
@@ -508,34 +503,16 @@ export default function ProcessManager() {
       <AlertDialog open={!!deletingCase} onOpenChange={(open) => !open && setDeletingCase(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {deletingCase?.lifecycle_status === 'Excluído'
-                ? 'Confirmação de Exclusão Permanente'
-                : 'Mover para Lixeira'}
-            </AlertDialogTitle>
+            <AlertDialogTitle>Confirmação de Exclusão Permanente</AlertDialogTitle>
             <AlertDialogDescription>
-              {deletingCase?.lifecycle_status === 'Excluído' ? (
-                <>
-                  Você está prestes a excluir permanentemente{' '}
-                  <strong>{deletingCase?.parties}</strong> e todas as suas movimentações em cascata.
-                  Essa ação não pode ser desfeita.
-                </>
-              ) : (
-                <>
-                  Deseja mover <strong>{deletingCase?.parties}</strong> para a lixeira? Você poderá
-                  restaurá-lo filtrando por "Excluído".
-                </>
-              )}
+              Você está prestes a excluir permanentemente <strong>{deletingCase?.parties}</strong> e
+              todas as suas movimentações. Essa ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
             <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeleting}>
-              {isDeleting
-                ? 'Processando...'
-                : deletingCase?.lifecycle_status === 'Excluído'
-                  ? 'Excluir Permanentemente'
-                  : 'Mover para Lixeira'}
+              {isDeleting ? 'Processando...' : 'Excluir Permanentemente'}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
