@@ -76,26 +76,76 @@ export default function ProfileManager() {
   const [calendarStatus, setCalendarStatus] = useState(user?.calendar_status || 'Disconnected')
   const [icalToken, setIcalToken] = useState(user?.ical_token || '')
 
-  const handleOAuthConnect = async (provider: string) => {
-    setCalendarProvider(provider)
-    setCalendarStatus('Pending')
-    // Simulate OAuth flow
-    setTimeout(async () => {
-      try {
-        const token = Math.random().toString(36).substring(2, 15)
-        await pb.collection('users').update(user.id, {
-          calendar_provider: provider,
-          calendar_status: 'Connected',
-          ical_token: token,
+  const [activeTab, setActiveTab] = useState('perfil')
+
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const code = urlParams.get('code')
+    const state = urlParams.get('state')
+
+    if (code && state && (state === 'Google' || state === 'Outlook')) {
+      setActiveTab('agenda')
+      setCalendarStatus('Pending')
+
+      pb.send('/backend/v1/agenda/oauth', {
+        method: 'POST',
+        body: JSON.stringify({ provider: state, code }),
+        headers: { 'Content-Type': 'application/json' },
+      })
+        .then((res) => {
+          setCalendarProvider(state)
+          setCalendarStatus('Connected')
+          toast({ title: `${state} conectado com sucesso!` })
         })
-        setCalendarStatus('Connected')
-        setIcalToken(token)
-        toast({ title: `${provider} conectado com sucesso!` })
-      } catch (err) {
-        setCalendarStatus('Error')
-        toast({ title: 'Erro ao conectar agenda', variant: 'destructive' })
-      }
-    }, 1500)
+        .catch((err) => {
+          setCalendarStatus('Error')
+          toast({ title: 'Erro ao conectar agenda', variant: 'destructive' })
+        })
+        .finally(() => {
+          window.history.replaceState({}, document.title, window.location.pathname)
+        })
+    }
+  }, [toast])
+
+  const [showICloudForm, setShowICloudForm] = useState(false)
+  const [appleId, setAppleId] = useState('')
+  const [appPassword, setAppPassword] = useState('')
+
+  const handleICloudSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setCalendarStatus('Pending')
+    try {
+      await pb.send('/backend/v1/agenda/oauth', {
+        method: 'POST',
+        body: JSON.stringify({ provider: 'iCloud', appleId, appPassword }),
+        headers: { 'Content-Type': 'application/json' },
+      })
+      setCalendarProvider('iCloud')
+      setCalendarStatus('Connected')
+      setShowICloudForm(false)
+      setAppleId('')
+      setAppPassword('')
+      toast({ title: 'iCloud conectado com sucesso!' })
+    } catch (err) {
+      setCalendarStatus('Error')
+      toast({ title: 'Erro ao conectar iCloud', variant: 'destructive' })
+    }
+  }
+
+  const handleOAuthConnect = async (provider: string) => {
+    if (provider === 'Google') {
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'dummy-google-client-id'
+      const redirectUri = `${window.location.origin}/intranet/profile`
+      const scope = 'https://www.googleapis.com/auth/calendar'
+      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&state=Google`
+    } else if (provider === 'Outlook') {
+      const msClientId = import.meta.env.VITE_MS_CLIENT_ID || 'dummy-ms-client-id'
+      const msRedirectUri = `${window.location.origin}/intranet/profile`
+      const msScope = 'Calendars.ReadWrite offline_access'
+      window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${msClientId}&redirect_uri=${msRedirectUri}&response_type=code&scope=${msScope}&state=Outlook`
+    } else if (provider === 'iCloud') {
+      setShowICloudForm(!showICloudForm)
+    }
   }
 
   const handleDisconnect = async () => {
@@ -103,6 +153,7 @@ export default function ProfileManager() {
       await pb.collection('users').update(user.id, {
         calendar_provider: 'Local',
         calendar_status: 'Disconnected',
+        calendar_token: '',
         ical_token: '',
       })
       setCalendarProvider('Local')
@@ -262,7 +313,7 @@ export default function ProfileManager() {
   }
 
   return (
-    <Tabs defaultValue="perfil" className="w-full">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       <TabsList className="mb-6 flex-wrap">
         <TabsTrigger value="perfil">Perfil e Segurança</TabsTrigger>
         <TabsTrigger value="agenda">Integração de Agenda</TabsTrigger>
@@ -410,7 +461,7 @@ export default function ProfileManager() {
                     <div>
                       <p className="font-medium text-sm">Google Calendar</p>
                       <p className="text-xs text-muted-foreground">
-                        Sincronize com sua conta do Google
+                        Você será redirecionado para autorizar o acesso à sua conta.
                       </p>
                     </div>
                   </div>
@@ -447,7 +498,7 @@ export default function ProfileManager() {
                     <div>
                       <p className="font-medium text-sm">Outlook Calendar</p>
                       <p className="text-xs text-muted-foreground">
-                        Sincronize com o Microsoft 365
+                        Requer login com Microsoft 365 para permissão de leitura/escrita.
                       </p>
                     </div>
                   </div>
@@ -484,7 +535,7 @@ export default function ProfileManager() {
                     <div>
                       <p className="font-medium text-sm">Apple iCloud</p>
                       <p className="text-xs text-muted-foreground">
-                        Sincronize com seu calendário iCloud
+                        Requer uma Senha Específica de App gerada no seu Apple ID.
                       </p>
                     </div>
                   </div>
@@ -506,12 +557,62 @@ export default function ProfileManager() {
                     >
                       {calendarProvider === 'iCloud' && calendarStatus === 'Pending' ? (
                         <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : showICloudForm ? (
+                        'Cancelar'
                       ) : (
                         'Conectar'
                       )}
                     </Button>
                   )}
                 </div>
+
+                {showICloudForm && calendarProvider !== 'iCloud' && (
+                  <form
+                    onSubmit={handleICloudSubmit}
+                    className="p-4 border rounded-xl bg-slate-50/50 space-y-4 animate-fade-in"
+                  >
+                    <p className="text-sm text-slate-600 mb-2">
+                      Para conectar o iCloud, gere uma <strong>Senha Específica de App</strong> na
+                      página da sua Conta Apple.
+                    </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="appleId">Apple ID (E-mail)</Label>
+                      <Input
+                        id="appleId"
+                        type="email"
+                        value={appleId}
+                        onChange={(e) => setAppleId(e.target.value)}
+                        placeholder="seu.email@icloud.com"
+                        required
+                        className="bg-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="appPassword">Senha Específica de App</Label>
+                      <Input
+                        id="appPassword"
+                        type="password"
+                        value={appPassword}
+                        onChange={(e) => setAppPassword(e.target.value)}
+                        placeholder="xxxx-xxxx-xxxx-xxxx"
+                        required
+                        className="bg-white"
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      className="w-full"
+                      disabled={calendarStatus === 'Pending'}
+                    >
+                      {calendarStatus === 'Pending' ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        'Autenticar iCloud'
+                      )}
+                    </Button>
+                  </form>
+                )}
               </div>
 
               <div className="p-4 bg-slate-50 border rounded-lg flex items-start gap-3">
