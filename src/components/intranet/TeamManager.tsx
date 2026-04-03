@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { UserPlus, Mail, Phone, Trash2, Edit2, FileBadge } from 'lucide-react'
+import { UserPlus, Mail, Phone, Trash2, Edit2, FileBadge, Loader2 } from 'lucide-react'
 import {
   getCollaborators,
   createCollaborator,
@@ -223,7 +223,14 @@ export default function TeamManager() {
               )}
               <div className="md:col-span-2 mt-4">
                 <Button type="submit" className="w-full" disabled={submitting}>
-                  {submitting ? 'Salvando...' : 'Salvar Membro'}
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    'Salvar Membro'
+                  )}
                 </Button>
               </div>
             </form>

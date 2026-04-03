@@ -31,6 +31,7 @@ import {
   Settings2,
   Users,
   User,
+  Loader2,
 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
@@ -62,7 +63,11 @@ export default function AgendaManager() {
       const [evRes, casesRes, clientsRes, collabRes] = await Promise.all([
         pb
           .collection('agenda_events')
-          .getFullList({ sort: 'event_date', expand: 'linked_lawsuit,client,participants' }),
+          .getFullList({
+            filter: 'deleted_at = ""',
+            sort: 'event_date',
+            expand: 'linked_lawsuit,client,participants',
+          }),
         pb.collection('legal_cases').getFullList(),
         pb.collection('clients').getFullList(),
         pb.collection('collaborators').getFullList(),
@@ -84,7 +89,7 @@ export default function AgendaManager() {
   const handleDelete = async (id: string) => {
     if (confirm('Tem certeza que deseja remover este evento?')) {
       try {
-        await pb.collection('agenda_events').delete(id)
+        await pb.collection('agenda_events').update(id, { deleted_at: new Date().toISOString() })
         toast({ title: 'Evento excluído com sucesso.' })
       } catch (e) {
         toast({ title: 'Erro ao excluir evento', variant: 'destructive' })
@@ -455,7 +460,14 @@ function EventFormModal({
           </div>
 
           <Button type="submit" className="w-full mt-4" disabled={submitting}>
-            {submitting ? 'Salvando...' : 'Confirmar Agendamento'}
+            {submitting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Salvando...
+              </>
+            ) : (
+              'Confirmar Agendamento'
+            )}
           </Button>
         </form>
       </DialogContent>

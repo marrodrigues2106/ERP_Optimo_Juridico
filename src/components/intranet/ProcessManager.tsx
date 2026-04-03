@@ -59,7 +59,8 @@ export default function ProcessManager() {
 
   const loadData = async () => {
     try {
-      setCases(await getLegalCases())
+      const allCases = await getLegalCases()
+      setCases(allCases.filter((c: any) => !c.deleted_at))
     } catch (e) {
       console.error('Error loading cases', e)
     }
@@ -104,7 +105,7 @@ export default function ProcessManager() {
     setIsDeleting(true)
     try {
       if (deletingCase.lifecycle_status === 'Excluído') {
-        await deleteLegalCase(deletingCase.id)
+        await updateLegalCase(deletingCase.id, { deleted_at: new Date().toISOString() })
         toast({ title: 'Registro excluído permanentemente.' })
       } else {
         await updateLegalCase(deletingCase.id, { lifecycle_status: 'Excluído' })

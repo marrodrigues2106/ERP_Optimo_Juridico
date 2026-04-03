@@ -23,6 +23,7 @@ import { createAgendaEvent } from '@/services/agenda'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
+import { Loader2 } from 'lucide-react'
 
 const formSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
@@ -186,7 +187,14 @@ export function EventFormModal({
           </div>
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? 'Salvando...' : 'Salvar Evento'}
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Salvando...
+              </>
+            ) : (
+              'Salvar Evento'
+            )}
           </Button>
         </form>
       </DialogContent>

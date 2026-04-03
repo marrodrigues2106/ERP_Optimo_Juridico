@@ -1,7 +1,9 @@
 import pb from '@/lib/pocketbase/client'
 
 export const getCaseMovements = (caseId: string) =>
-  pb.collection('case_movements').getFullList({ filter: `case = '${caseId}'`, sort: '-event_date' })
+  pb
+    .collection('case_movements')
+    .getFullList({ filter: `case = '${caseId}' && deleted_at = ""`, sort: '-event_date' })
 
 export const getPaginatedCaseMovements = async (
   caseId: string,
@@ -9,7 +11,7 @@ export const getPaginatedCaseMovements = async (
   perPage: number = 20,
 ) => {
   return pb.collection('case_movements').getList(page, perPage, {
-    filter: `case = '${caseId}'`,
+    filter: `case = '${caseId}' && deleted_at = ""`,
     sort: '-event_date',
   })
 }
@@ -29,4 +31,5 @@ export const createCaseMovement = (data: any) => {
   return pb.collection('case_movements').create(data)
 }
 
-export const deleteCaseMovement = (id: string) => pb.collection('case_movements').delete(id)
+export const deleteCaseMovement = (id: string) =>
+  pb.collection('case_movements').update(id, { deleted_at: new Date().toISOString() })

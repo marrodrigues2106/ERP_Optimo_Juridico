@@ -1,6 +1,7 @@
 import pb from '@/lib/pocketbase/client'
 
-export const getClients = () => pb.collection('clients').getFullList({ sort: '-created' })
+export const getClients = () =>
+  pb.collection('clients').getFullList({ filter: 'deleted_at = ""', sort: '-created' })
 export const getClient = (id: string) => pb.collection('clients').getOne(id)
 const syncCrmStatus = (data: any) => {
   if (data.classification === 'Lead') {
@@ -30,5 +31,5 @@ export const deleteClient = async (id: string) => {
   if (!isAdmin) throw new Error('Apenas administradores podem excluir clientes.')
   if (client.classification !== 'Inativo')
     throw new Error('Apenas clientes inativos podem ser excluídos.')
-  return pb.collection('clients').delete(id)
+  return pb.collection('clients').update(id, { deleted_at: new Date().toISOString() })
 }

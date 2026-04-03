@@ -1,7 +1,7 @@
 import pb from '@/lib/pocketbase/client'
 
 export const getCollaborators = () =>
-  pb.collection('collaborators').getFullList({ sort: '-created' })
+  pb.collection('collaborators').getFullList({ filter: 'deleted_at = ""', sort: '-created' })
 export const getCollaborator = (id: string) => pb.collection('collaborators').getOne(id)
 export const createCollaborator = (data: any) => {
   if (pb.authStore.record?.active_organization) {
@@ -11,4 +11,5 @@ export const createCollaborator = (data: any) => {
 }
 export const updateCollaborator = (id: string, data: any) =>
   pb.collection('collaborators').update(id, data)
-export const deleteCollaborator = (id: string) => pb.collection('collaborators').delete(id)
+export const deleteCollaborator = (id: string) =>
+  pb.collection('collaborators').update(id, { deleted_at: new Date().toISOString() })

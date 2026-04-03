@@ -3,11 +3,15 @@ import pb from '@/lib/pocketbase/client'
 export const getTasks = () =>
   pb
     .collection('tasks')
-    .getFullList({ sort: 'status,due_date', expand: 'collaborator,linked_lawsuit' })
+    .getFullList({
+      filter: 'deleted_at = ""',
+      sort: 'status,due_date',
+      expand: 'collaborator,linked_lawsuit',
+    })
 
 export const getTasksByLawsuit = (lawsuitId: string) =>
   pb.collection('tasks').getFullList({
-    filter: `linked_lawsuit = '${lawsuitId}'`,
+    filter: `linked_lawsuit = '${lawsuitId}' && deleted_at = ""`,
     sort: 'status,due_date',
     expand: 'collaborator',
   })
@@ -28,4 +32,5 @@ export const updateTask = (id: string, data: any) => {
   }
   return pb.collection('tasks').update(id, data)
 }
-export const deleteTask = (id: string) => pb.collection('tasks').delete(id)
+export const deleteTask = (id: string) =>
+  pb.collection('tasks').update(id, { deleted_at: new Date().toISOString() })

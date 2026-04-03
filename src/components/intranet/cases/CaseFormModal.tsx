@@ -490,7 +490,14 @@ export function CaseFormModal({
           </div>
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? 'Salvando...' : 'Salvar Registro'}
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Salvando...
+              </>
+            ) : (
+              'Salvar Registro'
+            )}
           </Button>
         </form>
       </DialogContent>
