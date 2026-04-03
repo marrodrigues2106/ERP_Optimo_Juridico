@@ -18,8 +18,9 @@ export function IAChatSidebar() {
     {
       id: '1',
       role: 'ai',
-      content:
-        'Olá! Sou seu assistente IA. Como posso ajudar você hoje com seus processos, agenda ou clientes?',
+      content: isAuthenticated
+        ? 'Olá! Sou seu assistente IA. Como posso ajudar você hoje com seus processos, agenda ou clientes?'
+        : 'Olá! Sou o assistente virtual da Moraes Rodrigues Advocacia. Como posso ajudar você hoje com informações sobre nosso escritório?',
     },
   ])
   const [input, setInput] = useState('')
@@ -42,8 +43,6 @@ export function IAChatSidebar() {
     return () => window.removeEventListener('toggle-ai-chat', handleToggle)
   }, [])
 
-  if (!isAuthenticated) return null
-
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isLoading) return
@@ -58,7 +57,35 @@ export function IAChatSidebar() {
       const lower = userMsg.toLowerCase()
       const orgId = pb.authStore.record?.active_organization
 
-      if (lower.includes('processo') || lower.includes('caso')) {
+      if (!isAuthenticated) {
+        if (
+          lower.includes('contato') ||
+          lower.includes('telefone') ||
+          lower.includes('email') ||
+          lower.includes('falar')
+        ) {
+          reply =
+            'Você pode entrar em contato conosco pelo WhatsApp disponível no site ou através do formulário de contato na página inicial.'
+        } else if (
+          lower.includes('endereço') ||
+          lower.includes('localização') ||
+          lower.includes('onde')
+        ) {
+          reply =
+            'Estamos sempre disponíveis para atendimento online e presencial mediante agendamento.'
+        } else if (
+          lower.includes('especialidade') ||
+          lower.includes('área') ||
+          lower.includes('atuam') ||
+          lower.includes('fazem')
+        ) {
+          reply =
+            'Somos especialistas em Direito Tributário, Planejamento Patrimonial e Sucessório, Direito Imobiliário, Contratos, Responsabilidade Civil e Direito Financeiro.'
+        } else {
+          reply =
+            'Sou o assistente virtual do escritório Moraes Rodrigues Advocacia. Posso ajudar com informações de contato e nossas áreas de atuação. Como posso ser útil?'
+        }
+      } else if (lower.includes('processo') || lower.includes('caso')) {
         const cases = await pb.collection('legal_cases').getList(1, 3, {
           sort: '-created',
           filter: orgId ? `organization = "${orgId}"` : '',

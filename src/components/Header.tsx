@@ -110,7 +110,7 @@ export default function Header() {
                   />
                 ) : (
                   <span className="font-bold text-xl md:text-2xl text-primary tracking-tight whitespace-nowrap">
-                    {orgName}
+                    {orgName || 'MRA'}
                   </span>
                 )}
               </div>
@@ -240,29 +240,27 @@ export default function Header() {
           </NavigationMenu>
 
           <div className="flex items-center gap-5 text-primary/80 ml-2">
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('toggle-ai-chat'))}
+              className={cn(
+                'flex items-center gap-2 px-3 py-2 rounded-md transition-colors text-sm font-medium',
+                isAiOpen
+                  ? 'bg-primary text-white'
+                  : 'bg-primary/10 text-primary hover:bg-primary/20',
+              )}
+              title="Assistente IA"
+            >
+              <Sparkles size={16} />
+              IA
+            </button>
             {isAuthenticated && (
-              <>
-                <button
-                  onClick={() => window.dispatchEvent(new CustomEvent('toggle-ai-chat'))}
-                  className={cn(
-                    'flex items-center gap-2 px-3 py-2 rounded-md transition-colors text-sm font-medium',
-                    isAiOpen
-                      ? 'bg-primary text-white'
-                      : 'bg-primary/10 text-primary hover:bg-primary/20',
-                  )}
-                  title="Assistente IA"
-                >
-                  <Sparkles size={16} />
-                  IA
-                </button>
-                <button
-                  onClick={() => setCaseModalOpen(true)}
-                  className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors text-sm font-medium mr-2"
-                >
-                  <Plus size={16} />
-                  Adicionar
-                </button>
-              </>
+              <button
+                onClick={() => setCaseModalOpen(true)}
+                className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors text-sm font-medium mr-2"
+              >
+                <Plus size={16} />
+                Adicionar
+              </button>
             )}
             <a
               href={firmData.socials.whatsapp}
@@ -373,30 +371,28 @@ export default function Header() {
           >
             Acesso Restrito
           </Link>
+          <button
+            className={cn(
+              'text-lg font-medium py-2 border-b text-left w-full flex items-center gap-2',
+              isAiOpen ? 'text-secondary' : 'text-primary',
+            )}
+            onClick={() => {
+              closeMenu()
+              window.dispatchEvent(new CustomEvent('toggle-ai-chat'))
+            }}
+          >
+            <Sparkles size={20} /> Assistente IA
+          </button>
           {isAuthenticated && (
-            <>
-              <button
-                className={cn(
-                  'text-lg font-medium py-2 border-b text-left w-full flex items-center gap-2',
-                  isAiOpen ? 'text-secondary' : 'text-primary',
-                )}
-                onClick={() => {
-                  closeMenu()
-                  window.dispatchEvent(new CustomEvent('toggle-ai-chat'))
-                }}
-              >
-                <Sparkles size={20} /> Assistente IA
-              </button>
-              <button
-                className="text-lg font-medium py-2 border-b text-primary text-left w-full"
-                onClick={() => {
-                  closeMenu()
-                  setLogoutDialogOpen(true)
-                }}
-              >
-                Sair
-              </button>
-            </>
+            <button
+              className="text-lg font-medium py-2 border-b text-primary text-left w-full"
+              onClick={() => {
+                closeMenu()
+                setLogoutDialogOpen(true)
+              }}
+            >
+              Sair
+            </button>
           )}
           <a href="/#contato" className="text-lg font-medium py-2 text-primary" onClick={closeMenu}>
             Contato

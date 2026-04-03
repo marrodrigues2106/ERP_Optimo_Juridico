@@ -23,9 +23,10 @@ import { ptBR } from 'date-fns/locale'
 import { EventFormModal } from './cases/EventFormModal'
 import { CaseFormModal } from './cases/CaseFormModal'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useToast } from '@/hooks/use-toast'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
 
@@ -38,6 +39,7 @@ type FeedItem = {
   isRead: boolean
   tags: string[]
   raw: any
+  lawsuitId?: string
 }
 
 export default function Dashboard() {
@@ -53,6 +55,7 @@ export default function Dashboard() {
   const [events, setEvents] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState('unread')
   const [selectedDate, setSelectedDate] = useState(new Date())
+  const [selectedFeedItems, setSelectedFeedItems] = useState<string[]>([])
 
   const loadData = async () => {
     try {
@@ -115,6 +118,7 @@ export default function Dashboard() {
           isRead,
           tags: [i.orgao || i.source || 'Tribunal'],
           raw: i,
+          lawsuitId: source === 'movement' ? i.case : undefined,
         }))
 
       const all = [
@@ -186,6 +190,57 @@ export default function Dashboard() {
     () => feedItems.filter((i) => (activeTab === 'unread' ? !i.isRead : i.isRead)),
     [feedItems, activeTab],
   )
+
+  useEffect(() => {
+    setSelectedFeedItems([])
+  }, [activeTab])
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedFeedItems(visibleFeed.map((i) => i.id))
+    } else {
+      setSelectedFeedItems([])
+    }
+  }
+
+  const handleSelect = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedFeedItems((prev) => [...prev, id])
+    } else {
+      setSelectedFeedItems((prev) => prev.filter((i) => i !== id))
+    }
+  }
+
+  const handleBulkAction = async (markAsRead: boolean) => {
+    if (selectedFeedItems.length === 0) return
+
+    setFeedItems((prev) =>
+      prev.map((i) => (selectedFeedItems.includes(i.id) ? { ...i, isRead: markAsRead } : i)),
+    )
+    const itemsToUpdate = feedItems.filter((i) => selectedFeedItems.includes(i.id))
+    setSelectedFeedItems([])
+
+    try {
+      await Promise.all(
+        itemsToUpdate.map((item) => {
+          if (item.source === 'gazette') {
+            return pb.collection('gazette_publications').update(item.id, { is_read: markAsRead })
+          } else if (item.source === 'dou') {
+            return pb
+              .collection('ocorrencias_dou')
+              .update(item.id, { status_alerta: markAsRead ? 'visualizado' : 'pendente' })
+          } else if (item.source === 'movement') {
+            return pb.collection('case_movements').update(item.id, { notified_client: markAsRead })
+          }
+        }),
+      )
+      toast({ title: `Itens marcados como ${markAsRead ? 'lidos' : 'não lidos'}` })
+      loadFeed()
+    } catch (e) {
+      toast({ title: 'Erro ao atualizar itens', variant: 'destructive' })
+      loadFeed()
+    }
+  }
 
   const navigateDate = (dir: 'prev' | 'next') => {
     setSelectedDate((prev) => addDays(prev, dir === 'next' ? 1 : -1))
@@ -263,6 +318,48 @@ export default function Dashboard() {
           </TabsList>
 
           <TabsContent value={activeTab} className="outline-none space-y-4">
+            <div className="flex items-center justify-between bg-slate-50/50 p-3 rounded-lg border border-slate-200">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="select-all-feed"
+                  checked={
+                    visibleFeed.length > 0 && selectedFeedItems.length === visibleFeed.length
+                  }
+                  onCheckedChange={handleSelectAll}
+                  disabled={visibleFeed.length === 0}
+                />
+                <Label
+                  htmlFor="select-all-feed"
+                  className="text-sm cursor-pointer text-slate-700 font-medium"
+                >
+                  Selecionar Todos
+                </Label>
+              </div>
+              {selectedFeedItems.length > 0 && (
+                <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                  <span className="text-xs text-muted-foreground mr-2 font-medium">
+                    {selectedFeedItems.length} selecionados
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs bg-white"
+                    onClick={() => handleBulkAction(true)}
+                  >
+                    Marcar como Lido
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs bg-white"
+                    onClick={() => handleBulkAction(false)}
+                  >
+                    Marcar como Não Lido
+                  </Button>
+                </div>
+              )}
+            </div>
+
             {visibleFeed.length === 0 ? (
               <div className="text-center py-16 text-slate-400 border border-dashed rounded-xl bg-slate-50/50">
                 <Archive className="w-10 h-10 mx-auto mb-4 opacity-50 text-slate-300" />
@@ -276,9 +373,14 @@ export default function Dashboard() {
                   className={cn(
                     'p-5 border rounded-xl flex gap-4 transition-all hover:shadow-md group',
                     item.isRead ? 'bg-slate-50/50 border-slate-100' : 'bg-white border-blue-100',
+                    selectedFeedItems.includes(item.id) && 'border-primary/40 bg-primary/5',
                   )}
                 >
-                  <div className="pt-1">
+                  <div className="pt-1 flex flex-col items-center gap-3">
+                    <Checkbox
+                      checked={selectedFeedItems.includes(item.id)}
+                      onCheckedChange={(c) => handleSelect(item.id, !!c)}
+                    />
                     {item.source === 'gazette' ? (
                       <BookOpen
                         className={cn('w-5 h-5', item.isRead ? 'text-slate-400' : 'text-amber-500')}
@@ -304,7 +406,16 @@ export default function Dashboard() {
                           item.isRead ? 'text-slate-600' : 'text-slate-900',
                         )}
                       >
-                        {item.title}
+                        {item.lawsuitId ? (
+                          <Link
+                            to={`/intranet/processos/${item.lawsuitId}`}
+                            className="text-primary hover:underline"
+                          >
+                            {item.title}
+                          </Link>
+                        ) : (
+                          item.title
+                        )}
                       </h4>
                       <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
                         {new Date(item.date).toLocaleDateString('pt-BR')}
