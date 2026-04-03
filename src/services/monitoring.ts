@@ -22,10 +22,13 @@ export const syncProcesses = () =>
   pb.send('/backend/v1/monitoring/sync-processes', { method: 'POST' })
 export const syncTerms = () => pb.send('/backend/v1/monitoring/sync-terms', { method: 'POST' })
 
-export const testExternalConnection = async (service: 'datajud' | 'tribunal' | 'dou') => {
+export const testExternalConnection = async (
+  service: 'datajud' | 'tribunal' | 'dou',
+  apiKey?: string,
+) => {
   return pb.send('/backend/v1/monitoring/test-connection', {
     method: 'POST',
-    body: JSON.stringify({ service }),
+    body: JSON.stringify({ service, apiKey }),
   })
 }
 

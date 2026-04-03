@@ -48,7 +48,19 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
       } catch (e) {}
     }
 
-    const apiKey = $secrets.get('DATAJUD_API_KEY') || ''
+    let apiKey = $secrets.get('DATAJUD_API_KEY') || ''
+    let monitoredTribunals = []
+
+    try {
+      const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
+      if (configs.length > 0) {
+        const dbApiKey = configs[0].get('apiKey')
+        if (dbApiKey) {
+          apiKey = dbApiKey
+        }
+        monitoredTribunals = configs[0].get('tribunais') || []
+      }
+    } catch (err) {}
 
     const num = record.get('case_number') || ''
     const cleanNum = String(num).replace(/\D/g, '')
@@ -118,6 +130,21 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
 
     if (!alias) {
       alias = 'tjrj'
+    }
+
+    if (
+      monitoredTribunals.length > 0 &&
+      !monitoredTribunals.includes(alias) &&
+      !monitoredTribunals.includes(`api_publica_${alias}`)
+    ) {
+      record.set('datajud_sync_status', 'Skipped (Tribunal not monitored)')
+      try {
+        $app.saveNoValidate(record)
+      } catch (err) {}
+      return e.json(200, {
+        status: 'skipped',
+        detail: `Tribunal ${alias} is not enabled in monitoring config.`,
+      })
     }
 
     if (!apiKey) {

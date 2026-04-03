@@ -14,6 +14,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { Save, X, RefreshCw } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 
 import { testExternalConnection, syncProcesses } from '@/services/monitoring'
 import { useAuth } from '@/hooks/use-auth'
@@ -34,7 +35,7 @@ export default function MonitoringManager() {
   const [termosBusca, setTermosBusca] = useState<string[]>([])
   const [termoInput, setTermoInput] = useState('')
   const [tribunais, setTribunais] = useState<string[]>([])
-  const [tribunalInput, setTribunalInput] = useState('')
+  const [tribunalsList, setTribunalsList] = useState<any[]>([])
 
   const [submitting, setSubmitting] = useState(false)
   const [testingDou, setTestingDou] = useState(false)
@@ -44,6 +45,13 @@ export default function MonitoringManager() {
 
   const loadData = async () => {
     try {
+      try {
+        const tribs = await pb.collection('tribunals').getFullList({ sort: 'name' })
+        setTribunalsList(tribs)
+      } catch (e) {
+        console.error('Error loading tribunals', e)
+      }
+
       const records = await pb.collection('monitoring_configs').getFullList()
       if (records.length > 0) {
         const c = records[0]
@@ -117,7 +125,7 @@ export default function MonitoringManager() {
     else setTestingDatajud(true)
 
     try {
-      await testExternalConnection(service)
+      await testExternalConnection(service, service === 'datajud' ? datajudApiKey : undefined)
       toast({ title: `Conexão com ${service.toUpperCase()} bem-sucedida!` })
       loadData()
     } catch (err: any) {
@@ -155,17 +163,6 @@ export default function MonitoringManager() {
         setTermosBusca([...termosBusca, termoInput.trim()])
       }
       setTermoInput('')
-    }
-  }
-
-  const handleAddTribunal = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && tribunalInput.trim()) {
-      e.preventDefault()
-      const val = tribunalInput.trim().toUpperCase()
-      if (!tribunais.includes(val)) {
-        setTribunais([...tribunais, val])
-      }
-      setTribunalInput('')
     }
   }
 
@@ -265,26 +262,34 @@ export default function MonitoringManager() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Tribunais (Pressione Enter para adicionar)</Label>
-                  <Input
-                    placeholder="Ex: STF, TJRJ"
-                    value={tribunalInput}
-                    onChange={(e) => setTribunalInput(e.target.value)}
-                    onKeyDown={handleAddTribunal}
-                  />
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {tribunais.map((t) => (
-                      <span
-                        key={t}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 shadow-sm"
-                      >
-                        {t}{' '}
-                        <X
-                          className="w-3 h-3 cursor-pointer hover:text-destructive transition-colors"
-                          onClick={() => setTribunais(tribunais.filter((x) => x !== t))}
+                  <Label>Tribunais Monitorados (DataJud)</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 border p-4 rounded-lg bg-slate-50/50 max-h-[200px] overflow-y-auto">
+                    {tribunalsList.map((t) => (
+                      <div key={t.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`tribunal-${t.id}`}
+                          checked={tribunais.includes(t.alias)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setTribunais([...tribunais, t.alias])
+                            } else {
+                              setTribunais(tribunais.filter((x) => x !== t.alias))
+                            }
+                          }}
                         />
-                      </span>
+                        <label
+                          htmlFor={`tribunal-${t.id}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                          {t.name}
+                        </label>
+                      </div>
                     ))}
+                    {tribunalsList.length === 0 && (
+                      <p className="text-xs text-muted-foreground col-span-full">
+                        Nenhum tribunal configurado no sistema.
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
