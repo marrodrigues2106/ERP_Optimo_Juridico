@@ -262,6 +262,12 @@ export function CaseFormModal({
   const currentCaseNumber = watch('case_number')
 
   useEffect(() => {
+    if (selectedType === 'Serviço Jurídico') {
+      setValue('case_number', '')
+    }
+  }, [selectedType, setValue])
+
+  useEffect(() => {
     if (selectedType === 'Processo' && currentCaseNumber && !editingCase) {
       const justNumbers = currentCaseNumber.replace(/\D/g, '')
       if (justNumbers.length === 20 && !isSearching) {
@@ -307,8 +313,12 @@ export function CaseFormModal({
             <div className="col-span-1 md:col-span-2 flex flex-col sm:flex-row items-end gap-3">
               <div className="flex-1 w-full">
                 <Label>Número do Processo {selectedType === 'Processo' && '*'}</Label>
-                <Input {...register('case_number')} placeholder="0000000-00.0000.0.00.0000" />
-                {errors.case_number && (
+                <Input
+                  {...register('case_number')}
+                  placeholder="0000000-00.0000.0.00.0000"
+                  disabled={selectedType === 'Serviço Jurídico'}
+                />
+                {errors.case_number && selectedType === 'Processo' && (
                   <p className="text-xs text-red-500 mt-1">{errors.case_number.message}</p>
                 )}
               </div>

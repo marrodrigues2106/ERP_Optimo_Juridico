@@ -51,14 +51,17 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
         if (res.statusCode === 401 || res.statusCode === 403) {
           result.errorType = 'AUTH_FAILURE'
           result.errorMessage = 'Authentication Error: Invalid or expired API Key'
+          console.log(`[DATAJUD] Authentication failure: HTTP ${res.statusCode} - Unauthorized`)
         } else if (res.statusCode >= 300) {
           result.errorType = 'HTTP_STATUS_ERRORS'
           result.errorMessage = 'HTTP Error: ' + res.statusCode
+          console.log(`[DATAJUD] HTTP Error: ${res.statusCode} - ${JSON.stringify(res.json || {})}`)
         }
       } catch (err) {
         result.latency = Date.now() - start
         result.errorType = 'NETWORK_FAILURE'
         result.errorMessage = 'NETWORK_FAILURE: ' + String(err)
+        console.log(`[DATAJUD] Network Failure: ${String(err)}`)
       }
       return result
     }

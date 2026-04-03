@@ -45,7 +45,10 @@ export default function Dashboard() {
   const [tasks, setTasks] = useState<any[]>([])
   const [eventModalOpen, setEventModalOpen] = useState(false)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
+  const [caseModalOpen, setCaseModalOpen] = useState(false)
   const [feedItems, setFeedItems] = useState<FeedItem[]>([])
+  const [clients, setClients] = useState<any[]>([])
+  const [collaborators, setCollaborators] = useState<any[]>([])
   const [events, setEvents] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState('unread')
 
@@ -131,6 +134,14 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadData()
+    pb.collection('clients')
+      .getFullList()
+      .then(setClients)
+      .catch(() => {})
+    pb.collection('collaborators')
+      .getFullList()
+      .then(setCollaborators)
+      .catch(() => {})
   }, [])
 
   useRealtime('tasks', loadData)
@@ -220,6 +231,10 @@ export default function Dashboard() {
             <Bell className="w-5 h-5 text-primary" />
             Central de Atualizações
           </div>
+          <Button onClick={() => setCaseModalOpen(true)} size="sm" className="hidden sm:flex">
+            <Plus className="w-4 h-4 mr-2" />
+            Adicionar Processo ou Serviço
+          </Button>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-4xl mx-auto">
@@ -454,6 +469,14 @@ export default function Dashboard() {
       </div>
 
       <EventFormModal open={eventModalOpen} onOpenChange={setEventModalOpen} onSuccess={loadData} />
+      <CaseFormModal
+        open={caseModalOpen}
+        onOpenChange={setCaseModalOpen}
+        editingCase={null}
+        clients={clients}
+        collaborators={collaborators}
+        onSuccess={loadData}
+      />
 
       <Dialog open={taskModalOpen} onOpenChange={setTaskModalOpen}>
         <DialogContent>

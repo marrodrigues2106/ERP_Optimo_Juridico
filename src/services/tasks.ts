@@ -1,5 +1,6 @@
 import pb from '@/lib/pocketbase/client'
 import { sanitizePayload } from '@/lib/pocketbase/sanitize'
+import { logAudit } from './audit'
 
 export const getTasks = () =>
   pb.collection('tasks').getFullList({
@@ -23,7 +24,7 @@ const sanitizeTask = (data: any) => {
   return data
 }
 
-export const createTask = (data: any) => {
+export const createTask = async (data: any) => {
   const orgId = pb.authStore.record?.active_organization
   if (!orgId) throw new Error('Organização ativa não encontrada. Atualize seu perfil.')
   data = sanitizeTask(data)
@@ -33,10 +34,12 @@ export const createTask = (data: any) => {
     if (!isNaN(d.getTime())) data.due_date = d.toISOString()
   }
   const sanitized = sanitizePayload('tasks', data, orgId)
-  return pb.collection('tasks').create(sanitized)
+  const record = await pb.collection('tasks').create(sanitized)
+  await logAudit('tasks', record.id, 'create', sanitized)
+  return record
 }
 
-export const updateTask = (id: string, data: any) => {
+export const updateTask = async (id: string, data: any) => {
   const orgId = pb.authStore.record?.active_organization
   data = sanitizeTask(data)
   if (data.due_date) {
@@ -44,8 +47,13 @@ export const updateTask = (id: string, data: any) => {
     if (!isNaN(d.getTime())) data.due_date = d.toISOString()
   }
   const sanitized = sanitizePayload('tasks', data, orgId)
-  return pb.collection('tasks').update(id, sanitized)
+  const record = await pb.collection('tasks').update(id, sanitized)
+  await logAudit('tasks', record.id, 'update', sanitized)
+  return record
 }
 
-export const deleteTask = (id: string) =>
-  pb.collection('tasks').update(id, { deleted_at: new Date().toISOString() })
+export const deleteTask = async (id: string) => {
+  const record = await pb.collection('tasks').update(id, { deleted_at: new Date().toISOString() })
+  await logAudit('tasks', id, 'soft_delete')
+  return record
+}

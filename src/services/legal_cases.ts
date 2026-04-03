@@ -1,5 +1,6 @@
 import pb from '@/lib/pocketbase/client'
 import { sanitizePayload } from '@/lib/pocketbase/sanitize'
+import { logAudit } from './audit'
 
 export const getLegalCases = () =>
   pb
@@ -24,19 +25,26 @@ const sanitizeCase = (data: any) => {
   return data
 }
 
-export const createLegalCase = (data: any) => {
+export const createLegalCase = async (data: any) => {
   const orgId = pb.authStore.record?.active_organization
   if (!orgId) throw new Error('Organização ativa não encontrada. Atualize seu perfil.')
   data = sanitizeCase(data)
   const sanitized = sanitizePayload('legal_cases', data, orgId)
-  return pb.collection('legal_cases').create(sanitized)
+  const record = await pb.collection('legal_cases').create(sanitized)
+  await logAudit('legal_cases', record.id, 'create', sanitized)
+  return record
 }
 
-export const updateLegalCase = (id: string, data: any) => {
+export const updateLegalCase = async (id: string, data: any) => {
   const orgId = pb.authStore.record?.active_organization
   data = sanitizeCase(data)
   const sanitized = sanitizePayload('legal_cases', data, orgId)
-  return pb.collection('legal_cases').update(id, sanitized)
+  const record = await pb.collection('legal_cases').update(id, sanitized)
+  await logAudit('legal_cases', record.id, 'update', sanitized)
+  return record
 }
 
-export const deleteLegalCase = (id: string) => pb.collection('legal_cases').delete(id)
+export const deleteLegalCase = async (id: string) => {
+  await pb.collection('legal_cases').delete(id)
+  await logAudit('legal_cases', id, 'delete')
+}
