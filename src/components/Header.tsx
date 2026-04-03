@@ -24,10 +24,9 @@ import {
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from '@/components/ui/navigation-menu'
-import { Plus, Sparkles, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { Input } from '@/components/ui/input'
-import { CaseFormModal } from '@/components/intranet/cases/CaseFormModal'
 import { getClients } from '@/services/clients'
 import { getCollaborators } from '@/services/collaborators'
 
@@ -39,18 +38,10 @@ export default function Header() {
   const navigate = useNavigate()
 
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
-  const [caseModalOpen, setCaseModalOpen] = useState(false)
   const [clients, setClients] = useState<any[]>([])
   const [collaborators, setCollaborators] = useState<any[]>([])
   const [orgLogo, setOrgLogo] = useState<string | null>(null)
   const [orgName, setOrgName] = useState<string>('')
-  const [isAiOpen, setIsAiOpen] = useState(false)
-
-  useEffect(() => {
-    const handleAiState = (e: Event) => setIsAiOpen((e as CustomEvent).detail)
-    window.addEventListener('ai-chat-state', handleAiState)
-    return () => window.removeEventListener('ai-chat-state', handleAiState)
-  }, [])
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -274,28 +265,7 @@ export default function Header() {
 
           <div className="flex items-center gap-5 text-primary/80 ml-2">
             {isIntranet ? (
-              <>
-                <button
-                  onClick={() => window.dispatchEvent(new CustomEvent('toggle-ai-chat'))}
-                  className={cn(
-                    'flex items-center gap-2 px-3 py-2 rounded-md transition-colors text-sm font-medium',
-                    isAiOpen
-                      ? 'bg-primary text-white'
-                      : 'bg-primary/10 text-primary hover:bg-primary/20',
-                  )}
-                  title="Assistente IA"
-                >
-                  <Sparkles size={16} />
-                  IA
-                </button>
-                <button
-                  onClick={() => setCaseModalOpen(true)}
-                  className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-md hover:bg-primary/90 transition-colors text-sm font-medium mr-2"
-                >
-                  <Plus size={16} />
-                  Adicionar
-                </button>
-              </>
+              <></>
             ) : (
               <>
                 <a
@@ -351,22 +321,6 @@ export default function Header() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {isAuthenticated && (
-        <CaseFormModal
-          open={caseModalOpen}
-          onOpenChange={setCaseModalOpen}
-          editingCase={null}
-          clients={clients}
-          collaborators={collaborators}
-          onSuccess={() => {
-            setCaseModalOpen(false)
-            if (!pathname.includes('/processos')) {
-              navigate('/intranet/processos')
-            }
-          }}
-        />
-      )}
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
@@ -449,27 +403,6 @@ export default function Header() {
               >
                 Ver Site Público
               </Link>
-              <button
-                className={cn(
-                  'text-lg font-medium py-2 border-b text-left w-full flex items-center gap-2',
-                  isAiOpen ? 'text-secondary' : 'text-primary',
-                )}
-                onClick={() => {
-                  closeMenu()
-                  window.dispatchEvent(new CustomEvent('toggle-ai-chat'))
-                }}
-              >
-                <Sparkles size={20} /> Assistente IA
-              </button>
-              <button
-                className="text-lg font-medium py-2 border-b text-primary text-left w-full flex items-center gap-2"
-                onClick={() => {
-                  closeMenu()
-                  setCaseModalOpen(true)
-                }}
-              >
-                <Plus size={20} /> Adicionar Processo/Serviço
-              </button>
               <button
                 className="text-lg font-medium py-2 border-b text-primary text-left w-full"
                 onClick={() => {

@@ -38,7 +38,34 @@ import {
   ChevronRight,
   Info,
   DollarSign,
+  Check,
 } from 'lucide-react'
+
+const renderMovementText = (text: string) => {
+  if (!text) return text
+  const keywords = [
+    'NÚMERO ÚNICO:',
+    'POLO ATIVO',
+    'POLO PASSIVO',
+    'ADVOGADO \\(A/S\\)',
+    'DATA DE DISPONIBILIZAÇÃO:',
+    'DATA DE PUBLICAÇÃO:',
+  ]
+
+  const regex = new RegExp(`(${keywords.join('|')})`, 'gi')
+  const parts = text.split(regex)
+
+  return parts.map((part, i) => {
+    if (keywords.some((k) => new RegExp(`^${k}$`, 'i').test(part))) {
+      return (
+        <strong key={i} className="font-bold text-slate-800 bg-yellow-100/50 px-1 rounded">
+          {part}
+        </strong>
+      )
+    }
+    return <span key={i}>{part}</span>
+  })
+}
 import { EventFormModal } from './cases/EventFormModal'
 import { runDatajudSync } from '@/lib/datajud/sync'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -446,93 +473,95 @@ export default function ProcessDetail() {
             </div>
           </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[140px]">Data/Hora</TableHead>
-                <TableHead>Movimento</TableHead>
-                <TableHead className="hidden md:table-cell">Detalhes</TableHead>
-                <TableHead className="w-[60px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {movements.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center text-slate-500">
-                    Nenhum andamento encontrado.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                movements.map((mov) => {
-                  let organName = '-'
-                  let complements = ''
+          <div className="flex flex-col gap-4">
+            {movements.length === 0 ? (
+              <div className="h-24 flex items-center justify-center text-slate-500 border rounded-lg bg-slate-50">
+                Nenhum andamento encontrado.
+              </div>
+            ) : (
+              movements.map((mov) => {
+                let organName = '-'
+                let complements = ''
 
-                  if (mov.movement_details) {
-                    const detailsObj =
-                      typeof mov.movement_details === 'string'
-                        ? JSON.parse(mov.movement_details)
-                        : mov.movement_details
-                    organName = detailsObj.orgaoJulgador || '-'
-                    if (
-                      detailsObj.complementosTabelados &&
-                      Array.isArray(detailsObj.complementosTabelados)
-                    ) {
-                      complements = detailsObj.complementosTabelados
-                        .map((c: any) => `${c.nome}: ${c.valor}`)
-                        .join(' • ')
-                    }
-                  } else if (mov.source === 'DataJud' && mov.details) {
-                    // Fallback to legacy string details
-                    complements =
-                      mov.details.substring(0, 100) + (mov.details.length > 100 ? '...' : '')
-                  } else if (mov.details) {
-                    complements = mov.details
+                if (mov.movement_details) {
+                  const detailsObj =
+                    typeof mov.movement_details === 'string'
+                      ? JSON.parse(mov.movement_details)
+                      : mov.movement_details
+                  organName = detailsObj.orgaoJulgador || '-'
+                  if (detailsObj.texto_publicacao) {
+                    complements = detailsObj.texto_publicacao
+                  } else if (
+                    detailsObj.complementosTabelados &&
+                    Array.isArray(detailsObj.complementosTabelados)
+                  ) {
+                    complements = detailsObj.complementosTabelados
+                      .map((c: any) => `${c.nome}: ${c.valor}`)
+                      .join(' • ')
                   }
+                } else if (mov.details) {
+                  complements = mov.details
+                }
 
-                  return (
-                    <TableRow key={mov.id}>
-                      <TableCell className="font-mono text-xs whitespace-nowrap text-slate-600">
-                        {formatMovementDate(mov.event_date)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium text-slate-800 text-sm">{mov.description}</div>
-                        <div className="text-xs text-slate-500 md:hidden mt-1">
-                          {organName !== '-' && (
-                            <span className="block text-slate-600 font-semibold mb-0.5">
-                              {organName}
-                            </span>
-                          )}
-                          {complements}
+                const matchedTerms =
+                  typeof mov.movement_details === 'object' &&
+                  mov.movement_details?.termos_encontrados
+                    ? mov.movement_details.termos_encontrados.join(' • ')
+                    : mov.matched_term || ''
+
+                return (
+                  <div
+                    key={mov.id}
+                    className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm space-y-3 hover:border-slate-300 transition-colors"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-2 text-sm text-slate-500">
+                        <FileText className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <span className="font-medium text-slate-700 leading-tight">
+                          {mov.source} &gt; {mov.description}
+                          {organName !== '-' && ` - ${organName}`}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-sm text-slate-500 font-mono">
+                      {formatMovementDate(mov.event_date)}
+                    </div>
+
+                    <div className="text-sm text-slate-600 leading-relaxed uppercase whitespace-pre-wrap">
+                      {renderMovementText(complements || mov.description)}
+                    </div>
+
+                    {matchedTerms && (
+                      <div className="flex items-center gap-2 text-xs text-blue-600 bg-blue-50 px-3 py-2 rounded-md">
+                        <Bell className="w-4 h-4" />
+                        Termos encontrados: {matchedTerms}
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center justify-between pt-3 border-t border-slate-100 gap-4">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-medium px-2"
+                        onClick={() => openEventModal(`Ref: ${mov.description}`)}
+                      >
+                        <Calendar className="w-4 h-4 mr-2" /> Adicionar compromisso
+                      </Button>
+                      <div className="flex items-center gap-5 flex-1 justify-end">
+                        <div className="text-sm text-slate-500 flex items-center gap-1.5 cursor-pointer hover:text-slate-800 transition-colors">
+                          <MessageSquare className="w-4 h-4" /> Comentar
                         </div>
-                        <Badge variant="outline" className="mt-2 text-[10px] bg-slate-50">
-                          {mov.source}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell text-xs text-slate-600">
-                        <div className="flex flex-col gap-1">
-                          {organName !== '-' && (
-                            <span className="font-semibold text-slate-700">{organName}</span>
-                          )}
-                          {complements && <span className="text-slate-500">{complements}</span>}
+                        <div className="flex items-center gap-1.5 text-blue-600 text-sm font-medium cursor-pointer hover:underline">
+                          <Check className="w-4 h-4" /> 1 marcou como lido
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-slate-400 hover:text-primary"
-                          onClick={() => openEventModal(`Ref: ${mov.description}`)}
-                          title="Criar Evento a partir deste andamento"
-                        >
-                          <Bell className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
 
           {/* Pagination Controls */}
           {totalMovements > 0 && (

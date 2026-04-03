@@ -23,7 +23,8 @@ import { createLegalCase, updateLegalCase } from '@/services/legal_cases'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
-import { Search, Loader2 } from 'lucide-react'
+import { Search, Loader2, X } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
 const formSchema = z
   .object({
@@ -42,7 +43,7 @@ const formSchema = z
     process_type: z.string().optional(),
     distribution_date: z.string().optional(),
     court_alias: z.string().optional(),
-    tags: z.string().optional(),
+    tags: z.array(z.string()).optional(),
     estimated_duration: z.coerce.number().min(0).optional(),
     duration_unit: z.enum(['semanas', 'meses']).optional(),
     allocated_fixed_cost: z.coerce.number().min(0).optional(),
@@ -82,6 +83,7 @@ export function CaseFormModal({
   const { toast } = useToast()
   const [isSearching, setIsSearching] = useState(false)
   const [tribunals, setTribunals] = useState<any[]>([])
+  const [tagInput, setTagInput] = useState('')
 
   useEffect(() => {
     pb.collection('tribunals').getFullList({ sort: 'name' }).then(setTribunals).catch(console.error)
@@ -121,7 +123,7 @@ export function CaseFormModal({
             ? editingCase.distribution_date.substring(0, 10)
             : editingCase.metadata?.distribution_date || '',
           court_alias: (editingCase.court_alias || editingCase.court || '').toLowerCase(),
-          tags: Array.isArray(editingCase.tags) ? editingCase.tags.join(', ') : '',
+          tags: Array.isArray(editingCase.tags) ? editingCase.tags : [],
           estimated_duration: editingCase.estimated_duration || 0,
           duration_unit: editingCase.duration_unit || 'meses',
           allocated_fixed_cost: editingCase.allocated_fixed_cost || 0,
@@ -130,7 +132,7 @@ export function CaseFormModal({
         reset({
           type: 'Processo',
           lifecycle_status: 'Ativo',
-          tags: '',
+          tags: [],
           estimated_duration: 0,
           duration_unit: 'meses',
           allocated_fixed_cost: 0,
@@ -225,12 +227,7 @@ export function CaseFormModal({
           ? new Date(data.distribution_date).toISOString()
           : null,
       court_alias: data.court_alias?.toLowerCase(),
-      tags: data.tags
-        ? data.tags
-            .split(',')
-            .map((t) => t.trim())
-            .filter(Boolean)
-        : [],
+      tags: data.tags || [],
       estimated_duration: data.estimated_duration,
       duration_unit: data.duration_unit,
       allocated_fixed_cost: data.allocated_fixed_cost,
@@ -455,8 +452,44 @@ export function CaseFormModal({
               />
             </div>
             <div className="col-span-1 md:col-span-2">
-              <Label>Etiquetas (separadas por vírgula)</Label>
-              <Input {...register('tags')} placeholder="Ex: Trabalhista, Urgente, Cliente Vip" />
+              <Label>Etiquetas</Label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {watch('tags')?.map((tag, index) => (
+                  <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                    {tag}
+                    <button
+                      type="button"
+                      className="hover:bg-slate-200 rounded-full p-0.5"
+                      onClick={() => {
+                        const current = watch('tags') || []
+                        setValue(
+                          'tags',
+                          current.filter((_, i) => i !== index),
+                        )
+                      }}
+                    >
+                      <X className="w-3 h-3 text-slate-500 hover:text-slate-800" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+              <Input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    if (tagInput.trim()) {
+                      const current = watch('tags') || []
+                      if (!current.includes(tagInput.trim())) {
+                        setValue('tags', [...current, tagInput.trim()])
+                      }
+                      setTagInput('')
+                    }
+                  }
+                }}
+                placeholder="Digite uma etiqueta e pressione Enter"
+              />
             </div>
           </div>
 

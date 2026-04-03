@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-03T21:15:47.680Z",
+  "generatedAt": "2026-04-03T22:49:46.727Z",
   "collections": [
     {
       "name": "users",
@@ -1179,7 +1179,7 @@
         "view": "(@request.auth.id != '') && organization = @request.auth.active_organization",
         "create": "(@request.auth.id != '') && organization = @request.auth.active_organization",
         "update": "(@request.auth.id != '') && organization = @request.auth.active_organization",
-        "delete": "(@request.auth.id != '') && organization = @request.auth.active_organization"
+        "delete": "(@request.auth.id != '') && organization = @request.auth.active_organization && lifecycle_status = 'Arquivado'"
       },
       "fields": [
         {

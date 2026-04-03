@@ -471,7 +471,7 @@ export default function ProcessManager() {
                               <Button variant="ghost" size="icon" onClick={() => handleOpenForm(c)}>
                                 <Edit2 className="w-4 h-4 text-slate-500" />
                               </Button>
-                              {['Arquivado', 'Suspenso'].includes(c.lifecycle_status) && (
+                              {c.lifecycle_status === 'Arquivado' && (
                                 <Button
                                   variant="ghost"
                                   size="icon"
