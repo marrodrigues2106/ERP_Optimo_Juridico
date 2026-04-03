@@ -20,6 +20,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
+import { createAgendaEvent } from '@/services/agenda'
 import {
   Plus,
   Trash2,
@@ -65,7 +66,7 @@ export default function AgendaManager() {
           .collection('agenda_events')
           .getFullList({
             filter: 'deleted_at = ""',
-            sort: 'event_date',
+            sort: 'start_date',
             expand: 'linked_lawsuit,client,participants',
           }),
         pb.collection('legal_cases').getFullList(),
@@ -107,9 +108,8 @@ export default function AgendaManager() {
   }
 
   const renderEventsList = (days: Date[]) => {
-    return days.map((d) => {
-      const dayEvents = events.filter((e) => isSameDay(new Date(e.event_date || e.start_date), d))
-      return (
+  return days.map((d) => {
+    const dayEvents = events.filter((e) => isSameDay(new Date(e.start_date), d))      return (
         <div key={d.toISOString()} className="mb-6">
           <h3 className="font-bold text-slate-700 mb-3 pb-2 border-b">
             {format(d, 'EEEE, dd/MM/yyyy')}
@@ -144,7 +144,7 @@ export default function AgendaManager() {
                     <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 mt-2">
                       <span className="flex items-center font-medium bg-slate-50 px-2 py-1 rounded">
                         <Clock className="w-3 h-3 mr-1 text-primary" />
-                        {new Date(ev.event_date || ev.start_date).toLocaleTimeString('pt-BR', {
+                        {new Date(ev.start_date).toLocaleTimeString('pt-BR', {
                           hour: '2-digit',
                           minute: '2-digit',
                         })}
@@ -251,7 +251,7 @@ export default function AgendaManager() {
                 end: addDays(endOfMonth(currentDate), 6 - endOfMonth(currentDate).getDay()),
               }).map((d) => {
                 const dayEvents = events.filter((e) =>
-                  isSameDay(new Date(e.event_date || e.start_date), d),
+                  isSameDay(new Date(e.start_date), d),
                 )
                 return (
                   <div
@@ -270,7 +270,7 @@ export default function AgendaManager() {
                           className="text-[10px] truncate bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100"
                           title={ev.title}
                         >
-                          {new Date(ev.event_date || ev.start_date).toLocaleTimeString('pt-BR', {
+                          {new Date(ev.start_date).toLocaleTimeString('pt-BR', {
                             hour: '2-digit',
                             minute: '2-digit',
                           })}{' '}
@@ -333,14 +333,14 @@ function EventFormModal({
       if (isNaN(d.getTime())) throw new Error('Data ou hora inválida.')
       const dateTime = d.toISOString()
 
-      await pb.collection('agenda_events').create({
+      await createAgendaEvent({
         title: fd.get('title'),
         description: fd.get('description'),
         type: fd.get('type'),
         start_date: dateTime,
-        event_date: dateTime,
-        client: fd.get('client') !== 'none' ? fd.get('client') : null,
-        linked_lawsuit: fd.get('linked_lawsuit') !== 'none' ? fd.get('linked_lawsuit') : null,
+        end_date: dateTime,
+        client: fd.get('client'),
+        linked_lawsuit: fd.get('linked_lawsuit'),
         sync_provider: fd.get('sync_provider'),
         sync_status: fd.get('sync_provider') === 'Local' ? 'Local Only' : 'Pending',
       })
@@ -387,15 +387,15 @@ function EventFormModal({
 
             <div>
               <Label>Tipo de Evento</Label>
-              <Select name="type" defaultValue="Reunião">
+              <Select name="type" defaultValue="Meeting">
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Reunião">Reunião</SelectItem>
-                  <SelectItem value="Audiência">Audiência</SelectItem>
-                  <SelectItem value="Prazo">Prazo Processual</SelectItem>
-                  <SelectItem value="Atendimento">Atendimento Cliente</SelectItem>
+                  <SelectItem value="Meeting">Reunião</SelectItem>
+                  <SelectItem value="Hearing">Audiência</SelectItem>
+                  <SelectItem value="Deadline">Prazo Processual</SelectItem>
+                  <SelectItem value="Call">Atendimento Cliente</SelectItem>
                   <SelectItem value="Task">Tarefa / Outros</SelectItem>
                 </SelectContent>
               </Select>

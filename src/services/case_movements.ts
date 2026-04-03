@@ -16,7 +16,19 @@ export const getPaginatedCaseMovements = async (
   })
 }
 
+const sanitizeMovement = (data: any) => {
+  if (data.source && !['DataJud', 'Tribunal', 'Diário', 'Manual'].includes(data.source)) {
+    data.source = 'Manual'
+  }
+  return data
+}
+
 export const createCaseMovement = (data: any) => {
+  const orgId = pb.authStore.record?.active_organization
+  if (!orgId) throw new Error('Organização ativa não encontrada. Atualize seu perfil.')
+  data = sanitizeMovement(data)
+  data.organization = orgId
+
   if (!data.case || typeof data.case !== 'string') {
     throw new Error('ID do processo inválido.')
   }
@@ -24,9 +36,6 @@ export const createCaseMovement = (data: any) => {
     const d = new Date(data.event_date)
     if (isNaN(d.getTime())) throw new Error('Data do evento inválida.')
     data.event_date = d.toISOString()
-  }
-  if (pb.authStore.record?.active_organization) {
-    data.organization = pb.authStore.record.active_organization
   }
   return pb.collection('case_movements').create(data)
 }

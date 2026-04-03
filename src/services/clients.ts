@@ -3,6 +3,7 @@ import pb from '@/lib/pocketbase/client'
 export const getClients = () =>
   pb.collection('clients').getFullList({ filter: 'deleted_at = ""', sort: '-created' })
 export const getClient = (id: string) => pb.collection('clients').getOne(id)
+
 const syncCrmStatus = (data: any) => {
   if (data.classification === 'Lead') {
     data.status = 'Prospect'
@@ -11,20 +12,33 @@ const syncCrmStatus = (data: any) => {
   } else if (data.classification === 'Inativo') {
     data.status = 'Inactive'
   }
+
+  if (data.classification && !['Ativo', 'Inativo', 'Lead'].includes(data.classification)) {
+    data.classification = 'Lead'
+  }
+  if (
+    data.funnel_stage &&
+    !['Contact', 'Proposal', 'Negotiation', 'Closed'].includes(data.funnel_stage)
+  ) {
+    data.funnel_stage = 'Contact'
+  }
+
   return data
 }
 
 export const createClient = (data: any) => {
+  const orgId = pb.authStore.record?.active_organization
+  if (!orgId) throw new Error('Organização ativa não encontrada. Atualize seu perfil.')
   data = syncCrmStatus(data)
-  if (pb.authStore.record?.active_organization) {
-    data.organization = pb.authStore.record.active_organization
-  }
+  data.organization = orgId
   return pb.collection('clients').create(data)
 }
+
 export const updateClient = (id: string, data: any) => {
   data = syncCrmStatus(data)
   return pb.collection('clients').update(id, data)
 }
+
 export const deleteClient = async (id: string) => {
   const client = await getClient(id)
   const isAdmin = pb.authStore.record?.isAdmin || pb.authStore.record?.role === 'admin'

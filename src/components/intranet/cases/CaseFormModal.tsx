@@ -33,7 +33,7 @@ const formSchema = z
     court: z.string().optional(),
     court_organ: z.string().optional(),
     status: z.string().optional(),
-    lifecycle_status: z.enum(['Ativo', 'Arquivado', 'Suspenso', 'Excluído']),
+    lifecycle_status: z.enum(['Ativo', 'Arquivado', 'Suspenso']),
     client: z.string().optional(),
     responsible_collaborator: z.string().optional(),
     deadline: z.string().optional(),
@@ -383,7 +383,6 @@ export function CaseFormModal({
                       <SelectItem value="Ativo">Ativo</SelectItem>
                       <SelectItem value="Arquivado">Arquivado</SelectItem>
                       <SelectItem value="Suspenso">Suspenso</SelectItem>
-                      <SelectItem value="Excluído">Excluído</SelectItem>
                     </SelectContent>
                   </Select>
                 )}

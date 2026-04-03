@@ -10,7 +10,29 @@ export const getFinancesByLawsuit = (lawsuitId: string) =>
     .collection('finances')
     .getFullList({ filter: `linked_lawsuit = '${lawsuitId}'`, sort: '-date' })
 
+const sanitizeFinance = (data: any) => {
+  if (data.linked_lawsuit === 'none') data.linked_lawsuit = null
+  if (data.type && !['inflow', 'outflow'].includes(data.type)) data.type = 'inflow'
+
+  const inStatuses = ['orçado', 'estimado', 'realizada', 'recebida']
+  const outStatuses = ['orçado', 'previsto', 'realizado', 'pago']
+
+  if (data.type === 'inflow' && data.status && !inStatuses.includes(data.status))
+    data.status = 'orçado'
+  if (data.type === 'outflow' && data.status && !outStatuses.includes(data.status))
+    data.status = 'orçado'
+  if (data.frequency && !['única', 'semanal', 'quinzenal', 'mensal'].includes(data.frequency)) {
+    data.frequency = 'única'
+  }
+  return data
+}
+
 export const createFinance = async (data: any) => {
+  const orgId = pb.authStore.record?.active_organization
+  if (!orgId) throw new Error('Organização ativa não encontrada. Atualize seu perfil.')
+  data = sanitizeFinance(data)
+  data.organization = orgId
+
   if (!data.frequency || data.frequency === 'única') {
     return pb.collection('finances').create(data)
   }
@@ -41,7 +63,10 @@ export const createFinance = async (data: any) => {
   return records[0]
 }
 
-export const updateFinance = (id: string, data: any) => pb.collection('finances').update(id, data)
+export const updateFinance = (id: string, data: any) => {
+  data = sanitizeFinance(data)
+  return pb.collection('finances').update(id, data)
+}
 
 export const deleteFinance = (id: string) => pb.collection('finances').delete(id)
 
