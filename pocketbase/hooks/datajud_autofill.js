@@ -66,7 +66,22 @@ routerAdd(
       }
     } catch (_) {}
 
-    if (configuredTribunals.length > 0 && !configuredTribunals.includes(targetAlias)) {
+    let isTribunalActive = false
+
+    if (configuredTribunals.length > 0 && configuredTribunals.includes(targetAlias)) {
+      isTribunalActive = true
+    } else {
+      try {
+        const safeAlias = targetAlias.replace(/'/g, "''")
+        const t = $app.findFirstRecordByFilter(
+          'tribunals',
+          `alias = '${safeAlias}' && active = true`,
+        )
+        if (t) isTribunalActive = true
+      } catch (_) {}
+    }
+
+    if (configuredTribunals.length > 0 && !isTribunalActive) {
       return e.json(400, {
         success: false,
         error: `O tribunal '${targetAlias}' não está habilitado no Monitoramento. Acesse a aba Configurações de Monitoramento e ative-o para poder usar a busca do DataJud.`,
