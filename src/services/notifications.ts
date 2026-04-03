@@ -30,3 +30,10 @@ export const markAllAsRead = async (userId: string) => {
   )
   return Promise.all(promises)
 }
+
+export const markMultipleAsRead = async (notificationIds: string[], isRead: boolean) => {
+  const promises = notificationIds.map((id) =>
+    pb.collection('lawsuit_notifications').update(id, { is_read: isRead }),
+  )
+  return Promise.all(promises)
+}

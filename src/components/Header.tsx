@@ -43,6 +43,13 @@ export default function Header() {
   const [collaborators, setCollaborators] = useState<any[]>([])
   const [orgLogo, setOrgLogo] = useState<string | null>(null)
   const [orgName, setOrgName] = useState<string>('')
+  const [isAiOpen, setIsAiOpen] = useState(false)
+
+  useEffect(() => {
+    const handleAiState = (e: Event) => setIsAiOpen((e as CustomEvent).detail)
+    window.addEventListener('ai-chat-state', handleAiState)
+    return () => window.removeEventListener('ai-chat-state', handleAiState)
+  }, [])
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -237,7 +244,12 @@ export default function Header() {
               <>
                 <button
                   onClick={() => window.dispatchEvent(new CustomEvent('toggle-ai-chat'))}
-                  className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-2 rounded-md hover:bg-primary/20 transition-colors text-sm font-medium"
+                  className={cn(
+                    'flex items-center gap-2 px-3 py-2 rounded-md transition-colors text-sm font-medium',
+                    isAiOpen
+                      ? 'bg-primary text-white'
+                      : 'bg-primary/10 text-primary hover:bg-primary/20',
+                  )}
                   title="Assistente IA"
                 >
                   <Sparkles size={16} />
@@ -364,7 +376,10 @@ export default function Header() {
           {isAuthenticated && (
             <>
               <button
-                className="text-lg font-medium py-2 border-b text-primary text-left w-full flex items-center gap-2"
+                className={cn(
+                  'text-lg font-medium py-2 border-b text-left w-full flex items-center gap-2',
+                  isAiOpen ? 'text-secondary' : 'text-primary',
+                )}
                 onClick={() => {
                   closeMenu()
                   window.dispatchEvent(new CustomEvent('toggle-ai-chat'))

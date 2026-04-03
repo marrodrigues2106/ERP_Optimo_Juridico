@@ -33,6 +33,10 @@ export function IAChatSidebar() {
   }, [messages, isLoading])
 
   useEffect(() => {
+    window.dispatchEvent(new CustomEvent('ai-chat-state', { detail: isOpen }))
+  }, [isOpen])
+
+  useEffect(() => {
     const handleToggle = () => setIsOpen((prev) => !prev)
     window.addEventListener('toggle-ai-chat', handleToggle)
     return () => window.removeEventListener('toggle-ai-chat', handleToggle)

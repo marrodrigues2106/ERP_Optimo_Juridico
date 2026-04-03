@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getNotifications, markAllAsRead } from '@/services/notifications'
+import { getNotifications, markAllAsRead, markMultipleAsRead } from '@/services/notifications'
 import { useAuth } from '@/hooks/use-auth'
 import pb from '@/lib/pocketbase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,12 +9,15 @@ import { Inbox, BookOpen, Landmark, Bell, CheckCircle2, Archive, Search } from '
 import { cn } from '@/lib/utils'
 import { Link } from 'react-router-dom'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 
 export default function PublicacoesManager() {
   const { user } = useAuth()
   const [notifications, setNotifications] = useState<any[]>([])
   const [filter, setFilter] = useState('inbox')
   const [search, setSearch] = useState('')
+  const [selectedItems, setSelectedItems] = useState<string[]>([])
 
   const load = async () => {
     try {
@@ -34,6 +37,10 @@ export default function PublicacoesManager() {
   }, [user])
   useRealtime('lawsuit_notifications', load)
 
+  useEffect(() => {
+    setSelectedItems([])
+  }, [filter, search])
+
   const handleMarkRead = async (id: string, current: boolean) => {
     await pb.collection('lawsuit_notifications').update(id, { is_read: !current })
   }
@@ -47,6 +54,38 @@ export default function PublicacoesManager() {
     if (filter === 'archive') return n.is_read
     return true
   })
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedItems(filteredItems.map((n) => n.id))
+    } else {
+      setSelectedItems([])
+    }
+  }
+
+  const handleSelect = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedItems((prev) => [...prev, id])
+    } else {
+      setSelectedItems((prev) => prev.filter((i) => i !== id))
+    }
+  }
+
+  const handleBulkAction = async (markAsRead: boolean) => {
+    if (selectedItems.length === 0) return
+    const ids = [...selectedItems]
+
+    setNotifications((prev) =>
+      prev.map((n) => (ids.includes(n.id) ? { ...n, is_read: markAsRead } : n)),
+    )
+    setSelectedItems([])
+
+    try {
+      await markMultipleAsRead(ids, markAsRead)
+    } catch (e) {
+      load()
+    }
+  }
 
   return (
     <div className="flex flex-col md:flex-row gap-6 h-[calc(100vh-140px)]">
@@ -97,21 +136,59 @@ export default function PublicacoesManager() {
       </Card>
 
       <Card className="flex-1 flex flex-col overflow-hidden">
-        <CardHeader className="p-4 border-b bg-slate-50 flex flex-row items-center gap-4">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar publicações..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
+        <CardHeader className="p-4 border-b bg-slate-50 flex flex-col gap-3">
+          <div className="flex flex-row items-center gap-4">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar publicações..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            {filter === 'inbox' && (
+              <Button size="sm" variant="outline" onClick={() => markAllAsRead(user?.id || '')}>
+                Marcar todos como lidos
+              </Button>
+            )}
           </div>
-          {filter === 'inbox' && (
-            <Button size="sm" variant="outline" onClick={() => markAllAsRead(user?.id || '')}>
-              Marcar todos como lidos
-            </Button>
-          )}
+          <div className="flex items-center justify-between pt-1 border-t border-slate-200 mt-1">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="select-all"
+                checked={filteredItems.length > 0 && selectedItems.length === filteredItems.length}
+                onCheckedChange={handleSelectAll}
+                disabled={filteredItems.length === 0}
+              />
+              <Label htmlFor="select-all" className="text-sm cursor-pointer text-slate-600">
+                Selecionar Todos
+              </Label>
+            </div>
+            {selectedItems.length > 0 && (
+              <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                <span className="text-xs text-muted-foreground mr-1">
+                  {selectedItems.length} selecionados
+                </span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 text-xs px-2 bg-white"
+                  onClick={() => handleBulkAction(true)}
+                >
+                  Lido
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-7 text-xs px-2 bg-white"
+                  onClick={() => handleBulkAction(false)}
+                >
+                  Não Lido
+                </Button>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-0 overflow-y-auto flex-1">
           <div className="divide-y">
@@ -126,9 +203,14 @@ export default function PublicacoesManager() {
                   className={cn(
                     'p-4 flex gap-4 hover:bg-slate-50 transition-colors',
                     !n.is_read && 'bg-blue-50/30',
+                    selectedItems.includes(n.id) && 'bg-slate-100/80',
                   )}
                 >
-                  <div className="pt-1">
+                  <div className="pt-1 flex flex-col items-center gap-3">
+                    <Checkbox
+                      checked={selectedItems.includes(n.id)}
+                      onCheckedChange={(c) => handleSelect(n.id, !!c)}
+                    />
                     {n.type === 'gazette' ? (
                       <BookOpen className="w-5 h-5 text-amber-500" />
                     ) : n.type === 'discovery' ? (

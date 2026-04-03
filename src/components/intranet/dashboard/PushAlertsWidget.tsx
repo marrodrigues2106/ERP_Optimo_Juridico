@@ -123,15 +123,19 @@ export function PushAlertsWidget() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm text-slate-800">{a.title}</span>
-                        {a.lawsuitId && (
+                        {a.lawsuitId ? (
                           <Link
                             to={`/intranet/processos/${a.lawsuitId}`}
-                            className="text-xs font-medium text-primary hover:underline bg-primary/10 px-2 py-0.5 rounded"
+                            className="font-semibold text-sm text-primary hover:underline flex items-center gap-2"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {a.caseNumber}
+                            <span>{a.title}</span>
+                            <span className="text-xs font-medium bg-primary/10 px-2 py-0.5 rounded">
+                              {a.caseNumber}
+                            </span>
                           </Link>
+                        ) : (
+                          <span className="font-semibold text-sm text-slate-800">{a.title}</span>
                         )}
                       </div>
                       <p className="text-xs text-slate-600 mt-1 line-clamp-2">{a.desc}</p>
