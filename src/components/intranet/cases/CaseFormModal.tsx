@@ -159,9 +159,7 @@ export function CaseFormModal({
         if (res.data.subject) setValue('subject', res.data.subject)
         if (res.data.class) setValue('action_class', res.data.class)
         if (res.data.processType) setValue('process_type', res.data.processType)
-        if (res.data.status) {
-          setValue('status', res.data.status)
-        }
+        if (res.data.status) setValue('status', res.data.status)
         if (res.data.distributionDate) {
           try {
             setValue('distribution_date', res.data.distributionDate.substring(0, 10))
@@ -174,30 +172,16 @@ export function CaseFormModal({
       } else {
         toast({
           title: 'Atenção',
-          description: res.message || 'Processo não encontrado.',
+          description:
+            'Não foi possível localizar os dados do processo via DataJud. Por favor, preencha manualmente.',
           variant: 'destructive',
         })
       }
     } catch (e: any) {
-      let errorMsg = 'Não foi possível consultar o DataJud agora.'
-      let isPermissionError = e.status === 403 || e.status === 401
-
-      if (e.response?.error) {
-        errorMsg = e.response.error
-        if (errorMsg.includes('permissão de leitura para o tribunal')) {
-          isPermissionError = true
-        }
-      }
-
-      if (isPermissionError || errorMsg.includes('Erro de Autorização')) {
-        const tAlias = watch('court_alias') || watch('court') || 'selecionado'
-        errorMsg = `Erro de Autorização: A chave não tem permissão para acessar ${tAlias}.`
-        isPermissionError = true
-      }
-
       toast({
-        title: isPermissionError ? 'Acesso Negado' : 'Erro',
-        description: errorMsg,
+        title: 'Erro',
+        description:
+          'Não foi possível localizar os dados do processo via DataJud. Por favor, preencha manualmente.',
         variant: 'destructive',
       })
     } finally {
@@ -312,14 +296,21 @@ export function CaseFormModal({
             </div>
 
             <div className="col-span-1 md:col-span-2 flex flex-col sm:flex-row items-end gap-3">
-              <div className="flex-1 w-full">
+              <div className="flex-1 w-full relative">
                 <Label>Número do Processo {selectedType === 'Processo' && '*'}</Label>
-                <Input
-                  {...register('case_number')}
-                  placeholder="0000000-00.0000.0.00.0000"
-                  disabled={selectedType === 'Serviço Jurídico'}
-                  className={selectedType === 'Serviço Jurídico' ? 'bg-slate-100' : ''}
-                />
+                <div className="relative">
+                  <Input
+                    {...register('case_number')}
+                    placeholder="0000000-00.0000.0.00.0000"
+                    disabled={selectedType === 'Serviço Jurídico'}
+                    className={selectedType === 'Serviço Jurídico' ? 'bg-slate-100' : ''}
+                  />
+                  {isSearching && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    </div>
+                  )}
+                </div>
                 {errors.case_number && selectedType === 'Processo' && (
                   <p className="text-xs text-red-500 mt-1">{errors.case_number.message}</p>
                 )}

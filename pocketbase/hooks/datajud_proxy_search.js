@@ -10,7 +10,16 @@ routerAdd(
       return e.badRequestError('Alias is required')
     }
 
-    const apiKey = $secrets.get('DATAJUD_API_KEY') || ''
+    let apiKey = $secrets.get('DATAJUD_API_KEY') || ''
+    if (!apiKey) {
+      try {
+        const config = $app.findFirstRecordByFilter('monitoring_configs', "id != ''")
+        if (config && config.get('apiKey')) {
+          apiKey = config.get('apiKey')
+        }
+      } catch (_) {}
+    }
+
     if (!apiKey) {
       return e.internalServerError(
         'DATAJUD_API_KEY not configured. Something went wrong while processing your request.',

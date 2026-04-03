@@ -52,13 +52,24 @@ routerAdd(
     }
 
     const targetAlias = body.alias || alias
-    const apiKey = $secrets.get('DATAJUD_API_KEY') || ''
+    let apiKey = $secrets.get('DATAJUD_API_KEY') || ''
+
+    if (!apiKey) {
+      try {
+        const config = $app.findFirstRecordByFilter('monitoring_configs', "id != ''")
+        if (config && config.get('apiKey')) {
+          apiKey = config.get('apiKey')
+        }
+      } catch (_) {}
+    }
+
     const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${targetAlias}/_search`
 
     try {
       if (!apiKey) {
         return e.json(500, {
-          error: 'A Chave da API do DataJud não está configurada no servidor (Secrets).',
+          error:
+            'A Chave da API do DataJud não está configurada no servidor (Secrets) ou no banco de dados.',
         })
       }
 
