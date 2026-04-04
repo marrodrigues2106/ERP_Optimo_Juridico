@@ -13,12 +13,16 @@ export const getLegalCase = (id: string) =>
     .getOne(id, { expand: 'client,responsible_collaborator,related_cases' })
 
 const sanitizeCase = (data: any) => {
-  if (data.lifecycle_status === 'Excluído') data.lifecycle_status = 'Arquivado'
-  if (!['Ativo', 'Arquivado', 'Suspenso'].includes(data.lifecycle_status)) {
-    data.lifecycle_status = 'Ativo'
+  if (data.lifecycle_status !== undefined) {
+    if (data.lifecycle_status === 'Excluído') data.lifecycle_status = 'Arquivado'
+    if (!['Ativo', 'Arquivado', 'Suspenso'].includes(data.lifecycle_status)) {
+      data.lifecycle_status = 'Ativo'
+    }
   }
-  if (!['Processo', 'Serviço Jurídico'].includes(data.type)) {
-    data.type = 'Processo'
+  if (data.type !== undefined) {
+    if (!['Processo', 'Serviço Jurídico'].includes(data.type)) {
+      data.type = 'Processo'
+    }
   }
   if (data.client === 'none') data.client = null
   if (data.responsible_collaborator === 'none') data.responsible_collaborator = null

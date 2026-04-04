@@ -132,7 +132,7 @@ export default function Header() {
               <Input
                 type="search"
                 placeholder="Buscar processos, clientes..."
-                className="pl-8 h-9 w-64 bg-slate-50 border-slate-200 focus-visible:ring-1"
+                className="pl-8 h-9 w-64 bg-slate-50 border-slate-200 focus-visible:ring-1 rounded-full"
               />
             </div>
           )}
@@ -241,10 +241,10 @@ export default function Header() {
                       rel="noopener noreferrer"
                       className={cn(
                         navigationMenuTriggerStyle(),
-                        'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium',
+                        'bg-transparent text-slate-600 hover:bg-slate-50 hover:text-primary text-sm font-medium border border-slate-200 rounded-full px-4 py-2 transition-all mr-2',
                       )}
                     >
-                      Ver Site Público
+                      Site Público
                     </a>
                   </NavigationMenuLink>
                 </NavigationMenuItem>
@@ -254,7 +254,7 @@ export default function Header() {
                       onClick={() => setLogoutDialogOpen(true)}
                       className={cn(
                         navigationMenuTriggerStyle(),
-                        'bg-transparent text-foreground hover:bg-transparent hover:text-secondary text-base font-medium cursor-pointer',
+                        'bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 text-sm font-medium cursor-pointer rounded-full px-4 py-2 transition-all',
                       )}
                     >
                       Sair
@@ -402,19 +402,19 @@ export default function Header() {
                 href="https://www.moraesrodriguesadvocacia.com.br"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-lg font-medium py-2 border-b text-primary"
+                className="text-base font-medium py-3 border-b text-slate-700 hover:text-primary transition-colors"
                 onClick={closeMenu}
               >
                 Ver Site Público
               </a>
               <button
-                className="text-lg font-medium py-2 border-b text-primary text-left w-full"
+                className="text-base font-medium py-3 text-red-600 text-left w-full hover:bg-red-50 transition-colors px-2 rounded-md mt-2"
                 onClick={() => {
                   closeMenu()
                   setLogoutDialogOpen(true)
                 }}
               >
-                Sair
+                Sair da Conta
               </button>
             </>
           )}

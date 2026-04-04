@@ -87,9 +87,21 @@ export function CaseFormModal({
   const [isSearching, setIsSearching] = useState(false)
   const [tribunals, setTribunals] = useState<any[]>([])
   const [tagInput, setTagInput] = useState('')
+  const [allTags, setAllTags] = useState<string[]>([])
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false)
 
   useEffect(() => {
     pb.collection('tribunals').getFullList({ sort: 'name' }).then(setTribunals).catch(console.error)
+    pb.collection('legal_cases')
+      .getFullList({ fields: 'tags' })
+      .then((cases) => {
+        const tagSet = new Set<string>()
+        cases.forEach((c) => {
+          if (Array.isArray(c.tags)) c.tags.forEach((t: string) => tagSet.add(t))
+        })
+        setAllTags(Array.from(tagSet).sort())
+      })
+      .catch(() => {})
   }, [])
 
   const {
@@ -462,25 +474,74 @@ export function CaseFormModal({
             </div>
             <div className="col-span-1 md:col-span-2">
               <Label>Etiquetas</Label>
-              <Input
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    if (tagInput.trim()) {
-                      const current = watch('tags') || []
-                      if (!current.includes(tagInput.trim())) {
-                        setValue('tags', [...current, tagInput.trim()])
+              <div className="relative">
+                <Input
+                  value={tagInput}
+                  onChange={(e) => {
+                    setTagInput(e.target.value)
+                    setShowTagSuggestions(true)
+                  }}
+                  onFocus={() => setShowTagSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      if (tagInput.trim()) {
+                        const current = watch('tags') || []
+                        if (!current.includes(tagInput.trim())) {
+                          setValue('tags', [...current, tagInput.trim()])
+                        }
+                        setTagInput('')
+                        setShowTagSuggestions(false)
                       }
-                      setTagInput('')
                     }
-                  }
-                }}
-                placeholder="Digite uma etiqueta e pressione Enter"
-                className="mb-2"
-              />
-              <div className="flex flex-wrap gap-2">
+                  }}
+                  placeholder="Digite uma etiqueta e pressione Enter"
+                  className="mb-2"
+                />
+                {showTagSuggestions && tagInput && (
+                  <div className="absolute z-10 w-full top-[42px] bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-auto">
+                    {allTags
+                      .filter(
+                        (t) =>
+                          t.toLowerCase().includes(tagInput.toLowerCase()) &&
+                          !(watch('tags') || []).includes(t),
+                      )
+                      .map((t) => (
+                        <div
+                          key={t}
+                          className="px-3 py-2 cursor-pointer hover:bg-slate-100 text-sm"
+                          onClick={() => {
+                            const current = watch('tags') || []
+                            if (!current.includes(t)) {
+                              setValue('tags', [...current, t])
+                            }
+                            setTagInput('')
+                            setShowTagSuggestions(false)
+                          }}
+                        >
+                          {t}
+                        </div>
+                      ))}
+                    {!allTags.find((t) => t.toLowerCase() === tagInput.trim().toLowerCase()) && (
+                      <div
+                        className="px-3 py-2 cursor-pointer hover:bg-slate-100 text-sm text-primary font-medium"
+                        onClick={() => {
+                          const current = watch('tags') || []
+                          if (!current.includes(tagInput.trim())) {
+                            setValue('tags', [...current, tagInput.trim()])
+                          }
+                          setTagInput('')
+                          setShowTagSuggestions(false)
+                        }}
+                      >
+                        Criar nova etiqueta: "{tagInput.trim()}"
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2 mt-2">
                 {watch('tags')?.map((tag, index) => (
                   <Badge
                     key={index}
