@@ -23,9 +23,11 @@ import { useToast } from '@/hooks/use-toast'
 import { getClients, createClient, updateClient, deleteClient } from '@/services/clients'
 import { useAuth } from '@/hooks/use-auth'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
-import { Loader2, Plus, Search, Trash2, Edit } from 'lucide-react'
+import { Loader2, Plus, Search, Trash2, Edit, Eye } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 export function CrmContactsTab() {
+  const navigate = useNavigate()
   const [clients, setClients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -197,6 +199,14 @@ export function CrmContactsTab() {
                     <TableCell>{c.classification}</TableCell>
                     <TableCell>{c.status}</TableCell>
                     <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => navigate(`/intranet/clientes/${c.id}`)}
+                        title="Ver Detalhes"
+                      >
+                        <Eye className="w-4 h-4 text-slate-500" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"

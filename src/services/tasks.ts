@@ -6,7 +6,7 @@ export const getTasks = () =>
   pb.collection('tasks').getFullList({
     filter: 'deleted_at = ""',
     sort: 'status,due_date',
-    expand: 'collaborator,linked_lawsuit',
+    expand: 'collaborator,linked_lawsuit,client',
   })
 
 export const getTasksByLawsuit = (lawsuitId: string) =>
@@ -19,6 +19,7 @@ export const getTasksByLawsuit = (lawsuitId: string) =>
 const sanitizeTask = (data: any) => {
   if (data.collaborator === 'none') data.collaborator = null
   if (data.linked_lawsuit === 'none') data.linked_lawsuit = null
+  if (data.client === 'none') data.client = null
   if (data.priority && !['low', 'medium', 'high'].includes(data.priority)) data.priority = 'medium'
   if (data.status && !['todo', 'completed'].includes(data.status)) data.status = 'todo'
   return data

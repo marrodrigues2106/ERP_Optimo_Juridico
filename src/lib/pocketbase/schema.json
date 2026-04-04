@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-04T02:09:25.552Z",
+  "generatedAt": "2026-04-04T02:16:32.219Z",
   "collections": [
     {
       "name": "users",
@@ -903,6 +903,13 @@
           "type": "date",
           "required": false,
           "system": false
+        },
+        {
+          "name": "client",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clients"
         }
       ],
       "indexes": []
@@ -2266,6 +2273,85 @@
           "type": "bool",
           "required": false,
           "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "client_documents",
+      "type": "base",
+      "apiRules": {
+        "list": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "view": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "create": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "update": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "delete": "(@request.auth.id != '') && organization = @request.auth.active_organization"
+      },
+      "fields": [
+        {
+          "name": "client",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "clients"
+        },
+        {
+          "name": "type",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["RG", "CPF", "CNH", "Passport", "Other"]
+        },
+        {
+          "name": "document_number",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "issue_date",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "expiry_date",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "issuing_body",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "file",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "organization",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "organizations"
         },
         {
           "name": "created",
