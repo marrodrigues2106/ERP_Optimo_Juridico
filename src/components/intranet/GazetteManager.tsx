@@ -74,6 +74,12 @@ export default function GazetteManager() {
     return text.substring(0, 300) + (text.length > 300 ? '...' : '')
   }
 
+  const renderJsonArray = (val: any) => {
+    if (Array.isArray(val)) return val.join(', ')
+    if (typeof val === 'string') return val
+    return null
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-6">
@@ -228,12 +234,23 @@ export default function GazetteManager() {
                         Ler na íntegra
                       </Button>
                     </div>
-                    {pub.numero_processo && (
-                      <div className="mb-2 text-sm font-semibold text-slate-800">
-                        Processo: {pub.numero_processo}
+                    {pub.numero_processo && renderJsonArray(pub.numero_processo) && (
+                      <div className="mb-1 text-sm font-semibold text-slate-800">
+                        Processo: {renderJsonArray(pub.numero_processo)}
                       </div>
                     )}
-                    <p className="text-sm text-slate-600 font-mono bg-slate-100 p-3 rounded leading-relaxed">
+                    {pub.oabs && renderJsonArray(pub.oabs) && (
+                      <div className="mb-1 text-xs text-slate-600">
+                        <span className="font-semibold">OABs:</span> {renderJsonArray(pub.oabs)}
+                      </div>
+                    )}
+                    {pub.cpfs_cnpjs && renderJsonArray(pub.cpfs_cnpjs) && (
+                      <div className="mb-2 text-xs text-slate-600">
+                        <span className="font-semibold">CPF/CNPJ:</span>{' '}
+                        {renderJsonArray(pub.cpfs_cnpjs)}
+                      </div>
+                    )}
+                    <p className="text-sm text-slate-600 font-mono bg-slate-100 p-3 rounded leading-relaxed mt-2 break-words">
                       {renderSnippet(pub.texto_normalizado)}
                     </p>
                   </div>
@@ -327,9 +344,29 @@ export default function GazetteManager() {
                       ? new Date(selectedPub.data_publicacao).toLocaleDateString()
                       : 'N/D'}
                   </div>
-                  {selectedPub?.numero_processo && (
-                    <div>
-                      <strong>Processo:</strong> {selectedPub.numero_processo}
+                  {selectedPub?.numero_processo && renderJsonArray(selectedPub.numero_processo) && (
+                    <div className="w-full">
+                      <strong>Processo:</strong> {renderJsonArray(selectedPub.numero_processo)}
+                    </div>
+                  )}
+                  {selectedPub?.oabs && renderJsonArray(selectedPub.oabs) && (
+                    <div className="w-full">
+                      <strong>OABs:</strong> {renderJsonArray(selectedPub.oabs)}
+                    </div>
+                  )}
+                  {selectedPub?.cpfs_cnpjs && renderJsonArray(selectedPub.cpfs_cnpjs) && (
+                    <div className="w-full">
+                      <strong>CPF/CNPJ:</strong> {renderJsonArray(selectedPub.cpfs_cnpjs)}
+                    </div>
+                  )}
+                  {selectedPub?.partes && renderJsonArray(selectedPub.partes) && (
+                    <div className="w-full">
+                      <strong>Partes:</strong> {renderJsonArray(selectedPub.partes)}
+                    </div>
+                  )}
+                  {selectedPub?.advogados && renderJsonArray(selectedPub.advogados) && (
+                    <div className="w-full">
+                      <strong>Advogados:</strong> {renderJsonArray(selectedPub.advogados)}
                     </div>
                   )}
                 </>
