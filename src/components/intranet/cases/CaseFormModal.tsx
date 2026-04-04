@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -47,6 +48,8 @@ const formSchema = z
     estimated_duration: z.coerce.number().min(0).optional(),
     duration_unit: z.enum(['semanas', 'meses']).optional(),
     allocated_fixed_cost: z.coerce.number().min(0).optional(),
+    description: z.string().optional(),
+    observations: z.string().optional(),
   })
   .refine(
     (data) => {
@@ -127,6 +130,8 @@ export function CaseFormModal({
           estimated_duration: editingCase.estimated_duration || 0,
           duration_unit: editingCase.duration_unit || 'meses',
           allocated_fixed_cost: editingCase.allocated_fixed_cost || 0,
+          description: editingCase.description || '',
+          observations: editingCase.observations || '',
         })
       } else {
         reset({
@@ -136,6 +141,8 @@ export function CaseFormModal({
           estimated_duration: 0,
           duration_unit: 'meses',
           allocated_fixed_cost: 0,
+          description: '',
+          observations: '',
         })
       }
     }
@@ -231,6 +238,8 @@ export function CaseFormModal({
       estimated_duration: data.estimated_duration,
       duration_unit: data.duration_unit,
       allocated_fixed_cost: data.allocated_fixed_cost,
+      description: data.description,
+      observations: data.observations,
       metadata: {
         subject: data.subject,
         action_class: data.action_class,
@@ -573,6 +582,24 @@ export function CaseFormModal({
             <div className="col-span-1 md:col-span-2">
               <Label>Prazo / Alerta Principal</Label>
               <Input type="date" {...register('deadline')} />
+            </div>
+
+            <div className="col-span-1 md:col-span-2">
+              <Label>Descrição</Label>
+              <Textarea
+                {...register('description')}
+                placeholder="Descrição do caso/serviço..."
+                className="min-h-[80px]"
+              />
+            </div>
+
+            <div className="col-span-1 md:col-span-2">
+              <Label>Observações</Label>
+              <Textarea
+                {...register('observations')}
+                placeholder="Observações adicionais..."
+                className="min-h-[80px]"
+              />
             </div>
           </div>
 

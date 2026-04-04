@@ -8,6 +8,13 @@ export const getClientInteractions = (clientId: string) =>
     expand: 'responsible,linked_case',
   })
 
+export const getInteractionsByLawsuit = (caseId: string) =>
+  pb.collection('crm_interactions').getFullList({
+    filter: `linked_case = '${caseId}'`,
+    sort: '-date',
+    expand: 'responsible,client',
+  })
+
 const sanitizeInteraction = (data: any) => {
   if (data.responsible === 'none') data.responsible = null
   if (data.linked_case === 'none') data.linked_case = null

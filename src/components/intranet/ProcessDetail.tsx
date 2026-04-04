@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { getLegalCase, updateLegalCase, getLegalCases } from '@/services/legal_cases'
 import { getFinancesByLawsuit } from '@/services/finances'
 import { getPaginatedCaseMovements, createCaseMovement } from '@/services/case_movements'
+import { getInteractionsByLawsuit, createInteraction } from '@/services/crm_interactions'
 import { getAgendaEventsByLawsuit } from '@/services/agenda'
 import { getTasksByLawsuit, createTask, updateTask } from '@/services/tasks'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -39,6 +40,10 @@ import {
   Info,
   DollarSign,
   Check,
+  Phone,
+  Mail,
+  Users,
+  StickyNote,
 } from 'lucide-react'
 
 const renderMovementText = (text: string) => {
@@ -95,7 +100,7 @@ export default function ProcessDetail() {
   const [legalCase, setLegalCase] = useState<any>(null)
 
   // Pagination State
-  const [movements, setMovements] = useState<any[]>([])
+  const [allTimeline, setAllTimeline] = useState<any[]>([])
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
   const [totalMovements, setTotalMovements] = useState(0)
@@ -129,14 +134,33 @@ export default function ProcessDetail() {
     }
   }
 
-  const loadMovements = async () => {
+  const loadMovementsAndInteractions = async () => {
     if (!id) return
     try {
-      const res = await getPaginatedCaseMovements(id, page, perPage)
-      setMovements(res.items)
-      setTotalMovements(res.totalItems)
+      const [movsRes, inters] = await Promise.all([
+        pb
+          .collection('case_movements')
+          .getFullList({ filter: `case = '${id}'`, sort: '-event_date' }),
+        getInteractionsByLawsuit(id),
+      ])
+
+      const unified = [
+        ...movsRes.map((m: any) => ({
+          ...m,
+          _type: 'movement',
+          _date: new Date(m.event_date).getTime(),
+        })),
+        ...inters.map((i: any) => ({
+          ...i,
+          _type: 'interaction',
+          _date: new Date(i.date).getTime(),
+        })),
+      ].sort((a, b) => b._date - a._date)
+
+      setAllTimeline(unified)
+      setTotalMovements(unified.length)
     } catch (e) {
-      console.error('Error loading movements', e)
+      console.error('Error loading unified timeline', e)
     }
   }
 
@@ -145,14 +169,17 @@ export default function ProcessDetail() {
   }, [id])
 
   useEffect(() => {
-    loadMovements()
-  }, [id, page, perPage])
+    loadMovementsAndInteractions()
+  }, [id])
 
   useRealtime('legal_cases', loadBaseData)
-  useRealtime('case_movements', loadMovements)
+  useRealtime('case_movements', loadMovementsAndInteractions)
+  useRealtime('crm_interactions', loadMovementsAndInteractions)
   useRealtime('agenda_events', loadBaseData)
   useRealtime('tasks', loadBaseData)
   useRealtime('finances', loadBaseData)
+
+  const movements = allTimeline.slice((page - 1) * perPage, page * perPage)
 
   const handleAddManualMovement = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -172,6 +199,38 @@ export default function ProcessDetail() {
       setPage(1) // Go to first page to see the new movement
     } catch (err) {
       toast({ title: 'Erro ao registrar andamento', variant: 'destructive' })
+    }
+  }
+
+  const handleAddInteraction = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!legalCase.client) {
+      toast({
+        title: 'Aviso',
+        description: 'Vincule um cliente ao caso antes de registrar interações.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const fd = new FormData(e.currentTarget)
+    const type = fd.get('type') as string
+    const desc = fd.get('description') as string
+
+    try {
+      await createInteraction({
+        client: legalCase.client,
+        linked_case: id,
+        type,
+        description: desc,
+        date: new Date().toISOString(),
+        status: 'Completed',
+      })
+      toast({ title: 'Interação registrada' })
+      e.currentTarget.reset()
+      setPage(1)
+    } catch (err) {
+      toast({ title: 'Erro ao registrar interação', variant: 'destructive' })
     }
   }
 
@@ -366,6 +425,12 @@ export default function ProcessDetail() {
                 >
                   Ocorrência Processual
                 </TabsTrigger>
+                <TabsTrigger
+                  value="interacao"
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-3 text-sm font-medium text-slate-600 data-[state=active]:text-primary"
+                >
+                  Nova Interação
+                </TabsTrigger>
               </TabsList>
             </div>
 
@@ -439,8 +504,55 @@ export default function ProcessDetail() {
                 </Button>
               </form>
             </TabsContent>
+
+            <TabsContent value="interacao" className="p-4 m-0">
+              <form onSubmit={handleAddInteraction} className="flex gap-3 flex-wrap sm:flex-nowrap">
+                <Select name="type" defaultValue="Note">
+                  <SelectTrigger className="w-[150px] bg-slate-50 border-slate-200">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Note">Anotação</SelectItem>
+                    <SelectItem value="Email">Email</SelectItem>
+                    <SelectItem value="Call">Ligação</SelectItem>
+                    <SelectItem value="Meeting">Reunião</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  name="description"
+                  placeholder="Detalhes da interação..."
+                  required
+                  className="flex-1 bg-slate-50 border-slate-200"
+                />
+                <Button type="submit" className="w-full sm:w-auto">
+                  Registrar
+                </Button>
+              </form>
+            </TabsContent>
           </Tabs>
         </div>
+
+        {/* Description & Observations Section */}
+        {(legalCase.description || legalCase.observations) && (
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4">
+            {legalCase.description && (
+              <div>
+                <h3 className="font-semibold text-sm text-slate-800 mb-1">Descrição</h3>
+                <p className="text-sm text-slate-600 whitespace-pre-wrap">
+                  {legalCase.description}
+                </p>
+              </div>
+            )}
+            {legalCase.observations && (
+              <div className={legalCase.description ? 'pt-3 border-t border-slate-100' : ''}>
+                <h3 className="font-semibold text-sm text-slate-800 mb-1">Observações</h3>
+                <p className="text-sm text-slate-600 whitespace-pre-wrap">
+                  {legalCase.observations}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Movements Table Block */}
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4">
@@ -479,7 +591,70 @@ export default function ProcessDetail() {
                 Nenhum andamento encontrado.
               </div>
             ) : (
-              movements.map((mov) => {
+              movements.map((item) => {
+                if (item._type === 'interaction') {
+                  let Icon = StickyNote
+                  let colorClass = 'text-amber-500'
+                  let typeLabel = 'Anotação'
+                  if (item.type === 'Call') {
+                    Icon = Phone
+                    colorClass = 'text-blue-500'
+                    typeLabel = 'Ligação'
+                  } else if (item.type === 'Email') {
+                    Icon = Mail
+                    colorClass = 'text-purple-500'
+                    typeLabel = 'Email'
+                  } else if (item.type === 'Meeting') {
+                    Icon = Users
+                    colorClass = 'text-emerald-500'
+                    typeLabel = 'Reunião'
+                  }
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="bg-slate-50 border border-slate-200 rounded-lg p-4 shadow-sm space-y-3 hover:border-slate-300 transition-colors"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-2 text-sm text-slate-500">
+                          <Icon className={`w-4 h-4 shrink-0 ${colorClass}`} />
+                          <span className="font-medium text-slate-700 leading-tight">
+                            Interação Manual &gt; {typeLabel}
+                          </span>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] uppercase font-normal">
+                          {item.status}
+                        </Badge>
+                      </div>
+
+                      <div className="text-sm text-slate-500 font-mono">
+                        {formatMovementDate(item.date)}
+                      </div>
+
+                      <div className="flex flex-col gap-2">
+                        <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-white p-3 rounded border border-slate-100">
+                          {item.description}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between pt-3 border-t border-slate-200 gap-4">
+                        {item.expand?.responsible && (
+                          <div className="text-xs text-slate-500 flex items-center gap-1">
+                            <User className="w-3.5 h-3.5" />
+                            Responsável: {item.expand.responsible.name}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-5 flex-1 justify-end">
+                          <div className="text-sm text-slate-500 flex items-center gap-1.5 cursor-pointer hover:text-slate-800 transition-colors">
+                            <MessageSquare className="w-4 h-4" /> Comentar
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                const mov = item
                 let organName = '-'
                 let complements = ''
 
@@ -516,7 +691,7 @@ export default function ProcessDetail() {
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex items-center gap-2 text-sm text-slate-500">
-                        <FileText className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <FileText className="w-4 h-4 text-slate-400 shrink-0" />
                         <span className="font-medium text-slate-700 leading-tight">
                           {mov.source} &gt; {mov.description}
                           {organName !== '-' && ` - ${organName}`}
