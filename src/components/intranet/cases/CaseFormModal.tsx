@@ -20,6 +20,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { createLegalCase, updateLegalCase } from '@/services/legal_cases'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
@@ -474,96 +483,125 @@ export function CaseFormModal({
             </div>
             <div className="col-span-1 md:col-span-2">
               <Label>Etiquetas</Label>
-              <div className="relative">
-                <Input
-                  value={tagInput}
-                  onChange={(e) => {
-                    setTagInput(e.target.value)
-                    setShowTagSuggestions(true)
-                  }}
-                  onFocus={() => setShowTagSuggestions(true)}
-                  onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      if (tagInput.trim()) {
-                        const current = watch('tags') || []
-                        if (!current.includes(tagInput.trim())) {
-                          setValue('tags', [...current, tagInput.trim()])
-                        }
-                        setTagInput('')
-                        setShowTagSuggestions(false)
-                      }
-                    }
-                  }}
-                  placeholder="Digite uma etiqueta e pressione Enter"
-                  className="mb-2"
-                />
-                {showTagSuggestions && tagInput && (
-                  <div className="absolute z-10 w-full top-[42px] bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-auto">
-                    {allTags
-                      .filter(
-                        (t) =>
-                          t.toLowerCase().includes(tagInput.toLowerCase()) &&
-                          !(watch('tags') || []).includes(t),
-                      )
-                      .map((t) => (
-                        <div
-                          key={t}
-                          className="px-3 py-2 cursor-pointer hover:bg-slate-100 text-sm"
+              <div className="flex flex-col gap-2 mt-1">
+                <Popover open={showTagSuggestions} onOpenChange={setShowTagSuggestions}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={showTagSuggestions}
+                      className="w-full justify-between font-normal bg-white"
+                    >
+                      {watch('tags')?.length
+                        ? `${watch('tags')?.length} etiqueta(s) selecionada(s)`
+                        : 'Selecione ou crie etiquetas...'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-[var(--radix-popover-trigger-width)] p-0"
+                    align="start"
+                  >
+                    <Command>
+                      <CommandInput
+                        placeholder="Buscar ou criar etiqueta..."
+                        value={tagInput}
+                        onValueChange={setTagInput}
+                      />
+                      <CommandList>
+                        <CommandEmpty>
+                          {tagInput.trim() ? (
+                            <Button
+                              variant="ghost"
+                              className="w-full justify-start px-2 py-1.5 text-sm font-medium text-primary"
+                              onClick={() => {
+                                const current = watch('tags') || []
+                                if (!current.includes(tagInput.trim())) {
+                                  setValue('tags', [...current, tagInput.trim()])
+                                  setAllTags((prev) =>
+                                    Array.from(new Set([...prev, tagInput.trim()])).sort(),
+                                  )
+                                }
+                                setTagInput('')
+                                setShowTagSuggestions(false)
+                              }}
+                            >
+                              Criar nova etiqueta: "{tagInput.trim()}"
+                            </Button>
+                          ) : (
+                            'Nenhuma etiqueta encontrada.'
+                          )}
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {allTags
+                            .filter((t) => !(watch('tags') || []).includes(t))
+                            .map((t) => (
+                              <CommandItem
+                                key={t}
+                                value={t}
+                                onSelect={() => {
+                                  const current = watch('tags') || []
+                                  if (!current.includes(t)) {
+                                    setValue('tags', [...current, t])
+                                  }
+                                  setTagInput('')
+                                }}
+                              >
+                                {t}
+                              </CommandItem>
+                            ))}
+                          {tagInput.trim() &&
+                            !allTags.find(
+                              (t) => t.toLowerCase() === tagInput.trim().toLowerCase(),
+                            ) && (
+                              <CommandItem
+                                value={tagInput.trim()}
+                                onSelect={() => {
+                                  const current = watch('tags') || []
+                                  if (!current.includes(tagInput.trim())) {
+                                    setValue('tags', [...current, tagInput.trim()])
+                                    setAllTags((prev) =>
+                                      Array.from(new Set([...prev, tagInput.trim()])).sort(),
+                                    )
+                                  }
+                                  setTagInput('')
+                                }}
+                                className="text-primary font-medium"
+                              >
+                                Criar nova etiqueta: "{tagInput.trim()}"
+                              </CommandItem>
+                            )}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+
+                {(watch('tags')?.length ?? 0) > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {watch('tags')?.map((tag, index) => (
+                      <Badge
+                        key={index}
+                        variant="secondary"
+                        className="flex items-center gap-1 px-2 py-1"
+                      >
+                        {tag}
+                        <button
+                          type="button"
+                          className="hover:bg-slate-200 rounded-full p-0.5 transition-colors"
                           onClick={() => {
                             const current = watch('tags') || []
-                            if (!current.includes(t)) {
-                              setValue('tags', [...current, t])
-                            }
-                            setTagInput('')
-                            setShowTagSuggestions(false)
+                            setValue(
+                              'tags',
+                              current.filter((_, i) => i !== index),
+                            )
                           }}
                         >
-                          {t}
-                        </div>
-                      ))}
-                    {!allTags.find((t) => t.toLowerCase() === tagInput.trim().toLowerCase()) && (
-                      <div
-                        className="px-3 py-2 cursor-pointer hover:bg-slate-100 text-sm text-primary font-medium"
-                        onClick={() => {
-                          const current = watch('tags') || []
-                          if (!current.includes(tagInput.trim())) {
-                            setValue('tags', [...current, tagInput.trim()])
-                          }
-                          setTagInput('')
-                          setShowTagSuggestions(false)
-                        }}
-                      >
-                        Criar nova etiqueta: "{tagInput.trim()}"
-                      </div>
-                    )}
+                          <X className="w-3 h-3 text-slate-500 hover:text-slate-800" />
+                        </button>
+                      </Badge>
+                    ))}
                   </div>
                 )}
-              </div>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {watch('tags')?.map((tag, index) => (
-                  <Badge
-                    key={index}
-                    variant="secondary"
-                    className="flex items-center gap-1 px-2 py-1"
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      className="hover:bg-slate-200 rounded-full p-0.5 transition-colors"
-                      onClick={() => {
-                        const current = watch('tags') || []
-                        setValue(
-                          'tags',
-                          current.filter((_, i) => i !== index),
-                        )
-                      }}
-                    >
-                      <X className="w-3 h-3 text-slate-500 hover:text-slate-800" />
-                    </button>
-                  </Badge>
-                ))}
               </div>
             </div>
           </div>

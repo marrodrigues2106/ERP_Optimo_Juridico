@@ -90,12 +90,19 @@ export default function ProcessManager() {
   }
 
   const handleToggleFavorite = async (c: any) => {
-    await updateLegalCase(c.id, { is_favorite: !c.is_favorite })
+    await updateLegalCase(c.id, {
+      is_favorite: !c.is_favorite,
+      type: c.type,
+      lifecycle_status: c.lifecycle_status,
+    })
     loadData()
   }
 
   const handleRestore = async (c: any) => {
-    await updateLegalCase(c.id, { lifecycle_status: 'Ativo' })
+    await updateLegalCase(c.id, {
+      lifecycle_status: 'Ativo',
+      type: c.type,
+    })
     toast({ title: 'Caso restaurado para Ativo.' })
     loadData()
   }
