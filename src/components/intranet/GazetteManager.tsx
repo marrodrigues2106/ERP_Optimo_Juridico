@@ -69,9 +69,64 @@ export default function GazetteManager() {
     }
   }
 
-  const renderSnippet = (text: string) => {
+  const renderSnippet = (text: string, terms: string[]) => {
     if (!text) return ''
-    return text.substring(0, 300) + (text.length > 300 ? '...' : '')
+    const validTerms = terms.filter((t) => t && t.trim().length > 0)
+    if (validTerms.length === 0)
+      return (
+        <>
+          {text.substring(0, 300)}
+          {text.length > 300 ? '...' : ''}
+        </>
+      )
+
+    let firstIndex = -1
+    let matchedTerm = ''
+
+    const lowerText = text.toLowerCase()
+    for (const term of validTerms) {
+      const idx = lowerText.indexOf(term.toLowerCase())
+      if (idx !== -1 && (firstIndex === -1 || idx < firstIndex)) {
+        firstIndex = idx
+        matchedTerm = term
+      }
+    }
+
+    if (firstIndex === -1)
+      return (
+        <>
+          {text.substring(0, 300)}
+          {text.length > 300 ? '...' : ''}
+        </>
+      )
+
+    const start = Math.max(0, firstIndex - 100)
+    const end = Math.min(text.length, firstIndex + matchedTerm.length + 200)
+
+    let snippet = text.substring(start, end)
+    const prefix = start > 0 ? '...' : ''
+    const suffix = end < text.length ? '...' : ''
+
+    const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(`(${validTerms.map(escapeRegExp).join('|')})`, 'gi')
+    const parts = snippet.split(regex)
+
+    return (
+      <>
+        {prefix}
+        {parts.map((part, i) => {
+          const isMatch = validTerms.some((t) => t.toLowerCase() === part.toLowerCase())
+          return isMatch ? (
+            <mark key={i} className="bg-yellow-200 text-yellow-900 font-bold px-1 rounded">
+              {part}
+            </mark>
+          ) : (
+            part
+          )
+        })}
+        {suffix}
+      </>
+    )
   }
 
   const renderJsonArray = (val: any) => {
@@ -251,7 +306,7 @@ export default function GazetteManager() {
                       </div>
                     )}
                     <p className="text-sm text-slate-600 font-mono bg-slate-100 p-3 rounded leading-relaxed mt-2 break-words">
-                      {renderSnippet(pub.texto_normalizado)}
+                      {renderSnippet(pub.texto_normalizado, [keyword, processo, oab, cpfCnpj])}
                     </p>
                   </div>
                 ))
@@ -302,7 +357,12 @@ export default function GazetteManager() {
                       <div className="mb-2 text-sm font-semibold text-slate-800">{pub.titulo}</div>
                     )}
                     <p className="text-sm text-slate-600 font-mono bg-slate-100 p-3 rounded leading-relaxed">
-                      {renderSnippet(pub.texto_normalizado || pub.texto_bruto)}
+                      {renderSnippet(pub.texto_normalizado || pub.texto_bruto, [
+                        keyword,
+                        processo,
+                        oab,
+                        cpfCnpj,
+                      ])}
                     </p>
                   </div>
                 ))

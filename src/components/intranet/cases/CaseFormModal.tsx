@@ -101,8 +101,10 @@ export function CaseFormModal({
 
   useEffect(() => {
     pb.collection('tribunals').getFullList({ sort: 'name' }).then(setTribunals).catch(console.error)
+
+    const orgId = pb.authStore.record?.active_organization
     pb.collection('legal_cases')
-      .getFullList({ fields: 'tags' })
+      .getFullList({ fields: 'tags', filter: orgId ? `organization = "${orgId}"` : '' })
       .then((cases) => {
         const tagSet = new Set<string>()
         cases.forEach((c) => {

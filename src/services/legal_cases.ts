@@ -52,3 +52,9 @@ export const deleteLegalCase = async (id: string) => {
   await pb.collection('legal_cases').delete(id)
   await logAudit('legal_cases', id, 'delete')
 }
+
+export const toggleFavoriteLegalCase = async (id: string, is_favorite: boolean) => {
+  const record = await pb.collection('legal_cases').update(id, { is_favorite })
+  await logAudit('legal_cases', record.id, 'update', { is_favorite })
+  return record
+}
