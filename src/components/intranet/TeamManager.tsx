@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { UserPlus, Mail, Phone, Trash2, Edit2, FileBadge, Loader2 } from 'lucide-react'
+import { UserPlus, Mail, Phone, Trash2, Edit2, FileBadge, Loader2, Camera } from 'lucide-react'
 import {
   getCollaborators,
   createCollaborator,
@@ -47,6 +47,10 @@ export default function TeamManager() {
   const { user: currentUser } = useAuth()
   const [users, setUsers] = useState<any[]>([])
 
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const loadData = async () => {
     try {
       setTeam(await getCollaborators())
@@ -73,35 +77,62 @@ export default function TeamManager() {
 
   const handleOpenNew = () => {
     setEditingItem(null)
+    setAvatarFile(null)
+    setAvatarPreview(null)
     setOpen(true)
   }
 
   const handleEdit = (item: any) => {
     setEditingItem(item)
+    setAvatarFile(null)
+    if (item.avatar) {
+      setAvatarPreview(pb.files.getURL(item, item.avatar))
+    } else {
+      setAvatarPreview(null)
+    }
     setOpen(true)
   }
 
   const [submitting, setSubmitting] = useState(false)
 
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0]
+      setAvatarFile(file)
+      setAvatarPreview(URL.createObjectURL(file))
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setSubmitting(true)
     const fd = new FormData(e.currentTarget)
-    const data: any = Object.fromEntries(fd.entries())
-    data.name = data.fullName
-    if (data.user === 'none') data.user = null
+
+    const fullName = fd.get('fullName') as string
+    if (fullName) fd.set('name', fullName)
+
+    if (fd.get('user') === 'none') fd.delete('user')
+
+    const birthDate = fd.get('birthDate') as string
+    if (birthDate) {
+      const d = new Date(birthDate)
+      if (!isNaN(d.getTime())) fd.set('birthDate', d.toISOString())
+    } else {
+      fd.delete('birthDate')
+    }
+
+    if (avatarFile) {
+      fd.set('avatar', avatarFile)
+    } else {
+      fd.delete('avatar')
+    }
 
     try {
-      if (data.birthDate) {
-        const d = new Date(data.birthDate)
-        if (!isNaN(d.getTime())) data.birthDate = d.toISOString()
-      }
-
       if (editingItem) {
-        await updateCollaborator(editingItem.id, data)
+        await updateCollaborator(editingItem.id, fd)
         toast({ title: 'Membro da equipe atualizado' })
       } else {
-        await createCollaborator(data)
+        await createCollaborator(fd)
         toast({ title: 'Membro da equipe adicionado' })
       }
       setOpen(false)
@@ -129,7 +160,12 @@ export default function TeamManager() {
     const matchRole = roleFilter.length === 0 || roleFilter.includes(member.role)
     const matchCase =
       caseFilter === 'all' ||
-      cases.some((c) => c.id === caseFilter && c.responsible_collaborator === member.id)
+      cases.some((c) => {
+        if (Array.isArray(c.responsible_collaborator)) {
+          return c.id === caseFilter && c.responsible_collaborator.includes(member.id)
+        }
+        return c.id === caseFilter && c.responsible_collaborator === member.id
+      })
     return matchRole && matchCase
   })
 
@@ -143,95 +179,124 @@ export default function TeamManager() {
               <UserPlus className="w-4 h-4 mr-2" /> Adicionar Membro
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingItem ? 'Editar Membro' : 'Novo Membro da Equipe'}</DialogTitle>
             </DialogHeader>
-            <form
-              key={editingItem?.id || 'new'}
-              onSubmit={handleSubmit}
-              className="grid grid-cols-1 md:grid-cols-2 gap-4"
-            >
-              <div className="md:col-span-2">
-                <Label>Nome Completo</Label>
-                <Input
-                  name="fullName"
-                  required
-                  defaultValue={editingItem?.fullName || editingItem?.name}
-                />
+            <form key={editingItem?.id || 'new'} onSubmit={handleSubmit} className="space-y-6 pt-2">
+              <div className="flex justify-center mb-6">
+                <div
+                  className="relative group cursor-pointer"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Avatar className="w-24 h-24 border-2 border-slate-100 shadow-sm">
+                    <AvatarImage
+                      src={
+                        avatarPreview ||
+                        (editingItem
+                          ? `https://img.usecurling.com/ppl/thumbnail?seed=${editingItem.id}`
+                          : '')
+                      }
+                    />
+                    <AvatarFallback className="bg-slate-50 text-slate-400">
+                      <Camera className="w-8 h-8" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="absolute inset-0 bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                    <Camera className="w-6 h-6" />
+                  </div>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleAvatarChange}
+                  />
+                </div>
               </div>
-              <div>
-                <Label>E-mail</Label>
-                <Input name="email" type="email" defaultValue={editingItem?.email} />
-              </div>
-              <div>
-                <Label>Telefone</Label>
-                <Input name="phone" defaultValue={editingItem?.phone} />
-              </div>
-              <div>
-                <Label>Função</Label>
-                <Select name="role" defaultValue={editingItem?.role || 'Advogado'}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Advogado">Advogado</SelectItem>
-                    <SelectItem value="Associado">Associado</SelectItem>
-                    <SelectItem value="Administrativo">Administrativo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Data Nascimento</Label>
-                <Input
-                  name="birthDate"
-                  type="date"
-                  defaultValue={editingItem?.birthDate?.split('T')[0]}
-                />
-              </div>
-              <div>
-                <Label>n.º OAB</Label>
-                <Input name="oabNumber" defaultValue={editingItem?.oabNumber} />
-              </div>
-              <div>
-                <Label>Termos D.O. (Monitoramento)</Label>
-                <Input
-                  name="personalSearchTerms"
-                  placeholder="Ex: Nome Completo"
-                  defaultValue={editingItem?.personalSearchTerms}
-                />
-              </div>
-              {(currentUser?.isAdmin ||
-                currentUser?.role === 'admin' ||
-                currentUser?.role === 'manager') && (
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
-                  <Label>Vincular a Usuário do Sistema</Label>
-                  <Select name="user" defaultValue={editingItem?.user || 'none'}>
+                  <Label>Nome Completo</Label>
+                  <Input
+                    name="fullName"
+                    required
+                    defaultValue={editingItem?.fullName || editingItem?.name}
+                  />
+                </div>
+                <div>
+                  <Label>E-mail</Label>
+                  <Input name="email" type="email" defaultValue={editingItem?.email} />
+                </div>
+                <div>
+                  <Label>Telefone</Label>
+                  <Input name="phone" defaultValue={editingItem?.phone} />
+                </div>
+                <div>
+                  <Label>Função</Label>
+                  <Select name="role" defaultValue={editingItem?.role || 'Advogado'}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione um usuário" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {users.map((u) => (
-                        <SelectItem key={u.id} value={u.id}>
-                          {u.name || u.email}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="Advogado">Advogado</SelectItem>
+                      <SelectItem value="Associado">Associado</SelectItem>
+                      <SelectItem value="Administrativo">Administrativo</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-              )}
-              <div className="md:col-span-2 mt-4">
-                <Button type="submit" className="w-full" disabled={submitting}>
-                  {submitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Salvando...
-                    </>
-                  ) : (
-                    'Salvar Membro'
-                  )}
-                </Button>
+                <div>
+                  <Label>Data Nascimento</Label>
+                  <Input
+                    name="birthDate"
+                    type="date"
+                    defaultValue={editingItem?.birthDate?.split('T')[0]}
+                  />
+                </div>
+                <div>
+                  <Label>n.º OAB</Label>
+                  <Input name="oabNumber" defaultValue={editingItem?.oabNumber} />
+                </div>
+                <div>
+                  <Label>Termos D.O. (Monitoramento)</Label>
+                  <Input
+                    name="personalSearchTerms"
+                    placeholder="Ex: Nome Completo"
+                    defaultValue={editingItem?.personalSearchTerms}
+                  />
+                </div>
+                {(currentUser?.isAdmin ||
+                  currentUser?.role === 'admin' ||
+                  currentUser?.role === 'manager') && (
+                  <div className="md:col-span-2">
+                    <Label>Vincular a Usuário do Sistema</Label>
+                    <Select name="user" defaultValue={editingItem?.user || 'none'}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um usuário" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        {users.map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.name || u.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="md:col-span-2 mt-2">
+                  <Button type="submit" className="w-full" disabled={submitting}>
+                    {submitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Salvando...
+                      </>
+                    ) : (
+                      'Salvar Membro'
+                    )}
+                  </Button>
+                </div>
               </div>
             </form>
           </DialogContent>
@@ -303,7 +368,11 @@ export default function TeamManager() {
                   <CardContent className="p-6 text-center">
                     <Avatar className="h-24 w-24 mx-auto mb-4 border-4 border-slate-50">
                       <AvatarImage
-                        src={`https://img.usecurling.com/ppl/thumbnail?seed=${member.id}&gender=male`}
+                        src={
+                          member.avatar
+                            ? pb.files.getURL(member, member.avatar)
+                            : `https://img.usecurling.com/ppl/thumbnail?seed=${member.id}`
+                        }
                       />
                       <AvatarFallback className="text-xl bg-primary text-white">
                         {(member.fullName || member.name || 'M').substring(0, 2).toUpperCase()}

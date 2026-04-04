@@ -8,16 +8,14 @@ export function ClientOverviewTab({ client }: { client: any }) {
 
   if (!client) return null
 
-  const handleEmailClick = async (e: React.MouseEvent) => {
+  const handleEmailClick = async () => {
     if (!client.email) return
-    e.preventDefault()
-    window.location.href = `mailto:${client.email}`
 
     try {
       await createInteraction({
         client: client.id,
         type: 'Email',
-        description: 'Iniciou contato via E-mail padrão do sistema.',
+        description: 'Iniciou contato via e-mail clicando no perfil do cliente.',
         date: new Date().toISOString(),
         status: 'Completed',
       })
@@ -27,17 +25,14 @@ export function ClientOverviewTab({ client }: { client: any }) {
     }
   }
 
-  const handleWhatsAppClick = async (e: React.MouseEvent) => {
+  const handleWhatsAppClick = async () => {
     if (!client.phone) return
-    e.preventDefault()
-    const cleanPhone = client.phone.replace(/\D/g, '')
-    window.open(`https://wa.me/${cleanPhone}`, '_blank')
 
     try {
       await createInteraction({
         client: client.id,
         type: 'WhatsApp',
-        description: 'Iniciou conversa via WhatsApp.',
+        description: 'Iniciou conversa via WhatsApp a partir do perfil.',
         date: new Date().toISOString(),
         status: 'Completed',
       })
@@ -83,7 +78,9 @@ export function ClientOverviewTab({ client }: { client: any }) {
                   {client.phone ? (
                     client.phone_type === 'WhatsApp' ? (
                       <a
-                        href="#"
+                        href={`https://wa.me/55${client.phone.replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noreferrer"
                         onClick={handleWhatsAppClick}
                         className="text-primary hover:underline flex items-center"
                       >
@@ -94,7 +91,12 @@ export function ClientOverviewTab({ client }: { client: any }) {
                       </a>
                     ) : (
                       <span>
-                        {client.phone}{' '}
+                        <a
+                          href={`tel:${client.phone.replace(/\D/g, '')}`}
+                          className="text-primary hover:underline"
+                        >
+                          {client.phone}
+                        </a>
                         <span className="ml-2 text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">
                           {client.phone_type || 'Celular'}
                         </span>

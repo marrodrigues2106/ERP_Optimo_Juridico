@@ -390,7 +390,10 @@ export default function ProcessDetail() {
             <div className="flex items-center gap-1">
               <Briefcase className="w-3.5 h-3.5 text-slate-400" />
               <span className="font-medium text-slate-700">Responsável:</span>{' '}
-              {legalCase.expand?.responsible_collaborator?.name || 'Não atribuído'}
+              {Array.isArray(legalCase.expand?.responsible_collaborator) &&
+              legalCase.expand.responsible_collaborator.length > 0
+                ? legalCase.expand.responsible_collaborator.map((c: any) => c.name).join(', ')
+                : legalCase.expand?.responsible_collaborator?.name || 'Não atribuído'}
             </div>
             {legalCase.metadata?.action_class && (
               <div className="flex items-center gap-1">
@@ -831,15 +834,15 @@ export default function ProcessDetail() {
               )}
             </div>
 
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex flex-col gap-2">
               <Select value={selectedRelatedCase} onValueChange={setSelectedRelatedCase}>
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-8 text-xs truncate">
                   <SelectValue placeholder="Vincular processo..." />
                 </SelectTrigger>
                 <SelectContent>
                   {allCases.map((c) => (
                     <SelectItem key={c.id} value={c.id} className="text-xs">
-                      {c.case_number || c.parties}
+                      {c.parties} {c.case_number ? `(${c.case_number})` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -848,9 +851,9 @@ export default function ProcessDetail() {
                 onClick={handleLinkCase}
                 size="sm"
                 disabled={!selectedRelatedCase}
-                className="h-8 px-2"
+                className="w-full h-8"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3.5 h-3.5 mr-2" /> Vincular
               </Button>
             </div>
           </CardContent>

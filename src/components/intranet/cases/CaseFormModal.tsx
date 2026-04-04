@@ -33,8 +33,9 @@ import { createLegalCase, updateLegalCase } from '@/services/legal_cases'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
-import { Search, Loader2, X } from 'lucide-react'
+import { Search, Loader2, X, Check, ChevronsUpDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 
 const formSchema = z
   .object({
@@ -46,7 +47,7 @@ const formSchema = z
     status: z.string().optional(),
     lifecycle_status: z.enum(['Ativo', 'Arquivado', 'Suspenso']),
     client: z.string().optional(),
-    responsible_collaborator: z.string().optional(),
+    responsible_collaborator: z.union([z.string(), z.array(z.string())]).optional(),
     deadline: z.string().optional(),
     subject: z.string().optional(),
     action_class: z.string().optional(),
@@ -98,6 +99,8 @@ export function CaseFormModal({
   const [tagInput, setTagInput] = useState('')
   const [allTags, setAllTags] = useState<string[]>([])
   const [showTagSuggestions, setShowTagSuggestions] = useState(false)
+  const [openClientCombo, setOpenClientCombo] = useState(false)
+  const [openCollabCombo, setOpenCollabCombo] = useState(false)
 
   useEffect(() => {
     pb.collection('tribunals').getFullList({ sort: 'name' }).then(setTribunals).catch(console.error)
@@ -140,7 +143,7 @@ export function CaseFormModal({
           status: editingCase.status || '',
           lifecycle_status: editingCase.lifecycle_status,
           client: editingCase.client || 'none',
-          responsible_collaborator: editingCase.responsible_collaborator || 'none',
+          responsible_collaborator: editingCase.responsible_collaborator || [],
           deadline: editingCase.deadline ? editingCase.deadline.substring(0, 10) : '',
           subject: editingCase.metadata?.subject || '',
           action_class: editingCase.metadata?.action_class || '',
@@ -245,7 +248,10 @@ export function CaseFormModal({
       lifecycle_status: data.lifecycle_status,
       client: !data.client || data.client === 'none' ? null : data.client,
       responsible_collaborator:
-        !data.responsible_collaborator || data.responsible_collaborator === 'none'
+        !data.responsible_collaborator ||
+        (Array.isArray(data.responsible_collaborator) &&
+          data.responsible_collaborator.length === 0) ||
+        data.responsible_collaborator === 'none'
           ? null
           : data.responsible_collaborator,
       deadline:
@@ -640,43 +646,153 @@ export function CaseFormModal({
                 name="client"
                 control={control}
                 render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value || 'none'}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {clients.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={openClientCombo} onOpenChange={setOpenClientCombo}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={openClientCombo}
+                        className="w-full justify-between font-normal px-3"
+                      >
+                        <span className="truncate pr-4">
+                          {field.value && field.value !== 'none'
+                            ? clients.find((c) => c.id === field.value)?.name ||
+                              'Cliente selecionado'
+                            : 'Selecionar cliente...'}
+                        </span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-[var(--radix-popover-trigger-width)] p-0"
+                      align="start"
+                    >
+                      <Command>
+                        <CommandInput placeholder="Buscar cliente..." />
+                        <CommandList>
+                          <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem
+                              value="none"
+                              onSelect={() => {
+                                field.onChange('none')
+                                setOpenClientCombo(false)
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  'mr-2 h-4 w-4',
+                                  !field.value || field.value === 'none'
+                                    ? 'opacity-100'
+                                    : 'opacity-0',
+                                )}
+                              />
+                              Nenhum cliente
+                            </CommandItem>
+                            {clients.map((c) => (
+                              <CommandItem
+                                key={c.id}
+                                value={c.name}
+                                onSelect={() => {
+                                  field.onChange(c.id)
+                                  setOpenClientCombo(false)
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    'mr-2 h-4 w-4',
+                                    field.value === c.id ? 'opacity-100' : 'opacity-0',
+                                  )}
+                                />
+                                {c.name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 )}
               />
             </div>
 
             <div className="col-span-1">
-              <Label>Responsável</Label>
+              <Label>Responsáveis</Label>
               <Controller
                 name="responsible_collaborator"
                 control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value || 'none'}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {collaborators.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                render={({ field }) => {
+                  const selectedIds = Array.isArray(field.value)
+                    ? field.value
+                    : field.value && field.value !== 'none'
+                      ? [field.value]
+                      : []
+                  return (
+                    <Popover open={openCollabCombo} onOpenChange={setOpenCollabCombo}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={openCollabCombo}
+                          className="w-full justify-between font-normal h-auto min-h-10 py-2 px-3"
+                        >
+                          <div className="flex flex-wrap gap-1 items-center">
+                            {selectedIds.length > 0 ? (
+                              selectedIds.map((id) => {
+                                const c = collaborators.find((x) => x.id === id)
+                                return c ? (
+                                  <Badge variant="secondary" key={id} className="text-xs">
+                                    {c.name}
+                                  </Badge>
+                                ) : null
+                              })
+                            ) : (
+                              <span className="text-slate-500">Selecionar equipe...</span>
+                            )}
+                          </div>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-[var(--radix-popover-trigger-width)] p-0"
+                        align="start"
+                      >
+                        <Command>
+                          <CommandInput placeholder="Buscar colaborador..." />
+                          <CommandList>
+                            <CommandEmpty>Nenhum colaborador encontrado.</CommandEmpty>
+                            <CommandGroup>
+                              {collaborators.map((c) => {
+                                const isSelected = selectedIds.includes(c.id)
+                                return (
+                                  <CommandItem
+                                    key={c.id}
+                                    value={c.name}
+                                    onSelect={() => {
+                                      if (isSelected) {
+                                        field.onChange(selectedIds.filter((id) => id !== c.id))
+                                      } else {
+                                        field.onChange([...selectedIds, c.id])
+                                      }
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        'mr-2 h-4 w-4',
+                                        isSelected ? 'opacity-100' : 'opacity-0',
+                                      )}
+                                    />
+                                    {c.name}
+                                  </CommandItem>
+                                )
+                              })}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  )
+                }}
               />
             </div>
 

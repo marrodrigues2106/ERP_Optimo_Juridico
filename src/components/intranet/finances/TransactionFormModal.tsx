@@ -13,12 +13,26 @@ import { Button } from '@/components/ui/button'
 import { createFinance, updateFinance } from '@/services/finances'
 import { useToast } from '@/hooks/use-toast'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Check, ChevronsUpDown } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 export function TransactionFormModal({ open, onOpenChange, cases, editingItem, onSuccess }: any) {
   const { toast } = useToast()
   const [type, setType] = useState('inflow')
   const [status, setStatus] = useState('orçado')
   const [frequency, setFrequency] = useState('única')
+
+  const [openCaseCombo, setOpenCaseCombo] = useState(false)
+  const [linkedLawsuit, setLinkedLawsuit] = useState<string>('none')
 
   const inflowStatus = ['orçado', 'estimado', 'realizada', 'recebida']
   const outflowStatus = ['orçado', 'previsto', 'realizado', 'pago']
@@ -29,10 +43,12 @@ export function TransactionFormModal({ open, onOpenChange, cases, editingItem, o
       setType(editingItem.type || 'inflow')
       setStatus(editingItem.status || 'orçado')
       setFrequency(editingItem.frequency || 'única')
+      setLinkedLawsuit(editingItem.linked_lawsuit || 'none')
     } else {
       setType('inflow')
       setStatus('orçado')
       setFrequency('única')
+      setLinkedLawsuit('none')
     }
   }, [editingItem, open])
 
@@ -50,7 +66,7 @@ export function TransactionFormModal({ open, onOpenChange, cases, editingItem, o
     data.type = type
     data.status = status
     data.frequency = frequency
-    if (data.linked_lawsuit === 'none') data.linked_lawsuit = null
+    data.linked_lawsuit = linkedLawsuit === 'none' ? null : linkedLawsuit
 
     const d = new Date(data.date)
     if (isNaN(d.getTime())) {
@@ -85,7 +101,7 @@ export function TransactionFormModal({ open, onOpenChange, cases, editingItem, o
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{editingItem ? 'Editar Transação' : 'Nova Transação'}</DialogTitle>
         </DialogHeader>
@@ -101,19 +117,72 @@ export function TransactionFormModal({ open, onOpenChange, cases, editingItem, o
           </div>
           <div>
             <Label>Processo Vinculado</Label>
-            <Select name="linked_lawsuit" defaultValue={editingItem?.linked_lawsuit || 'none'}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um processo..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhum processo</SelectItem>
-                {cases.map((c: any) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.case_number || c.parties}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={openCaseCombo} onOpenChange={setOpenCaseCombo}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openCaseCombo}
+                  className="w-full justify-between font-normal text-left"
+                >
+                  <span className="truncate pr-4">
+                    {linkedLawsuit !== 'none'
+                      ? cases.find((c: any) => c.id === linkedLawsuit)?.parties ||
+                        cases.find((c: any) => c.id === linkedLawsuit)?.case_number
+                      : 'Nenhum processo'}
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Buscar processo por título ou número..." />
+                  <CommandList>
+                    <CommandEmpty>Nenhum processo encontrado.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="none"
+                        onSelect={() => {
+                          setLinkedLawsuit('none')
+                          setOpenCaseCombo(false)
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            'mr-2 h-4 w-4',
+                            linkedLawsuit === 'none' ? 'opacity-100' : 'opacity-0',
+                          )}
+                        />
+                        Nenhum processo
+                      </CommandItem>
+                      {cases.map((c: any) => (
+                        <CommandItem
+                          key={c.id}
+                          value={`${c.parties} ${c.case_number || ''}`}
+                          onSelect={() => {
+                            setLinkedLawsuit(c.id)
+                            setOpenCaseCombo(false)
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              'mr-2 h-4 w-4',
+                              linkedLawsuit === c.id ? 'opacity-100' : 'opacity-0',
+                            )}
+                          />
+                          <div className="flex flex-col overflow-hidden">
+                            <span className="truncate">{c.parties}</span>
+                            {c.case_number && (
+                              <span className="text-xs text-slate-500">{c.case_number}</span>
+                            )}
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

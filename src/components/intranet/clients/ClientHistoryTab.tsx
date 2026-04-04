@@ -14,9 +14,19 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { getClientInteractions, createInteraction } from '@/services/crm_interactions'
-import { Plus, MessageSquare, CalendarClock, Scale } from 'lucide-react'
+import { Plus, MessageSquare, CalendarClock, Scale, Check, ChevronsUpDown } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 
 export function ClientHistoryTab({ clientId }: { clientId: string }) {
   const [interactions, setInteractions] = useState<any[]>([])
@@ -24,6 +34,10 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
   const [collaborators, setCollaborators] = useState<any[]>([])
   const [formOpen, setFormOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+
+  const [openCaseCombo, setOpenCaseCombo] = useState(false)
+  const [linkedCase, setLinkedCase] = useState<string>('none')
+
   const navigate = useNavigate()
   const { toast } = useToast()
 
@@ -58,12 +72,13 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
         follow_up_date: fd.get('follow_up_date')
           ? new Date(fd.get('follow_up_date') as string).toISOString()
           : null,
-        linked_case: fd.get('linked_case') !== 'none' ? fd.get('linked_case') : null,
+        linked_case: linkedCase !== 'none' ? linkedCase : null,
         status: 'Pending',
         responsible: fd.get('responsible') !== 'none' ? fd.get('responsible') : null,
       })
       toast({ title: 'Interação registrada com sucesso.' })
       setFormOpen(false)
+      setLinkedCase('none')
       loadData()
     } catch (err: any) {
       toast({ title: 'Erro ao registrar', description: err.message, variant: 'destructive' })
@@ -118,7 +133,7 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
                         onClick={() => navigate(`/intranet/processos/${int.linked_case}`)}
                       >
                         <Scale className="w-3 h-3 mr-1.5" /> Ref:{' '}
-                        {int.expand.linked_case.case_number || 'Processo vinculado'}
+                        {int.expand.linked_case.case_number || int.expand.linked_case.parties}
                       </span>
                     )}
                   </div>
@@ -157,24 +172,80 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
                 <Input type="date" name="follow_up_date" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
                 <Label>Processo Vinculado</Label>
-                <Select name="linked_case" defaultValue="none">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Nenhum" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum</SelectItem>
-                    {cases.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.case_number || c.parties}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={openCaseCombo} onOpenChange={setOpenCaseCombo}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={openCaseCombo}
+                      className="w-full justify-between font-normal text-left px-3"
+                    >
+                      <span className="truncate pr-4">
+                        {linkedCase !== 'none'
+                          ? cases.find((c) => c.id === linkedCase)?.parties ||
+                            cases.find((c) => c.id === linkedCase)?.case_number
+                          : 'Nenhum processo'}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-[var(--radix-popover-trigger-width)] p-0"
+                    align="start"
+                  >
+                    <Command>
+                      <CommandInput placeholder="Buscar processo..." />
+                      <CommandList>
+                        <CommandEmpty>Nenhum processo encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                            value="none"
+                            onSelect={() => {
+                              setLinkedCase('none')
+                              setOpenCaseCombo(false)
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                'mr-2 h-4 w-4',
+                                linkedCase === 'none' ? 'opacity-100' : 'opacity-0',
+                              )}
+                            />
+                            Nenhum
+                          </CommandItem>
+                          {cases.map((c) => (
+                            <CommandItem
+                              key={c.id}
+                              value={`${c.parties} ${c.case_number || ''}`}
+                              onSelect={() => {
+                                setLinkedCase(c.id)
+                                setOpenCaseCombo(false)
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  'mr-2 h-4 w-4',
+                                  linkedCase === c.id ? 'opacity-100' : 'opacity-0',
+                                )}
+                              />
+                              <div className="flex flex-col overflow-hidden">
+                                <span className="truncate">{c.parties}</span>
+                                {c.case_number && (
+                                  <span className="text-xs text-slate-500">{c.case_number}</span>
+                                )}
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
-              <div>
+              <div className="flex flex-col gap-2">
                 <Label>Responsável</Label>
                 <Select name="responsible" defaultValue="none">
                   <SelectTrigger>

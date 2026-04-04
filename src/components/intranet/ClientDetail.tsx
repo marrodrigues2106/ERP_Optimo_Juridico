@@ -48,21 +48,15 @@ export default function ClientDetail() {
   }, [id, navigate])
 
   const [classification, setClassification] = useState('Lead')
-  const [status, setStatus] = useState('')
 
   useEffect(() => {
     if (client) {
       setClassification(client.classification || 'Lead')
-      setStatus(client.status || '')
     }
   }, [client])
 
   const handleClassificationChange = (val: string) => {
     setClassification(val)
-    if (val === 'Lead') setStatus('Prospect')
-    else if (val === 'Potencial') setStatus('Negociação')
-    else if (val === 'Ativo') setStatus('Ativo')
-    else if (val === 'Inativo') setStatus('Inativo')
   }
 
   const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -88,6 +82,11 @@ export default function ClientDetail() {
     setSubmitting(true)
     const fd = new FormData(e.currentTarget)
     try {
+      let status = 'Prospect'
+      if (classification === 'Potencial') status = 'Negociação'
+      if (classification === 'Ativo') status = 'Active'
+      if (classification === 'Inativo') status = 'Inactive'
+
       await pb.collection('clients').update(id as string, {
         status,
         classification,
@@ -146,15 +145,11 @@ export default function ClientDetail() {
               {client.fullName || client.name}
             </h2>
             <p className="text-sm text-slate-500 mt-1 font-medium flex items-center gap-2">
-              <span>Status: {client.status || '-'}</span>
-              <span>•</span>
-              <span>
-                Classificação:
-                <span
-                  className={`px-2 py-0.5 rounded-md text-xs ml-1 ${client.classification === 'Ativo' ? 'bg-green-100 text-green-800' : client.classification === 'Inativo' ? 'bg-slate-100 text-slate-800' : 'bg-blue-100 text-blue-800'}`}
-                >
-                  {client.classification || 'Lead'}
-                </span>
+              <span>Situação:</span>
+              <span
+                className={`px-2 py-0.5 rounded-md text-xs ${client.classification === 'Ativo' ? 'bg-green-100 text-green-800' : client.classification === 'Inativo' ? 'bg-slate-100 text-slate-800' : 'bg-blue-100 text-blue-800'}`}
+              >
+                {client.classification || 'Lead'}
               </span>
             </p>
           </div>
@@ -213,25 +208,19 @@ export default function ClientDetail() {
             <DialogTitle>Editar Relacionamento</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleEditClient} className="space-y-4 pt-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Classificação</Label>
-                <Select value={classification} onValueChange={handleClassificationChange}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Ativo">Ativo</SelectItem>
-                    <SelectItem value="Potencial">Potencial</SelectItem>
-                    <SelectItem value="Inativo">Inativo</SelectItem>
-                    <SelectItem value="Lead">Lead</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Status</Label>
-                <Input name="status" value={status} onChange={(e) => setStatus(e.target.value)} />
-              </div>
+            <div>
+              <Label>Situação / Classificação</Label>
+              <Select value={classification} onValueChange={handleClassificationChange}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Ativo">Ativo</SelectItem>
+                  <SelectItem value="Potencial">Potencial</SelectItem>
+                  <SelectItem value="Inativo">Inativo</SelectItem>
+                  <SelectItem value="Lead">Lead</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Fase no Funil</Label>
