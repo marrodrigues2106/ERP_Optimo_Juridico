@@ -26,18 +26,14 @@ export function ClientTasksTab({ clientId }: { clientId: string }) {
   const loadData = async () => {
     try {
       const [t, e] = await Promise.all([
-        pb
-          .collection('tasks')
-          .getFullList({
-            filter: `client = '${clientId}' && deleted_at = ""`,
-            sort: 'status,due_date',
-          }),
-        pb
-          .collection('agenda_events')
-          .getFullList({
-            filter: `client = '${clientId}' && deleted_at = ""`,
-            sort: '-start_date',
-          }),
+        pb.collection('tasks').getFullList({
+          filter: `client = '${clientId}' && deleted_at = ""`,
+          sort: 'status,due_date',
+        }),
+        pb.collection('agenda_events').getFullList({
+          filter: `client = '${clientId}' && deleted_at = ""`,
+          sort: '-start_date',
+        }),
       ])
       setTasks(t)
       setEvents(e)

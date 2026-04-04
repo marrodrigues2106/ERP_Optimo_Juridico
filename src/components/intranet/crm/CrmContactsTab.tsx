@@ -54,6 +54,24 @@ export function CrmContactsTab() {
     loadData()
   }, [])
 
+  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let v = e.target.value.replace(/\D/g, '')
+    if (v.length <= 11) {
+      v = v
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+    } else {
+      v = v
+        .replace(/^(\d{2})(\d)/, '$1.$2')
+        .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+        .replace(/\.(\d{3})(\d)/, '.$1/$2')
+        .replace(/(\d{4})(\d)/, '$1-$2')
+        .slice(0, 18)
+    }
+    e.target.value = v
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setSubmitting(true)
@@ -61,11 +79,16 @@ export function CrmContactsTab() {
     const data = Object.fromEntries(fd.entries())
 
     try {
+      const parsedData = { ...data }
+      if (parsedData.birthDate) {
+        parsedData.birthDate = new Date(parsedData.birthDate as string).toISOString()
+      }
+
       if (editing) {
-        await updateClient(editing.id, data)
+        await updateClient(editing.id, parsedData)
         toast({ title: 'Cliente atualizado com sucesso!' })
       } else {
-        await createClient(data)
+        await createClient(parsedData)
         toast({ title: 'Cliente criado com sucesso!' })
       }
       setOpen(false)
@@ -130,17 +153,80 @@ export function CrmContactsTab() {
             <DialogTitle>{editing ? 'Editar Contato' : 'Novo Contato'}</DialogTitle>
           </DialogHeader>
           <form key={editing?.id || 'new'} onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label>Nome Completo</Label>
-              <Input name="name" defaultValue={editing?.name} required />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 sm:col-span-1">
+                <Label>Nome Completo *</Label>
+                <Input name="name" defaultValue={editing?.name} required />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <Label>CPF / CNPJ</Label>
+                <Input
+                  name="cpf"
+                  defaultValue={editing?.cpf}
+                  onChange={handleCpfChange}
+                  maxLength={18}
+                />
+              </div>
             </div>
-            <div>
-              <Label>Email</Label>
-              <Input name="email" type="email" defaultValue={editing?.email} />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 sm:col-span-1">
+                <Label>Email</Label>
+                <Input name="email" type="email" defaultValue={editing?.email} />
+              </div>
+              <div className="col-span-2 sm:col-span-1 grid grid-cols-3 gap-2">
+                <div className="col-span-1">
+                  <Label>Tipo</Label>
+                  <Select name="phone_type" defaultValue={editing?.phone_type || 'Celular'}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Fixo">Fixo</SelectItem>
+                      <SelectItem value="Celular">Celular</SelectItem>
+                      <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2">
+                  <Label>Telefone</Label>
+                  <Input name="phone" defaultValue={editing?.phone} />
+                </div>
+              </div>
             </div>
-            <div>
-              <Label>Telefone</Label>
-              <Input name="phone" defaultValue={editing?.phone} />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 sm:col-span-1">
+                <Label>Data de Nascimento</Label>
+                <Input
+                  name="birthDate"
+                  type="date"
+                  defaultValue={editing?.birthDate ? editing.birthDate.split('T')[0] : ''}
+                />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <Label>Estado Civil</Label>
+                <Select name="maritalStatus" defaultValue={editing?.maritalStatus || 'Solteiro(a)'}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Solteiro(a)">Solteiro(a)</SelectItem>
+                    <SelectItem value="Casado(a)">Casado(a)</SelectItem>
+                    <SelectItem value="Divorciado(a)">Divorciado(a)</SelectItem>
+                    <SelectItem value="Viúvo(a)">Viúvo(a)</SelectItem>
+                    <SelectItem value="União Estável">União Estável</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 sm:col-span-1">
+                <Label>Nacionalidade</Label>
+                <Input name="nationality" defaultValue={editing?.nationality || 'Brasileiro(a)'} />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <Label>Profissão</Label>
+                <Input name="profession" defaultValue={editing?.profession} />
+              </div>
             </div>
             <div>
               <Label>Classificação</Label>
@@ -155,7 +241,7 @@ export function CrmContactsTab() {
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit" className="w-full" disabled={submitting}>
+            <Button type="submit" className="w-full mt-2" disabled={submitting}>
               {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               {submitting ? 'Salvando...' : 'Salvar Contato'}
             </Button>
@@ -194,7 +280,14 @@ export function CrmContactsTab() {
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell>
                       <div className="text-sm">{c.email}</div>
-                      <div className="text-xs text-slate-500">{c.phone}</div>
+                      <div className="text-xs text-slate-500 flex items-center">
+                        {c.phone}
+                        {c.phone_type === 'WhatsApp' && (
+                          <span className="ml-1 text-[9px] bg-green-100 text-green-700 px-1 py-0.5 rounded">
+                            WA
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>{c.classification}</TableCell>
                     <TableCell>{c.status}</TableCell>

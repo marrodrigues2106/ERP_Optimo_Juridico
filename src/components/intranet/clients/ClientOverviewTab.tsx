@@ -1,8 +1,51 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Mail, Phone, MapPin, Briefcase } from 'lucide-react'
+import { Mail, Phone, MapPin, Briefcase, MessageCircle } from 'lucide-react'
+import { createInteraction } from '@/services/crm_interactions'
+import { useToast } from '@/hooks/use-toast'
 
 export function ClientOverviewTab({ client }: { client: any }) {
+  const { toast } = useToast()
+
   if (!client) return null
+
+  const handleEmailClick = async (e: React.MouseEvent) => {
+    if (!client.email) return
+    e.preventDefault()
+    window.location.href = `mailto:${client.email}`
+
+    try {
+      await createInteraction({
+        client: client.id,
+        type: 'Email',
+        description: 'Iniciou contato via E-mail padrão do sistema.',
+        date: new Date().toISOString(),
+        status: 'Completed',
+      })
+      toast({ title: 'Interação registrada no histórico' })
+    } catch (err) {
+      console.error('Failed to log email interaction', err)
+    }
+  }
+
+  const handleWhatsAppClick = async (e: React.MouseEvent) => {
+    if (!client.phone) return
+    e.preventDefault()
+    const cleanPhone = client.phone.replace(/\D/g, '')
+    window.open(`https://wa.me/${cleanPhone}`, '_blank')
+
+    try {
+      await createInteraction({
+        client: client.id,
+        type: 'WhatsApp',
+        description: 'Iniciou conversa via WhatsApp.',
+        date: new Date().toISOString(),
+        status: 'Completed',
+      })
+      toast({ title: 'Interação registrada no histórico' })
+    } catch (err) {
+      console.error('Failed to log WhatsApp interaction', err)
+    }
+  }
 
   return (
     <Card className="shadow-sm">
@@ -17,13 +60,50 @@ export function ClientOverviewTab({ client }: { client: any }) {
                 Contato
               </span>
               <div className="mt-2 space-y-2 bg-slate-50 p-3 rounded-lg border">
-                <p className="text-sm flex items-center font-medium">
-                  <Mail className="w-4 h-4 mr-2 text-slate-400" /> {client.email || 'Não informado'}
-                </p>
-                <p className="text-sm flex items-center font-medium">
-                  <Phone className="w-4 h-4 mr-2 text-slate-400" />{' '}
-                  {client.phone || 'Não informado'}
-                </p>
+                <div className="text-sm flex items-center font-medium">
+                  <Mail className="w-4 h-4 mr-2 text-slate-400" />
+                  {client.email ? (
+                    <a
+                      href={`mailto:${client.email}`}
+                      onClick={handleEmailClick}
+                      className="text-primary hover:underline"
+                    >
+                      {client.email}
+                    </a>
+                  ) : (
+                    'Não informado'
+                  )}
+                </div>
+                <div className="text-sm flex items-center font-medium">
+                  {client.phone_type === 'WhatsApp' ? (
+                    <MessageCircle className="w-4 h-4 mr-2 text-green-500" />
+                  ) : (
+                    <Phone className="w-4 h-4 mr-2 text-slate-400" />
+                  )}
+                  {client.phone ? (
+                    client.phone_type === 'WhatsApp' ? (
+                      <a
+                        href="#"
+                        onClick={handleWhatsAppClick}
+                        className="text-primary hover:underline flex items-center"
+                      >
+                        {client.phone}{' '}
+                        <span className="ml-2 text-[10px] bg-green-100 text-green-800 px-1.5 py-0.5 rounded">
+                          WhatsApp
+                        </span>
+                      </a>
+                    ) : (
+                      <span>
+                        {client.phone}{' '}
+                        <span className="ml-2 text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">
+                          {client.phone_type || 'Celular'}
+                        </span>
+                      </span>
+                    )
+                  ) : (
+                    'Não informado'
+                  )}
+                </div>
               </div>
             </div>
             <div>
@@ -32,11 +112,11 @@ export function ClientOverviewTab({ client }: { client: any }) {
               </span>
               <div className="mt-2 space-y-2 bg-slate-50 p-3 rounded-lg border">
                 <p className="text-sm">
-                  <span className="text-muted-foreground">CPF:</span>{' '}
+                  <span className="text-muted-foreground">CPF/CNPJ:</span>{' '}
                   <span className="font-medium">{client.cpf || 'Não informado'}</span>
                 </p>
                 <p className="text-sm">
-                  <span className="text-muted-foreground">Identidade:</span>{' '}
+                  <span className="text-muted-foreground">RG/Identidade:</span>{' '}
                   <span className="font-medium">{client.idNumber || 'Não informado'}</span>
                 </p>
               </div>

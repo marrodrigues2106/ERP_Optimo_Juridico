@@ -19,7 +19,10 @@ const sanitizeInteraction = (data: any) => {
   if (data.responsible === 'none') data.responsible = null
   if (data.linked_case === 'none') data.linked_case = null
   if (data.client === 'none') data.client = null
-  if (data.type && !['Call', 'Email', 'Meeting', 'Follow-up', 'Note', 'Task'].includes(data.type)) {
+  if (
+    data.type &&
+    !['Call', 'Email', 'Meeting', 'Follow-up', 'Note', 'Task', 'WhatsApp'].includes(data.type)
+  ) {
     data.type = 'Note'
   }
   if (data.status && !['Pending', 'Completed'].includes(data.status)) {

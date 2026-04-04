@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-04T02:16:32.219Z",
+  "generatedAt": "2026-04-04T02:49:51.107Z",
   "collections": [
     {
       "name": "users",
@@ -493,6 +493,13 @@
           "type": "date",
           "required": false,
           "system": false
+        },
+        {
+          "name": "phone_type",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Fixo", "Celular", "WhatsApp"]
         }
       ],
       "indexes": ["CREATE INDEX `idx_clients_classification` ON `clients` (classification)"]
@@ -1761,7 +1768,7 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["Call", "Email", "Meeting", "Follow-up", "Note", "Task"]
+          "selectValues": ["Call", "Email", "Meeting", "Follow-up", "Note", "Task", "WhatsApp"]
         },
         {
           "name": "description",

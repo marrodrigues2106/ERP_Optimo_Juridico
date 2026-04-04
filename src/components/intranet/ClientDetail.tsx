@@ -65,6 +65,24 @@ export default function ClientDetail() {
     else if (val === 'Inativo') setStatus('Inativo')
   }
 
+  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let v = e.target.value.replace(/\D/g, '')
+    if (v.length <= 11) {
+      v = v
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+    } else {
+      v = v
+        .replace(/^(\d{2})(\d)/, '$1.$2')
+        .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+        .replace(/\.(\d{3})(\d)/, '.$1/$2')
+        .replace(/(\d{4})(\d)/, '$1-$2')
+        .slice(0, 18)
+    }
+    e.target.value = v
+  }
+
   const handleEditClient = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setSubmitting(true)
@@ -78,6 +96,13 @@ export default function ClientDetail() {
         phone: fd.get('phone'),
         cpf: fd.get('cpf'),
         address: fd.get('address'),
+        phone_type: fd.get('phone_type'),
+        nationality: fd.get('nationality'),
+        maritalStatus: fd.get('maritalStatus'),
+        birthDate: fd.get('birthDate')
+          ? new Date(fd.get('birthDate') as string).toISOString()
+          : null,
+        profession: fd.get('profession'),
       })
       toast({ title: 'Cliente atualizado.' })
       setEditClientOpen(false)
@@ -227,18 +252,75 @@ export default function ClientDetail() {
                 <Label>E-mail</Label>
                 <Input name="email" type="email" defaultValue={client.email || ''} />
               </div>
-              <div>
-                <Label>Telefone</Label>
-                <Input name="phone" defaultValue={client.phone || ''} />
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-1">
+                  <Label>Tipo</Label>
+                  <Select name="phone_type" defaultValue={client.phone_type || 'Celular'}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Fixo">Fixo</SelectItem>
+                      <SelectItem value="Celular">Celular</SelectItem>
+                      <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2">
+                  <Label>Telefone</Label>
+                  <Input name="phone" defaultValue={client.phone || ''} />
+                </div>
               </div>
             </div>
-            <div>
-              <Label>CPF / CNPJ</Label>
-              <Input name="cpf" defaultValue={client.cpf || ''} />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>CPF / CNPJ</Label>
+                <Input
+                  name="cpf"
+                  defaultValue={client.cpf || ''}
+                  onChange={handleCpfChange}
+                  maxLength={18}
+                />
+              </div>
+              <div>
+                <Label>Data Nasc.</Label>
+                <Input
+                  name="birthDate"
+                  type="date"
+                  defaultValue={client.birthDate ? client.birthDate.split('T')[0] : ''}
+                />
+              </div>
             </div>
-            <div>
-              <Label>Endereço</Label>
-              <Input name="address" defaultValue={client.address || ''} />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Estado Civil</Label>
+                <Select name="maritalStatus" defaultValue={client.maritalStatus || 'Solteiro(a)'}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Solteiro(a)">Solteiro(a)</SelectItem>
+                    <SelectItem value="Casado(a)">Casado(a)</SelectItem>
+                    <SelectItem value="Divorciado(a)">Divorciado(a)</SelectItem>
+                    <SelectItem value="Viúvo(a)">Viúvo(a)</SelectItem>
+                    <SelectItem value="União Estável">União Estável</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Nacionalidade</Label>
+                <Input name="nationality" defaultValue={client.nationality || 'Brasileiro(a)'} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Profissão</Label>
+                <Input name="profession" defaultValue={client.profession || ''} />
+              </div>
+              <div>
+                <Label>Endereço</Label>
+                <Input name="address" defaultValue={client.address || ''} />
+              </div>
             </div>
             <Button type="submit" className="w-full mt-2" disabled={submitting}>
               {submitting ? 'Salvando...' : 'Salvar Alterações'}

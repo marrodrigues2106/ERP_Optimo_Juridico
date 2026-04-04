@@ -148,6 +148,7 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
                     <SelectItem value="Follow-up">Acompanhamento</SelectItem>
                     <SelectItem value="Note">Anotação</SelectItem>
                     <SelectItem value="Task">Tarefa</SelectItem>
+                    <SelectItem value="WhatsApp">WhatsApp</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
