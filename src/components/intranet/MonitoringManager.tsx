@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { Save, X, RefreshCw } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Badge } from '@/components/ui/badge'
 
 import { testExternalConnection, syncProcesses } from '@/services/monitoring'
 import { useAuth } from '@/hooks/use-auth'
@@ -36,6 +37,17 @@ export default function MonitoringManager() {
   const [termoInput, setTermoInput] = useState('')
   const [tribunais, setTribunais] = useState<string[]>([])
   const [tribunalsList, setTribunalsList] = useState<any[]>([])
+
+  // Advanced Terms
+  const [termosAvancados, setTermosAvancados] = useState<any[]>([])
+  const [novoTermoAdv, setNovoTermoAdv] = useState('')
+  const [tipoTermoAdv, setTipoTermoAdv] = useState('palavra-chave')
+  const [termosIgnoradosAdv, setTermosIgnoradosAdv] = useState('')
+
+  // Alert Configs
+  const [alertConfigId, setAlertConfigId] = useState<string | null>(null)
+  const [alertType, setAlertType] = useState('app')
+  const [alertFreq, setAlertFreq] = useState('diario')
 
   const [submitting, setSubmitting] = useState(false)
   const [testingDou, setTestingDou] = useState(false)
@@ -67,6 +79,22 @@ export default function MonitoringManager() {
           setDouPriority2(c.douCredentials.priority2 || 'HTTP')
           setDouUsername(c.douCredentials.username || '')
           setDouPassword(c.douCredentials.password || '')
+        }
+      }
+
+      if (user?.id) {
+        const tAv = await pb
+          .collection('termos_monitorados')
+          .getFullList({ filter: `usuario_id = "${user.id}"` })
+        setTermosAvancados(tAv)
+
+        const aConf = await pb
+          .collection('configuracoes_alerta')
+          .getFullList({ filter: `usuario_id = "${user.id}"` })
+        if (aConf.length > 0) {
+          setAlertConfigId(aConf[0].id)
+          setAlertType(aConf[0].tipo_notificacao || 'app')
+          setAlertFreq(aConf[0].frequencia || 'diario')
         }
       }
     } catch (e) {
@@ -117,6 +145,20 @@ export default function MonitoringManager() {
         const isActive = tribunais.includes(aliasLower)
         if (t.active !== isActive) {
           await pb.collection('tribunals').update(t.id, { active: isActive })
+        }
+      }
+
+      if (user?.id) {
+        const aData = {
+          usuario_id: user.id,
+          tipo_notificacao: alertType,
+          frequencia: alertFreq,
+          ativo: true,
+        }
+        if (alertConfigId) {
+          await pb.collection('configuracoes_alerta').update(alertConfigId, aData)
+        } else {
+          await pb.collection('configuracoes_alerta').create(aData)
         }
       }
 
@@ -173,6 +215,38 @@ export default function MonitoringManager() {
       }
       setTermoInput('')
     }
+  }
+
+  const handleAddTermoAvancado = async () => {
+    if (!novoTermoAdv.trim()) return
+    try {
+      if (tipoTermoAdv === 'regex') {
+        new RegExp(novoTermoAdv) // syntax check
+      }
+      await pb.collection('termos_monitorados').create({
+        termo: novoTermoAdv,
+        tipo_termo: tipoTermoAdv,
+        termos_ignorados: termosIgnoradosAdv,
+        ativo: true,
+        usuario_id: user?.id,
+      })
+      setNovoTermoAdv('')
+      setTermosIgnoradosAdv('')
+      loadData()
+      toast({ title: 'Termo adicionado com sucesso.' })
+    } catch (err: any) {
+      toast({ title: 'Erro ao adicionar termo', description: err.message, variant: 'destructive' })
+    }
+  }
+
+  const toggleTermoAtivo = async (id: string, current: boolean) => {
+    await pb.collection('termos_monitorados').update(id, { ativo: !current })
+    loadData()
+  }
+
+  const deleteTermoAvancado = async (id: string) => {
+    await pb.collection('termos_monitorados').delete(id)
+    loadData()
   }
 
   return (
@@ -240,9 +314,141 @@ export default function MonitoringManager() {
               </div>
             </div>
 
+            <div className="space-y-4 pt-4">
+              <h3 className="text-sm font-semibold text-slate-800 border-b pb-2">
+                Configurações de Alertas (Notificações)
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Canal de Notificação</Label>
+                  <Select value={alertType} onValueChange={setAlertType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="app">Apenas no App</SelectItem>
+                      <SelectItem value="email">Email</SelectItem>
+                      <SelectItem value="slack">Slack</SelectItem>
+                      <SelectItem value="discord">Discord</SelectItem>
+                      <SelectItem value="all">Todos (Email, Slack, Discord)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Frequência</Label>
+                  <Select value={alertFreq} onValueChange={setAlertFreq}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="imediato">Imediato (Real-time)</SelectItem>
+                      <SelectItem value="diario">Resumo Diário (Digest)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-4">
+              <h3 className="text-sm font-semibold text-slate-800 border-b pb-2">
+                Termos Avançados de Monitoramento (Ro-DOU)
+              </h3>
+              <p className="text-xs text-muted-foreground mb-4">
+                Configure os termos para busca diária nos Diários Oficiais com suporte a expressões
+                lógicas (&, |, !).
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end bg-slate-50 p-4 rounded-lg border">
+                <div className="md:col-span-2 space-y-2">
+                  <Label>Novo Termo de Busca</Label>
+                  <Input
+                    placeholder="Ex: (licitação | pregão) & fraude"
+                    value={novoTermoAdv}
+                    onChange={(e) => setNovoTermoAdv(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Tipo</Label>
+                  <Select value={tipoTermoAdv} onValueChange={setTipoTermoAdv}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="palavra-chave">Expressão Lógica</SelectItem>
+                      <SelectItem value="frase">Frase Exata</SelectItem>
+                      <SelectItem value="regex">RegEx Avançado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="button" onClick={handleAddTermoAvancado}>
+                  Adicionar Termo
+                </Button>
+
+                <div className="md:col-span-4 space-y-2 mt-2">
+                  <Label>Termos a Ignorar (Opcional, separados por vírgula)</Label>
+                  <Input
+                    placeholder="Ex: indeferido, cancelado"
+                    value={termosIgnoradosAdv}
+                    onChange={(e) => setTermosIgnoradosAdv(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                {termosAvancados.map((t) => (
+                  <div
+                    key={t.id}
+                    className="flex flex-col sm:flex-row items-start sm:items-center justify-between border p-3 rounded-lg bg-white shadow-sm gap-4"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm">{t.termo}</span>
+                        <Badge variant="outline" className="text-[10px]">
+                          {t.tipo_termo}
+                        </Badge>
+                        {t.ativo ? (
+                          <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none text-[10px]">
+                            Ativo
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-[10px]">
+                            Inativo
+                          </Badge>
+                        )}
+                      </div>
+                      {t.termos_ignorados && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Ignorar: {t.termos_ignorados}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <Switch
+                        checked={t.ativo}
+                        onCheckedChange={() => toggleTermoAtivo(t.id, t.ativo)}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteTermoAvancado(t.id)}
+                      >
+                        <X className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {termosAvancados.length === 0 && (
+                  <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
+                    Nenhum termo avançado configurado.
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-slate-800 border-b pb-2">
-                Filtros e Termos Monitorados (Datajud/DOU)
+                Filtros Básicos e Tribunais (DataJud)
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

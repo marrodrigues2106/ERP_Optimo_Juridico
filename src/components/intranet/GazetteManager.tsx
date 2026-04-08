@@ -5,9 +5,25 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Search, Calendar, Loader2, FileText, FileSearch, ExternalLink } from 'lucide-react'
+import {
+  Search,
+  Calendar,
+  Loader2,
+  FileText,
+  FileSearch,
+  ExternalLink,
+  BellRing,
+} from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export default function GazetteManager() {
   const [keyword, setKeyword] = useState('')
@@ -21,6 +37,9 @@ export default function GazetteManager() {
   const [isLoading, setIsLoading] = useState(false)
   const [resultsGazette, setResultsGazette] = useState<any[]>([])
   const [resultsDOU, setResultsDOU] = useState<any[]>([])
+  const [douSource, setDouSource] = useState('todos')
+  const [douSection, setDouSection] = useState('todas')
+  const [occurrencesMap, setOccurrencesMap] = useState<Record<string, any>>({})
 
   const [selectedPub, setSelectedPub] = useState<any | null>(null)
   const [pubType, setPubType] = useState<'gazette' | 'dou' | null>(null)
@@ -46,6 +65,13 @@ export default function GazetteManager() {
     if (dateStart) dFilters.push(`data_publicacao >= "${dateStart} 00:00:00"`)
     if (dateEnd) dFilters.push(`data_publicacao <= "${dateEnd} 23:59:59"`)
     if (orgao) dFilters.push(`orgao ~ "${orgao}"`)
+    if (douSource && douSource !== 'todos') {
+      if (douSource === 'qd') dFilters.push(`fonte_coleta = "Querido Diário"`)
+      if (douSource === 'in') dFilters.push(`fonte_coleta = "Official Public Search"`)
+    }
+    if (douSection && douSection !== 'todas') {
+      dFilters.push(`secao ~ "${douSection}"`)
+    }
 
     try {
       const [gRes, dRes] = await Promise.all([
@@ -62,6 +88,19 @@ export default function GazetteManager() {
 
       setResultsGazette(gRes.items)
       setResultsDOU(dRes.items)
+
+      // Fetch occurrences to show highlights
+      const douIds = dRes.items.map((r) => r.id)
+      if (douIds.length > 0) {
+        const occRes = await pb.collection('ocorrencias_dou').getFullList({
+          filter: douIds.map((id) => `publicacao_id = "${id}"`).join(' || '),
+        })
+        const map: Record<string, any> = {}
+        occRes.forEach((o) => {
+          map[o.publicacao_id] = o
+        })
+        setOccurrencesMap(map)
+      }
     } catch (err) {
       console.error(err)
     } finally {
@@ -69,7 +108,39 @@ export default function GazetteManager() {
     }
   }
 
-  const renderSnippet = (text: string, terms: string[]) => {
+  useRealtime('publicacoes_dou', () => {
+    handleSearch()
+  })
+
+  const parseBackendHighlights = (text: string) => {
+    if (!text.includes('<%%>')) return null
+    const parts = text.split(/(<%%>|<\/%%>)/)
+    let isHighlight = false
+    return parts.map((part, i) => {
+      if (part === '<%%>') {
+        isHighlight = true
+        return null
+      }
+      if (part === '</%%>') {
+        isHighlight = false
+        return null
+      }
+      if (!part) return null
+      return isHighlight ? (
+        <mark key={i} className="bg-yellow-200 text-yellow-900 font-bold px-1 rounded">
+          {part}
+        </mark>
+      ) : (
+        part
+      )
+    })
+  }
+
+  const renderSnippet = (text: string, terms: string[], preParsedSnippet?: string) => {
+    if (preParsedSnippet) {
+      const parsed = parseBackendHighlights(preParsedSnippet)
+      if (parsed) return <>{parsed}</>
+    }
     if (!text) return ''
     const validTerms = terms.filter((t) => t && t.trim().length > 0)
     if (validTerms.length === 0)
@@ -227,8 +298,38 @@ export default function GazetteManager() {
                 </div>
               </div>
 
-              <div className="md:col-span-2 flex items-end">
-                <Button type="submit" className="w-full" disabled={isLoading}>
+              <div className="space-y-2">
+                <Label>Fonte DOU</Label>
+                <Select value={douSource} onValueChange={setDouSource}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todas as Fontes</SelectItem>
+                    <SelectItem value="in">Imprensa Nacional (IN)</SelectItem>
+                    <SelectItem value="qd">Querido Diário (Municipal)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Seção DOU</Label>
+                <Select value={douSection} onValueChange={setDouSection}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas as Seções</SelectItem>
+                    <SelectItem value="Seção 1">Seção 1</SelectItem>
+                    <SelectItem value="Seção 2">Seção 2</SelectItem>
+                    <SelectItem value="Seção 3">Seção 3</SelectItem>
+                    <SelectItem value="Municipal">Municipal (QD)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="md:col-span-4 flex items-end justify-end border-t pt-4">
+                <Button type="submit" className="w-full md:w-auto" disabled={isLoading}>
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Buscando...
@@ -354,15 +455,19 @@ export default function GazetteManager() {
                       </Button>
                     </div>
                     {pub.titulo && (
-                      <div className="mb-2 text-sm font-semibold text-slate-800">{pub.titulo}</div>
+                      <div className="mb-2 text-sm font-semibold text-slate-800 flex items-center">
+                        {occurrencesMap[pub.id] && (
+                          <BellRing className="w-4 h-4 mr-2 text-yellow-500" />
+                        )}
+                        {pub.titulo}
+                      </div>
                     )}
                     <p className="text-sm text-slate-600 font-mono bg-slate-100 p-3 rounded leading-relaxed">
-                      {renderSnippet(pub.texto_normalizado || pub.texto_bruto, [
-                        keyword,
-                        processo,
-                        oab,
-                        cpfCnpj,
-                      ])}
+                      {renderSnippet(
+                        pub.texto_normalizado || pub.texto_bruto,
+                        [keyword, processo, oab, cpfCnpj],
+                        occurrencesMap[pub.id]?.trecho_encontrado,
+                      )}
                     </p>
                   </div>
                 ))
