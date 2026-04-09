@@ -4,17 +4,17 @@ import type { RecordSubscription } from 'pocketbase'
 
 /**
  * Hook for real-time subscriptions to a PocketBase collection.
- * ALWAYS use this hook instead of subscribing inline.
- * Uses the per-listener UnsubscribeFunc so multiple components
- * can safely subscribe to the same collection without conflicts.
+ * Includes a debounce mechanism to prevent request storms.
  */
 export function useRealtime(
   collectionName: string,
   callback: (data: RecordSubscription<any>) => void,
   enabled: boolean = true,
+  debounceMs: number = 300,
 ) {
   const callbackRef = useRef(callback)
   callbackRef.current = callback
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (!enabled) return
@@ -24,7 +24,10 @@ export function useRealtime(
 
     pb.collection(collectionName)
       .subscribe('*', (e) => {
-        callbackRef.current(e)
+        if (timeoutRef.current) clearTimeout(timeoutRef.current)
+        timeoutRef.current = setTimeout(() => {
+          if (!cancelled) callbackRef.current(e)
+        }, debounceMs)
       })
       .then((fn) => {
         if (cancelled) {
@@ -36,9 +39,10 @@ export function useRealtime(
 
     return () => {
       cancelled = true
+      if (timeoutRef.current) clearTimeout(timeoutRef.current)
       if (unsubscribeFn) {
         unsubscribeFn().catch(() => {})
       }
     }
-  }, [collectionName, enabled])
+  }, [collectionName, enabled, debounceMs])
 }

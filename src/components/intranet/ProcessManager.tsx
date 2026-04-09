@@ -22,6 +22,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Search, Plus, Trash2, Edit2, Eye, RefreshCw, Star, RotateCcw } from 'lucide-react'
 import { getLegalCases, deleteLegalCase, updateLegalCase } from '@/services/legal_cases'
 import { getClients } from '@/services/clients'
@@ -41,8 +48,8 @@ export default function ProcessManager() {
   const [clients, setClients] = useState<any[]>([])
   const [collaborators, setCollaborators] = useState<any[]>([])
 
-  // Filters State
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortBy, setSortBy] = useState('created_desc')
   const [filterFav, setFilterFav] = useState(false)
   const [typeFilter, setTypeFilter] = useState<string[]>([])
   const [statusFilter, setStatusFilter] = useState<string[]>([])
@@ -77,9 +84,7 @@ export default function ProcessManager() {
   const allTags = useMemo(() => {
     const tags = new Set<string>()
     cases.forEach((c) => {
-      if (Array.isArray(c.tags)) {
-        c.tags.forEach((t: string) => tags.add(t))
-      }
+      if (Array.isArray(c.tags)) c.tags.forEach((t: string) => tags.add(t))
     })
     return Array.from(tags).sort()
   }, [cases])
@@ -90,16 +95,12 @@ export default function ProcessManager() {
   }
 
   const handleToggleFavorite = async (c: any) => {
-    await updateLegalCase(c.id, {
-      is_favorite: !c.is_favorite,
-    })
+    await updateLegalCase(c.id, { is_favorite: !c.is_favorite })
     loadData()
   }
 
   const handleRestore = async (c: any) => {
-    await updateLegalCase(c.id, {
-      lifecycle_status: 'Ativo',
-    })
+    await updateLegalCase(c.id, { lifecycle_status: 'Ativo' })
     toast({ title: 'Caso restaurado para Ativo.' })
     loadData()
   }
@@ -131,14 +132,8 @@ export default function ProcessManager() {
     } catch (error: any) {
       const { category, message } = categorizeError(error)
       let finalMessage = message
-      const errStr = String(error?.message || message || '')
-      if (
-        errStr.includes('permissão de leitura') ||
-        errStr.includes('unauthorized') ||
-        errStr.includes('403')
-      ) {
+      if (String(error?.message || message || '').includes('403'))
         finalMessage = `A chave do DataJud não possui permissão de leitura para o tribunal selecionado.`
-      }
       await updateLegalCase(c.id, { datajud_sync_status: 'Error' }).catch(() => null)
       toast({
         title: `Erro de Sincronização (${category})`,
@@ -179,25 +174,33 @@ export default function ProcessManager() {
     const term = searchTerm.toLowerCase()
     const matchSearch =
       (c.parties?.toLowerCase() || '').includes(term) || (c.case_number || '').includes(term)
-
     if (filterFav && !c.is_favorite) return false
-
     if (typeFilter.length > 0 && !typeFilter.includes(c.type)) return false
-
     const isExcluded = c.lifecycle_status === 'Excluído'
-    if (statusFilter.length === 0) {
-      if (isExcluded) return false
-    } else {
-      if (!statusFilter.includes(c.lifecycle_status)) return false
-    }
-
+    if (statusFilter.length === 0 && isExcluded) return false
+    else if (statusFilter.length > 0 && !statusFilter.includes(c.lifecycle_status)) return false
     if (tagsFilter.length > 0) {
       const cTags = Array.isArray(c.tags) ? c.tags : []
       if (!tagsFilter.some((t) => cTags.includes(t))) return false
     }
-
     return matchSearch
   })
+
+  const sortedCases = useMemo(() => {
+    const arr = [...filteredCases]
+    arr.sort((a, b) => {
+      if (sortBy === 'name_asc') return (a.parties || '').localeCompare(b.parties || '')
+      if (sortBy === 'name_desc') return (b.parties || '').localeCompare(a.parties || '')
+      if (sortBy === 'process_asc') return (a.case_number || '').localeCompare(b.case_number || '')
+      if (sortBy === 'date_desc') {
+        const da = a.distribution_date ? new Date(a.distribution_date).getTime() : 0
+        const db = b.distribution_date ? new Date(b.distribution_date).getTime() : 0
+        return db - da
+      }
+      return new Date(b.created).getTime() - new Date(a.created).getTime()
+    })
+    return arr
+  }, [filteredCases, sortBy])
 
   return (
     <div className="space-y-8">
@@ -227,7 +230,6 @@ export default function ProcessManager() {
       </div>
 
       <div className="flex flex-col md:flex-row gap-8 items-start">
-        {/* Sidebar */}
         <Card className="w-full md:w-64 lg:w-72 shrink-0 md:sticky md:top-6 border-none shadow-sm bg-white">
           <CardHeader className="pb-3 border-b">
             <CardTitle className="text-sm">Filtros Avançados</CardTitle>
@@ -246,7 +248,6 @@ export default function ProcessManager() {
                 <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> Somente Favoritos
               </label>
             </div>
-
             <div className="space-y-3">
               <h4 className="text-sm font-semibold text-slate-800">Tipo</h4>
               {['Processo', 'Serviço Jurídico'].map((t) => (
@@ -261,7 +262,6 @@ export default function ProcessManager() {
                 </label>
               ))}
             </div>
-
             <div className="space-y-3">
               <h4 className="text-sm font-semibold text-slate-800">Ciclo de Vida</h4>
               {['Ativo', 'Arquivado', 'Suspenso', 'Excluído'].map((s) => (
@@ -276,7 +276,6 @@ export default function ProcessManager() {
                 </label>
               ))}
             </div>
-
             {allTags.length > 0 && (
               <div className="space-y-3">
                 <h4 className="text-sm font-semibold text-slate-800">Etiquetas</h4>
@@ -302,7 +301,6 @@ export default function ProcessManager() {
           </CardContent>
         </Card>
 
-        {/* Main Content */}
         <div className="flex-1 w-full space-y-4">
           {isBatchSyncing && (
             <Card className="bg-primary/5 border-primary/20">
@@ -322,16 +320,30 @@ export default function ProcessManager() {
           )}
 
           <Card className="overflow-hidden border-slate-200/60 shadow-sm">
-            <CardHeader className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-white border-b border-slate-100 py-5">
+            <CardHeader className="flex flex-col md:flex-row justify-between md:items-center gap-4 bg-white border-b border-slate-100 py-5">
               <CardTitle className="text-xl font-serif">Portfólio Ativo</CardTitle>
-              <div className="relative w-full sm:w-80">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Buscar por partes ou número do processo..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 bg-slate-50 border-transparent focus-visible:bg-white transition-colors"
-                />
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-[180px] bg-slate-50 border-slate-200">
+                    <SelectValue placeholder="Ordenar por" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="created_desc">Mais Recentes</SelectItem>
+                    <SelectItem value="name_asc">Nome (A-Z)</SelectItem>
+                    <SelectItem value="name_desc">Nome (Z-A)</SelectItem>
+                    <SelectItem value="process_asc">Nº Processo</SelectItem>
+                    <SelectItem value="date_desc">Data de Distribuição</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="relative flex-1 md:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    placeholder="Buscar por partes ou número..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 bg-slate-50"
+                  />
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-0 bg-white">
@@ -346,14 +358,14 @@ export default function ProcessManager() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredCases.length === 0 ? (
+                  {sortedCases.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                        Nenhum registro encontrado para os filtros selecionados.
+                        Nenhum registro encontrado.
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredCases.map((c) => (
+                    sortedCases.map((c) => (
                       <TableRow
                         key={c.id}
                         className={
@@ -384,18 +396,6 @@ export default function ProcessManager() {
                               {c.case_number || 'Sem número'}
                             </span>
                           </div>
-                          {Array.isArray(c.tags) && c.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mt-2.5">
-                              {c.tags.map((t: string) => (
-                                <span
-                                  key={t}
-                                  className="text-[10px] bg-slate-50 text-slate-600 px-2 py-1 rounded-md border border-slate-200 font-medium"
-                                >
-                                  {t}
-                                </span>
-                              ))}
-                            </div>
-                          )}
                         </TableCell>
                         <TableCell>
                           <div className="text-sm font-medium">{c.status || 'Não informado'}</div>
@@ -409,13 +409,12 @@ export default function ProcessManager() {
                               className={
                                 c.datajud_sync_status === 'Synced' ||
                                 c.datajud_sync_status === 'Success'
-                                  ? 'bg-emerald-500 hover:bg-emerald-600'
+                                  ? 'bg-emerald-500'
                                   : c.datajud_sync_status === 'Pending'
-                                    ? 'bg-amber-500 hover:bg-amber-600'
-                                    : c.datajud_sync_status === 'Error' ||
-                                        c.datajud_sync_status === 'Sync Failed'
-                                      ? 'bg-red-500 hover:bg-red-600'
-                                      : 'bg-slate-300 hover:bg-slate-400'
+                                    ? 'bg-amber-500'
+                                    : c.datajud_sync_status === 'Error'
+                                      ? 'bg-red-500'
+                                      : 'bg-slate-300'
                               }
                             >
                               {c.datajud_sync_status || 'Pendente'}
@@ -503,7 +502,6 @@ export default function ProcessManager() {
           loadData()
         }}
       />
-
       <AlertDialog open={!!deletingCase} onOpenChange={(open) => !open && setDeletingCase(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/select'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
-import { Trash2, Plus, CheckCircle2, Link as LinkIcon, CalendarClock } from 'lucide-react'
+import { Trash2, Plus, CheckCircle2, Link as LinkIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function TasksWidget() {
@@ -40,7 +40,6 @@ export function TasksWidget() {
   useEffect(() => {
     load()
   }, [])
-
   useRealtime('tasks', load)
 
   const handleAdd = async (e: React.FormEvent) => {
@@ -69,7 +68,6 @@ export function TasksWidget() {
   }
 
   const handleTaskClick = (e: React.MouseEvent, lawsuitId: string | undefined) => {
-    // Only navigate if clicking on the task content, not the checkbox or delete button
     if (lawsuitId && !(e.target as HTMLElement).closest('button')) {
       navigate(`/intranet/processos/${lawsuitId}`)
     }
@@ -80,8 +78,7 @@ export function TasksWidget() {
       <CardHeader className="bg-white border-b py-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2 text-slate-800">
-            <CheckCircle2 className="w-5 h-5 text-primary" />
-            Tarefas Prioritárias
+            <CheckCircle2 className="w-5 h-5 text-primary" /> Tarefas Prioritárias
           </CardTitle>
           <span className="text-xs font-normal text-muted-foreground bg-slate-100 px-2 py-1 rounded-full">
             {tasks.filter((t) => t.status === 'todo').length} pendentes
@@ -90,7 +87,6 @@ export function TasksWidget() {
       </CardHeader>
 
       <CardContent className="p-0 flex-1 flex flex-col">
-        {/* Form area */}
         <div className="p-4 border-b border-slate-100 bg-slate-50/50">
           <form onSubmit={handleAdd} className="flex flex-col gap-3">
             <div className="flex gap-2">
@@ -121,7 +117,7 @@ export function TasksWidget() {
               <Select value={linkedLawsuit} onValueChange={setLinkedLawsuit}>
                 <SelectTrigger className="flex-1 h-8 bg-white border-slate-200 text-xs text-slate-500">
                   <LinkIcon className="w-3 h-3 mr-2 text-slate-400" />
-                  <SelectValue placeholder="Vincular a um processo..." />
+                  <SelectValue placeholder="Vincular processo..." />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Nenhum vínculo</SelectItem>
@@ -139,7 +135,6 @@ export function TasksWidget() {
           </form>
         </div>
 
-        {/* List area */}
         <div className="flex-1 overflow-y-auto p-2">
           {tasks.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground flex flex-col items-center justify-center h-full">
@@ -183,7 +178,6 @@ export function TasksWidget() {
                         </span>
                       )}
                     </div>
-
                     <div className="flex items-center gap-2 shrink-0">
                       {t.due_date && (
                         <span className="text-[10px] text-slate-400 flex items-center">
@@ -204,7 +198,6 @@ export function TasksWidget() {
                         )}
                         title={`Prioridade: ${t.priority}`}
                       />
-
                       <Button
                         variant="ghost"
                         size="icon"

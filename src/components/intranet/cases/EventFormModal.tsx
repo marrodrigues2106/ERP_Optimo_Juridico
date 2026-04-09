@@ -45,6 +45,7 @@ interface Props {
   prefilledDescription?: string
   defaultDate?: Date
   onSuccess?: () => void
+  editingEvent?: any
 }
 
 export function EventFormModal({
@@ -54,11 +55,13 @@ export function EventFormModal({
   prefilledDescription,
   defaultDate,
   onSuccess,
+  editingEvent,
 }: Props) {
   const { toast } = useToast()
   const [collaborators, setCollaborators] = useState<any[]>([])
   const [clients, setClients] = useState<any[]>([])
   const [cases, setCases] = useState<any[]>([])
+  const isEditing = !!editingEvent
 
   const {
     register,
@@ -89,25 +92,45 @@ export function EventFormModal({
 
   useEffect(() => {
     if (open) {
-      const initDate = defaultDate ? new Date(defaultDate) : new Date()
-      if (defaultDate && initDate.getHours() === 0 && initDate.getMinutes() === 0) {
-        initDate.setHours(9, 0, 0, 0)
-      }
-      const tzOffset = initDate.getTimezoneOffset() * 60000
+      if (isEditing) {
+        reset({
+          title: editingEvent.title || '',
+          description: editingEvent.description || '',
+          type: editingEvent.type || 'Task',
+          start_date: editingEvent.start_date
+            ? new Date(editingEvent.start_date).toISOString().substring(0, 16)
+            : '',
+          end_date: editingEvent.end_date
+            ? new Date(editingEvent.end_date).toISOString().substring(0, 16)
+            : '',
+          collaborator: editingEvent.collaborator || 'none',
+          client: editingEvent.client || 'none',
+          linked_lawsuit: editingEvent.linked_lawsuit || 'none',
+          sync_provider: editingEvent.sync_provider || 'Local',
+        })
+      } else {
+        const initDate = defaultDate ? new Date(defaultDate) : new Date()
+        if (defaultDate && initDate.getHours() === 0 && initDate.getMinutes() === 0) {
+          initDate.setHours(9, 0, 0, 0)
+        }
+        const tzOffset = initDate.getTimezoneOffset() * 60000
 
-      reset({
-        title: '',
-        description: prefilledDescription || '',
-        type: 'Task',
-        start_date: new Date(initDate.getTime() - tzOffset).toISOString().substring(0, 16),
-        end_date: new Date(initDate.getTime() + 3600000 - tzOffset).toISOString().substring(0, 16),
-        collaborator: 'none',
-        client: 'none',
-        linked_lawsuit: lawsuitId || 'none',
-        sync_provider: 'Local',
-      })
+        reset({
+          title: '',
+          description: prefilledDescription || '',
+          type: 'Task',
+          start_date: new Date(initDate.getTime() - tzOffset).toISOString().substring(0, 16),
+          end_date: new Date(initDate.getTime() + 3600000 - tzOffset)
+            .toISOString()
+            .substring(0, 16),
+          collaborator: 'none',
+          client: 'none',
+          linked_lawsuit: lawsuitId || 'none',
+          sync_provider: 'Local',
+        })
+      }
     }
-  }, [open, prefilledDescription, lawsuitId, defaultDate, reset])
+  }, [open, prefilledDescription, lawsuitId, defaultDate, reset, editingEvent, isEditing])
 
   const onSubmit = async (data: EventFormValues) => {
     try {
@@ -131,21 +154,50 @@ export function EventFormModal({
 
       if (data.collaborator && data.collaborator !== 'none')
         payload.collaborator = data.collaborator
+      else payload.collaborator = null
+
       if (data.linked_lawsuit && data.linked_lawsuit !== 'none')
         payload.linked_lawsuit = data.linked_lawsuit
+      else payload.linked_lawsuit = null
+
       if (data.client && data.client !== 'none') payload.client = data.client
+      else payload.client = null
 
-      await pb.collection('agenda_events').create(payload)
+      if (isEditing) {
+        await pb.collection('agenda_events').update(editingEvent.id, payload)
+        toast({ title: 'Evento atualizado com sucesso' })
+      } else {
+        await pb.collection('agenda_events').create(payload)
+        toast({ title: 'Evento criado com sucesso' })
+      }
 
-      toast({ title: 'Evento criado com sucesso' })
       if (onSuccess) onSuccess()
       onOpenChange(false)
     } catch (e: any) {
       toast({
-        title: 'Erro ao criar evento',
+        title: isEditing ? 'Erro ao atualizar evento' : 'Erro ao criar evento',
         description: getErrorMessage(e),
         variant: 'destructive',
       })
+    }
+  }
+
+  const handleDelete = async () => {
+    if (confirm('Tem certeza que deseja remover este evento?')) {
+      try {
+        await pb
+          .collection('agenda_events')
+          .update(editingEvent.id, { deleted_at: new Date().toISOString() })
+        toast({ title: 'Evento excluído com sucesso.' })
+        if (onSuccess) onSuccess()
+        onOpenChange(false)
+      } catch (e) {
+        toast({
+          title: 'Erro ao excluir evento',
+          description: getErrorMessage(e),
+          variant: 'destructive',
+        })
+      }
     }
   }
 
@@ -153,9 +205,11 @@ export function EventFormModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Vincular Evento/Alerta</DialogTitle>
+          <DialogTitle>{isEditing ? 'Editar Evento/Alerta' : 'Vincular Evento/Alerta'}</DialogTitle>
           <DialogDescription>
-            Crie um evento na agenda integrado ao sistema e notificações.
+            {isEditing
+              ? 'Atualize as informações do evento na agenda.'
+              : 'Crie um evento na agenda integrado ao sistema e notificações.'}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
@@ -300,16 +354,29 @@ export function EventFormModal({
             </div>
           </div>
 
-          <Button type="submit" className="w-full mt-4" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Salvando...
-              </>
-            ) : (
-              'Confirmar Agendamento'
+          <div className="flex justify-between pt-4 gap-4">
+            {isEditing && (
+              <Button type="button" variant="destructive" onClick={handleDelete}>
+                Excluir
+              </Button>
             )}
-          </Button>
+            <Button
+              type="submit"
+              className={isEditing ? 'flex-1' : 'w-full'}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : isEditing ? (
+                'Salvar Alterações'
+              ) : (
+                'Confirmar Agendamento'
+              )}
+            </Button>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

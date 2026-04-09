@@ -14,6 +14,7 @@ import {
   Landmark,
   Archive,
   Check,
+  Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import pb from '@/lib/pocketbase/client'
@@ -26,6 +27,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useNavigate, Link } from 'react-router-dom'
 import { useToast } from '@/hooks/use-toast'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
@@ -57,22 +65,26 @@ export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedFeedItems, setSelectedFeedItems] = useState<string[]>([])
 
-  const loadData = async () => {
+  const loadTasks = async () => {
     try {
-      const [fetchedTasks, fetchedEvents] = await Promise.all([
-        pb
-          .collection('tasks')
-          .getFullList({ filter: 'status = "todo" && deleted_at = ""', sort: 'due_date' }),
-        pb.collection('agenda_events').getFullList({
-          filter: `start_date >= "${startOfDay(selectedDate).toISOString()}" && start_date <= "${new Date(startOfDay(selectedDate).getTime() + 24 * 60 * 60 * 1000 - 1).toISOString()}" && deleted_at = ""`,
-          sort: 'start_date',
-        }),
-      ])
+      const fetchedTasks = await pb
+        .collection('tasks')
+        .getFullList({ filter: 'status = "todo" && deleted_at = ""', sort: 'due_date' })
       setTasks(fetchedTasks)
-      setEvents(fetchedEvents)
-      await loadFeed()
     } catch (e) {
-      console.error('Error loading dashboard data', e)
+      console.error('Error loading tasks', e)
+    }
+  }
+
+  const loadEvents = async () => {
+    try {
+      const fetchedEvents = await pb.collection('agenda_events').getFullList({
+        filter: `start_date >= "${startOfDay(selectedDate).toISOString()}" && start_date <= "${new Date(startOfDay(selectedDate).getTime() + 24 * 60 * 60 * 1000 - 1).toISOString()}" && deleted_at = ""`,
+        sort: 'start_date',
+      })
+      setEvents(fetchedEvents)
+    } catch (e) {
+      console.error('Error loading events', e)
     }
   }
 
@@ -91,16 +103,20 @@ export default function Dashboard() {
         pb
           .collection('ocorrencias_dou')
           .getList(1, 20, { filter: 'status_alerta != "pendente"', sort: '-updated' }),
-        pb.collection('case_movements').getFullList({
-          filter: 'notified_client = false && deleted_at = ""',
-          sort: '-event_date',
-          expand: 'case',
-        }),
-        pb.collection('case_movements').getList(1, 20, {
-          filter: 'notified_client = true && deleted_at = ""',
-          sort: '-event_date',
-          expand: 'case',
-        }),
+        pb
+          .collection('case_movements')
+          .getFullList({
+            filter: 'notified_client = false && deleted_at = ""',
+            sort: '-event_date',
+            expand: 'case',
+          }),
+        pb
+          .collection('case_movements')
+          .getList(1, 20, {
+            filter: 'notified_client = true && deleted_at = ""',
+            sort: '-event_date',
+            expand: 'case',
+          }),
       ])
 
       const mapItems = (items: any[], source: any, isRead: boolean): FeedItem[] =>
@@ -137,7 +153,9 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
-    loadData()
+    loadTasks()
+    loadEvents()
+    loadFeed()
     pb.collection('clients')
       .getFullList()
       .then(setClients)
@@ -148,11 +166,11 @@ export default function Dashboard() {
       .catch(() => {})
   }, [selectedDate])
 
-  useRealtime('tasks', loadData)
+  useRealtime('tasks', loadTasks)
   useRealtime('gazette_publications', loadFeed)
   useRealtime('ocorrencias_dou', loadFeed)
   useRealtime('case_movements', loadFeed)
-  useRealtime('agenda_events', loadData)
+  useRealtime('agenda_events', loadEvents)
 
   const toggleTask = async (id: string, currentStatus: string) => {
     try {
@@ -162,6 +180,19 @@ export default function Dashboard() {
     } catch (error) {
       toast({
         title: 'Erro ao atualizar tarefa',
+        description: getErrorMessage(error),
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const handleDeleteTask = async (id: string) => {
+    try {
+      await pb.collection('tasks').update(id, { deleted_at: new Date().toISOString() })
+      toast({ title: 'Tarefa removida' })
+    } catch (error) {
+      toast({
+        title: 'Erro ao excluir tarefa',
         description: getErrorMessage(error),
         variant: 'destructive',
       })
@@ -196,42 +227,33 @@ export default function Dashboard() {
   }, [activeTab])
 
   const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedFeedItems(visibleFeed.map((i) => i.id))
-    } else {
-      setSelectedFeedItems([])
-    }
+    if (checked) setSelectedFeedItems(visibleFeed.map((i) => i.id))
+    else setSelectedFeedItems([])
   }
 
   const handleSelect = (id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedFeedItems((prev) => [...prev, id])
-    } else {
-      setSelectedFeedItems((prev) => prev.filter((i) => i !== id))
-    }
+    if (checked) setSelectedFeedItems((prev) => [...prev, id])
+    else setSelectedFeedItems((prev) => prev.filter((i) => i !== id))
   }
 
   const handleBulkAction = async (markAsRead: boolean) => {
     if (selectedFeedItems.length === 0) return
-
     setFeedItems((prev) =>
       prev.map((i) => (selectedFeedItems.includes(i.id) ? { ...i, isRead: markAsRead } : i)),
     )
     const itemsToUpdate = feedItems.filter((i) => selectedFeedItems.includes(i.id))
     setSelectedFeedItems([])
-
     try {
       await Promise.all(
         itemsToUpdate.map((item) => {
-          if (item.source === 'gazette') {
+          if (item.source === 'gazette')
             return pb.collection('gazette_publications').update(item.id, { is_read: markAsRead })
-          } else if (item.source === 'dou') {
+          else if (item.source === 'dou')
             return pb
               .collection('ocorrencias_dou')
               .update(item.id, { status_alerta: markAsRead ? 'visualizado' : 'pendente' })
-          } else if (item.source === 'movement') {
+          else if (item.source === 'movement')
             return pb.collection('case_movements').update(item.id, { notified_client: markAsRead })
-          }
         }),
       )
       toast({ title: `Itens marcados como ${markAsRead ? 'lidos' : 'não lidos'}` })
@@ -242,16 +264,13 @@ export default function Dashboard() {
     }
   }
 
-  const navigateDate = (dir: 'prev' | 'next') => {
+  const navigateDate = (dir: 'prev' | 'next') =>
     setSelectedDate((prev) => addDays(prev, dir === 'next' ? 1 : -1))
-  }
 
   return (
     <div className="flex h-[calc(100vh-80px)] -m-4 lg:-m-8 bg-white text-slate-800 font-sans shadow-sm rounded-xl overflow-hidden border border-slate-200/60">
-      {/* Left Sidebar Filters */}
       <div className="w-72 border-r border-slate-200 p-8 flex flex-col gap-8 shrink-0 hidden xl:flex bg-slate-50/50">
         <h2 className="text-lg font-bold tracking-tight text-slate-800 uppercase">VISÃO GERAL</h2>
-
         <div>
           <h3 className="text-[10px] font-bold text-slate-400 mb-4 uppercase tracking-wider">
             Filtros
@@ -283,7 +302,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Center Feed */}
       <div className="flex-1 p-8 md:p-12 overflow-auto bg-white flex flex-col">
         <div className="flex items-center justify-between mb-6 border-b pb-4">
           <div className="flex items-center gap-3 text-slate-800 font-semibold text-lg border-l-4 border-primary pl-3">
@@ -461,9 +479,7 @@ export default function Dashboard() {
         </Tabs>
       </div>
 
-      {/* Right Column - Agenda & Tasks */}
       <div className="w-96 border-l border-slate-200 p-8 flex flex-col gap-10 shrink-0 bg-slate-50/50 overflow-y-auto hidden md:flex">
-        {/* Date Display */}
         <div className="flex items-center justify-between">
           <div className="flex items-baseline gap-2">
             <span className="text-5xl font-light text-slate-800 tracking-tighter">
@@ -501,7 +517,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Agenda Events */}
         <div>
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
             <div className="flex items-center gap-2 text-slate-700 font-bold">
@@ -516,7 +531,6 @@ export default function Dashboard() {
               Ver Agenda Completa
             </Button>
           </div>
-
           {events.length === 0 ? (
             <div className="text-center py-8 rounded-lg text-slate-500 flex flex-col items-center">
               <CalendarIcon className="w-8 h-8 mb-3 text-slate-300" />
@@ -545,7 +559,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Tasks Section */}
         <div className="flex-1 flex flex-col">
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
             <div className="flex items-center gap-2 text-slate-700 font-bold">
@@ -559,7 +572,6 @@ export default function Dashboard() {
               <Plus className="w-4 h-4" />
             </button>
           </div>
-
           <div className="space-y-3 overflow-y-auto pr-2">
             {tasks.length === 0 ? (
               <p className="text-sm text-slate-400 text-center py-4">Nenhuma tarefa pendente.</p>
@@ -586,18 +598,41 @@ export default function Dashboard() {
                       >
                         {task.title}
                       </p>
-                      {task.due_date && (
-                        <p
-                          className={cn(
-                            'text-xs mt-1.5 font-semibold',
-                            isOverdue && task.status !== 'completed'
-                              ? 'text-red-500 bg-red-50 px-1.5 py-0.5 rounded inline-block'
-                              : 'text-slate-400',
-                          )}
-                        >
-                          {new Date(task.due_date).toLocaleDateString('pt-BR')}
-                        </p>
-                      )}
+                      <div className="flex items-center justify-between mt-1.5">
+                        {task.due_date && (
+                          <p
+                            className={cn(
+                              'text-xs font-semibold',
+                              isOverdue && task.status !== 'completed'
+                                ? 'text-red-500 bg-red-50 px-1.5 py-0.5 rounded'
+                                : 'text-slate-400',
+                            )}
+                          >
+                            {new Date(task.due_date).toLocaleDateString('pt-BR')}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={cn(
+                              'w-2 h-2 rounded-full',
+                              task.priority === 'high'
+                                ? 'bg-red-500'
+                                : task.priority === 'medium'
+                                  ? 'bg-amber-400'
+                                  : 'bg-slate-300',
+                            )}
+                            title={`Prioridade: ${task.priority}`}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-opacity"
+                            onClick={() => handleDeleteTask(task.id)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )
@@ -611,7 +646,7 @@ export default function Dashboard() {
         open={eventModalOpen}
         onOpenChange={setEventModalOpen}
         defaultDate={selectedDate}
-        onSuccess={loadData}
+        onSuccess={loadEvents}
       />
       <CaseFormModal
         open={caseModalOpen}
@@ -619,7 +654,6 @@ export default function Dashboard() {
         editingCase={null}
         clients={clients}
         collaborators={collaborators}
-        onSuccess={loadData}
       />
 
       <Dialog open={taskModalOpen} onOpenChange={setTaskModalOpen}>
@@ -633,29 +667,24 @@ export default function Dashboard() {
               e.preventDefault()
               const fd = new FormData(e.currentTarget)
               const title = fd.get('title')?.toString() || ''
-
-              if (!title.trim()) {
-                toast({
+              if (!title.trim())
+                return toast({
                   title: 'Erro',
-                  description: 'O título da tarefa é obrigatório.',
+                  description: 'O título é obrigatório.',
                   variant: 'destructive',
                 })
-                return
-              }
-
               try {
-                await pb.collection('tasks').create({
-                  title: title.trim(),
-                  status: 'todo',
-                  priority: 'medium',
-                  organization: pb.authStore.record?.active_organization,
-                })
-                toast({
-                  title: 'Sucesso',
-                  description: 'Tarefa criada com sucesso.',
-                })
+                await pb
+                  .collection('tasks')
+                  .create({
+                    title: title.trim(),
+                    status: 'todo',
+                    priority: fd.get('priority'),
+                    organization: pb.authStore.record?.active_organization,
+                  })
+                toast({ title: 'Sucesso', description: 'Tarefa criada.' })
                 setTaskModalOpen(false)
-                loadData()
+                loadTasks()
               } catch (error) {
                 toast({
                   title: 'Erro ao criar tarefa',
@@ -666,6 +695,19 @@ export default function Dashboard() {
             }}
           >
             <Input name="title" placeholder="Descreva a tarefa..." required autoFocus />
+            <div>
+              <Label>Prioridade</Label>
+              <Select name="priority" defaultValue="medium">
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Baixa</SelectItem>
+                  <SelectItem value="medium">Média</SelectItem>
+                  <SelectItem value="high">Alta</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Button type="submit" className="w-full">
               Criar Tarefa
             </Button>

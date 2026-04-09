@@ -9,6 +9,15 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
 import { EventFormModal } from './cases/EventFormModal'
@@ -23,6 +32,7 @@ import {
   Settings2,
   Users,
   User,
+  CheckSquare,
 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import {
@@ -44,16 +54,44 @@ export default function AgendaManager() {
   const [events, setEvents] = useState<any[]>([])
   const [formOpen, setFormOpen] = useState(false)
   const [syncModalOpen, setSyncModalOpen] = useState(false)
+  const [editingEvent, setEditingEvent] = useState<any>(null)
+  const [taskModalOpen, setTaskModalOpen] = useState(false)
+  const [editingTask, setEditingTask] = useState<any>(null)
 
   const loadData = async () => {
     try {
       const orgId = pb.authStore.record?.active_organization
-      const evRes = await pb.collection('agenda_events').getFullList({
-        filter: `deleted_at = ""${orgId ? ` && organization = "${orgId}"` : ''}`,
-        sort: 'start_date',
-        expand: 'linked_lawsuit,client,participants',
-      })
-      setEvents(evRes)
+      const [evRes, taskRes] = await Promise.all([
+        pb.collection('agenda_events').getFullList({
+          filter: `deleted_at = ""${orgId ? ` && organization = "${orgId}"` : ''}`,
+          sort: 'start_date',
+          expand: 'linked_lawsuit,client,participants',
+        }),
+        pb.collection('tasks').getFullList({
+          filter: `deleted_at = "" && due_date != ""${orgId ? ` && organization = "${orgId}"` : ''}`,
+          sort: 'due_date',
+          expand: 'linked_lawsuit,client,collaborator',
+        }),
+      ])
+
+      const mappedTasks = taskRes.map((t) => ({
+        ...t,
+        isTask: true,
+        start_date: t.due_date,
+        type: 'Task',
+        sync_status: 'Local Only',
+        sync_provider: 'Local',
+        expand: {
+          ...t.expand,
+          participants: t.expand?.collaborator ? [t.expand.collaborator] : [],
+        },
+      }))
+
+      setEvents(
+        [...evRes, ...mappedTasks].sort(
+          (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime(),
+        ),
+      )
     } catch (e) {
       console.error(e)
     }
@@ -62,16 +100,22 @@ export default function AgendaManager() {
   useEffect(() => {
     loadData()
   }, [])
-
   useRealtime('agenda_events', loadData)
+  useRealtime('tasks', loadData)
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Tem certeza que deseja remover este evento?')) {
+  const handleDeleteItem = async (item: any) => {
+    if (confirm('Tem certeza que deseja remover este item?')) {
       try {
-        await pb.collection('agenda_events').update(id, { deleted_at: new Date().toISOString() })
-        toast({ title: 'Evento excluído com sucesso.' })
+        if (item.isTask) {
+          await pb.collection('tasks').update(item.id, { deleted_at: new Date().toISOString() })
+        } else {
+          await pb
+            .collection('agenda_events')
+            .update(item.id, { deleted_at: new Date().toISOString() })
+        }
+        toast({ title: 'Item excluído com sucesso.' })
       } catch (e) {
-        toast({ title: 'Erro ao excluir evento', variant: 'destructive' })
+        toast({ title: 'Erro ao excluir', variant: 'destructive' })
       }
     }
   }
@@ -83,6 +127,16 @@ export default function AgendaManager() {
     if (view === 'week') setCurrentDate(addWeeks(currentDate, amount))
     if (view === 'month')
       setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + amount, 1))
+  }
+
+  const handleItemClick = (item: any) => {
+    if (item.isTask) {
+      setEditingTask(item)
+      setTaskModalOpen(true)
+    } else {
+      setEditingEvent(item)
+      setFormOpen(true)
+    }
   }
 
   const renderEventsList = (days: Date[]) => {
@@ -100,26 +154,23 @@ export default function AgendaManager() {
               {dayEvents.map((ev) => (
                 <div
                   key={ev.id}
-                  className="flex justify-between items-start p-4 border rounded-lg shadow-sm bg-white group hover:border-primary/40 transition-all"
+                  onClick={() => handleItemClick(ev)}
+                  className="flex justify-between items-start p-4 border rounded-lg shadow-sm bg-white group hover:border-primary/40 transition-all cursor-pointer"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
+                      {ev.isTask && <CheckSquare className="w-4 h-4 text-emerald-500" />}
                       <h4 className="font-bold text-slate-800 text-sm">{ev.title}</h4>
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
-                          ev.sync_status === 'Synced'
-                            ? 'bg-green-50 text-green-700 border-green-200'
-                            : ev.sync_status === 'Pending'
-                              ? 'bg-amber-50 text-amber-700 border-amber-200'
-                              : 'bg-slate-100 text-slate-600 border-slate-200'
-                        }`}
-                      >
-                        {ev.sync_provider && ev.sync_provider !== 'Local'
-                          ? `${ev.sync_provider} (${ev.sync_status || 'Pending'})`
-                          : 'Local Only'}
-                      </span>
+                      {!ev.isTask && (
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${ev.sync_status === 'Synced' ? 'bg-green-50 text-green-700 border-green-200' : ev.sync_status === 'Pending' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}
+                        >
+                          {ev.sync_provider && ev.sync_provider !== 'Local'
+                            ? `${ev.sync_provider} (${ev.sync_status || 'Pending'})`
+                            : 'Local Only'}
+                        </span>
+                      )}
                     </div>
-
                     <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 mt-2">
                       <span className="flex items-center font-medium bg-slate-50 px-2 py-1 rounded">
                         <Clock className="w-3 h-3 mr-1 text-primary" />
@@ -141,8 +192,15 @@ export default function AgendaManager() {
                           Ref: {ev.expand.linked_lawsuit.case_number || 'Processo vinculado'}
                         </span>
                       )}
+                      {ev.isTask && ev.priority && (
+                        <span className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border">
+                          <div
+                            className={`w-2 h-2 rounded-full ${ev.priority === 'high' ? 'bg-red-500' : ev.priority === 'medium' ? 'bg-amber-400' : 'bg-slate-300'}`}
+                          />
+                          Prioridade: {ev.priority}
+                        </span>
+                      )}
                     </div>
-
                     {ev.expand?.participants && ev.expand.participants.length > 0 && (
                       <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
                         <Users className="w-3 h-3" />
@@ -151,7 +209,6 @@ export default function AgendaManager() {
                         </span>
                       </div>
                     )}
-
                     {ev.description && (
                       <p className="text-xs mt-3 text-slate-600 bg-slate-50/50 p-2 rounded">
                         {ev.description}
@@ -161,7 +218,10 @@ export default function AgendaManager() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleDelete(ev.id)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDeleteItem(ev)
+                    }}
                     className="opacity-0 group-hover:opacity-100 transition-opacity ml-4 shrink-0"
                   >
                     <Trash2 className="w-4 h-4 text-red-500" />
@@ -179,14 +239,18 @@ export default function AgendaManager() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-serif font-bold text-primary flex items-center gap-2">
-          <CalendarIcon className="w-6 h-6 text-primary" />
-          Agenda Integrada da Equipe
+          <CalendarIcon className="w-6 h-6 text-primary" /> Agenda Integrada da Equipe
         </h2>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setSyncModalOpen(true)}>
             <Settings2 className="w-4 h-4 mr-2" /> Configurar Sync
           </Button>
-          <Button onClick={() => setFormOpen(true)}>
+          <Button
+            onClick={() => {
+              setEditingEvent(null)
+              setFormOpen(true)
+            }}
+          >
             <Plus className="w-4 h-4 mr-2" /> Novo Compromisso
           </Button>
         </div>
@@ -244,7 +308,8 @@ export default function AgendaManager() {
                       {dayEvents.map((ev) => (
                         <div
                           key={ev.id}
-                          className="text-[10px] truncate bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100"
+                          onClick={() => handleItemClick(ev)}
+                          className={`text-[10px] truncate px-1.5 py-0.5 rounded border cursor-pointer hover:opacity-80 ${ev.isTask ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}
                           title={ev.title}
                         >
                           {new Date(ev.start_date).toLocaleTimeString('pt-BR', {
@@ -279,9 +344,105 @@ export default function AgendaManager() {
         onOpenChange={setFormOpen}
         defaultDate={currentDate}
         onSuccess={loadData}
+        editingEvent={editingEvent}
       />
       <SyncConfigModal open={syncModalOpen} onOpenChange={setSyncModalOpen} />
+      <TaskEditModal
+        open={taskModalOpen}
+        onOpenChange={setTaskModalOpen}
+        task={editingTask}
+        onSuccess={loadData}
+      />
     </div>
+  )
+}
+
+function TaskEditModal({ task, open, onOpenChange, onSuccess }: any) {
+  const { toast } = useToast()
+  const [title, setTitle] = useState(task?.title || '')
+  const [dueDate, setDueDate] = useState(task?.due_date ? task.due_date.substring(0, 16) : '')
+  const [priority, setPriority] = useState(task?.priority || 'medium')
+
+  useEffect(() => {
+    if (open && task) {
+      setTitle(task.title || '')
+      setDueDate(task.due_date ? task.due_date.substring(0, 16) : '')
+      setPriority(task.priority || 'medium')
+    }
+  }, [open, task])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await pb
+        .collection('tasks')
+        .update(task.id, {
+          title,
+          due_date: dueDate ? new Date(dueDate).toISOString() : null,
+          priority,
+        })
+      toast({ title: 'Tarefa atualizada com sucesso' })
+      onSuccess()
+      onOpenChange(false)
+    } catch (err) {
+      toast({ title: 'Erro ao atualizar tarefa', variant: 'destructive' })
+    }
+  }
+
+  const handleDelete = async () => {
+    if (confirm('Tem certeza que deseja excluir esta tarefa?')) {
+      try {
+        await pb.collection('tasks').update(task.id, { deleted_at: new Date().toISOString() })
+        toast({ title: 'Tarefa excluída com sucesso' })
+        onSuccess()
+        onOpenChange(false)
+      } catch (err) {
+        toast({ title: 'Erro ao excluir tarefa', variant: 'destructive' })
+      }
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Editar Tarefa</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label>Título</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} required />
+          </div>
+          <div>
+            <Label>Data de Vencimento</Label>
+            <Input
+              type="datetime-local"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </div>
+          <div>
+            <Label>Prioridade</Label>
+            <Select value={priority} onValueChange={setPriority}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">Baixa</SelectItem>
+                <SelectItem value="medium">Média</SelectItem>
+                <SelectItem value="high">Alta</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex justify-between pt-4">
+            <Button type="button" variant="destructive" onClick={handleDelete}>
+              Excluir
+            </Button>
+            <Button type="submit">Salvar Alterações</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -320,65 +481,29 @@ function SyncConfigModal({ open, onOpenChange }: any) {
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-6 pt-4">
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-red-50 text-red-600 rounded-full flex items-center justify-center font-bold">
-                G
+          {['Google', 'Outlook', 'iCloud'].map((prov) => (
+            <div key={prov} className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${prov === 'Google' ? 'bg-red-50 text-red-600' : prov === 'Outlook' ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-800'}`}
+                >
+                  {prov.charAt(0)}
+                </div>
+                <div>
+                  <h4 className="font-semibold text-sm">{prov}</h4>
+                  <p className="text-xs text-muted-foreground">Sincronizar calendário</p>
+                </div>
               </div>
-              <div>
-                <h4 className="font-semibold text-sm">Google Calendar</h4>
-                <p className="text-xs text-muted-foreground">Sincronizar com Workspace</p>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleOAuthLink(prov)}
+                disabled={linking}
+              >
+                Conectar Conta
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleOAuthLink('Google')}
-              disabled={linking}
-            >
-              Conectar Conta
-            </Button>
-          </div>
-
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-bold">
-                M
-              </div>
-              <div>
-                <h4 className="font-semibold text-sm">Microsoft Outlook</h4>
-                <p className="text-xs text-muted-foreground">Sincronizar com Office 365</p>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleOAuthLink('Outlook')}
-              disabled={linking}
-            >
-              Conectar Conta
-            </Button>
-          </div>
-
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-slate-100 text-slate-800 rounded-full flex items-center justify-center font-bold">
-                A
-              </div>
-              <div>
-                <h4 className="font-semibold text-sm">Apple iCloud</h4>
-                <p className="text-xs text-muted-foreground">Sincronizar com iCloud Cal</p>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleOAuthLink('iCloud')}
-              disabled={linking}
-            >
-              Conectar Conta
-            </Button>
-          </div>
+          ))}
         </div>
       </DialogContent>
     </Dialog>

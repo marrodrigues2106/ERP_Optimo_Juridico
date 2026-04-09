@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -31,6 +31,7 @@ export function CrmContactsTab() {
   const [clients, setClients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState('name_asc')
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<any>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -41,8 +42,7 @@ export function CrmContactsTab() {
 
   const loadData = async () => {
     try {
-      const data = await getClients()
-      setClients(data)
+      setClients(await getClients())
     } catch (e) {
       console.error(e)
     } finally {
@@ -56,19 +56,18 @@ export function CrmContactsTab() {
 
   const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let v = e.target.value.replace(/\D/g, '')
-    if (v.length <= 11) {
+    if (v.length <= 11)
       v = v
         .replace(/(\d{3})(\d)/, '$1.$2')
         .replace(/(\d{3})(\d)/, '$1.$2')
         .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
-    } else {
+    else
       v = v
         .replace(/^(\d{2})(\d)/, '$1.$2')
         .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
         .replace(/\.(\d{3})(\d)/, '.$1/$2')
         .replace(/(\d{4})(\d)/, '$1-$2')
         .slice(0, 18)
-    }
     e.target.value = v
   }
 
@@ -77,13 +76,10 @@ export function CrmContactsTab() {
     setSubmitting(true)
     const fd = new FormData(e.currentTarget)
     const data = Object.fromEntries(fd.entries())
-
     try {
       const parsedData = { ...data }
-      if (parsedData.birthDate) {
+      if (parsedData.birthDate)
         parsedData.birthDate = new Date(parsedData.birthDate as string).toISOString()
-      }
-
       if (editing) {
         await updateClient(editing.id, parsedData)
         toast({ title: 'Cliente atualizado com sucesso!' })
@@ -125,17 +121,39 @@ export function CrmContactsTab() {
       (c.email || '').toLowerCase().includes(search.toLowerCase()),
   )
 
+  const sortedFiltered = useMemo(() => {
+    const arr = [...filtered]
+    arr.sort((a, b) => {
+      if (sortBy === 'name_asc') return (a.name || '').localeCompare(b.name || '')
+      if (sortBy === 'name_desc') return (b.name || '').localeCompare(a.name || '')
+      return new Date(b.created).getTime() - new Date(a.created).getTime()
+    })
+    return arr
+  }, [filtered, sortBy])
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-        <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <Input
-            placeholder="Buscar contatos..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Ordenar por" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="created_desc">Mais Recentes</SelectItem>
+              <SelectItem value="name_asc">Nome (A-Z)</SelectItem>
+              <SelectItem value="name_desc">Nome (Z-A)</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="relative flex-1 sm:w-72">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Input
+              placeholder="Buscar contatos..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
         </div>
         <Button
           onClick={() => {
@@ -242,7 +260,7 @@ export function CrmContactsTab() {
               </Select>
             </div>
             <Button type="submit" className="w-full mt-2" disabled={submitting}>
-              {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}{' '}
               {submitting ? 'Salvando...' : 'Salvar Contato'}
             </Button>
           </form>
@@ -268,14 +286,14 @@ export function CrmContactsTab() {
                     <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />
                   </TableCell>
                 </TableRow>
-              ) : filtered.length === 0 ? (
+              ) : sortedFiltered.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8 text-slate-500">
                     Nenhum contato encontrado.
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((c) => (
+                sortedFiltered.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell className="font-medium">{c.name}</TableCell>
                     <TableCell>
