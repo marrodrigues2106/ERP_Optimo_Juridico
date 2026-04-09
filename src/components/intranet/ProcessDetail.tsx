@@ -6,6 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   ArrowLeft,
   RefreshCw,
@@ -31,7 +39,9 @@ export default function ProcessDetail() {
   const [events, setEvents] = useState<any[]>([])
   const [finances, setFinances] = useState<any[]>([])
   const [isSyncing, setIsSyncing] = useState(false)
+
   const [newMovement, setNewMovement] = useState('')
+  const [activeTab, setActiveTab] = useState('andamento')
 
   useEffect(() => {
     if (id) {
@@ -78,7 +88,8 @@ export default function ProcessDetail() {
     }
   }
 
-  const handleAddMovement = async () => {
+  const handleAddMovement = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
     if (!newMovement.trim()) return
     try {
       await pb.collection('case_movements').create({
@@ -89,10 +100,78 @@ export default function ProcessDetail() {
         organization: pb.authStore.record?.active_organization,
       })
       setNewMovement('')
-      toast({ title: 'Andamento registrado com sucesso' })
+      toast({ title: 'Ocorrência processual registrada.' })
       loadData()
+      setActiveTab('andamento')
     } catch (err: any) {
-      toast({ title: 'Erro ao registrar andamento', variant: 'destructive' })
+      toast({ title: 'Erro ao registrar', variant: 'destructive' })
+    }
+  }
+
+  const handleAddTask = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    try {
+      await pb.collection('tasks').create({
+        title: fd.get('title'),
+        due_date: fd.get('due_date')
+          ? new Date(`${fd.get('due_date')}T12:00:00Z`).toISOString()
+          : '',
+        priority: fd.get('priority'),
+        status: 'todo',
+        linked_lawsuit: id,
+        organization: pb.authStore.record?.active_organization,
+      })
+      toast({ title: 'Tarefa criada' })
+      loadData()
+      ;(e.target as HTMLFormElement).reset()
+      setActiveTab('andamento')
+    } catch (err: any) {
+      toast({ title: 'Erro ao criar tarefa', variant: 'destructive' })
+    }
+  }
+
+  const handleAddEvent = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    try {
+      await pb.collection('agenda_events').create({
+        title: fd.get('title'),
+        start_date: fd.get('start_date')
+          ? new Date(`${fd.get('start_date')}T12:00:00Z`).toISOString()
+          : '',
+        type: fd.get('type'),
+        linked_lawsuit: id,
+        organization: pb.authStore.record?.active_organization,
+      })
+      toast({ title: 'Compromisso criado' })
+      loadData()
+      ;(e.target as HTMLFormElement).reset()
+      setActiveTab('andamento')
+    } catch (err: any) {
+      toast({ title: 'Erro ao criar compromisso', variant: 'destructive' })
+    }
+  }
+
+  const handleAddInteraction = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    try {
+      await pb.collection('crm_interactions').create({
+        description: fd.get('description'),
+        type: fd.get('type'),
+        date: new Date().toISOString(),
+        status: 'Completed',
+        client: legalCase?.client,
+        linked_case: id,
+        organization: pb.authStore.record?.active_organization,
+      })
+      toast({ title: 'Interação registrada' })
+      loadData()
+      ;(e.target as HTMLFormElement).reset()
+      setActiveTab('andamento')
+    } catch (err: any) {
+      toast({ title: 'Erro ao registrar interação', variant: 'destructive' })
     }
   }
 
@@ -104,7 +183,6 @@ export default function ProcessDetail() {
   return (
     <div className="bg-[#f0f2f5] min-h-screen -m-6 p-6 animate-fade-in-up">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
         <Card className="rounded-xl border-none shadow-sm overflow-hidden">
           <CardContent className="p-6 bg-white">
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
@@ -179,17 +257,16 @@ export default function ProcessDetail() {
           </CardContent>
         </Card>
 
-        {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             <Card className="border-none shadow-sm">
-              <Tabs defaultValue="andamento" className="w-full">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="w-full bg-white border-b rounded-none justify-start px-4 h-auto pt-2 pb-0 flex-wrap">
                   <TabsTrigger
                     value="andamento"
                     className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent py-3"
                   >
-                    Novo andamento
+                    Ocorrência Processual
                   </TabsTrigger>
                   <TabsTrigger
                     value="tarefa"
@@ -198,10 +275,10 @@ export default function ProcessDetail() {
                     Nova tarefa
                   </TabsTrigger>
                   <TabsTrigger
-                    value="ocorrencia"
+                    value="compromisso"
                     className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent py-3"
                   >
-                    Ocorrência Processual
+                    Novo Compromisso
                   </TabsTrigger>
                   <TabsTrigger
                     value="interacao"
@@ -212,29 +289,103 @@ export default function ProcessDetail() {
                 </TabsList>
 
                 <TabsContent value="andamento" className="p-6 pt-6">
-                  <div className="flex gap-4">
+                  <form onSubmit={handleAddMovement} className="flex gap-4">
                     <Input
-                      placeholder="Comece a digitar para adicionar um andamento manual..."
+                      placeholder="Descreva o andamento ou ocorrência manual..."
                       className="flex-1 bg-slate-50 border-slate-200"
                       value={newMovement}
                       onChange={(e) => setNewMovement(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddMovement()}
                     />
-                    <Button onClick={handleAddMovement} className="bg-slate-600 hover:bg-slate-700">
+                    <Button type="submit" className="bg-slate-600 hover:bg-slate-700">
                       Salvar
                     </Button>
-                  </div>
+                  </form>
                 </TabsContent>
+
                 <TabsContent value="tarefa" className="p-6 pt-6">
-                  <p className="text-sm text-slate-500">
-                    Recurso de criação de tarefa em breve integrado nesta aba.
-                  </p>
+                  <form onSubmit={handleAddTask} className="space-y-4">
+                    <div>
+                      <Label>Título da Tarefa</Label>
+                      <Input name="title" placeholder="Ex: Preparar contestação..." required />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Data de Vencimento</Label>
+                        <Input name="due_date" type="date" required />
+                      </div>
+                      <div>
+                        <Label>Prioridade</Label>
+                        <Select name="priority" defaultValue="medium">
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="low">Baixa</SelectItem>
+                            <SelectItem value="medium">Média</SelectItem>
+                            <SelectItem value="high">Alta</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <Button type="submit">Criar Tarefa</Button>
+                  </form>
                 </TabsContent>
-                <TabsContent value="ocorrencia" className="p-6 pt-6">
-                  <p className="text-sm text-slate-500">Formulário de ocorrência processual.</p>
+
+                <TabsContent value="compromisso" className="p-6 pt-6">
+                  <form onSubmit={handleAddEvent} className="space-y-4">
+                    <div>
+                      <Label>Título do Compromisso</Label>
+                      <Input name="title" placeholder="Ex: Audiência de Conciliação..." required />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Data / Hora</Label>
+                        <Input name="start_date" type="datetime-local" required />
+                      </div>
+                      <div>
+                        <Label>Tipo</Label>
+                        <Select name="type" defaultValue="Hearing">
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Hearing">Audiência</SelectItem>
+                            <SelectItem value="Meeting">Reunião</SelectItem>
+                            <SelectItem value="Call">Ligação</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <Button type="submit">Criar Compromisso</Button>
+                  </form>
                 </TabsContent>
+
                 <TabsContent value="interacao" className="p-6 pt-6">
-                  <p className="text-sm text-slate-500">Log de interação com o cliente.</p>
+                  <form onSubmit={handleAddInteraction} className="space-y-4">
+                    <div>
+                      <Label>Tipo de Contato</Label>
+                      <Select name="type" defaultValue="WhatsApp">
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                          <SelectItem value="Email">E-mail</SelectItem>
+                          <SelectItem value="Call">Ligação Telefônica</SelectItem>
+                          <SelectItem value="Meeting">Reunião Presencial</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Descrição da Interação</Label>
+                      <Input
+                        name="description"
+                        placeholder="Resumo do que foi conversado com o cliente..."
+                        required
+                      />
+                    </div>
+                    <Button type="submit">Registrar Interação</Button>
+                  </form>
                 </TabsContent>
               </Tabs>
             </Card>
@@ -346,9 +497,6 @@ export default function ProcessDetail() {
                   <Calendar className="w-4 h-4 text-slate-400" />
                   Compromissos ({events.length})
                 </div>
-                <Button variant="ghost" size="icon" className="h-6 w-6">
-                  <Plus className="w-4 h-4 text-slate-500" />
-                </Button>
               </CardHeader>
               <CardContent className="p-5">
                 {events.length === 0 ? (
@@ -390,7 +538,10 @@ export default function ProcessDetail() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-500">Registros ({finances.length})</span>
-                  <button className="text-sm font-medium text-primary hover:underline">
+                  <button
+                    onClick={() => navigate('/intranet/finance')}
+                    className="text-sm font-medium text-primary hover:underline"
+                  >
                     Ver detalhes
                   </button>
                 </div>

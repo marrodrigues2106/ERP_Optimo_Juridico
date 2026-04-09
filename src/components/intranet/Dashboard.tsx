@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -66,107 +66,117 @@ export default function Dashboard() {
   const [selectedFeedItems, setSelectedFeedItems] = useState<string[]>([])
 
   const loadTasks = async () => {
-    try {
-      const fetchedTasks = await pb
-        .collection('tasks')
-        .getFullList({ filter: 'status = "todo" && deleted_at = ""', sort: 'due_date' })
-      setTasks(fetchedTasks)
-    } catch (e) {
-      console.error('Error loading tasks', e)
-    }
+    const fetchedTasks = await pb
+      .collection('tasks')
+      .getFullList({ filter: 'status = "todo" && deleted_at = ""', sort: 'due_date' })
+    setTasks(fetchedTasks)
   }
 
   const loadEvents = async () => {
-    try {
-      const fetchedEvents = await pb.collection('agenda_events').getFullList({
-        filter: `start_date >= "${startOfDay(selectedDate).toISOString()}" && start_date <= "${new Date(startOfDay(selectedDate).getTime() + 24 * 60 * 60 * 1000 - 1).toISOString()}" && deleted_at = ""`,
-        sort: 'start_date',
-      })
-      setEvents(fetchedEvents)
-    } catch (e) {
-      console.error('Error loading events', e)
-    }
+    const fetchedEvents = await pb.collection('agenda_events').getFullList({
+      filter: `start_date >= "${startOfDay(selectedDate).toISOString()}" && start_date <= "${new Date(startOfDay(selectedDate).getTime() + 24 * 60 * 60 * 1000 - 1).toISOString()}" && deleted_at = ""`,
+      sort: 'start_date',
+    })
+    setEvents(fetchedEvents)
   }
 
   const loadFeed = async () => {
-    try {
-      const [gUnread, gRead, dUnread, dRead, mUnread, mRead] = await Promise.all([
-        pb
-          .collection('gazette_publications')
-          .getFullList({ filter: 'is_read = false', sort: '-created' }),
-        pb
-          .collection('gazette_publications')
-          .getList(1, 20, { filter: 'is_read = true', sort: '-updated' }),
-        pb
-          .collection('ocorrencias_dou')
-          .getFullList({ filter: 'status_alerta = "pendente"', sort: '-created' }),
-        pb
-          .collection('ocorrencias_dou')
-          .getList(1, 20, { filter: 'status_alerta != "pendente"', sort: '-updated' }),
-        pb.collection('case_movements').getFullList({
-          filter: 'notified_client = false && deleted_at = ""',
-          sort: '-event_date',
-          expand: 'case',
-        }),
-        pb.collection('case_movements').getList(1, 20, {
-          filter: 'notified_client = true && deleted_at = ""',
-          sort: '-event_date',
-          expand: 'case',
-        }),
-      ])
+    const [gUnread, gRead, dUnread, dRead, mUnread, mRead] = await Promise.all([
+      pb
+        .collection('gazette_publications')
+        .getFullList({ filter: 'is_read = false', sort: '-created' }),
+      pb
+        .collection('gazette_publications')
+        .getList(1, 20, { filter: 'is_read = true', sort: '-updated' }),
+      pb
+        .collection('ocorrencias_dou')
+        .getFullList({ filter: 'status_alerta = "pendente"', sort: '-created' }),
+      pb
+        .collection('ocorrencias_dou')
+        .getList(1, 20, { filter: 'status_alerta != "pendente"', sort: '-updated' }),
+      pb.collection('case_movements').getFullList({
+        filter: 'notified_client = false && deleted_at = ""',
+        sort: '-event_date',
+        expand: 'case',
+      }),
+      pb.collection('case_movements').getList(1, 20, {
+        filter: 'notified_client = true && deleted_at = ""',
+        sort: '-event_date',
+        expand: 'case',
+      }),
+    ])
 
-      const mapItems = (items: any[], source: any, isRead: boolean): FeedItem[] =>
-        items.map((i) => ({
-          id: i.id,
-          source,
-          title:
-            source === 'gazette'
-              ? 'Diário Oficial'
-              : source === 'dou'
-                ? 'Ocorrência DOU'
-                : `Movimentação: ${i.expand?.case?.case_number || 'Processo'}`,
-          description: i.texto_normalizado || i.trecho_encontrado || i.description || '',
-          date: i.data_publicacao || i.data_deteccao || i.event_date || i.created,
-          isRead,
-          tags: [i.orgao || i.source || 'Tribunal'],
-          raw: i,
-          lawsuitId: source === 'movement' ? i.case : undefined,
-        }))
+    const mapItems = (items: any[], source: any, isRead: boolean): FeedItem[] =>
+      items.map((i) => ({
+        id: i.id,
+        source,
+        title:
+          source === 'gazette'
+            ? 'Diário Oficial'
+            : source === 'dou'
+              ? 'Ocorrência DOU'
+              : `Movimentação: ${i.expand?.case?.case_number || 'Processo'}`,
+        description: i.texto_normalizado || i.trecho_encontrado || i.description || '',
+        date: i.data_publicacao || i.data_deteccao || i.event_date || i.created,
+        isRead,
+        tags: [i.orgao || i.source || 'Tribunal'],
+        raw: i,
+        lawsuitId: source === 'movement' ? i.case : undefined,
+      }))
 
-      const all = [
-        ...mapItems(gUnread, 'gazette', false),
-        ...mapItems(gRead.items, 'gazette', true),
-        ...mapItems(dUnread, 'dou', false),
-        ...mapItems(dRead.items, 'dou', true),
-        ...mapItems(mUnread, 'movement', false),
-        ...mapItems(mRead.items, 'movement', true),
-      ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    const all = [
+      ...mapItems(gUnread, 'gazette', false),
+      ...mapItems(gRead.items, 'gazette', true),
+      ...mapItems(dUnread, 'dou', false),
+      ...mapItems(dRead.items, 'dou', true),
+      ...mapItems(mUnread, 'movement', false),
+      ...mapItems(mRead.items, 'movement', true),
+    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
-      setFeedItems(all)
-    } catch (e) {
-      console.error('Error loading feed', e)
-    }
+    setFeedItems(all)
   }
 
+  // Optimize and debounce initial fetches
   useEffect(() => {
-    loadTasks()
-    loadEvents()
-    loadFeed()
-    pb.collection('clients')
-      .getFullList()
-      .then(setClients)
-      .catch(() => {})
-    pb.collection('collaborators')
-      .getFullList()
-      .then(setCollaborators)
-      .catch(() => {})
+    Promise.allSettled([loadTasks(), loadEvents(), loadFeed()]).catch(console.error)
   }, [selectedDate])
 
-  useRealtime('tasks', loadTasks)
-  useRealtime('gazette_publications', loadFeed)
-  useRealtime('ocorrencias_dou', loadFeed)
-  useRealtime('case_movements', loadFeed)
-  useRealtime('agenda_events', loadEvents)
+  useEffect(() => {
+    Promise.allSettled([
+      pb.collection('clients').getFullList().then(setClients),
+      pb.collection('collaborators').getFullList().then(setCollaborators),
+    ]).catch(console.error)
+  }, [])
+
+  const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({})
+  const createDebouncedLoader = useCallback(
+    (key: string, loader: () => Promise<void>) => () => {
+      if (debounceTimers.current[key]) clearTimeout(debounceTimers.current[key])
+      debounceTimers.current[key] = setTimeout(() => {
+        loader().catch(console.error)
+      }, 500)
+    },
+    [],
+  )
+
+  const debouncedLoadTasks = useMemo(
+    () => createDebouncedLoader('tasks', loadTasks),
+    [createDebouncedLoader],
+  )
+  const debouncedLoadEvents = useMemo(
+    () => createDebouncedLoader('events', loadEvents),
+    [createDebouncedLoader, selectedDate],
+  )
+  const debouncedLoadFeed = useMemo(
+    () => createDebouncedLoader('feed', loadFeed),
+    [createDebouncedLoader],
+  )
+
+  useRealtime('tasks', debouncedLoadTasks)
+  useRealtime('gazette_publications', debouncedLoadFeed)
+  useRealtime('ocorrencias_dou', debouncedLoadFeed)
+  useRealtime('case_movements', debouncedLoadFeed)
+  useRealtime('agenda_events', debouncedLoadEvents)
 
   const toggleTask = async (id: string, currentStatus: string) => {
     try {
@@ -207,7 +217,7 @@ export default function Dashboard() {
         await pb.collection('case_movements').update(item.id, { notified_client: !item.isRead })
       }
       toast({ title: item.isRead ? 'Marcado como não lido' : 'Marcado como lido' })
-      loadFeed()
+      debouncedLoadFeed()
     } catch (e) {
       toast({ title: 'Erro ao atualizar item', variant: 'destructive' })
     }
@@ -253,10 +263,10 @@ export default function Dashboard() {
         }),
       )
       toast({ title: `Itens marcados como ${markAsRead ? 'lidos' : 'não lidos'}` })
-      loadFeed()
+      debouncedLoadFeed()
     } catch (e) {
       toast({ title: 'Erro ao atualizar itens', variant: 'destructive' })
-      loadFeed()
+      debouncedLoadFeed()
     }
   }
 
@@ -642,7 +652,7 @@ export default function Dashboard() {
         open={eventModalOpen}
         onOpenChange={setEventModalOpen}
         defaultDate={selectedDate}
-        onSuccess={loadEvents}
+        onSuccess={debouncedLoadEvents}
       />
       <CaseFormModal
         open={caseModalOpen}
@@ -678,7 +688,7 @@ export default function Dashboard() {
                 })
                 toast({ title: 'Sucesso', description: 'Tarefa criada.' })
                 setTaskModalOpen(false)
-                loadTasks()
+                debouncedLoadTasks()
               } catch (error) {
                 toast({
                   title: 'Erro ao criar tarefa',

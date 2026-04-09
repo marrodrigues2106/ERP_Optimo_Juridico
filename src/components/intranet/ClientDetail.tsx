@@ -87,23 +87,26 @@ export default function ClientDetail() {
       if (classification === 'Ativo') status = 'Active'
       if (classification === 'Inativo') status = 'Inactive'
 
-      await pb.collection('clients').update(id as string, {
+      const updateData: any = {
         status,
         classification,
         funnel_stage: fd.get('funnel_stage'),
         email: fd.get('email'),
         phone: fd.get('phone'),
-        cpf: fd.get('cpf'),
         address: fd.get('address'),
         phone_type: fd.get('phone_type'),
         nationality: fd.get('nationality'),
         maritalStatus: fd.get('maritalStatus'),
-        birthDate: fd.get('birthDate')
-          ? new Date(`${fd.get('birthDate')}T12:00:00Z`).toISOString()
-          : null,
         profession: fd.get('profession'),
-      })
-      toast({ title: 'Cliente atualizado.' })
+      };
+              
+      if (fd.get('birthDate')) {
+        updateData.birthDate = new Date(`${fd.get('birthDate')}T12:00:00Z`).toISOString();
+      } else {
+        updateData.birthDate = "";
+      }
+
+      await pb.collection('clients').update(id as string, updateData)      toast({ title: 'Cliente atualizado.' })
       setEditClientOpen(false)
       loadData()
     } catch (err: any) {
@@ -208,6 +211,9 @@ export default function ClientDetail() {
             <DialogTitle>Editar Relacionamento</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleEditClient} className="space-y-4 pt-4">
+            <div className="bg-blue-50 text-blue-800 text-xs p-3 rounded-md mb-2 border border-blue-100">
+              Para editar <strong>CPF</strong> ou <strong>RG</strong>, utilize a aba <strong>Documentos</strong>.
+            </div>
             <div>
               <Label>Situação / Classificação</Label>
               <Select value={classification} onValueChange={handleClassificationChange}>

@@ -54,35 +54,41 @@ export default function Header() {
     setIsSearching(true)
     const timer = setTimeout(async () => {
       try {
-        const [cases, clients, collabs] = await Promise.all([
-          pb
-            .collection('legal_cases')
-            .getList(1, 5, {
-              filter: `deleted_at="" && (case_number ~ "${searchQuery}" || parties ~ "${searchQuery}")`,
-            }),
-          pb
-            .collection('clients')
-            .getList(1, 5, {
-              filter: `deleted_at="" && (name ~ "${searchQuery}" || fullName ~ "${searchQuery}")`,
-            }),
-          pb
-            .collection('collaborators')
-            .getList(1, 5, { filter: `deleted_at="" && name ~ "${searchQuery}"` }),
+        const safeQuery = searchQuery.replace(/"/g, '').trim()
+        if (!safeQuery) {
+          setSearchResults([])
+          return
+        }
+        const [casesRes, clientsRes, collabsRes] = await Promise.allSettled([
+          pb.collection('legal_cases').getList(1, 5, {
+            filter: `deleted_at="" && (case_number ~ "${safeQuery}" || parties ~ "${safeQuery}")`,
+          }),
+          pb.collection('clients').getList(1, 5, {
+            filter: `deleted_at="" && (name ~ "${safeQuery}" || fullName ~ "${safeQuery}")`,
+          }),
+          pb.collection('collaborators').getList(1, 5, {
+            filter: `deleted_at="" && name ~ "${safeQuery}"`,
+          }),
         ])
+
+        const cases = casesRes.status === 'fulfilled' ? casesRes.value.items : []
+        const clients = clientsRes.status === 'fulfilled' ? clientsRes.value.items : []
+        const collabs = collabsRes.status === 'fulfilled' ? collabsRes.value.items : []
+
         setSearchResults([
-          ...cases.items.map((c: any) => ({
+          ...cases.map((c: any) => ({
             id: c.id,
             title: c.parties || c.case_number,
             type: 'Processo',
             url: `/intranet/processos/${c.id}`,
           })),
-          ...clients.items.map((c: any) => ({
+          ...clients.map((c: any) => ({
             id: c.id,
             title: c.name || c.fullName,
             type: 'Cliente',
             url: `/intranet/clientes/${c.id}`,
           })),
-          ...collabs.items.map((c: any) => ({
+          ...collabs.map((c: any) => ({
             id: c.id,
             title: c.name,
             type: 'Equipe',
