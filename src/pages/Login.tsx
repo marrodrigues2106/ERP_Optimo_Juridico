@@ -44,13 +44,13 @@ export default function Login() {
     if (email) {
       try {
         await pb.collection('users').requestPasswordReset(email)
-        setSuccessMsg(`Um e-mail de recuperação foi enviado para ${email}.`)
+        setSuccessMsg(
+          'Se o e-mail estiver cadastrado, você receberá um link de recuperação em instantes.',
+        )
       } catch (error: any) {
-        if (error?.status === 400 || error?.status === 404) {
-          setErrorMsg('E-mail não encontrado ou inválido.')
-        } else {
-          setSuccessMsg(`Um e-mail de recuperação foi enviado para ${email}.`)
-        }
+        setSuccessMsg(
+          'Se o e-mail estiver cadastrado, você receberá um link de recuperação em instantes.',
+        )
       }
     } else {
       setErrorMsg('Por favor, informe seu e-mail.')

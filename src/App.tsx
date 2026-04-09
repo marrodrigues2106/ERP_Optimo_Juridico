@@ -4,10 +4,12 @@ import Index from './pages/Index'
 import Specialty from './pages/Specialty'
 import NotFound from './pages/NotFound'
 import Login from './pages/Login'
+import ResetPassword from './pages/ResetPassword'
 import Intranet from './pages/Intranet'
 import Articles from './pages/Articles'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './hooks/use-auth'
+import { Toaster } from '@/components/ui/toaster'
 
 import Dashboard from '@/components/intranet/Dashboard'
 import BlogManager from '@/components/intranet/BlogManager'
@@ -36,6 +38,7 @@ function App() {
             <Route path="especialidade/:id" element={<Specialty />} />
             <Route path="artigos" element={<Articles />} />
             <Route path="login" element={<Login />} />
+            <Route path="reset-password" element={<ResetPassword />} />
 
             <Route
               path="intranet"
@@ -68,6 +71,7 @@ function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      <Toaster />
     </AuthProvider>
   )
 }
