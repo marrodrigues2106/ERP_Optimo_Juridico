@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-09T04:36:25.383Z",
+  "generatedAt": "2026-04-09T04:39:35.192Z",
   "collections": [
     {
       "name": "users",
@@ -1225,8 +1225,8 @@
       "name": "legal_cases",
       "type": "base",
       "apiRules": {
-        "list": "(@request.auth.id != '') && organization = @request.auth.active_organization",
-        "view": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "list": "(@request.auth.id != '') && organization = @request.auth.active_organization && (@request.auth.role = 'admin' || @request.auth.isAdmin = true || responsible_collaborator.user = @request.auth.id || responsible_collaborator = '')",
+        "view": "(@request.auth.id != '') && organization = @request.auth.active_organization && (@request.auth.role = 'admin' || @request.auth.isAdmin = true || responsible_collaborator.user = @request.auth.id || responsible_collaborator = '')",
         "create": "(@request.auth.id != '') && organization = @request.auth.active_organization",
         "update": "(@request.auth.id != '') && organization = @request.auth.active_organization",
         "delete": "(@request.auth.id != '') && organization = @request.auth.active_organization && lifecycle_status = 'Arquivado'"

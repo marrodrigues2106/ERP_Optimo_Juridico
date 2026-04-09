@@ -98,15 +98,16 @@ export default function ClientDetail() {
         nationality: fd.get('nationality'),
         maritalStatus: fd.get('maritalStatus'),
         profession: fd.get('profession'),
-      };
-              
-      if (fd.get('birthDate')) {
-        updateData.birthDate = new Date(`${fd.get('birthDate')}T12:00:00Z`).toISOString();
-      } else {
-        updateData.birthDate = "";
       }
 
-      await pb.collection('clients').update(id as string, updateData)      toast({ title: 'Cliente atualizado.' })
+      if (fd.get('birthDate')) {
+        updateData.birthDate = new Date(`${fd.get('birthDate')}T12:00:00Z`).toISOString()
+      } else {
+        updateData.birthDate = ''
+      }
+
+      await pb.collection('clients').update(id as string, updateData)
+      toast({ title: 'Cliente atualizado.' })
       setEditClientOpen(false)
       loadData()
     } catch (err: any) {
@@ -212,7 +213,8 @@ export default function ClientDetail() {
           </DialogHeader>
           <form onSubmit={handleEditClient} className="space-y-4 pt-4">
             <div className="bg-blue-50 text-blue-800 text-xs p-3 rounded-md mb-2 border border-blue-100">
-              Para editar <strong>CPF</strong> ou <strong>RG</strong>, utilize a aba <strong>Documentos</strong>.
+              Para editar <strong>CPF</strong> ou <strong>RG</strong>, utilize a aba{' '}
+              <strong>Documentos</strong>.
             </div>
             <div>
               <Label>Situação / Classificação</Label>
