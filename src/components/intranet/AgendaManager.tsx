@@ -374,13 +374,11 @@ function TaskEditModal({ task, open, onOpenChange, onSuccess }: any) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await pb
-        .collection('tasks')
-        .update(task.id, {
-          title,
-          due_date: dueDate ? new Date(dueDate).toISOString() : null,
-          priority,
-        })
+      await pb.collection('tasks').update(task.id, {
+        title,
+        due_date: dueDate ? new Date(dueDate).toISOString() : null,
+        priority,
+      })
       toast({ title: 'Tarefa atualizada com sucesso' })
       onSuccess()
       onOpenChange(false)

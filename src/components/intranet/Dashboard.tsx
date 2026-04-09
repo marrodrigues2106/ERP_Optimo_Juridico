@@ -103,20 +103,16 @@ export default function Dashboard() {
         pb
           .collection('ocorrencias_dou')
           .getList(1, 20, { filter: 'status_alerta != "pendente"', sort: '-updated' }),
-        pb
-          .collection('case_movements')
-          .getFullList({
-            filter: 'notified_client = false && deleted_at = ""',
-            sort: '-event_date',
-            expand: 'case',
-          }),
-        pb
-          .collection('case_movements')
-          .getList(1, 20, {
-            filter: 'notified_client = true && deleted_at = ""',
-            sort: '-event_date',
-            expand: 'case',
-          }),
+        pb.collection('case_movements').getFullList({
+          filter: 'notified_client = false && deleted_at = ""',
+          sort: '-event_date',
+          expand: 'case',
+        }),
+        pb.collection('case_movements').getList(1, 20, {
+          filter: 'notified_client = true && deleted_at = ""',
+          sort: '-event_date',
+          expand: 'case',
+        }),
       ])
 
       const mapItems = (items: any[], source: any, isRead: boolean): FeedItem[] =>
@@ -674,14 +670,12 @@ export default function Dashboard() {
                   variant: 'destructive',
                 })
               try {
-                await pb
-                  .collection('tasks')
-                  .create({
-                    title: title.trim(),
-                    status: 'todo',
-                    priority: fd.get('priority'),
-                    organization: pb.authStore.record?.active_organization,
-                  })
+                await pb.collection('tasks').create({
+                  title: title.trim(),
+                  status: 'todo',
+                  priority: fd.get('priority'),
+                  organization: pb.authStore.record?.active_organization,
+                })
                 toast({ title: 'Sucesso', description: 'Tarefa criada.' })
                 setTaskModalOpen(false)
                 loadTasks()
