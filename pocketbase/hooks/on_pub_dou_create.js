@@ -15,6 +15,9 @@ onRecordAfterCreateSuccess((e) => {
 
     const termos = $app.findRecordsByFilter('termos_monitorados', 'ativo = true', '', 1000, 0)
     const ocorrenciasCol = $app.findCollectionByNameOrId('ocorrencias_dou')
+    const configs = $app.findRecordsByFilter('monitoring_configs', '', '', 1, 0)
+    const config = configs.length > 0 ? configs[0] : null
+    const isExactSearch = config ? config.get('is_exact_search') : false
 
     let matchCount = 0
     for (let i = 0; i < termos.length; i++) {
@@ -55,7 +58,7 @@ onRecordAfterCreateSuccess((e) => {
             matchedKeywords = matches.map((m) => m[0])
           }
         } catch (err) {}
-      } else if (tipo === 'frase') {
+      } else if (tipo === 'frase' || isExactSearch) {
         const normalTerm = termoStr
           .toLowerCase()
           .normalize('NFD')
@@ -137,7 +140,7 @@ onRecordAfterCreateSuccess((e) => {
     const logs = $app.findCollectionByNameOrId('logs_processamento')
     let logRecEnd = new Record(logs)
     logRecEnd.set('publicacao_id', record.id)
-    logRecEnd.set('etapa', 'Indexação e Match Avançado')
+    logRecEnd.set('etapa', 'Normalização e Match')
     logRecEnd.set('status', 'Sucesso')
     logRecEnd.set('mensagem', `Processamento concluído. ${matchCount} ocorrências encontradas.`)
     logRecEnd.set('data_hora', new Date().toISOString().replace('T', ' ').substring(0, 19))

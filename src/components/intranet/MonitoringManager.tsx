@@ -32,11 +32,8 @@ export default function MonitoringManager() {
   const [rodouSections, setRodouSections] = useState<string[]>(['1', '2', '3', 'Extra'])
   const [rodouExactSearch, setRodouExactSearch] = useState(false)
   const [rodouIgnoreSignature, setRodouIgnoreSignature] = useState(true)
-  const [rodouIncludedDepts, setRodouIncludedDepts] = useState('')
   const [rodouExcludedDepts, setRodouExcludedDepts] = useState('')
-  const [rodouPubType, setRodouPubType] = useState('')
   const [qdTerritoryId, setQdTerritoryId] = useState('')
-  const [qdTerritoryName, setQdTerritoryName] = useState('')
 
   // Advanced Terms
   const [termosAvancados, setTermosAvancados] = useState<any[]>([])
@@ -77,16 +74,11 @@ export default function MonitoringManager() {
         setTermosBusca(c.termos_busca || [])
         setTribunais((c.tribunais || []).map((t: string) => t.toLowerCase()))
 
-        if (c.douCredentials) {
-          setRodouSections(c.douCredentials.sections || ['1', '2', '3', 'Extra'])
-          setRodouExactSearch(c.douCredentials.exactSearch || false)
-          setRodouIgnoreSignature(c.douCredentials.ignoreSignature ?? true)
-          setRodouIncludedDepts(c.douCredentials.includedDepts || '')
-          setRodouExcludedDepts(c.douCredentials.excludedDepts || '')
-          setRodouPubType(c.douCredentials.pubType || '')
-          setQdTerritoryId(c.douCredentials.qdTerritoryId || '')
-          setQdTerritoryName(c.douCredentials.qdTerritoryName || '')
-        }
+        setRodouExactSearch(c.is_exact_search ?? false)
+        setRodouIgnoreSignature(c.ignore_signature_match ?? true)
+        setRodouExcludedDepts(c.department_ignore || '')
+        setRodouSections((c.dou_sections || '1,2,3,Extra').split(',').filter(Boolean))
+        setQdTerritoryId(c.territory_id || '')
       }
 
       if (user?.id) {
@@ -135,24 +127,17 @@ export default function MonitoringManager() {
 
     setSubmitting(true)
     try {
-      const douCredentials = {
-        sections: rodouSections,
-        exactSearch: rodouExactSearch,
-        ignoreSignature: rodouIgnoreSignature,
-        includedDepts: rodouIncludedDepts,
-        excludedDepts: rodouExcludedDepts,
-        pubType: rodouPubType,
-        qdTerritoryId,
-        qdTerritoryName,
-      }
-
       const payload = {
         apiKey: datajudApiKey,
-        douCredentials,
         frequency,
         sync_processos: syncProcessos,
         termos_busca: termosBusca,
         tribunais: tribunais.map((t) => t.toLowerCase()),
+        is_exact_search: rodouExactSearch,
+        ignore_signature_match: rodouIgnoreSignature,
+        department_ignore: rodouExcludedDepts,
+        dou_sections: rodouSections.join(','),
+        territory_id: qdTerritoryId,
       }
 
       if (config?.id) await pb.collection('monitoring_configs').update(config.id, payload)
@@ -383,32 +368,15 @@ export default function MonitoringManager() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-2">
-                    <Label>Departamentos Incluídos (Opcional)</Label>
-                    <Input
-                      placeholder="Ex: Ministério da Economia"
-                      value={rodouIncludedDepts}
-                      onChange={(e) => setRodouIncludedDepts(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Departamentos Excluídos (Opcional)</Label>
+                    <Label>Departamentos a Ignorar (Opcional)</Label>
                     <Input
                       placeholder="Ex: Secretaria de Saúde"
                       value={rodouExcludedDepts}
                       onChange={(e) => setRodouExcludedDepts(e.target.value)}
                     />
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Tipo de Publicação (Opcional)</Label>
-                  <Input
-                    placeholder="Ex: Portaria, Resolução, Edital"
-                    value={rodouPubType}
-                    onChange={(e) => setRodouPubType(e.target.value)}
-                  />
                 </div>
               </CardContent>
             </Card>
@@ -418,25 +386,39 @@ export default function MonitoringManager() {
                 <CardTitle>Integração Querido Diário (Municípios)</CardTitle>
                 <CardDescription>Busca em diários municipais via Querido Diário.</CardDescription>
               </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <CardContent className="grid grid-cols-1 gap-4">
                 <div className="space-y-2">
-                  <Label>Territory ID (Código IBGE)</Label>
+                  <Label>Territory ID (Código IBGE, opcional)</Label>
                   <Input
                     placeholder="Ex: 3550308"
                     value={qdTerritoryId}
                     onChange={(e) => setQdTerritoryId(e.target.value)}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Nome do Território / Município</Label>
-                  <Input
-                    placeholder="Ex: São Paulo"
-                    value={qdTerritoryName}
-                    onChange={(e) => setQdTerritoryName(e.target.value)}
-                  />
-                </div>
               </CardContent>
             </Card>
+
+            <div className="flex justify-end pt-4">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={async () => {
+                  setSyncing(true)
+                  try {
+                    await pb.send('/backend/v1/rodou/sync', { method: 'POST' })
+                    toast({ title: 'Busca Ro-DOU Iniciada com Sucesso' })
+                  } catch (e: any) {
+                    toast({ title: 'Erro', description: e.message, variant: 'destructive' })
+                  } finally {
+                    setSyncing(false)
+                  }
+                }}
+                disabled={syncing}
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'Sincronizando Ro-DOU...' : 'Rodar Busca Ro-DOU Agora'}
+              </Button>
+            </div>
           </TabsContent>
 
           <TabsContent value="datajud" className="space-y-6">

@@ -1,27 +1,27 @@
-cronAdd('dou_ingestion_daily', '0 3 * * *', () => {
-  console.log('[DOU] Starting advanced automated ingestion...')
+routerAdd(
+  'POST',
+  '/backend/v1/rodou/sync',
+  (e) => {
+    const pubDou = $app.findCollectionByNameOrId('publicacoes_dou')
+    const logs = $app.findCollectionByNameOrId('logs_processamento')
 
-  const pubDou = $app.findCollectionByNameOrId('publicacoes_dou')
-  const logs = $app.findCollectionByNameOrId('logs_processamento')
-
-  const logProcess = (etapa, status, msg) => {
-    try {
-      const logRec = new Record(logs)
-      logRec.set('etapa', etapa)
-      logRec.set('status', status)
-      logRec.set('mensagem', msg)
-      logRec.set('data_hora', new Date().toISOString().replace('T', ' ').substring(0, 19))
-      $app.save(logRec)
-      return logRec.id
-    } catch (e) {
-      console.error('Log error', e)
-      return null
+    const logProcess = (etapa, status, msg) => {
+      try {
+        const logRec = new Record(logs)
+        logRec.set('etapa', etapa)
+        logRec.set('status', status)
+        logRec.set('mensagem', msg)
+        logRec.set('data_hora', new Date().toISOString().replace('T', ' ').substring(0, 19))
+        $app.save(logRec)
+        return logRec.id
+      } catch (e) {
+        console.error('Log error', e)
+        return null
+      }
     }
-  }
 
-  try {
     const terms = $app.findRecordsByFilter('termos_monitorados', 'ativo = true', '', 100, 0)
-    if (terms.length === 0) return
+    if (terms.length === 0) return e.json(200, { message: 'No active terms.' })
 
     const configs = $app.findRecordsByFilter('monitoring_configs', '', '', 1, 0)
     const config = configs.length > 0 ? configs[0] : null
@@ -31,18 +31,19 @@ cronAdd('dou_ingestion_daily', '0 3 * * *', () => {
     const ignoreSignature = config ? config.get('ignore_signature_match') : true
 
     const today = new Date().toISOString().split('T')[0]
+    let totalSaved = 0
 
     for (let t of terms) {
       const termStr = t.get('termo')
       const searchId = logProcess(
-        'Orquestrador Ro-DOU',
+        'Orquestrador Ro-DOU (Manual)',
         'Processando',
         `Iniciando busca para o termo: ${termStr}`,
       )
 
       let combinedResults = []
 
-      // 1. Official IN API (DOU)
+      // 1. Official IN API
       try {
         let page = 1
         let hasMore = true
@@ -70,11 +71,9 @@ cronAdd('dou_ingestion_daily', '0 3 * * *', () => {
           }
           page++
         }
-      } catch (e) {
-        console.error('IN API error', e)
-      }
+      } catch (err) {}
 
-      // 2. Querido Diário API (QD)
+      // 2. Querido Diário
       if (territoryId) {
         try {
           const qdRes = $http.send({
@@ -95,12 +94,10 @@ cronAdd('dou_ingestion_daily', '0 3 * * *', () => {
             }))
             combinedResults = combinedResults.concat(mapped)
           }
-        } catch (e) {
-          console.error('QD API error', e)
-        }
+        } catch (err) {}
       }
 
-      // 3. INLABS Connector
+      // 3. INLABS
       try {
         const inlabsKey = $secrets.get('INLABS') || ''
         if (inlabsKey) {
@@ -124,24 +121,15 @@ cronAdd('dou_ingestion_daily', '0 3 * * *', () => {
             combinedResults = combinedResults.concat(mapped)
           }
         }
-      } catch (e) {
-        console.error('INLABS API error', e)
-      }
-
-      logProcess(
-        'Coleta Concluída',
-        'Info',
-        `Termo: ${termStr}. Resultados totais: ${combinedResults.length}`,
-      )
+      } catch (err) {}
 
       let savedCount = 0
       for (let item of combinedResults) {
         if (
           departmentIgnore &&
           item.department.toLowerCase().includes(departmentIgnore.toLowerCase())
-        ) {
+        )
           continue
-        }
 
         if (item.source === 'DOU') {
           const matchSec = douSections
@@ -180,16 +168,17 @@ cronAdd('dou_ingestion_daily', '0 3 * * *', () => {
         record.set('metadados_adicionais', meta)
         $app.save(record)
         savedCount++
+        totalSaved++
       }
 
       logProcess(
-        'Orquestrador Ro-DOU',
+        'Orquestrador Ro-DOU (Manual)',
         'Sucesso',
-        `Busca para "${termStr}" finalizada. Salvas ${savedCount} novas publicações.`,
+        `Busca para "${termStr}" finalizada. Salvas ${savedCount} publicações.`,
       )
     }
-  } catch (e) {
-    console.error('[DOU] Error in ingestion cron:', e)
-    logProcess('Orquestrador Ro-DOU', 'Erro', String(e))
-  }
-})
+
+    return e.json(200, { message: `Orquestração manual concluída. ${totalSaved} salvos.` })
+  },
+  $apis.requireAuth(),
+)

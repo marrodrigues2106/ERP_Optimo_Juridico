@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-08T02:56:19.294Z",
+  "generatedAt": "2026-04-09T03:04:56.765Z",
   "collections": [
     {
       "name": "users",
@@ -1082,6 +1082,36 @@
         {
           "name": "sync_processos",
           "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_exact_search",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ignore_signature_match",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "department_ignore",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "dou_sections",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "territory_id",
+          "type": "text",
           "required": false,
           "system": false
         }

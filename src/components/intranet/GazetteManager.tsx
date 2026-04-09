@@ -67,7 +67,9 @@ export default function GazetteManager() {
     if (orgao) dFilters.push(`orgao ~ "${orgao}"`)
     if (douSource && douSource !== 'todos') {
       if (douSource === 'qd') dFilters.push(`fonte_coleta = "Querido Diário"`)
-      if (douSource === 'in') dFilters.push(`fonte_coleta = "Official Public Search"`)
+      if (douSource === 'in')
+        dFilters.push(`(fonte_coleta = "DOU" || fonte_coleta = "Official Public Search")`)
+      if (douSource === 'inlabs') dFilters.push(`fonte_coleta = "INLABS"`)
     }
     if (douSection && douSection !== 'todas') {
       dFilters.push(`secao ~ "${douSection}"`)
@@ -299,15 +301,16 @@ export default function GazetteManager() {
               </div>
 
               <div className="space-y-2">
-                <Label>Fonte DOU</Label>
+                <Label>Fonte de Coleta</Label>
                 <Select value={douSource} onValueChange={setDouSource}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todos">Todas as Fontes</SelectItem>
-                    <SelectItem value="in">Imprensa Nacional (IN)</SelectItem>
+                    <SelectItem value="in">DOU (Imprensa Nacional)</SelectItem>
                     <SelectItem value="qd">Querido Diário (Municipal)</SelectItem>
+                    <SelectItem value="inlabs">INLABS</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -349,7 +352,7 @@ export default function GazetteManager() {
       <Tabs defaultValue="gazette" className="w-full">
         <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
           <TabsTrigger value="gazette">Diários Estaduais ({resultsGazette.length})</TabsTrigger>
-          <TabsTrigger value="dou">Diário Oficial da União ({resultsDOU.length})</TabsTrigger>
+          <TabsTrigger value="dou">Ro-DOU (União e Mun.) ({resultsDOU.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="gazette" className="mt-4">
@@ -422,7 +425,7 @@ export default function GazetteManager() {
               {resultsDOU.length === 0 ? (
                 <div className="p-8 text-center text-slate-500 flex flex-col items-center">
                   <FileSearch className="w-12 h-12 mb-3 text-slate-300" />
-                  Nenhuma publicação encontrada no DOU.
+                  Nenhuma publicação encontrada nas fontes Ro-DOU.
                 </div>
               ) : (
                 resultsDOU.map((pub) => (
@@ -433,7 +436,8 @@ export default function GazetteManager() {
                           variant="outline"
                           className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50"
                         >
-                          {pub.orgao || 'DOU'} - {pub.secao || 'Seção'}
+                          {pub.fonte_coleta || 'DOU'} | {pub.orgao || 'Órgão'} -{' '}
+                          {pub.secao || 'Seção'}
                         </Badge>
                         <span className="text-xs text-slate-500 flex items-center">
                           <Calendar className="w-3 h-3 mr-1" />

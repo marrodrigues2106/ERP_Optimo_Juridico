@@ -31,7 +31,7 @@ onRecordAfterCreateSuccess((e) => {
       .replace(/<%%>/g, '**')
       .replace(/<\/\%\%>/g, '**')
 
-    const webhookMsg = `🚨 *Nova Ocorrência DOU/QD*\n*Termo:* ${termo.get('termo')}\n*Publicação:* ${pub.get('titulo')}\n*Órgão:* ${pub.get('orgao')}\n*Link:* ${pub.get('url_origem')}\n\n*Trecho:*\n> ${snippetClean}`
+    const webhookMsg = `🚨 *Nova Ocorrência Ro-DOU*\n*Termo:* ${termo.get('termo')}\n*Publicação:* ${pub.get('titulo')}\n*Órgão:* ${pub.get('orgao')}\n*Fonte:* ${pub.get('fonte_coleta')}\n*Link:* ${pub.get('url_origem')}\n\n*Trecho:*\n> ${snippetClean}`
 
     for (let conf of configs) {
       const type = conf.get('tipo_notificacao')
@@ -63,7 +63,7 @@ onRecordAfterCreateSuccess((e) => {
       }
       if (type === 'email' || type === 'all') {
         console.log(
-          `[EMAIL DISPATCHER] Sending email to user: ${conf.get('usuario_id')} - Subject: Alerta DOU - ${termo.get('termo')}`,
+          `[EMAIL DISPATCHER] Sending email to user: ${conf.get('usuario_id')} - Subject: Alerta Ro-DOU - ${termo.get('termo')}`,
         )
       }
     }
@@ -74,9 +74,9 @@ onRecordAfterCreateSuccess((e) => {
     const logs = $app.findCollectionByNameOrId('logs_processamento')
     let logRec = new Record(logs)
     logRec.set('publicacao_id', record.get('publicacao_id'))
-    logRec.set('etapa', 'Alerta')
+    logRec.set('etapa', 'Alerta Notificação')
     logRec.set('status', 'Sucesso')
-    logRec.set('mensagem', 'Alerta avaliado e disparado para a ocorrência ' + record.id)
+    logRec.set('mensagem', 'Alerta disparado para a ocorrência ' + record.id)
     logRec.set('data_hora', new Date().toISOString().replace('T', ' ').substring(0, 19))
     $app.save(logRec)
   } catch (err) {
