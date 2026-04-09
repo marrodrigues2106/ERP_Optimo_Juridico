@@ -90,6 +90,7 @@ export default function Header() {
           })),
         ])
       } catch (e) {
+        console.error('Search error', e)
       } finally {
         setIsSearching(false)
       }
@@ -101,10 +102,10 @@ export default function Header() {
     if (isAuthenticated) {
       getClients()
         .then(setClients)
-        .catch(() => {})
+        .catch((e) => console.error(e))
       getCollaborators()
         .then(setCollaborators)
-        .catch(() => {})
+        .catch((e) => console.error(e))
 
       if (user?.active_organization) {
         pb.collection('organizations')
@@ -115,7 +116,7 @@ export default function Header() {
             }
             setOrgName(org.name)
           })
-          .catch(() => {})
+          .catch((e) => console.error(e))
       }
     } else {
       pb.collection('organizations')
@@ -126,7 +127,7 @@ export default function Header() {
           }
           setOrgName(org.name)
         })
-        .catch(() => {})
+        .catch((e) => console.error(e))
     }
   }, [isAuthenticated, user])
 
