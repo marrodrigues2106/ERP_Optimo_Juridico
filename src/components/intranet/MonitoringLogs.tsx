@@ -88,7 +88,16 @@ export function MonitoringLogs() {
                       </span>
                     </div>
                     <p className="text-slate-600 mt-0.5">{l.mensagem}</p>
-                    <Badge variant="outline" className="mt-1 text-[10px]">
+                    <Badge
+                      variant={
+                        l.status === 'Erro'
+                          ? 'destructive'
+                          : l.status === 'Aviso'
+                            ? 'secondary'
+                            : 'outline'
+                      }
+                      className="mt-1 text-[10px]"
+                    >
                       {l.status}
                     </Badge>
                   </div>
