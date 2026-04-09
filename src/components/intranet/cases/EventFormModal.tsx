@@ -34,6 +34,7 @@ const formSchema = z.object({
   linked_lawsuit: z.string().optional(),
   client: z.string().optional(),
   sync_provider: z.enum(['Google', 'iCloud', 'Outlook', 'Local']).optional(),
+  priority: z.enum(['low', 'medium', 'high']).optional(),
 })
 
 type EventFormValues = z.infer<typeof formSchema>
@@ -107,6 +108,7 @@ export function EventFormModal({
           client: editingEvent.client || 'none',
           linked_lawsuit: editingEvent.linked_lawsuit || 'none',
           sync_provider: editingEvent.sync_provider || 'Local',
+          priority: editingEvent.priority || 'medium',
         })
       } else {
         const initDate = defaultDate ? new Date(defaultDate) : new Date()
@@ -127,6 +129,7 @@ export function EventFormModal({
           client: 'none',
           linked_lawsuit: lawsuitId || 'none',
           sync_provider: 'Local',
+          priority: 'medium',
         })
       }
     }
@@ -163,12 +166,33 @@ export function EventFormModal({
       if (data.client && data.client !== 'none') payload.client = data.client
       else payload.client = null
 
-      if (isEditing) {
-        await pb.collection('agenda_events').update(editingEvent.id, payload)
-        toast({ title: 'Evento atualizado com sucesso' })
+      if (data.type === 'Task') {
+        const taskPayload = {
+          title: data.title,
+          description: data.description,
+          due_date: startD.toISOString(),
+          priority: data.priority || 'medium',
+          collaborator: payload.collaborator,
+          client: payload.client,
+          linked_lawsuit: payload.linked_lawsuit,
+          organization: payload.organization,
+          status: 'todo',
+        }
+        if (isEditing && editingEvent.isTask) {
+          await pb.collection('tasks').update(editingEvent.id, taskPayload)
+          toast({ title: 'Tarefa atualizada com sucesso' })
+        } else {
+          await pb.collection('tasks').create(taskPayload)
+          toast({ title: 'Tarefa criada com sucesso' })
+        }
       } else {
-        await pb.collection('agenda_events').create(payload)
-        toast({ title: 'Evento criado com sucesso' })
+        if (isEditing && !editingEvent.isTask) {
+          await pb.collection('agenda_events').update(editingEvent.id, payload)
+          toast({ title: 'Evento atualizado com sucesso' })
+        } else {
+          await pb.collection('agenda_events').create(payload)
+          toast({ title: 'Evento criado com sucesso' })
+        }
       }
 
       if (onSuccess) onSuccess()
@@ -183,12 +207,13 @@ export function EventFormModal({
   }
 
   const handleDelete = async () => {
-    if (confirm('Tem certeza que deseja remover este evento?')) {
+    if (confirm('Tem certeza que deseja remover este item?')) {
       try {
+        const collection = editingEvent.isTask ? 'tasks' : 'agenda_events'
         await pb
-          .collection('agenda_events')
+          .collection(collection)
           .update(editingEvent.id, { deleted_at: new Date().toISOString() })
-        toast({ title: 'Evento excluído com sucesso.' })
+        toast({ title: 'Item excluído com sucesso.' })
         if (onSuccess) onSuccess()
         onOpenChange(false)
       } catch (e) {
@@ -257,6 +282,28 @@ export function EventFormModal({
                 )}
               />
             </div>
+
+            {control._formValues.type === 'Task' && (
+              <div>
+                <Label>Prioridade da Tarefa</Label>
+                <Controller
+                  name="priority"
+                  control={control}
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value || 'medium'}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Baixa</SelectItem>
+                        <SelectItem value="medium">Média</SelectItem>
+                        <SelectItem value="high">Alta</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+            )}
 
             <div>
               <Label>Provedor de Nuvem</Label>

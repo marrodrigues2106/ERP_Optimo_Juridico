@@ -467,6 +467,25 @@ function SyncConfigModal({ open, onOpenChange }: any) {
     }
   }
 
+  const handleICalGenerate = async () => {
+    const user = pb.authStore.record
+    if (!user) return
+
+    let token = user.ical_token
+    if (!token) {
+      token =
+        Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+      await pb.collection('users').update(user.id, { ical_token: token })
+    }
+
+    const url = `${window.location.origin}/backend/v1/agenda/ical/${token}`
+    navigator.clipboard.writeText(url)
+    toast({
+      title: 'Link iCal copiado!',
+      description: 'Cole o link no Google Calendar ou Outlook para assinar esta agenda.',
+    })
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -479,6 +498,22 @@ function SyncConfigModal({ open, onOpenChange }: any) {
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-6 pt-4">
+          <div className="flex items-center justify-between p-4 border rounded-lg bg-slate-50">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold bg-purple-100 text-purple-600">
+                iC
+              </div>
+              <div>
+                <h4 className="font-semibold text-sm">Assinatura iCal</h4>
+                <p className="text-xs text-muted-foreground">
+                  Link somente leitura para calendários externos
+                </p>
+              </div>
+            </div>
+            <Button variant="default" size="sm" onClick={handleICalGenerate}>
+              {pb.authStore.record?.ical_token ? 'Copiar Link' : 'Gerar Link'}
+            </Button>
+          </div>
           {['Google', 'Outlook', 'iCloud'].map((prov) => (
             <div key={prov} className="flex items-center justify-between p-4 border rounded-lg">
               <div className="flex items-center gap-3">
@@ -489,7 +524,7 @@ function SyncConfigModal({ open, onOpenChange }: any) {
                 </div>
                 <div>
                   <h4 className="font-semibold text-sm">{prov}</h4>
-                  <p className="text-xs text-muted-foreground">Sincronizar calendário</p>
+                  <p className="text-xs text-muted-foreground">Sincronização bidirecional OAuth</p>
                 </div>
               </div>
               <Button

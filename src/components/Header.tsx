@@ -42,6 +42,60 @@ export default function Header() {
   const [collaborators, setCollaborators] = useState<any[]>([])
   const [orgLogo, setOrgLogo] = useState<string | null>(null)
   const [orgName, setOrgName] = useState<string>('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+
+  useEffect(() => {
+    if (searchQuery.length < 2) {
+      setSearchResults([])
+      return
+    }
+    setIsSearching(true)
+    const timer = setTimeout(async () => {
+      try {
+        const [cases, clients, collabs] = await Promise.all([
+          pb
+            .collection('legal_cases')
+            .getList(1, 5, {
+              filter: `deleted_at="" && (case_number ~ "${searchQuery}" || parties ~ "${searchQuery}")`,
+            }),
+          pb
+            .collection('clients')
+            .getList(1, 5, {
+              filter: `deleted_at="" && (name ~ "${searchQuery}" || fullName ~ "${searchQuery}")`,
+            }),
+          pb
+            .collection('collaborators')
+            .getList(1, 5, { filter: `deleted_at="" && name ~ "${searchQuery}"` }),
+        ])
+        setSearchResults([
+          ...cases.items.map((c: any) => ({
+            id: c.id,
+            title: c.parties || c.case_number,
+            type: 'Processo',
+            url: `/intranet/processos/${c.id}`,
+          })),
+          ...clients.items.map((c: any) => ({
+            id: c.id,
+            title: c.name || c.fullName,
+            type: 'Cliente',
+            url: `/intranet/clientes/${c.id}`,
+          })),
+          ...collabs.items.map((c: any) => ({
+            id: c.id,
+            title: c.name,
+            type: 'Equipe',
+            url: `/intranet/equipe/${c.id}`,
+          })),
+        ])
+      } catch (e) {
+      } finally {
+        setIsSearching(false)
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -127,13 +181,40 @@ export default function Header() {
         {/* Desktop Nav */}
         <div className="hidden lg:flex items-center gap-8">
           {isIntranet && (
-            <div className="hidden md:flex relative">
+            <div className="hidden md:flex relative z-50">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Buscar processos, clientes..."
-                className="pl-8 h-9 w-64 bg-slate-50 border-slate-200 focus-visible:ring-1 rounded-full"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Pesquisar no sistema..."
+                className="pl-8 h-9 w-80 bg-slate-50 border-slate-200 focus-visible:ring-1 rounded-full"
               />
+              {searchQuery.length >= 2 && (
+                <div className="absolute top-full mt-2 w-full bg-white border rounded-md shadow-lg overflow-hidden py-2">
+                  {isSearching ? (
+                    <div className="px-4 py-2 text-sm text-slate-500">Buscando...</div>
+                  ) : searchResults.length > 0 ? (
+                    searchResults.map((res) => (
+                      <Link
+                        key={res.id + res.type}
+                        to={res.url}
+                        onClick={() => setSearchQuery('')}
+                        className="flex flex-col px-4 py-2 hover:bg-slate-50 border-b last:border-0"
+                      >
+                        <span className="text-sm font-medium text-slate-800 truncate">
+                          {res.title}
+                        </span>
+                        <span className="text-xs text-slate-500">{res.type}</span>
+                      </Link>
+                    ))
+                  ) : (
+                    <div className="px-4 py-2 text-sm text-slate-500">
+                      Nenhum resultado encontrado.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
           {!isIntranet ? (

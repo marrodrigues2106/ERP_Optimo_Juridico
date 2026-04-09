@@ -99,7 +99,7 @@ export default function ClientDetail() {
         nationality: fd.get('nationality'),
         maritalStatus: fd.get('maritalStatus'),
         birthDate: fd.get('birthDate')
-          ? new Date(fd.get('birthDate') as string).toISOString()
+          ? new Date(`${fd.get('birthDate')}T12:00:00Z`).toISOString()
           : null,
         profession: fd.get('profession'),
       })
@@ -263,13 +263,8 @@ export default function ClientDetail() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>CPF / CNPJ</Label>
-                <Input
-                  name="cpf"
-                  defaultValue={client.cpf || ''}
-                  onChange={handleCpfChange}
-                  maxLength={18}
-                />
+                <Label>Nacionalidade</Label>
+                <Input name="nationality" defaultValue={client.nationality || 'Brasileiro(a)'} />
               </div>
               <div>
                 <Label>Data Nasc.</Label>
@@ -297,15 +292,11 @@ export default function ClientDetail() {
                 </Select>
               </div>
               <div>
-                <Label>Nacionalidade</Label>
-                <Input name="nationality" defaultValue={client.nationality || 'Brasileiro(a)'} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
                 <Label>Profissão</Label>
                 <Input name="profession" defaultValue={client.profession || ''} />
               </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
               <div>
                 <Label>Endereço</Label>
                 <Input name="address" defaultValue={client.address || ''} />

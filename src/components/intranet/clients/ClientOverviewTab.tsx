@@ -108,21 +108,7 @@ export function ClientOverviewTab({ client }: { client: any }) {
                 </div>
               </div>
             </div>
-            <div>
-              <span className="text-xs text-muted-foreground uppercase tracking-wider font-bold">
-                Documentos
-              </span>
-              <div className="mt-2 space-y-2 bg-slate-50 p-3 rounded-lg border">
-                <p className="text-sm">
-                  <span className="text-muted-foreground">CPF/CNPJ:</span>{' '}
-                  <span className="font-medium">{client.cpf || 'Não informado'}</span>
-                </p>
-                <p className="text-sm">
-                  <span className="text-muted-foreground">RG/Identidade:</span>{' '}
-                  <span className="font-medium">{client.idNumber || 'Não informado'}</span>
-                </p>
-              </div>
-            </div>
+            {/* Documentos removidos - agora gerenciados na aba de Documentos */}
           </div>
           <div className="space-y-4">
             <div>

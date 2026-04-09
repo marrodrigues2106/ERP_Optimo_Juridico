@@ -3,30 +3,23 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { getLegalCase } from '@/services/legal_cases'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { ArrowLeft, Scale, Clock, Briefcase } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import {
+  ArrowLeft,
+  RefreshCw,
+  User,
+  Briefcase,
+  Info,
+  Link as LinkIcon,
+  Calendar,
+  CheckSquare,
+  Plus,
+} from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
-
-const renderMovementText = (text: string) => {
-  if (!text) return text
-  const keywords = [
-    'NÚMERO ÚNICO:',
-    'POLO ATIVO',
-    'POLO PASSIVO',
-    'ADVOGADO \\(A/S\\)',
-    'DATA DE DISPONIBILIZAÇÃO:',
-    'DATA DE PUBLICAÇÃO:',
-  ]
-  const regex = new RegExp(`(${keywords.join('|')})`, 'gi')
-  const parts = text.split(regex)
-  return parts.map((part, i) => {
-    if (keywords.some((k) => new RegExp(`^${k.replace(/\\/g, '')}`, 'i').test(part))) {
-      return <strong key={i}>{part}</strong>
-    }
-    return <span key={i}>{part}</span>
-  })
-}
+import { runDatajudSync } from '@/lib/datajud/sync'
+import { Badge } from '@/components/ui/badge'
 
 export default function ProcessDetail() {
   const { id } = useParams<{ id: string }>()
@@ -34,136 +27,378 @@ export default function ProcessDetail() {
   const { toast } = useToast()
   const [legalCase, setLegalCase] = useState<any>(null)
   const [movements, setMovements] = useState<any[]>([])
+  const [tasks, setTasks] = useState<any[]>([])
+  const [events, setEvents] = useState<any[]>([])
+  const [finances, setFinances] = useState<any[]>([])
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [newMovement, setNewMovement] = useState('')
 
   useEffect(() => {
     if (id) {
-      getLegalCase(id)
-        .then(setLegalCase)
-        .catch((err: any) => {
-          console.error(err)
-          toast({ title: 'Erro ao carregar processo', variant: 'destructive' })
-        })
-      pb.collection('case_movements')
-        .getFullList({ filter: `case = "${id}"`, sort: '-event_date' })
-        .then(setMovements)
-        .catch(console.error)
+      loadData()
     }
   }, [id, toast])
+
+  const loadData = async () => {
+    try {
+      const c = await getLegalCase(id!)
+      setLegalCase(c)
+      const movs = await pb
+        .collection('case_movements')
+        .getFullList({ filter: `case = "${id}"`, sort: '-event_date' })
+      setMovements(movs)
+      const tks = await pb
+        .collection('tasks')
+        .getFullList({ filter: `linked_lawsuit = "${id}" && deleted_at = ""`, sort: '-created' })
+      setTasks(tks)
+      const evs = await pb
+        .collection('agenda_events')
+        .getFullList({ filter: `linked_lawsuit = "${id}" && deleted_at = ""`, sort: '-start_date' })
+      setEvents(evs)
+      const fins = await pb
+        .collection('finances')
+        .getFullList({ filter: `linked_lawsuit = "${id}" && deleted_at = ""`, sort: '-created' })
+      setFinances(fins)
+    } catch (err) {
+      console.error(err)
+      toast({ title: 'Erro ao carregar processo', variant: 'destructive' })
+    }
+  }
+
+  const handleSync = async () => {
+    setIsSyncing(true)
+    try {
+      await runDatajudSync(legalCase, () => {})
+      toast({ title: 'Sincronização concluída' })
+      loadData()
+    } catch (err: any) {
+      toast({ title: 'Erro na Sincronização', description: err.message, variant: 'destructive' })
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  const handleAddMovement = async () => {
+    if (!newMovement.trim()) return
+    try {
+      await pb.collection('case_movements').create({
+        case: id,
+        event_date: new Date().toISOString(),
+        description: newMovement,
+        source: 'Manual',
+        organization: pb.authStore.record?.active_organization,
+      })
+      setNewMovement('')
+      toast({ title: 'Andamento registrado com sucesso' })
+      loadData()
+    } catch (err: any) {
+      toast({ title: 'Erro ao registrar andamento', variant: 'destructive' })
+    }
+  }
 
   if (!legalCase)
     return <div className="p-8 text-center text-slate-500">Carregando processo...</div>
 
+  const totalFinance = finances.reduce((acc, curr) => acc + (curr.amount || 0), 0)
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <h2 className="text-2xl font-bold text-primary flex items-center gap-2">
-          <Scale className="w-6 h-6" /> {legalCase.case_number || 'Detalhes do Processo'}
-        </h2>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl text-slate-800">{legalCase.parties}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div>
-              <p className="text-sm font-medium text-slate-500 mb-1">Número do Processo</p>
-              <p className="font-semibold text-slate-900">
-                {legalCase.case_number || 'Não informado'}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500 mb-1">Status</p>
-              <p className="font-semibold text-slate-900">
-                {legalCase.lifecycle_status || 'Ativo'}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500 mb-1">Tipo</p>
-              <p className="font-semibold text-slate-900">{legalCase.type || 'Processo'}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500 mb-1">Data de Distribuição</p>
-              <p className="font-semibold text-slate-900">
-                {legalCase.distribution_date
-                  ? new Date(legalCase.distribution_date).toLocaleDateString('pt-BR')
-                  : 'N/A'}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Tabs defaultValue="movements" className="w-full">
-        <TabsList className="bg-slate-100">
-          <TabsTrigger value="movements" className="data-[state=active]:bg-white">
-            <Clock className="w-4 h-4 mr-2" /> Movimentações
-          </TabsTrigger>
-          <TabsTrigger value="details" className="data-[state=active]:bg-white">
-            <Briefcase className="w-4 h-4 mr-2" /> Detalhes
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="movements" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Linha do Tempo de Movimentações</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {movements.length === 0 ? (
-                <div className="text-center py-12 text-slate-500 border border-dashed rounded-lg bg-slate-50">
-                  Nenhuma movimentação registrada.
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {movements.map((mov) => (
-                    <div
-                      key={mov.id}
-                      className="border-b border-slate-100 pb-6 last:border-0 last:pb-0"
+    <div className="bg-[#f0f2f5] min-h-screen -m-6 p-6 animate-fade-in-up">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <Card className="rounded-xl border-none shadow-sm overflow-hidden">
+          <CardContent className="p-6 bg-white">
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
+              <div className="flex items-start gap-4">
+                <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="mt-1">
+                  <ArrowLeft className="w-5 h-5 text-slate-500" />
+                </Button>
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h1 className="text-2xl font-bold text-slate-900 leading-tight">
+                      [{legalCase.parties}]
+                    </h1>
+                  </div>
+                  <div className="flex items-center gap-3 mt-2 flex-wrap">
+                    <Badge
+                      variant="secondary"
+                      className="bg-slate-100 text-slate-600 hover:bg-slate-200 text-sm font-medium py-1 px-3"
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
-                        <span className="font-bold text-primary flex items-center gap-2">
-                          <Clock className="w-4 h-4" />
-                          {new Date(mov.event_date || mov.created).toLocaleDateString('pt-BR')}
-                        </span>
-                        <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-3 py-1 rounded-full uppercase tracking-wider self-start sm:self-auto">
-                          {mov.description || 'Movimentação'}
+                      {legalCase.case_number || 'Sem número'}
+                    </Badge>
+                    <Badge variant="outline" className="text-slate-500">
+                      TJRJ
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Badge className="bg-slate-600 hover:bg-slate-700 text-white font-medium uppercase px-3 py-1">
+                  {legalCase.lifecycle_status || 'ATIVO'}
+                </Badge>
+                <Button
+                  variant="outline"
+                  onClick={handleSync}
+                  disabled={isSyncing}
+                  className="shadow-sm"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+                  Sincronizar
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-slate-100">
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <User className="w-4 h-4 text-slate-400" />
+                <span className="font-medium text-slate-500">Cliente:</span>
+                <span
+                  className="font-semibold text-slate-800 truncate"
+                  title={legalCase.expand?.client?.name}
+                >
+                  {legalCase.expand?.client?.name || 'Não informado'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <Briefcase className="w-4 h-4 text-slate-400" />
+                <span className="font-medium text-slate-500">Responsável:</span>
+                <span
+                  className="font-semibold text-slate-800 truncate"
+                  title={legalCase.expand?.responsible_collaborator?.name}
+                >
+                  {legalCase.expand?.responsible_collaborator?.name || 'Não informado'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <Info className="w-4 h-4 text-slate-400" />
+                <span className="font-medium text-slate-500">Classe:</span>
+                <span className="font-semibold text-slate-800">
+                  {legalCase.type || 'Não informado'}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <Card className="border-none shadow-sm">
+              <Tabs defaultValue="andamento" className="w-full">
+                <TabsList className="w-full bg-white border-b rounded-none justify-start px-4 h-auto pt-2 pb-0 flex-wrap">
+                  <TabsTrigger
+                    value="andamento"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent py-3"
+                  >
+                    Novo andamento
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="tarefa"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent py-3"
+                  >
+                    Nova tarefa
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="ocorrencia"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent py-3"
+                  >
+                    Ocorrência Processual
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="interacao"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent py-3"
+                  >
+                    Nova Interação
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="andamento" className="p-6 pt-6">
+                  <div className="flex gap-4">
+                    <Input
+                      placeholder="Comece a digitar para adicionar um andamento manual..."
+                      className="flex-1 bg-slate-50 border-slate-200"
+                      value={newMovement}
+                      onChange={(e) => setNewMovement(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddMovement()}
+                    />
+                    <Button onClick={handleAddMovement} className="bg-slate-600 hover:bg-slate-700">
+                      Salvar
+                    </Button>
+                  </div>
+                </TabsContent>
+                <TabsContent value="tarefa" className="p-6 pt-6">
+                  <p className="text-sm text-slate-500">
+                    Recurso de criação de tarefa em breve integrado nesta aba.
+                  </p>
+                </TabsContent>
+                <TabsContent value="ocorrencia" className="p-6 pt-6">
+                  <p className="text-sm text-slate-500">Formulário de ocorrência processual.</p>
+                </TabsContent>
+                <TabsContent value="interacao" className="p-6 pt-6">
+                  <p className="text-sm text-slate-500">Log de interação com o cliente.</p>
+                </TabsContent>
+              </Tabs>
+            </Card>
+
+            <Card className="border-none shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between py-5 px-6 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <h3 className="font-bold text-slate-800 text-lg">Histórico de Andamentos</h3>
+                  <Badge variant="secondary" className="rounded-full bg-slate-200 text-slate-700">
+                    {movements.length}
+                  </Badge>
+                </div>
+                <div className="text-sm text-slate-500 flex items-center gap-2">
+                  Itens por página:{' '}
+                  <span className="border rounded px-2 py-1 bg-white shadow-sm cursor-pointer">
+                    20 ▾
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {movements.length === 0 ? (
+                  <div className="p-12 text-center text-slate-500 border border-dashed m-6 rounded-lg bg-slate-50/50">
+                    Nenhum andamento encontrado.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {movements.map((mov) => (
+                      <div key={mov.id} className="p-6 hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="text-sm font-semibold text-slate-700">
+                            {new Date(mov.event_date).toLocaleDateString('pt-BR')}
+                          </span>
+                          <Badge variant="outline" className="text-xs text-slate-500 bg-white">
+                            {mov.source}
+                          </Badge>
+                        </div>
+                        <p className="text-slate-800 text-sm whitespace-pre-wrap leading-relaxed">
+                          {mov.description}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <Card className="border-none shadow-sm">
+              <CardHeader className="py-4 px-5 border-b border-slate-100">
+                <div className="flex items-center gap-2 font-bold text-slate-800">
+                  <LinkIcon className="w-4 h-4 text-slate-400" />
+                  Vinculados ({legalCase.expand?.related_cases?.length || 0})
+                </div>
+              </CardHeader>
+              <CardContent className="p-5">
+                <div className="text-center py-6 text-sm text-slate-500">
+                  Nenhum processo vinculado.
+                </div>
+                <div className="mt-2 space-y-3">
+                  <div className="bg-slate-50 p-2 rounded flex justify-between items-center cursor-pointer text-slate-600 text-sm border border-slate-200">
+                    <span>Vincular processo...</span>
+                    <span>▾</span>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700"
+                    disabled
+                  >
+                    <Plus className="w-4 h-4 mr-2" /> Vincular
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-sm">
+              <CardHeader className="py-4 px-5 border-b border-slate-100">
+                <div className="flex items-center gap-2 font-bold text-slate-800">
+                  <CheckSquare className="w-4 h-4 text-slate-400" />
+                  Tarefas ({tasks.length})
+                </div>
+              </CardHeader>
+              <CardContent className="p-5">
+                {tasks.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-slate-500">
+                    Nenhuma tarefa criada.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {tasks.map((t) => (
+                      <div
+                        key={t.id}
+                        className="text-sm p-3 bg-slate-50 border rounded flex justify-between"
+                      >
+                        <span className="font-medium text-slate-700 truncate pr-2">{t.title}</span>
+                        <span className="text-slate-400 shrink-0">
+                          {t.due_date ? new Date(t.due_date).toLocaleDateString('pt-BR') : ''}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-slate-50/50 p-4 rounded-lg border border-slate-100">
-                        {renderMovementText(
-                          mov.texto_normalizado || mov.trecho_encontrado || mov.description || '',
-                        )}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-        <TabsContent value="details" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Informações Adicionais</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
-                <p className="text-sm text-slate-700 whitespace-pre-wrap">
-                  {legalCase.description ||
-                    legalCase.desc_obs ||
-                    'Nenhuma descrição adicional informada.'}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            <Card className="border-none shadow-sm">
+              <CardHeader className="py-4 px-5 border-b border-slate-100 flex flex-row items-center justify-between">
+                <div className="flex items-center gap-2 font-bold text-slate-800">
+                  <Calendar className="w-4 h-4 text-slate-400" />
+                  Compromissos ({events.length})
+                </div>
+                <Button variant="ghost" size="icon" className="h-6 w-6">
+                  <Plus className="w-4 h-4 text-slate-500" />
+                </Button>
+              </CardHeader>
+              <CardContent className="p-5">
+                {events.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-slate-500">
+                    Nenhum evento agendado.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {events.map((e) => (
+                      <div
+                        key={e.id}
+                        className="text-sm p-3 bg-slate-50 border rounded flex justify-between"
+                      >
+                        <span className="font-medium text-slate-700 truncate pr-2">{e.title}</span>
+                        <span className="text-slate-400 shrink-0">
+                          {new Date(e.start_date).toLocaleDateString('pt-BR')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-sm">
+              <CardHeader className="py-4 px-5 border-b border-slate-100">
+                <div className="flex items-center gap-2 font-bold text-slate-800">
+                  <span className="text-slate-400 text-lg">$</span> Resumo Financeiro
+                </div>
+              </CardHeader>
+              <CardContent className="p-5">
+                <div className="flex justify-between items-center mb-4 bg-slate-50 p-3 rounded-lg border">
+                  <span className="text-sm text-slate-500">Custo Previsto</span>
+                  <span className="text-base font-semibold text-slate-800">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                      totalFinance,
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-500">Registros ({finances.length})</span>
+                  <button className="text-sm font-medium text-primary hover:underline">
+                    Ver detalhes
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
