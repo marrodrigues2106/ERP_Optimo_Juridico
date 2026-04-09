@@ -296,9 +296,11 @@ export default function MonitoringManager() {
                         id={`sec-${sec}`}
                         checked={rodouSections.includes(sec)}
                         onCheckedChange={(c) => {
-                          c
-                            ? setRodouSections([...rodouSections, sec])
-                            : setRodouSections(rodouSections.filter((s) => s !== sec))
+                          if (c) {
+                            setRodouSections([...rodouSections, sec])
+                          } else {
+                            setRodouSections(rodouSections.filter((s) => s !== sec))
+                          }
                         }}
                       />
                       <label htmlFor={`sec-${sec}`} className="text-sm cursor-pointer">
@@ -366,9 +368,11 @@ export default function MonitoringManager() {
                         id={`tribunal-${t.id}`}
                         checked={tribunais.includes(t.alias?.toLowerCase())}
                         onCheckedChange={(c) => {
-                          c
-                            ? setTribunais([...tribunais, t.alias?.toLowerCase()])
-                            : setTribunais(tribunais.filter((x) => x !== t.alias?.toLowerCase()))
+                          if (c) {
+                            setTribunais([...tribunais, t.alias?.toLowerCase()])
+                          } else {
+                            setTribunais(tribunais.filter((x) => x !== t.alias?.toLowerCase()))
+                          }
                         }}
                       />
                       <label htmlFor={`tribunal-${t.id}`} className="text-xs cursor-pointer">
