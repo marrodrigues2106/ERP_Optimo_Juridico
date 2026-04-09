@@ -13,7 +13,7 @@ routerAdd(
       const cases = $app.findRecordsByFilter(
         'legal_cases',
         "lifecycle_status = 'Ativo' && case_number != ''",
-        'datajud_last_sync ASC',
+        'datajud_last_sync',
         10,
         0,
       )
