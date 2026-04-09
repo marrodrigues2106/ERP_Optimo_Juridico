@@ -165,11 +165,37 @@ export default function MonitoringManager() {
   }
 
   const handleRunSearch = async () => {
+    if (!datajudApiKey && syncProcessos) {
+      toast({
+        title: 'Configuração incompleta',
+        description:
+          'A chave da API DataJud não está configurada. A busca de andamentos pode não retornar resultados.',
+        variant: 'destructive',
+      })
+    }
+
+    if (termos.length === 0) {
+      toast({
+        title: 'Sem termos de busca',
+        description: 'Adicione ao menos um termo de busca antes de executar a sincronização.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     setSyncing(true)
     try {
-      await syncTerms()
+      const res = (await syncTerms()) as any
+      if (res && res.success === false) {
+        toast({
+          title: 'Aviso',
+          description: res.error || 'A sincronização foi concluída com ressalvas.',
+          variant: 'destructive',
+        })
+        return
+      }
       await syncProcesses()
-      toast({ title: 'Sincronização unificada iniciada com sucesso!' })
+      toast({ title: 'Sincronização unificada concluída com sucesso!' })
     } catch (e: any) {
       toast({ title: 'Erro', description: e.message, variant: 'destructive' })
     } finally {
