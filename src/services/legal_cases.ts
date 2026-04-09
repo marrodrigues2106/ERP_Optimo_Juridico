@@ -3,13 +3,11 @@ import { sanitizePayload } from '@/lib/pocketbase/sanitize'
 import { logAudit } from './audit'
 
 export const getLegalCases = async () => {
-  return pb
-    .collection('legal_cases')
-    .getFullList({
-      filter: 'deleted_at = ""',
-      expand: 'client,responsible_collaborator',
-      sort: '-created',
-    })
+  return pb.collection('legal_cases').getFullList({
+    filter: 'deleted_at = ""',
+    expand: 'client,responsible_collaborator',
+    sort: '-created',
+  })
 }
 
 export const getLegalCase = (id: string) =>

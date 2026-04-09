@@ -149,6 +149,9 @@ export default function Layout() {
                   side="left"
                   className="w-[280px] sm:w-[320px] bg-white p-0 overflow-y-auto"
                 >
+                  <SheetHeader className="sr-only">
+                    <SheetTitle>Menu Principal</SheetTitle>
+                  </SheetHeader>
                   <div className="flex flex-col py-6 gap-2">
                     <div className="px-6 pb-4 font-bold text-xl text-primary border-b mb-2 flex items-center gap-3">
                       {orgLogo ? (
