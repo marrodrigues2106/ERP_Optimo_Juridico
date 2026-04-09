@@ -275,7 +275,6 @@ export function CrmContactsTab() {
                 <TableHead>Nome</TableHead>
                 <TableHead>Contato</TableHead>
                 <TableHead>Classificação</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -308,7 +307,6 @@ export function CrmContactsTab() {
                       </div>
                     </TableCell>
                     <TableCell>{c.classification}</TableCell>
-                    <TableCell>{c.status}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"

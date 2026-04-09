@@ -3,21 +3,13 @@ import { sanitizePayload } from '@/lib/pocketbase/sanitize'
 import { logAudit } from './audit'
 
 export const getLegalCases = async () => {
-  const user = pb.authStore.record
-  let filter = 'deleted_at = ""'
-
-  if (user && !user.isAdmin && user.role !== 'admin') {
-    try {
-      const collab = await pb.collection('collaborators').getFirstListItem(`user="${user.id}"`)
-      filter += ` && responsible_collaborator = "${collab.id}"`
-    } catch (e) {
-      filter += ` && id = "none"`
-    }
-  }
-
   return pb
     .collection('legal_cases')
-    .getFullList({ filter, expand: 'client,responsible_collaborator', sort: '-created' })
+    .getFullList({
+      filter: 'deleted_at = ""',
+      expand: 'client,responsible_collaborator',
+      sort: '-created',
+    })
 }
 
 export const getLegalCase = (id: string) =>

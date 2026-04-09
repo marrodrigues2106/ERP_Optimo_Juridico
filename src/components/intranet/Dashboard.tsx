@@ -64,20 +64,41 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('unread')
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedFeedItems, setSelectedFeedItems] = useState<string[]>([])
+  const [selectedCollaboratorId, setSelectedCollaboratorId] = useState<string | null>(null)
+  const [caseCount, setCaseCount] = useState(0)
 
   const loadTasks = async () => {
-    const fetchedTasks = await pb
-      .collection('tasks')
-      .getFullList({ filter: 'status = "todo" && deleted_at = ""', sort: 'due_date' })
+    let filter = 'status = "todo" && deleted_at = ""'
+    if (selectedCollaboratorId) {
+      filter += ` && collaborator = "${selectedCollaboratorId}"`
+    }
+    const fetchedTasks = await pb.collection('tasks').getFullList({ filter, sort: 'due_date' })
     setTasks(fetchedTasks)
   }
 
   const loadEvents = async () => {
+    let filter = `start_date >= "${startOfDay(selectedDate).toISOString()}" && start_date <= "${new Date(startOfDay(selectedDate).getTime() + 24 * 60 * 60 * 1000 - 1).toISOString()}" && deleted_at = ""`
+    if (selectedCollaboratorId) {
+      filter += ` && (collaborator = "${selectedCollaboratorId}" || participants ~ "${selectedCollaboratorId}")`
+    }
     const fetchedEvents = await pb.collection('agenda_events').getFullList({
-      filter: `start_date >= "${startOfDay(selectedDate).toISOString()}" && start_date <= "${new Date(startOfDay(selectedDate).getTime() + 24 * 60 * 60 * 1000 - 1).toISOString()}" && deleted_at = ""`,
+      filter,
       sort: 'start_date',
     })
     setEvents(fetchedEvents)
+  }
+
+  const loadCaseCount = async () => {
+    let filter = 'lifecycle_status = "Ativo" && deleted_at = ""'
+    if (selectedCollaboratorId) {
+      filter += ` && responsible_collaborator = "${selectedCollaboratorId}"`
+    }
+    try {
+      const records = await pb.collection('legal_cases').getList(1, 1, { filter })
+      setCaseCount(records.totalItems)
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   const loadFeed = async () => {
@@ -138,8 +159,10 @@ export default function Dashboard() {
 
   // Optimize and debounce initial fetches
   useEffect(() => {
-    Promise.allSettled([loadTasks(), loadEvents(), loadFeed()]).catch(console.error)
-  }, [selectedDate])
+    Promise.allSettled([loadTasks(), loadEvents(), loadFeed(), loadCaseCount()]).catch(
+      console.error,
+    )
+  }, [selectedDate, selectedCollaboratorId])
 
   useEffect(() => {
     Promise.allSettled([
@@ -161,11 +184,11 @@ export default function Dashboard() {
 
   const debouncedLoadTasks = useMemo(
     () => createDebouncedLoader('tasks', loadTasks),
-    [createDebouncedLoader],
+    [createDebouncedLoader, selectedCollaboratorId],
   )
   const debouncedLoadEvents = useMemo(
     () => createDebouncedLoader('events', loadEvents),
-    [createDebouncedLoader, selectedDate],
+    [createDebouncedLoader, selectedDate, selectedCollaboratorId],
   )
   const debouncedLoadFeed = useMemo(
     () => createDebouncedLoader('feed', loadFeed),
@@ -286,17 +309,60 @@ export default function Dashboard() {
               <div className="flex items-center text-sm font-semibold text-slate-800 mb-3">
                 <UserPlus className="w-4 h-4 mr-2" /> Por colaborador
               </div>
-              <ul className="space-y-3 pl-6">
-                <li className="text-sm font-semibold flex items-center gap-2 text-slate-900 cursor-pointer">
-                  <CheckCircle2 className="w-4 h-4 text-primary" /> Todos do escritório
+              <ul className="space-y-3 pl-6 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                <li
+                  className={cn(
+                    'text-sm flex items-center gap-2 cursor-pointer transition-colors',
+                    selectedCollaboratorId === null
+                      ? 'font-semibold text-slate-900'
+                      : 'text-slate-600 hover:text-slate-900',
+                  )}
+                  onClick={() => setSelectedCollaboratorId(null)}
+                >
+                  {selectedCollaboratorId === null && (
+                    <CheckCircle2 className="w-4 h-4 text-primary" />
+                  )}
+                  <span className={selectedCollaboratorId === null ? '' : 'ml-6'}>
+                    Todos do escritório
+                  </span>
                 </li>
-                <li className="text-sm text-slate-600 hover:text-slate-900 cursor-pointer transition-colors">
-                  Somente você
-                </li>
-                <li className="text-sm text-slate-600 hover:text-slate-900 cursor-pointer transition-colors">
-                  Equipe Jurídica
-                </li>
+                {collaborators.map((c) => (
+                  <li
+                    key={c.id}
+                    className={cn(
+                      'text-sm flex items-center gap-2 cursor-pointer transition-colors',
+                      selectedCollaboratorId === c.id
+                        ? 'font-semibold text-slate-900'
+                        : 'text-slate-600 hover:text-slate-900',
+                    )}
+                    onClick={() => setSelectedCollaboratorId(c.id)}
+                  >
+                    {selectedCollaboratorId === c.id && (
+                      <CheckCircle2 className="w-4 h-4 text-primary" />
+                    )}
+                    <span className={selectedCollaboratorId === c.id ? '' : 'ml-6'}>{c.name}</span>
+                  </li>
+                ))}
               </ul>
+            </div>
+          </div>
+          <div className="mt-8 pt-6 border-t border-slate-200/60">
+            <h3 className="text-[10px] font-bold text-slate-400 mb-4 uppercase tracking-wider">
+              Estatísticas
+            </h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-600">Processos Ativos</span>
+                <span className="font-bold text-slate-800">{caseCount}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-600">Tarefas Pendentes</span>
+                <span className="font-bold text-slate-800">{tasks.length}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-600">Eventos Hoje</span>
+                <span className="font-bold text-slate-800">{events.length}</span>
+              </div>
             </div>
           </div>
           <button

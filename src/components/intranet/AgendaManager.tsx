@@ -28,8 +28,6 @@ import {
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
-  CloudSync,
-  Settings2,
   Users,
   User,
   CheckSquare,
@@ -53,7 +51,6 @@ export default function AgendaManager() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [events, setEvents] = useState<any[]>([])
   const [formOpen, setFormOpen] = useState(false)
-  const [syncModalOpen, setSyncModalOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState<any>(null)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<any>(null)
@@ -242,9 +239,6 @@ export default function AgendaManager() {
           <CalendarIcon className="w-6 h-6 text-primary" /> Agenda Integrada da Equipe
         </h2>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setSyncModalOpen(true)}>
-            <Settings2 className="w-4 h-4 mr-2" /> Configurar Sync
-          </Button>
           <Button
             onClick={() => {
               setEditingEvent(null)
@@ -346,7 +340,6 @@ export default function AgendaManager() {
         onSuccess={loadData}
         editingEvent={editingEvent}
       />
-      <SyncConfigModal open={syncModalOpen} onOpenChange={setSyncModalOpen} />
       <TaskEditModal
         open={taskModalOpen}
         onOpenChange={setTaskModalOpen}
@@ -439,105 +432,6 @@ function TaskEditModal({ task, open, onOpenChange, onSuccess }: any) {
             <Button type="submit">Salvar Alterações</Button>
           </div>
         </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function SyncConfigModal({ open, onOpenChange }: any) {
-  const { toast } = useToast()
-  const [linking, setLinking] = useState(false)
-
-  const handleOAuthLink = async (provider: string) => {
-    setLinking(true)
-    try {
-      await pb.send('/backend/v1/agenda/oauth', {
-        method: 'POST',
-        body: JSON.stringify({ provider }),
-      })
-      toast({
-        title: 'Conta Conectada',
-        description: `Integração com ${provider} ativada com sucesso.`,
-      })
-    } catch (err: any) {
-      toast({ title: 'Erro de Autenticação', description: err.message, variant: 'destructive' })
-    } finally {
-      setLinking(false)
-      onOpenChange(false)
-    }
-  }
-
-  const handleICalGenerate = async () => {
-    const user = pb.authStore.record
-    if (!user) return
-
-    let token = user.ical_token
-    if (!token) {
-      token =
-        Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
-      await pb.collection('users').update(user.id, { ical_token: token })
-    }
-
-    const url = `${window.location.origin}/backend/v1/agenda/ical/${token}`
-    navigator.clipboard.writeText(url)
-    toast({
-      title: 'Link iCal copiado!',
-      description: 'Cole o link no Google Calendar ou Outlook para assinar esta agenda.',
-    })
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CloudSync className="w-5 h-5 text-primary" /> Conectores de Calendário
-          </DialogTitle>
-          <DialogDescription>
-            Autorize o acesso via OAuth para sincronização bidirecional da agenda.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-6 pt-4">
-          <div className="flex items-center justify-between p-4 border rounded-lg bg-slate-50">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold bg-purple-100 text-purple-600">
-                iC
-              </div>
-              <div>
-                <h4 className="font-semibold text-sm">Assinatura iCal</h4>
-                <p className="text-xs text-muted-foreground">
-                  Link somente leitura para calendários externos
-                </p>
-              </div>
-            </div>
-            <Button variant="default" size="sm" onClick={handleICalGenerate}>
-              {pb.authStore.record?.ical_token ? 'Copiar Link' : 'Gerar Link'}
-            </Button>
-          </div>
-          {['Google', 'Outlook', 'iCloud'].map((prov) => (
-            <div key={prov} className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="flex items-center gap-3">
-                <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${prov === 'Google' ? 'bg-red-50 text-red-600' : prov === 'Outlook' ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-800'}`}
-                >
-                  {prov.charAt(0)}
-                </div>
-                <div>
-                  <h4 className="font-semibold text-sm">{prov}</h4>
-                  <p className="text-xs text-muted-foreground">Sincronização bidirecional OAuth</p>
-                </div>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleOAuthLink(prov)}
-                disabled={linking}
-              >
-                Conectar Conta
-              </Button>
-            </div>
-          ))}
-        </div>
       </DialogContent>
     </Dialog>
   )
