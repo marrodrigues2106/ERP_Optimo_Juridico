@@ -5,7 +5,7 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
   const logs = $app.findCollectionByNameOrId('logs_processamento')
   const notifsCol = $app.findCollectionByNameOrId('lawsuit_notifications')
 
-  const logProcess = (etapa, status, msg) => {
+  const logProcess = (etapa, status, msg, termoStr = '', fonte = '') => {
     try {
       const logRec = new Record(logs)
       logRec.set('etapa', etapa)
@@ -49,6 +49,7 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
     } catch (e) {}
 
     const today = new Date().toISOString().split('T')[0]
+    const todayDDMMYYYY = today.split('-').reverse().join('/')
 
     let users = []
     try {
@@ -65,7 +66,7 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
             .map((s) => s.trim().toLowerCase())
         : []
 
-      // Local Cache Check
+      // Priority 3: Local Cache Check
       try {
         const cacheCheck = $app.findRecordsByFilter(
           'logs_processamento',
@@ -75,7 +76,9 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
           0,
         )
         if (cacheCheck.length > 0) {
-          console.log(`[Monitoring] Term "${termStr}" already processed today. Skipping.`)
+          console.log(
+            `[Monitoring] Term "${termStr}" already processed today from cache. Skipping.`,
+          )
           continue
         }
       } catch (e) {}
@@ -85,34 +88,96 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
         'Processando',
         `Buscando termo: ${termStr}`,
       )
+
       let combinedResults = []
       let sourceSuccess = false
+      let sourceUsed = ''
 
-      // 1. Primary: Official IN API (DOU)
+      // Priority 1: Official IN API (DOU) Direct Scraping
       try {
-        const res = $http.send({
-          url: `https://in.gov.br/api/search?q=${encodeURIComponent(searchTerm)}&dataInicio=${today}&dataFim=${today}&page=1`,
-          method: 'GET',
-          timeout: 10,
-        })
-        if (res.statusCode === 200 && res.json?.results) {
-          combinedResults = combinedResults.concat(
-            res.json.results.map((item) => ({
-              source: 'DOU',
-              title: item.title || 'Publicação DOU',
-              section: item.section || 'Seção 1',
-              department: item.agency || 'DOU',
-              date: item.date || today,
-              abstract: item.abstract || '',
-              text: item.text || '',
-              url: item.url || '',
-            })),
-          )
-          sourceSuccess = true
+        let page = 1
+        let hasMore = true
+
+        while (page <= 3 && hasMore) {
+          const url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${encodeURIComponent(searchTerm)}&s=do1,do2,do3,doextra&exactDate=personalizado&publishFrom=${todayDDMMYYYY}&publishTo=${todayDDMMYYYY}&sortType=0&delta=20&currentPage=${page}`
+          const res = $http.send({
+            url: url,
+            method: 'GET',
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            },
+            timeout: 15,
+          })
+
+          if (res.statusCode === 200) {
+            let html = ''
+            if (typeof res.body === 'string') {
+              html = res.body
+            } else if (res.body) {
+              try {
+                let bytes = new Uint8Array(res.body)
+                let result = []
+                for (let i = 0; i < bytes.length; i += 8000) {
+                  let end = i + 8000 > bytes.length ? bytes.length : i + 8000
+                  result.push(String.fromCharCode.apply(null, bytes.subarray(i, end)))
+                }
+                let latin1 = result.join('')
+                try {
+                  html = decodeURIComponent(escape(latin1))
+                } catch (e) {
+                  html = latin1
+                }
+              } catch (e) {
+                html = String(res.body)
+              }
+            }
+
+            const scriptMatch = html.match(
+              /<script[^>]*id="_br_com_seatecnologia_in_buscadou_BuscaDouPortlet_params"[^>]*>([\s\S]*?)<\/script>/,
+            )
+            if (scriptMatch && scriptMatch[1]) {
+              try {
+                const parsed = JSON.parse(scriptMatch[1].trim())
+                if (parsed.jsonArray && parsed.jsonArray.length > 0) {
+                  parsed.jsonArray.forEach((item) => {
+                    combinedResults.push({
+                      source: 'DOU',
+                      title: item.title || item.urlTitle || 'Publicação DOU',
+                      section: item.artType || 'Seção 1',
+                      department: item.hierarchyStr || 'DOU',
+                      date: item.pubDate || todayDDMMYYYY,
+                      abstract: item.content || '',
+                      text: item.content || '',
+                      url: item.urlTitle ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}` : '',
+                      tipo_ato: item.artType || '',
+                      orgao_principal: item.hierarchyStr ? item.hierarchyStr.split('/')[0] : '',
+                      organizacao_subordinada: item.hierarchyStr
+                        ? item.hierarchyStr.split('/').slice(1).join('/')
+                        : '',
+                    })
+                  })
+                  sourceSuccess = true
+                  sourceUsed = 'DOU_SCRAPING'
+                  if (parsed.jsonArray.length < 20) hasMore = false
+                } else {
+                  sourceSuccess = true
+                  sourceUsed = 'DOU_SCRAPING'
+                  hasMore = false
+                }
+              } catch (e) {
+                hasMore = false
+              }
+            } else {
+              hasMore = false
+            }
+          } else {
+            hasMore = false
+          }
+          page++
         }
       } catch (e) {}
 
-      // 2. Secondary (Fallback): Querido Diário API
+      // Priority 2 (Fallback): Querido Diário API
       if (!sourceSuccess && territoryId) {
         try {
           const qdRes = $http.send({
@@ -120,7 +185,7 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
             method: 'GET',
             timeout: 10,
           })
-          if (qdRes.statusCode === 200 && qdRes.json?.gazettes) {
+          if (qdRes.statusCode === 200 && qdRes.json && qdRes.json.gazettes) {
             combinedResults = combinedResults.concat(
               qdRes.json.gazettes.map((g) => ({
                 source: 'Querido Diário',
@@ -131,24 +196,28 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
                 abstract: g.excerpts?.[0] || '',
                 text: g.excerpts?.[0] || g.excerpt || '',
                 url: g.url || '',
+                tipo_ato: 'Ato Municipal',
+                orgao_principal: g.territory_name,
+                organizacao_subordinada: '',
               })),
             )
             sourceSuccess = true
+            sourceUsed = 'QUERIDO_DIARIO'
           }
         } catch (e) {}
       }
 
-      // 3. Recovery (Scheduled Reprocessing)
+      // Priority 4: Recovery (Scheduled Reprocessing)
       if (!sourceSuccess) {
         logProcess(
           'Monitoramento Unificado',
           'Fila de Reprocessamento',
-          `Falha ao buscar termo: ${termStr}. Agendado para reprocessamento.`,
+          `Falha ao buscar termo: ${termStr} nas fontes DOU e Querido Diário. Agendado para reprocessamento.`,
         )
         continue
       }
 
-      // Filter and Save DOU Results
+      // Filter and Save Results
       let savedCount = 0
       for (let item of combinedResults) {
         const textLower = (item.text || '').toLowerCase()
@@ -181,18 +250,35 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
           )
         }
 
+        let pubDate = item.date
+        if (pubDate && pubDate.includes('/')) {
+          const parts = pubDate.split('/')
+          if (parts.length === 3) pubDate = `${parts[2]}-${parts[1]}-${parts[0]}`
+        }
+        if (!pubDate.includes(':')) pubDate = pubDate + ' 00:00:00'
+
         const record = new Record(pubDou)
         record.set('titulo', item.title)
         record.set('secao', item.section)
         record.set('orgao', item.department)
         record.set('texto_bruto', cleanText)
+        record.set('texto_normalizado', cleanText.toLowerCase())
         record.set('url_origem', item.url)
         record.set('hash_conteudo', hash)
         record.set('fonte_coleta', item.source)
-        record.set('data_publicacao', item.date.includes(':') ? item.date : item.date + ' 00:00:00')
+        record.set('data_publicacao', pubDate)
         record.set('data_coleta', new Date().toISOString().replace('T', ' ').substring(0, 19))
         record.set('status_processamento', 'bruto')
-        record.set('metadados_adicionais', { search_id: searchId, abstract: item.abstract })
+        record.set('metadados_adicionais', {
+          search_id: searchId,
+          abstract: item.abstract,
+          tipo_ato: item.tipo_ato,
+          orgao_principal: item.orgao_principal,
+          organizacao_subordinada: item.organizacao_subordinada,
+          timestamp: new Date().toISOString(),
+          fonte_utilizada: sourceUsed,
+          termo_buscado: termStr,
+        })
         $app.save(record)
 
         const ocorrencia = new Record($app.findCollectionByNameOrId('ocorrencias_dou'))
@@ -226,7 +312,7 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
               timeout: 10,
             })
 
-            if (res.statusCode === 200 && res.json?.hits?.hits) {
+            if (res.statusCode === 200 && res.json && res.json.hits && res.json.hits.hits) {
               for (let hit of res.json.hits.hits) {
                 const proc = hit._source
                 if (proc && proc.numeroProcesso) {
@@ -260,11 +346,19 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
       logProcess(
         'Monitoramento Unificado',
         'Sucesso',
-        `Busca para "${termStr}" finalizada. Salvas ${savedCount} publicações e ${datajudCount} processos.`,
+        `Busca para "${termStr}" finalizada (Fonte: ${sourceUsed}). Salvas ${savedCount} publicações e ${datajudCount} processos.`,
       )
     }
   } catch (e) {
     console.error('[Monitoring] Error in ingestion cron:', e)
-    logProcess('Monitoramento Unificado', 'Erro', String(e))
+    try {
+      const logs = $app.findCollectionByNameOrId('logs_processamento')
+      const logRec = new Record(logs)
+      logRec.set('etapa', 'Monitoramento Unificado')
+      logRec.set('status', 'Erro')
+      logRec.set('mensagem', String(e))
+      logRec.set('data_hora', new Date().toISOString().replace('T', ' ').substring(0, 19))
+      $app.save(logRec)
+    } catch (_) {}
   }
 })

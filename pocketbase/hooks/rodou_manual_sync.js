@@ -32,6 +32,7 @@ routerAdd(
     const isExactSearch = config ? config.get('is_exact_search') : false
 
     const today = new Date().toISOString().split('T')[0]
+    const todayDDMMYYYY = today.split('-').reverse().join('/')
     let totalSaved = 0
 
     for (let t of terms) {
@@ -45,32 +46,85 @@ routerAdd(
 
       let combinedResults = []
       let sourceSuccess = false
+      let sourceUsed = ''
 
-      // 1. Primary: Official IN API
+      // 1. Primary: Official IN API (DOU) Direct Scraping
       try {
         let page = 1
         let hasMore = true
-        while (page <= 2 && hasMore) {
+
+        while (page <= 3 && hasMore) {
+          const url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${encodeURIComponent(searchTerm)}&s=do1,do2,do3,doextra&exactDate=personalizado&publishFrom=${todayDDMMYYYY}&publishTo=${todayDDMMYYYY}&sortType=0&delta=20&currentPage=${page}`
           const res = $http.send({
-            url: `https://in.gov.br/api/search?q=${encodeURIComponent(searchTerm)}&dataInicio=${today}&dataFim=${today}&page=${page}`,
+            url: url,
             method: 'GET',
-            timeout: 10,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            },
+            timeout: 15,
           })
-          if (res.statusCode === 200 && res.json?.results) {
-            combinedResults = combinedResults.concat(
-              res.json.results.map((item) => ({
-                source: 'DOU',
-                title: item.title || 'Publicação DOU',
-                section: item.section || 'Seção 1',
-                department: item.agency || 'DOU',
-                date: item.date || today,
-                abstract: item.abstract || '',
-                text: item.text || '',
-                url: item.url || '',
-              })),
+
+          if (res.statusCode === 200) {
+            let html = ''
+            if (typeof res.body === 'string') {
+              html = res.body
+            } else if (res.body) {
+              try {
+                let bytes = new Uint8Array(res.body)
+                let result = []
+                for (let i = 0; i < bytes.length; i += 8000) {
+                  let end = i + 8000 > bytes.length ? bytes.length : i + 8000
+                  result.push(String.fromCharCode.apply(null, bytes.subarray(i, end)))
+                }
+                let latin1 = result.join('')
+                try {
+                  html = decodeURIComponent(escape(latin1))
+                } catch (e) {
+                  html = latin1
+                }
+              } catch (e) {
+                html = String(res.body)
+              }
+            }
+
+            const scriptMatch = html.match(
+              /<script[^>]*id="_br_com_seatecnologia_in_buscadou_BuscaDouPortlet_params"[^>]*>([\s\S]*?)<\/script>/,
             )
-            sourceSuccess = true
-            if (res.json.results.length < 20) hasMore = false
+            if (scriptMatch && scriptMatch[1]) {
+              try {
+                const parsed = JSON.parse(scriptMatch[1].trim())
+                if (parsed.jsonArray && parsed.jsonArray.length > 0) {
+                  parsed.jsonArray.forEach((item) => {
+                    combinedResults.push({
+                      source: 'DOU',
+                      title: item.title || item.urlTitle || 'Publicação DOU',
+                      section: item.artType || 'Seção 1',
+                      department: item.hierarchyStr || 'DOU',
+                      date: item.pubDate || todayDDMMYYYY,
+                      abstract: item.content || '',
+                      text: item.content || '',
+                      url: item.urlTitle ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}` : '',
+                      tipo_ato: item.artType || '',
+                      orgao_principal: item.hierarchyStr ? item.hierarchyStr.split('/')[0] : '',
+                      organizacao_subordinada: item.hierarchyStr
+                        ? item.hierarchyStr.split('/').slice(1).join('/')
+                        : '',
+                    })
+                  })
+                  sourceSuccess = true
+                  sourceUsed = 'DOU_SCRAPING'
+                  if (parsed.jsonArray.length < 20) hasMore = false
+                } else {
+                  sourceSuccess = true
+                  sourceUsed = 'DOU_SCRAPING'
+                  hasMore = false
+                }
+              } catch (e) {
+                hasMore = false
+              }
+            } else {
+              hasMore = false
+            }
           } else {
             hasMore = false
           }
@@ -86,7 +140,7 @@ routerAdd(
             method: 'GET',
             timeout: 10,
           })
-          if (qdRes.statusCode === 200 && qdRes.json?.gazettes) {
+          if (qdRes.statusCode === 200 && qdRes.json && qdRes.json.gazettes) {
             combinedResults = combinedResults.concat(
               qdRes.json.gazettes.map((g) => ({
                 source: 'Querido Diário',
@@ -97,9 +151,13 @@ routerAdd(
                 abstract: g.excerpts?.[0] || '',
                 text: g.excerpts?.[0] || g.excerpt || '',
                 url: g.url || '',
+                tipo_ato: 'Ato Municipal',
+                orgao_principal: g.territory_name,
+                organizacao_subordinada: '',
               })),
             )
             sourceSuccess = true
+            sourceUsed = 'QUERIDO_DIARIO'
           }
         } catch (err) {}
       }
@@ -141,18 +199,35 @@ routerAdd(
           )
         }
 
+        let pubDate = item.date
+        if (pubDate && pubDate.includes('/')) {
+          const parts = pubDate.split('/')
+          if (parts.length === 3) pubDate = `${parts[2]}-${parts[1]}-${parts[0]}`
+        }
+        if (!pubDate.includes(':')) pubDate = pubDate + ' 00:00:00'
+
         const record = new Record(pubDou)
         record.set('titulo', item.title)
         record.set('secao', item.section)
         record.set('orgao', item.department)
         record.set('texto_bruto', cleanText)
+        record.set('texto_normalizado', cleanText.toLowerCase())
         record.set('url_origem', item.url)
         record.set('hash_conteudo', hash)
         record.set('fonte_coleta', item.source)
-        record.set('data_publicacao', item.date.includes(':') ? item.date : item.date + ' 00:00:00')
+        record.set('data_publicacao', pubDate)
         record.set('data_coleta', new Date().toISOString().replace('T', ' ').substring(0, 19))
         record.set('status_processamento', 'bruto')
-        record.set('metadados_adicionais', { search_id: searchId, abstract: item.abstract })
+        record.set('metadados_adicionais', {
+          search_id: searchId,
+          abstract: item.abstract,
+          tipo_ato: item.tipo_ato,
+          orgao_principal: item.orgao_principal,
+          organizacao_subordinada: item.organizacao_subordinada,
+          timestamp: new Date().toISOString(),
+          fonte_utilizada: sourceUsed,
+          termo_buscado: termStr,
+        })
         $app.save(record)
         savedCount++
         totalSaved++
@@ -161,7 +236,7 @@ routerAdd(
       logProcess(
         'Orquestrador Ro-DOU (Manual)',
         'Sucesso',
-        `Busca para "${termStr}" finalizada. Salvas ${savedCount} publicações.`,
+        `Busca para "${termStr}" finalizada (Fonte: ${sourceUsed}). Salvas ${savedCount} publicações.`,
       )
     }
 
