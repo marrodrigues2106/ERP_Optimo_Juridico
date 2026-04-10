@@ -398,6 +398,9 @@ function TaskEditModal({ task, open, onOpenChange, onSuccess }: any) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Editar Tarefa</DialogTitle>
+          <DialogDescription className="sr-only">
+            Formulário para edição de tarefa.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

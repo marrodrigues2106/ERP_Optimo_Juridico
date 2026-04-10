@@ -32,8 +32,9 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
     const departmentIgnore = config ? config.get('department_ignore') : ''
     const ignoreSignature = config ? config.get('ignore_signature_match') : true
     const datajudApiKey = config ? config.get('apiKey') : ''
+    const isExactSearch = config ? config.get('is_exact_search') : false
 
-    let monitoredTribunals = ['tjrj'] // default fallback
+    let monitoredTribunals = ['tjrj']
     try {
       const activeTribunals = $app.findRecordsByFilter('tribunals', 'active = true', '', 100, 0)
       if (activeTribunals.length > 0) {
@@ -56,24 +57,41 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
 
     for (let t of terms) {
       const termStr = t.get('termo')
+      const searchTerm = isExactSearch ? `"${termStr}"` : termStr
       const ignoredTerms = t.get('termos_ignorados')
         ? t
             .get('termos_ignorados')
             .split(',')
             .map((s) => s.trim().toLowerCase())
         : []
+
+      // Local Cache Check
+      try {
+        const cacheCheck = $app.findRecordsByFilter(
+          'logs_processamento',
+          `etapa = 'Monitoramento Unificado' && status = 'Sucesso' && mensagem ~ 'Busca para "${termStr}"' && data_hora >= '${today} 00:00:00'`,
+          '',
+          1,
+          0,
+        )
+        if (cacheCheck.length > 0) {
+          console.log(`[Monitoring] Term "${termStr}" already processed today. Skipping.`)
+          continue
+        }
+      } catch (e) {}
+
       const searchId = logProcess(
         'Monitoramento Unificado',
         'Processando',
         `Buscando termo: ${termStr}`,
       )
-
       let combinedResults = []
+      let sourceSuccess = false
 
-      // 1. Official IN API (DOU)
+      // 1. Primary: Official IN API (DOU)
       try {
         const res = $http.send({
-          url: `https://in.gov.br/api/search?q=${encodeURIComponent(termStr)}&dataInicio=${today}&dataFim=${today}&page=1`,
+          url: `https://in.gov.br/api/search?q=${encodeURIComponent(searchTerm)}&dataInicio=${today}&dataFim=${today}&page=1`,
           method: 'GET',
           timeout: 10,
         })
@@ -90,14 +108,15 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
               url: item.url || '',
             })),
           )
+          sourceSuccess = true
         }
       } catch (e) {}
 
-      // 2. Querido Diário API
-      if (territoryId) {
+      // 2. Secondary (Fallback): Querido Diário API
+      if (!sourceSuccess && territoryId) {
         try {
           const qdRes = $http.send({
-            url: `https://queridodiario.ok.org.br/api/gazettes?querystring=${encodeURIComponent(termStr)}&published_since=${today}&territory_ids=${territoryId}&excerpt_size=400`,
+            url: `https://queridodiario.ok.org.br/api/gazettes?querystring=${encodeURIComponent(searchTerm)}&published_since=${today}&territory_ids=${territoryId}&excerpt_size=400`,
             method: 'GET',
             timeout: 10,
           })
@@ -114,36 +133,20 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
                 url: g.url || '',
               })),
             )
+            sourceSuccess = true
           }
         } catch (e) {}
       }
 
-      // 3. INLABS Connector
-      try {
-        const inlabsKey = $secrets.get('INLABS') || ''
-        if (inlabsKey) {
-          const inlabsRes = $http.send({
-            url: `https://api.inlabs.com.br/v1/search?q=${encodeURIComponent(termStr)}&date=${today}`,
-            method: 'GET',
-            headers: { Authorization: `Bearer ${inlabsKey}` },
-            timeout: 10,
-          })
-          if (inlabsRes.statusCode === 200 && inlabsRes.json?.results) {
-            combinedResults = combinedResults.concat(
-              inlabsRes.json.results.map((item) => ({
-                source: 'INLABS',
-                title: item.title || 'Publicação INLABS',
-                section: item.section || 'Geral',
-                department: item.department || 'INLABS',
-                date: item.date || today,
-                abstract: item.abstract || '',
-                text: item.text || '',
-                url: item.url || '',
-              })),
-            )
-          }
-        }
-      } catch (e) {}
+      // 3. Recovery (Scheduled Reprocessing)
+      if (!sourceSuccess) {
+        logProcess(
+          'Monitoramento Unificado',
+          'Fila de Reprocessamento',
+          `Falha ao buscar termo: ${termStr}. Agendado para reprocessamento.`,
+        )
+        continue
+      }
 
       // Filter and Save DOU Results
       let savedCount = 0
@@ -192,7 +195,6 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
         record.set('metadados_adicionais', { search_id: searchId, abstract: item.abstract })
         $app.save(record)
 
-        // Link to ocorrencias_dou
         const ocorrencia = new Record($app.findCollectionByNameOrId('ocorrencias_dou'))
         ocorrencia.set('publicacao_id', record.id)
         ocorrencia.set('termo_id', t.id)
@@ -204,7 +206,7 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
         savedCount++
       }
 
-      // 4. DataJud Term Search
+      // DataJud Term Search
       let datajudCount = 0
       if (datajudApiKey && monitoredTribunals.length > 0) {
         for (let trAlias of monitoredTribunals) {

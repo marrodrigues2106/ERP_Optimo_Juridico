@@ -151,6 +151,7 @@ export default function Layout() {
                 >
                   <SheetHeader className="sr-only">
                     <SheetTitle>Menu Principal</SheetTitle>
+                    <SheetDescription>Navegação principal do sistema</SheetDescription>
                   </SheetHeader>
                   <div className="flex flex-col py-6 gap-2">
                     <div className="px-6 pb-4 font-bold text-xl text-primary border-b mb-2 flex items-center gap-3">
@@ -248,6 +249,9 @@ export default function Layout() {
                 <SheetContent side="right" className="bg-white">
                   <SheetHeader>
                     <SheetTitle>Notificações Recentes</SheetTitle>
+                    <SheetDescription className="sr-only">
+                      Lista de notificações não lidas
+                    </SheetDescription>
                   </SheetHeader>
                   <div className="mt-6 flex flex-col items-center justify-center h-64 text-muted-foreground">
                     <Bell className="w-10 h-10 mb-3 opacity-20" />

@@ -29,12 +29,14 @@ routerAdd(
     const territoryId = config ? config.get('territory_id') : ''
     const departmentIgnore = config ? config.get('department_ignore') : ''
     const ignoreSignature = config ? config.get('ignore_signature_match') : true
+    const isExactSearch = config ? config.get('is_exact_search') : false
 
     const today = new Date().toISOString().split('T')[0]
     let totalSaved = 0
 
     for (let t of terms) {
       const termStr = t.get('termo')
+      const searchTerm = isExactSearch ? `"${termStr}"` : termStr
       const searchId = logProcess(
         'Orquestrador Ro-DOU (Manual)',
         'Processando',
@@ -42,29 +44,32 @@ routerAdd(
       )
 
       let combinedResults = []
+      let sourceSuccess = false
 
-      // 1. Official IN API
+      // 1. Primary: Official IN API
       try {
         let page = 1
         let hasMore = true
         while (page <= 2 && hasMore) {
           const res = $http.send({
-            url: `https://in.gov.br/api/search?q=${encodeURIComponent(termStr)}&dataInicio=${today}&dataFim=${today}&page=${page}`,
+            url: `https://in.gov.br/api/search?q=${encodeURIComponent(searchTerm)}&dataInicio=${today}&dataFim=${today}&page=${page}`,
             method: 'GET',
             timeout: 10,
           })
-          if (res.statusCode === 200 && res.json && res.json.results) {
-            const mapped = res.json.results.map((item) => ({
-              source: 'DOU',
-              title: item.title || 'Publicação DOU',
-              section: item.section || 'Seção 1',
-              department: item.agency || 'DOU',
-              date: item.date || today,
-              abstract: item.abstract || '',
-              text: item.text || '',
-              url: item.url || '',
-            }))
-            combinedResults = combinedResults.concat(mapped)
+          if (res.statusCode === 200 && res.json?.results) {
+            combinedResults = combinedResults.concat(
+              res.json.results.map((item) => ({
+                source: 'DOU',
+                title: item.title || 'Publicação DOU',
+                section: item.section || 'Seção 1',
+                department: item.agency || 'DOU',
+                date: item.date || today,
+                abstract: item.abstract || '',
+                text: item.text || '',
+                url: item.url || '',
+              })),
+            )
+            sourceSuccess = true
             if (res.json.results.length < 20) hasMore = false
           } else {
             hasMore = false
@@ -73,55 +78,40 @@ routerAdd(
         }
       } catch (err) {}
 
-      // 2. Querido Diário
-      if (territoryId) {
+      // 2. Secondary (Fallback): Querido Diário
+      if (!sourceSuccess && territoryId) {
         try {
           const qdRes = $http.send({
-            url: `https://queridodiario.ok.org.br/api/gazettes?querystring=${encodeURIComponent(termStr)}&published_since=${today}&territory_ids=${territoryId}&excerpt_size=400&number_of_excerpts=1`,
+            url: `https://queridodiario.ok.org.br/api/gazettes?querystring=${encodeURIComponent(searchTerm)}&published_since=${today}&territory_ids=${territoryId}&excerpt_size=400&number_of_excerpts=1`,
             method: 'GET',
             timeout: 10,
           })
-          if (qdRes.statusCode === 200 && qdRes.json && qdRes.json.gazettes) {
-            const mapped = qdRes.json.gazettes.map((g) => ({
-              source: 'Querido Diário',
-              title: 'Publicação Municipal ' + g.territory_name,
-              section: 'Municipal',
-              department: g.territory_name,
-              date: g.date || today,
-              abstract: g.excerpts && g.excerpts.length > 0 ? g.excerpts[0] : '',
-              text: g.excerpts && g.excerpts.length > 0 ? g.excerpts[0] : g.excerpt || '',
-              url: g.url || '',
-            }))
-            combinedResults = combinedResults.concat(mapped)
+          if (qdRes.statusCode === 200 && qdRes.json?.gazettes) {
+            combinedResults = combinedResults.concat(
+              qdRes.json.gazettes.map((g) => ({
+                source: 'Querido Diário',
+                title: 'Publicação Municipal ' + g.territory_name,
+                section: 'Municipal',
+                department: g.territory_name,
+                date: g.date || today,
+                abstract: g.excerpts?.[0] || '',
+                text: g.excerpts?.[0] || g.excerpt || '',
+                url: g.url || '',
+              })),
+            )
+            sourceSuccess = true
           }
         } catch (err) {}
       }
 
-      // 3. INLABS
-      try {
-        const inlabsKey = $secrets.get('INLABS') || ''
-        if (inlabsKey) {
-          const inlabsRes = $http.send({
-            url: `https://api.inlabs.com.br/v1/search?q=${encodeURIComponent(termStr)}&date=${today}`,
-            method: 'GET',
-            headers: { Authorization: `Bearer ${inlabsKey}` },
-            timeout: 10,
-          })
-          if (inlabsRes.statusCode === 200 && inlabsRes.json && inlabsRes.json.results) {
-            const mapped = inlabsRes.json.results.map((item) => ({
-              source: 'INLABS',
-              title: item.title || 'Publicação INLABS',
-              section: item.section || 'Geral',
-              department: item.department || 'INLABS',
-              date: item.date || today,
-              abstract: item.abstract || '',
-              text: item.text || '',
-              url: item.url || '',
-            }))
-            combinedResults = combinedResults.concat(mapped)
-          }
-        }
-      } catch (err) {}
+      if (!sourceSuccess) {
+        logProcess(
+          'Orquestrador Ro-DOU (Manual)',
+          'Fila de Reprocessamento',
+          `Falha ao buscar termo: ${termStr}. Agendado para reprocessamento.`,
+        )
+        continue
+      }
 
       let savedCount = 0
       for (let item of combinedResults) {
@@ -130,7 +120,6 @@ routerAdd(
           item.department.toLowerCase().includes(departmentIgnore.toLowerCase())
         )
           continue
-
         if (item.source === 'DOU') {
           const matchSec = douSections
             .split(',')
@@ -163,9 +152,7 @@ routerAdd(
         record.set('data_publicacao', item.date.includes(':') ? item.date : item.date + ' 00:00:00')
         record.set('data_coleta', new Date().toISOString().replace('T', ' ').substring(0, 19))
         record.set('status_processamento', 'bruto')
-
-        let meta = { search_id: searchId, abstract: item.abstract }
-        record.set('metadados_adicionais', meta)
+        record.set('metadados_adicionais', { search_id: searchId, abstract: item.abstract })
         $app.save(record)
         savedCount++
         totalSaved++
