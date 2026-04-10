@@ -52,9 +52,20 @@ export default function MonitoringManager() {
 
   const [submitting, setSubmitting] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [lastSyncLog, setLastSyncLog] = useState<any>(null)
 
   const loadData = async () => {
     try {
+      try {
+        const logRecords = await pb.collection('logs_processamento').getList(1, 1, {
+          sort: '-created',
+          filter: "etapa ~ 'Conexão HTTP'",
+        })
+        if (logRecords.items.length > 0) {
+          setLastSyncLog(logRecords.items[0])
+        }
+      } catch (e) {}
+
       const tribs = await pb.collection('tribunals').getFullList({ sort: 'name' })
       setTribunalsList(tribs)
 
@@ -447,14 +458,45 @@ export default function MonitoringManager() {
           </Card>
         </div>
 
-        <div className="flex justify-between items-center pt-4 border-t">
-          <Button type="button" variant="secondary" onClick={handleRunSearch} disabled={syncing}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Sincronizando...' : 'Executar Busca Agora'}
-          </Button>
-          <Button type="submit" disabled={submitting}>
-            <Save className="w-4 h-4 mr-2" /> {submitting ? 'Salvando...' : 'Salvar Configurações'}
-          </Button>
+        <div className="flex flex-col sm:flex-row justify-between items-center pt-4 border-t gap-4">
+          <div className="text-xs text-muted-foreground flex flex-col bg-slate-50 p-2 rounded w-full sm:w-auto border">
+            <strong className="text-slate-700 mb-1">Status da Integração DOU</strong>
+            {lastSyncLog ? (
+              <>
+                <span className="flex items-center gap-1">
+                  <div
+                    className={`w-2 h-2 rounded-full ${lastSyncLog.status === 'Sucesso' ? 'bg-emerald-500' : 'bg-red-500'}`}
+                  />
+                  Última tentativa: {new Date(lastSyncLog.created).toLocaleString()}
+                </span>
+                <span
+                  className="text-slate-500 mt-1 break-all max-w-[300px] truncate"
+                  title={lastSyncLog.mensagem}
+                >
+                  {lastSyncLog.status} -{' '}
+                  {lastSyncLog.mensagem.split('|')[1]?.trim() || lastSyncLog.mensagem}
+                </span>
+              </>
+            ) : (
+              <span>Nenhum log de conexão recente.</span>
+            )}
+          </div>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button
+              type="button"
+              variant="secondary"
+              className="flex-1 sm:flex-none"
+              onClick={handleRunSearch}
+              disabled={syncing}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Sincronizando...' : 'Busca Manual'}
+            </Button>
+            <Button type="submit" className="flex-1 sm:flex-none" disabled={submitting}>
+              <Save className="w-4 h-4 mr-2" />{' '}
+              {submitting ? 'Salvando...' : 'Salvar Configurações'}
+            </Button>
+          </div>
         </div>
       </form>
 
