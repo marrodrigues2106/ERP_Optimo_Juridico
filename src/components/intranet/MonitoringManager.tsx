@@ -64,7 +64,9 @@ export default function MonitoringManager() {
         if (logRecords.items.length > 0) {
           setLastSyncLog(logRecords.items[0])
         }
-      } catch (e) {}
+      } catch (e) {
+        // ignore error
+      }
 
       const tribs = await pb.collection('tribunals').getFullList({ sort: 'name' })
       setTribunalsList(tribs)
