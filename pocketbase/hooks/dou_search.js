@@ -156,15 +156,30 @@ routerAdd(
             'Processando',
             `Buscando página ${page} na API do DOU...`,
           )
+          const userAgents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Safari/605.1.15',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0',
+          ]
+          const randomUA = userAgents[Math.floor(Math.random() * userAgents.length)]
+
           const res = $http.send({
             url: url,
             method: 'GET',
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'User-Agent': randomUA,
               Accept:
-                'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
               'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
               Referer: 'https://www.in.gov.br/consulta/-/buscar/dou',
+              'Sec-Fetch-Dest': 'document',
+              'Sec-Fetch-Mode': 'navigate',
+              'Sec-Fetch-Site': 'same-origin',
+              'Sec-Fetch-User': '?1',
+              'Upgrade-Insecure-Requests': '1',
               'Accept-Encoding': 'identity',
             },
             timeout: 15,
@@ -216,9 +231,9 @@ routerAdd(
               hasMore = false
               scrapeError = 'Structure Mismatch: Script tag not found'
             }
-          } else if (res.statusCode === 403) {
+          } else if (res.statusCode === 403 || res.statusCode === 429) {
             hasMore = false
-            scrapeError = `HTTP 403: Acesso bloqueado pelo firewall do DOU (Forbidden).`
+            scrapeError = `HTTP ${res.statusCode}: Acesso bloqueado pelo firewall do DOU (Forbidden/Too Many Requests).`
             logProcess('Busca Ativa DOU - Erro Scraping', 'Erro', scrapeError)
           } else if (res.statusCode === 500) {
             hasMore = false

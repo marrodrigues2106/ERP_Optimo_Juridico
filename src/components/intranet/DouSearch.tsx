@@ -257,8 +257,12 @@ export default function DouSearch() {
   }
 
   const hasBlockedError =
-    liveLogs.some((l) => l.mensagem.includes('403') || l.mensagem.includes('Blocked')) ||
+    liveLogs.some(
+      (l) =>
+        l.mensagem.includes('403') || l.mensagem.includes('429') || l.mensagem.includes('Blocked'),
+    ) ||
     message.includes('403') ||
+    message.includes('429') ||
     message.includes('Blocked')
 
   let currentStepText = 'Execução em Tempo Real'
@@ -309,8 +313,8 @@ export default function DouSearch() {
                 </TooltipTrigger>
                 <TooltipContent>
                   <p className="max-w-xs text-xs">
-                    O portal DOU está ativo, mas bloqueou nossa requisição (Erro 403). Possível
-                    limite de segurança contra acessos automatizados.
+                    O portal DOU está ativo, mas bloqueou nossa requisição (Erro 403/429). Fallbacks
+                    (Querido Diário/Cache) estão em uso.
                   </p>
                 </TooltipContent>
               </Tooltip>
