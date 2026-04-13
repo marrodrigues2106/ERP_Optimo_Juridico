@@ -38,3 +38,9 @@ export const searchDou = async (params: DouSearchParams): Promise<DouSearchRespo
     headers: { 'Content-Type': 'application/json' },
   })
 }
+
+export const checkDouHealth = async (): Promise<{ status: string; message: string }> => {
+  return pb.send('/backend/v1/dou/health', {
+    method: 'GET',
+  })
+}

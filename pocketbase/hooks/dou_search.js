@@ -24,7 +24,7 @@ routerAdd(
         logRec.set('etapa', etapa)
         logRec.set('status', status)
         logRec.set('mensagem', source ? `${msg} | Source: ${source}` : msg)
-        logRec.set('data_hora', new Date().toISOString().replace('T', ' ').substring(0, 19))
+        logRec.set('data_hora', new Date().toISOString())
         $app.save(logRec)
       } catch (err) {}
     }
@@ -111,7 +111,7 @@ routerAdd(
         }
         qRec.set('status', statusStr)
         qRec.set('error_message', errorMsg)
-        qRec.set('last_attempt', new Date().toISOString().replace('T', ' ').substring(0, 19))
+        qRec.set('last_attempt', new Date().toISOString())
         if (statusStr === 'failed') {
           qRec.set('retry_count', qRec.get('retry_count') + 1)
         }
@@ -144,6 +144,11 @@ routerAdd(
         }
 
         try {
+          logProcess(
+            'Busca Ativa DOU - Scraping',
+            'Processando',
+            `Buscando página ${page} na API do DOU...`,
+          )
           const res = $http.send({
             url: url,
             method: 'GET',
@@ -211,6 +216,11 @@ routerAdd(
       }
 
       if (scrapeSuccess && scrapeResults.length > 0) {
+        logProcess(
+          'Busca Ativa DOU - Tratamento',
+          'Processando',
+          `Normalizando e salvando ${scrapeResults.length} registros...`,
+        )
         sourceUsed = 'DOU_SCRAPING'
         updateQueue('completed', '')
 
@@ -243,7 +253,7 @@ routerAdd(
               record.set('hash_conteudo', hash)
               record.set('fonte_coleta', 'DOU_SCRAPING')
               record.set('data_publicacao', pubDateStr)
-              record.set('data_coleta', new Date().toISOString().replace('T', ' ').substring(0, 19))
+              record.set('data_coleta', new Date().toISOString())
               record.set('status_processamento', 'bruto')
 
               record.set('editionNumber', String(item.editionNumber || ''))
@@ -341,7 +351,7 @@ routerAdd(
         cacheRec.set('payload', results)
         let expiresAt = new Date()
         expiresAt.setHours(expiresAt.getHours() + 1)
-        cacheRec.set('expires_at', expiresAt.toISOString().replace('T', ' ').substring(0, 19))
+        cacheRec.set('expires_at', expiresAt.toISOString())
         $app.save(cacheRec)
       } catch (err) {}
     }

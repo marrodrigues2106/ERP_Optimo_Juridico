@@ -11,7 +11,7 @@ routerAdd(
         logRec.set('etapa', etapa)
         logRec.set('status', status)
         logRec.set('mensagem', msg)
-        logRec.set('data_hora', new Date().toISOString().replace('T', ' ').substring(0, 19))
+        logRec.set('data_hora', new Date().toISOString())
         $app.save(logRec)
         return logRec.id
       } catch (e) {
@@ -118,7 +118,7 @@ routerAdd(
               'mensagem',
               `URL: ${url} | Status: ${statusCode} | Latência: ${latency}ms | Erro: ${errorMsg}`,
             )
-            logRec.set('data_hora', new Date().toISOString().replace('T', ' ').substring(0, 19))
+            logRec.set('data_hora', new Date().toISOString())
             $app.save(logRec)
           } catch (e) {}
 
@@ -168,10 +168,7 @@ routerAdd(
                   logRec.set('etapa', 'Conexão HTTP - DOU')
                   logRec.set('status', 'Erro')
                   logRec.set('mensagem', `JSON Parsing Error: ${String(e)}`)
-                  logRec.set(
-                    'data_hora',
-                    new Date().toISOString().replace('T', ' ').substring(0, 19),
-                  )
+                  logRec.set('data_hora', new Date().toISOString())
                   $app.save(logRec)
                 } catch (err) {}
                 hasMore = false
@@ -235,7 +232,7 @@ routerAdd(
             'mensagem',
             `URL: ${url} | Status: ${statusCode} | Latência: ${latency}ms | Erro: ${errorMsg}`,
           )
-          logRec.set('data_hora', new Date().toISOString().replace('T', ' ').substring(0, 19))
+          logRec.set('data_hora', new Date().toISOString())
           $app.save(logRec)
         } catch (e) {}
       }
@@ -311,7 +308,7 @@ routerAdd(
         record.set('hash_conteudo', hash)
         record.set('fonte_coleta', item.source)
         record.set('data_publicacao', pubDate)
-        record.set('data_coleta', new Date().toISOString().replace('T', ' ').substring(0, 19))
+        record.set('data_coleta', new Date().toISOString())
         record.set('status_processamento', 'bruto')
         record.set('metadados_adicionais', {
           search_id: searchId,

@@ -1,13 +1,27 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { searchDou, DouSearchResult } from '@/services/dou'
-import { Search, Loader2, ExternalLink, Database, Globe, AlertTriangle, Zap } from 'lucide-react'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { searchDou, checkDouHealth, DouSearchResult } from '@/services/dou'
+import {
+  Search,
+  Loader2,
+  ExternalLink,
+  Database,
+  Globe,
+  AlertTriangle,
+  Zap,
+  Activity,
+  CheckCircle2,
+  XCircle,
+} from 'lucide-react'
 import { format } from 'date-fns'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
+import { useRealtime } from '@/hooks/use-realtime'
+import { cn } from '@/lib/utils'
 import {
   Pagination,
   PaginationContent,
@@ -31,6 +45,14 @@ function getLastBusinessDay() {
     date.setDate(date.getDate() - 2) // Sunday -> Friday
   else if (dayOfWeek === 6) date.setDate(date.getDate() - 1) // Saturday -> Friday
   return getLocalDateStr(date)
+}
+
+interface LogEntry {
+  id: string
+  etapa: string
+  status: string
+  mensagem: string
+  data_hora: string
 }
 
 export default function DouSearch() {
@@ -58,6 +80,10 @@ export default function DouSearch() {
   const [source, setSource] = useState(() => sessionStorage.getItem('dou_source') || '')
   const [message, setMessage] = useState(() => sessionStorage.getItem('dou_message') || '')
 
+  const [douHealth, setDouHealth] = useState<'checking' | 'up' | 'down'>('checking')
+  const [liveLogs, setLiveLogs] = useState<LogEntry[]>([])
+  const logsEndRef = useRef<HTMLDivElement>(null)
+
   const [currentPage, setCurrentPage] = useState(() => {
     const saved = sessionStorage.getItem('dou_page')
     return saved ? parseInt(saved, 10) : 1
@@ -81,6 +107,33 @@ export default function DouSearch() {
       sessionStorage.setItem('dou_page', currentPage.toString())
     }
   }, [searched, results, source, message, currentPage])
+
+  useEffect(() => {
+    const checkHealth = async () => {
+      try {
+        const res = await checkDouHealth()
+        setDouHealth(res.status === 'up' ? 'up' : 'down')
+      } catch (err) {
+        setDouHealth('down')
+      }
+    }
+    checkHealth()
+  }, [])
+
+  useRealtime('logs_processamento', (e) => {
+    if ((loading || liveLogs.length > 0) && e.action === 'create') {
+      setLiveLogs((prev) => {
+        const next = [...prev, e.record as unknown as LogEntry]
+        return next.slice(-50)
+      })
+    }
+  })
+
+  useEffect(() => {
+    if (logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [liveLogs])
 
   if (!user?.can_view_search_module && user?.role !== 'admin') {
     return (
@@ -108,9 +161,11 @@ export default function DouSearch() {
       return
     }
 
+    setLiveLogs([])
     setLoading(true)
     setSearched(true)
     setCurrentPage(1)
+
     try {
       const res = await searchDou({ q, publishFrom, publishTo, orgPrin, artType })
       setResults(res.data || [])
@@ -156,12 +211,32 @@ export default function DouSearch() {
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-10 animate-fade-in-up">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Motor de Busca DOU</h1>
-        <p className="text-slate-500">
-          Pesquisa avançada multicamadas no Diário Oficial da União. O sistema tenta buscar no
-          Cache, Dados Locais, realiza ingestão direta se necessário e utiliza fallbacks.
-        </p>
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Motor de Busca DOU</h1>
+          <p className="text-slate-500">
+            Pesquisa avançada multicamadas no Diário Oficial da União. O sistema tenta buscar no
+            Cache, Dados Locais, realiza ingestão direta se necessário e utiliza fallbacks.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm text-sm font-medium">
+          <span className="text-slate-500">Status IN.GOV:</span>
+          {douHealth === 'checking' && (
+            <span className="flex items-center text-amber-500">
+              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Verificando
+            </span>
+          )}
+          {douHealth === 'up' && (
+            <span className="flex items-center text-emerald-600">
+              <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Conectado
+            </span>
+          )}
+          {douHealth === 'down' && (
+            <span className="flex items-center text-red-600">
+              <XCircle className="w-3.5 h-3.5 mr-1.5" /> Indisponível
+            </span>
+          )}
+        </div>
       </div>
 
       <Card>
@@ -241,6 +316,62 @@ export default function DouSearch() {
           </form>
         </CardContent>
       </Card>
+
+      {(loading || liveLogs.length > 0) && (
+        <Card className="border-indigo-100/50 shadow-md animate-fade-in overflow-hidden">
+          <CardHeader className="py-3 px-4 bg-slate-50 border-b border-slate-100 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-semibold flex items-center text-slate-700">
+              {loading ? (
+                <Activity className="w-4 h-4 mr-2 animate-pulse text-indigo-600" />
+              ) : (
+                <Database className="w-4 h-4 mr-2 text-slate-500" />
+              )}
+              {loading ? 'Execução em Tempo Real' : 'Último Log de Execução'}
+            </CardTitle>
+            {loading && (
+              <span className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full animate-pulse">
+                Running
+              </span>
+            )}
+          </CardHeader>
+          <CardContent className="p-0 bg-slate-950">
+            <ScrollArea className="h-48 p-4 font-mono text-[11px] leading-relaxed tracking-tight sm:text-xs">
+              {liveLogs.length === 0 ? (
+                <div className="flex items-center text-slate-400 h-full justify-center opacity-70">
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Aguardando eventos do servidor...
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  {liveLogs.map((log, i) => (
+                    <div key={i} className="mb-2 flex flex-col sm:flex-row sm:gap-2 text-slate-300">
+                      <div className="flex gap-2 shrink-0">
+                        <span className="text-slate-500">
+                          [{log.data_hora ? new Date(log.data_hora).toLocaleTimeString() : ''}]
+                        </span>
+                        <span
+                          className={cn(
+                            'font-semibold',
+                            log.status?.toLowerCase().includes('erro') ||
+                              log.status?.toLowerCase().includes('fail')
+                              ? 'text-red-400'
+                              : 'text-emerald-400',
+                          )}
+                        >
+                          [{log.status || 'Info'}]
+                        </span>
+                        <span className="text-indigo-300">[{log.etapa}]</span>
+                      </div>
+                      <span className="break-words mt-0.5 sm:mt-0 opacity-90">{log.mensagem}</span>
+                    </div>
+                  ))}
+                  <div ref={logsEndRef} />
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
 
       {searched && (
         <div className="flex flex-col gap-4 animate-fade-in">
