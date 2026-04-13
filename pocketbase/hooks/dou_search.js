@@ -90,6 +90,8 @@ routerAdd(
           editionNumber: r.get('editionNumber'),
           numberPage: r.get('numberPage'),
           hierarchyStr: r.get('hierarchyStr'),
+          orgao_principal: r.get('orgao_principal'),
+          organizacao_subordinada: r.get('organizacao_subordinada'),
           source: 'LOCAL_DB',
         }))
       }
@@ -249,8 +251,30 @@ routerAdd(
               record.set('hierarchyStr', item.hierarchyStr || '')
               record.set('artType', item.artType || '')
 
+              let org_principal = ''
+              let org_subordinada = ''
+              if (item.hierarchyStr) {
+                const parts = item.hierarchyStr.split('-').map((p) => p.trim())
+                if (parts.length > 0) org_principal = parts[0]
+                if (parts.length > 1) org_subordinada = parts.slice(1).join(' - ')
+              }
+              record.set('orgao_principal', org_principal)
+              record.set('organizacao_subordinada', org_subordinada)
+
+              if (e.auth && e.auth.get('active_organization')) {
+                record.set('organization', e.auth.get('active_organization'))
+              }
+
               $app.save(record)
             } catch (saveErr) {}
+          }
+
+          let org_principal = ''
+          let org_subordinada = ''
+          if (item.hierarchyStr) {
+            const parts = item.hierarchyStr.split('-').map((p) => p.trim())
+            if (parts.length > 0) org_principal = parts[0]
+            if (parts.length > 1) org_subordinada = parts.slice(1).join(' - ')
           }
 
           return {
@@ -263,6 +287,8 @@ routerAdd(
             editionNumber: item.editionNumber,
             numberPage: item.numberPage,
             hierarchyStr: item.hierarchyStr,
+            orgao_principal: org_principal,
+            organizacao_subordinada: org_subordinada,
             source: 'DOU_SCRAPING',
           }
         })

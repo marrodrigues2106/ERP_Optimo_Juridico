@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-13T03:03:04.071Z",
+  "generatedAt": "2026-04-13T03:11:30.537Z",
   "collections": [
     {
       "name": "users",
@@ -2107,6 +2107,25 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "orgao_principal",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "organizacao_subordinada",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "organization",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "organizations"
         }
       ],
       "indexes": ["CREATE UNIQUE INDEX idx_pub_dou_hash ON publicacoes_dou (hash_conteudo)"]

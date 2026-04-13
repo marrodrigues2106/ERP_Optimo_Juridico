@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -7,21 +7,58 @@ import { searchDou, DouSearchResult } from '@/services/dou'
 import { Search, Loader2, ExternalLink, Database, Globe, AlertTriangle, Zap } from 'lucide-react'
 import { format } from 'date-fns'
 import { useAuth } from '@/hooks/use-auth'
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination'
 
 export default function DouSearch() {
   const { user } = useAuth()
 
-  const [q, setQ] = useState('')
-  const [publishFrom, setPublishFrom] = useState('')
-  const [publishTo, setPublishTo] = useState('')
-  const [orgPrin, setOrgPrin] = useState('')
-  const [artType, setArtType] = useState('')
+  const [q, setQ] = useState(() => sessionStorage.getItem('dou_q') || '')
+  const [publishFrom, setPublishFrom] = useState(
+    () => sessionStorage.getItem('dou_publishFrom') || '',
+  )
+  const [publishTo, setPublishTo] = useState(() => sessionStorage.getItem('dou_publishTo') || '')
+  const [orgPrin, setOrgPrin] = useState(() => sessionStorage.getItem('dou_orgPrin') || '')
+  const [artType, setArtType] = useState(() => sessionStorage.getItem('dou_artType') || '')
 
   const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<DouSearchResult[]>([])
-  const [searched, setSearched] = useState(false)
-  const [source, setSource] = useState('')
-  const [message, setMessage] = useState('')
+  const [results, setResults] = useState<DouSearchResult[]>(() => {
+    const saved = sessionStorage.getItem('dou_results')
+    return saved ? JSON.parse(saved) : []
+  })
+  const [searched, setSearched] = useState(() => !!sessionStorage.getItem('dou_searched'))
+  const [source, setSource] = useState(() => sessionStorage.getItem('dou_source') || '')
+  const [message, setMessage] = useState(() => sessionStorage.getItem('dou_message') || '')
+
+  const [currentPage, setCurrentPage] = useState(() => {
+    const saved = sessionStorage.getItem('dou_page')
+    return saved ? parseInt(saved, 10) : 1
+  })
+  const itemsPerPage = 10
+
+  useEffect(() => {
+    sessionStorage.setItem('dou_q', q)
+    sessionStorage.setItem('dou_publishFrom', publishFrom)
+    sessionStorage.setItem('dou_publishTo', publishTo)
+    sessionStorage.setItem('dou_orgPrin', orgPrin)
+    sessionStorage.setItem('dou_artType', artType)
+  }, [q, publishFrom, publishTo, orgPrin, artType])
+
+  useEffect(() => {
+    if (searched) {
+      sessionStorage.setItem('dou_searched', 'true')
+      sessionStorage.setItem('dou_results', JSON.stringify(results))
+      sessionStorage.setItem('dou_source', source)
+      sessionStorage.setItem('dou_message', message)
+      sessionStorage.setItem('dou_page', currentPage.toString())
+    }
+  }, [searched, results, source, message, currentPage])
 
   if (!user?.can_view_search_module && user?.role !== 'admin') {
     return (
@@ -42,6 +79,7 @@ export default function DouSearch() {
 
     setLoading(true)
     setSearched(true)
+    setCurrentPage(1)
     try {
       const res = await searchDou({ q, publishFrom, publishTo, orgPrin, artType })
       setResults(res.data || [])
@@ -72,6 +110,17 @@ export default function DouSearch() {
     if (source === 'QUERIDO_DIARIO') return 'Fallback (Querido Diário)'
     if (source === 'ERRO') return 'Falha na Busca'
     return 'Nenhum resultado'
+  }
+
+  const totalPages = Math.ceil(results.length / itemsPerPage)
+  const paginatedResults = results.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage,
+  )
+
+  const formatArtType = (type: string) => {
+    if (!type) return ''
+    return type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
   }
 
   return (
@@ -192,73 +241,146 @@ export default function DouSearch() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4">
-              {results.map((item, idx) => (
-                <Card
-                  key={idx}
-                  className="overflow-hidden hover:shadow-md transition-shadow duration-200"
-                >
-                  <div className="p-5 flex flex-col gap-3">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div>
-                        <h3 className="font-semibold text-lg text-slate-900 leading-tight">
-                          {item.title}
-                        </h3>
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-slate-500">
-                          <span className="font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-xs">
-                            {item.pubName}
-                          </span>
-                          {item.artType && (
-                            <>
-                              <span>•</span>
-                              <span>{item.artType}</span>
-                            </>
-                          )}
-                          <span>•</span>
-                          <span>
-                            {item.pubDate ? format(new Date(item.pubDate), 'dd/MM/yyyy') : ''}
-                          </span>
+            <>
+              <div className="grid gap-4">
+                {paginatedResults.map((item, idx) => (
+                  <Card
+                    key={idx}
+                    className="overflow-hidden hover:shadow-md transition-shadow duration-200"
+                  >
+                    <div className="p-5 flex flex-col gap-3">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <h3 className="font-semibold text-lg text-slate-900 leading-tight">
+                            {item.title}
+                          </h3>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-slate-500">
+                            <span className="font-medium text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-xs">
+                              {item.pubName}
+                            </span>
+                            {item.artType && (
+                              <>
+                                <span>•</span>
+                                <span>{formatArtType(item.artType)}</span>
+                              </>
+                            )}
+                            <span>•</span>
+                            <span>
+                              {item.pubDate ? format(new Date(item.pubDate), 'dd/MM/yyyy') : ''}
+                            </span>
+                          </div>
                         </div>
+                        {item.urlTitle && (
+                          <Button variant="outline" size="sm" asChild className="shrink-0 bg-white">
+                            <a href={item.urlTitle} target="_blank" rel="noreferrer">
+                              <ExternalLink className="w-4 h-4 mr-2" />
+                              Ler Original
+                            </a>
+                          </Button>
+                        )}
                       </div>
-                      {item.urlTitle && (
-                        <Button variant="outline" size="sm" asChild className="shrink-0 bg-white">
-                          <a href={item.urlTitle} target="_blank" rel="noreferrer">
-                            <ExternalLink className="w-4 h-4 mr-2" />
-                            Ler Original
-                          </a>
-                        </Button>
+
+                      {(item.hierarchyStr || item.editionNumber || item.orgao_principal) && (
+                        <div className="text-xs text-slate-500 flex flex-col sm:flex-row flex-wrap gap-3 p-2 bg-slate-50 rounded-md border border-slate-100">
+                          {item.orgao_principal && (
+                            <span>
+                              <strong>Órgão:</strong> {item.orgao_principal}{' '}
+                              {item.organizacao_subordinada
+                                ? `- ${item.organizacao_subordinada}`
+                                : ''}
+                            </span>
+                          )}
+                          {!item.orgao_principal && item.hierarchyStr && (
+                            <span>
+                              <strong>Hierarquia:</strong> {item.hierarchyStr}
+                            </span>
+                          )}
+                          {item.editionNumber && (
+                            <span>
+                              <strong>Edição:</strong> {item.editionNumber}
+                            </span>
+                          )}
+                          {item.numberPage && (
+                            <span>
+                              <strong>Página:</strong> {item.numberPage}
+                            </span>
+                          )}
+                        </div>
                       )}
-                    </div>
 
-                    {(item.hierarchyStr || item.editionNumber) && (
-                      <div className="text-xs text-slate-500 flex flex-wrap gap-3 p-2 bg-slate-50 rounded-md border border-slate-100">
-                        {item.hierarchyStr && (
-                          <span>
-                            <strong>Hierarquia:</strong> {item.hierarchyStr}
-                          </span>
-                        )}
-                        {item.editionNumber && (
-                          <span>
-                            <strong>Edição:</strong> {item.editionNumber}
-                          </span>
-                        )}
-                        {item.numberPage && (
-                          <span>
-                            <strong>Página:</strong> {item.numberPage}
-                          </span>
-                        )}
+                      <div className="relative mt-1">
+                        <p className="text-sm text-slate-600 line-clamp-4 whitespace-pre-wrap leading-relaxed">
+                          {item.content}
+                        </p>
                       </div>
-                    )}
-
-                    <div className="relative mt-1">
-                      <p className="text-sm text-slate-600 line-clamp-4 whitespace-pre-wrap leading-relaxed">
-                        {item.content}
-                      </p>
                     </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
+                  </Card>
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="mt-4 flex justify-center">
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            setCurrentPage((p) => Math.max(1, p - 1))
+                            window.scrollTo({ top: 0, behavior: 'smooth' })
+                          }}
+                          className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
+                        />
+                      </PaginationItem>
+
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum = currentPage
+                        if (totalPages <= 5) {
+                          pageNum = i + 1
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i
+                        } else {
+                          pageNum = currentPage - 2 + i
+                        }
+
+                        return (
+                          <PaginationItem key={pageNum}>
+                            <PaginationLink
+                              href="#"
+                              isActive={currentPage === pageNum}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                setCurrentPage(pageNum)
+                                window.scrollTo({ top: 0, behavior: 'smooth' })
+                              }}
+                            >
+                              {pageNum}
+                            </PaginationLink>
+                          </PaginationItem>
+                        )
+                      })}
+
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            setCurrentPage((p) => Math.min(totalPages, p + 1))
+                            window.scrollTo({ top: 0, behavior: 'smooth' })
+                          }}
+                          className={
+                            currentPage === totalPages ? 'pointer-events-none opacity-50' : ''
+                          }
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

@@ -112,6 +112,16 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
                     record.set('hierarchyStr', item.hierarchyStr || '')
                     record.set('artType', item.artType || '')
 
+                    let org_principal = ''
+                    let org_subordinada = ''
+                    if (item.hierarchyStr) {
+                      const parts = item.hierarchyStr.split('-').map((p) => p.trim())
+                      if (parts.length > 0) org_principal = parts[0]
+                      if (parts.length > 1) org_subordinada = parts.slice(1).join(' - ')
+                    }
+                    record.set('orgao_principal', org_principal)
+                    record.set('organizacao_subordinada', org_subordinada)
+
                     $app.save(record)
                   } catch (saveErr) {}
                 }

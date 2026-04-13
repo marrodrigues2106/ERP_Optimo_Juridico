@@ -18,6 +18,8 @@ export interface DouSearchResult {
   editionNumber?: string
   numberPage?: string
   hierarchyStr?: string
+  orgao_principal?: string
+  organizacao_subordinada?: string
   source: string
 }
 
