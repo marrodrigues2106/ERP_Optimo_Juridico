@@ -4,6 +4,8 @@ export interface DouSearchParams {
   q: string
   publishFrom?: string
   publishTo?: string
+  orgPrin?: string
+  artType?: string
 }
 
 export interface DouSearchResult {
@@ -24,6 +26,7 @@ export interface DouSearchResponse {
   source: string
   total: number
   data: DouSearchResult[]
+  message?: string
 }
 
 export const searchDou = async (params: DouSearchParams): Promise<DouSearchResponse> => {
