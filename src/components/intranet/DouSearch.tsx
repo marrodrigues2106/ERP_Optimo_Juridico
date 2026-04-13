@@ -20,6 +20,7 @@ import {
   CalendarIcon,
   Trash2,
 } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useAuth } from '@/hooks/use-auth'
@@ -89,7 +90,7 @@ export default function DouSearch() {
   const [source, setSource] = useState(() => sessionStorage.getItem('dou_source') || '')
   const [message, setMessage] = useState(() => sessionStorage.getItem('dou_message') || '')
 
-  const [douHealth, setDouHealth] = useState<'checking' | 'up' | 'down'>('checking')
+  const [douHealth, setDouHealth] = useState<'checking' | 'up' | 'down' | 'blocked'>('checking')
   const [liveLogs, setLiveLogs] = useState<LogEntry[]>([])
   const logsEndRef = useRef<HTMLDivElement>(null)
 
@@ -121,7 +122,7 @@ export default function DouSearch() {
     const checkHealth = async () => {
       try {
         const res = await checkDouHealth()
-        setDouHealth(res.status === 'up' ? 'up' : 'down')
+        setDouHealth(res.status as 'up' | 'down' | 'blocked')
       } catch (err) {
         setDouHealth('down')
       }
@@ -295,8 +296,25 @@ export default function DouSearch() {
           )}
           {douHealth === 'up' && (
             <span className="flex items-center text-emerald-600">
-              <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Conectado
+              <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Online
             </span>
+          )}
+          {douHealth === 'blocked' && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="flex items-center text-amber-500 cursor-help">
+                    <AlertTriangle className="w-3.5 h-3.5 mr-1.5" /> Bloqueado/Segurança
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="max-w-xs text-xs">
+                    O portal DOU está ativo, mas bloqueou nossa requisição (Erro 403). Possível
+                    limite de segurança contra acessos automatizados.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
           {douHealth === 'down' && (
             <span className="flex items-center text-red-600">
