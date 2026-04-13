@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { searchDou, checkDouHealth, DouSearchResult } from '@/services/dou'
 import {
   Search,
@@ -209,6 +210,27 @@ export default function DouSearch() {
     return type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
   }
 
+  const hasBlockedError =
+    liveLogs.some((l) => l.mensagem.includes('403') || l.mensagem.includes('Blocked')) ||
+    message.includes('403') ||
+    message.includes('Blocked')
+
+  let currentStepText = 'Execução em Tempo Real'
+  if (loading) {
+    if (liveLogs.length > 0) {
+      const lastLog = liveLogs[liveLogs.length - 1]
+      if (lastLog.etapa.includes('Scraping') || lastLog.etapa.includes('Conexão'))
+        currentStepText = 'Conectando ao DOU...'
+      else if (lastLog.etapa.includes('Tratamento') || lastLog.etapa.includes('Normalizando'))
+        currentStepText = 'Extraindo e Normalizando dados...'
+      else if (lastLog.etapa.includes('Salvar') || lastLog.etapa.includes('Cache'))
+        currentStepText = 'Indexando resultados...'
+      else currentStepText = lastLog.etapa
+    } else {
+      currentStepText = 'Iniciando Busca...'
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-10 animate-fade-in-up">
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
@@ -317,6 +339,19 @@ export default function DouSearch() {
         </CardContent>
       </Card>
 
+      {hasBlockedError && (
+        <Alert variant="destructive" className="animate-fade-in">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Conexão Bloqueada</AlertTitle>
+          <AlertDescription>
+            O portal do DOU bloqueou a nossa requisição de extração (Erro 403 - Forbidden). Isso
+            geralmente ocorre devido a limites de segurança do governo contra acessos automatizados.
+            O sistema tentará buscar dados no Cache Local ou via Querido Diário, mas os resultados
+            podem estar incompletos.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {(loading || liveLogs.length > 0) && (
         <Card className="border-indigo-100/50 shadow-md animate-fade-in overflow-hidden">
           <CardHeader className="py-3 px-4 bg-slate-50 border-b border-slate-100 flex flex-row items-center justify-between">
@@ -326,7 +361,7 @@ export default function DouSearch() {
               ) : (
                 <Database className="w-4 h-4 mr-2 text-slate-500" />
               )}
-              {loading ? 'Execução em Tempo Real' : 'Último Log de Execução'}
+              {loading ? currentStepText : 'Último Log de Execução'}
             </CardTitle>
             {loading && (
               <span className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full animate-pulse">
@@ -355,7 +390,9 @@ export default function DouSearch() {
                             log.status?.toLowerCase().includes('erro') ||
                               log.status?.toLowerCase().includes('fail')
                               ? 'text-red-400'
-                              : 'text-emerald-400',
+                              : log.status?.toLowerCase().includes('aviso')
+                                ? 'text-yellow-400'
+                                : 'text-emerald-400',
                           )}
                         >
                           [{log.status || 'Info'}]

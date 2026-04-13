@@ -24,9 +24,12 @@ routerAdd(
         logRec.set('etapa', etapa)
         logRec.set('status', status)
         logRec.set('mensagem', source ? `${msg} | Source: ${source}` : msg)
+        // Ensure ISO 8601 formatting for the timestamp
         logRec.set('data_hora', new Date().toISOString())
         $app.save(logRec)
-      } catch (err) {}
+      } catch (err) {
+        console.error('Log error in dou_search:', err)
+      }
     }
 
     logProcess('Busca Ativa DOU', 'Iniciada', `Buscando por: ${q}`)
@@ -95,7 +98,9 @@ routerAdd(
           source: 'LOCAL_DB',
         }))
       }
-    } catch (err) {}
+    } catch (err) {
+      logProcess('Busca Local', 'Erro', String(err))
+    }
 
     const updateQueue = (statusStr, errorMsg) => {
       try {
@@ -116,7 +121,9 @@ routerAdd(
           qRec.set('retry_count', qRec.get('retry_count') + 1)
         }
         $app.save(qRec)
-      } catch (err) {}
+      } catch (err) {
+        logProcess('Update Queue', 'Erro', String(err))
+      }
     }
 
     // 4. Remote Ingestion
@@ -163,6 +170,12 @@ routerAdd(
             timeout: 15,
           })
 
+          logProcess(
+            'Busca Ativa DOU - Scraping HTTP',
+            res.statusCode === 200 ? 'Sucesso' : 'Aviso',
+            `HTTP Status Code: ${res.statusCode}`,
+          )
+
           if (res.statusCode === 200) {
             let html = ''
             if (typeof res.body === 'string') {
@@ -206,6 +219,7 @@ routerAdd(
           } else {
             hasMore = false
             scrapeError = `HTTP ${res.statusCode}: Blocked Source or Unavailable`
+            logProcess('Busca Ativa DOU - Erro Scraping', 'Erro', scrapeError)
           }
         } catch (err) {
           logProcess('Busca Ativa DOU - Erro Scraping', 'Erro', String(err))
@@ -276,7 +290,9 @@ routerAdd(
               }
 
               $app.save(record)
-            } catch (saveErr) {}
+            } catch (saveErr) {
+              logProcess('Busca Ativa DOU - Salvar', 'Erro', String(saveErr))
+            }
           }
 
           let org_principal = ''
@@ -313,6 +329,13 @@ routerAdd(
       try {
         const qdUrl = `https://queridodiario.ok.org.br/api/gazettes?querystring=${encodeURIComponent(q)}&published_since=${publishFrom || new Date().toISOString().split('T')[0]}&published_until=${publishTo || new Date().toISOString().split('T')[0]}&excerpt_size=500`
         const qdRes = $http.send({ url: qdUrl, method: 'GET', timeout: 10 })
+
+        logProcess(
+          'Busca Ativa DOU - Fallback HTTP',
+          qdRes.statusCode === 200 ? 'Sucesso' : 'Aviso',
+          `HTTP Status Code: ${qdRes.statusCode}`,
+        )
+
         if (qdRes.statusCode === 200 && qdRes.json && qdRes.json.gazettes) {
           sourceUsed = 'QUERIDO_DIARIO'
           results = qdRes.json.gazettes.map((g) => ({
@@ -353,7 +376,9 @@ routerAdd(
         expiresAt.setHours(expiresAt.getHours() + 1)
         cacheRec.set('expires_at', expiresAt.toISOString())
         $app.save(cacheRec)
-      } catch (err) {}
+      } catch (err) {
+        logProcess('Salvar Cache', 'Erro', String(err))
+      }
     }
 
     let finalMessage = 'Sucesso'
@@ -361,7 +386,7 @@ routerAdd(
       if (skipRemote)
         finalMessage =
           'Source unreachable (Reprocessing queue active or failed max retries) and no local data.'
-      else finalMessage = 'No results for this date range / Rate limited.'
+      else finalMessage = 'No results for this date range / Rate limited / Blocked (403).'
     }
 
     return e.json(200, {

@@ -15,7 +15,7 @@ routerAdd(
         $app.save(logRec)
         return logRec.id
       } catch (e) {
-        console.error('Log error', e)
+        console.error('Log error in rodou manual sync:', e)
         return null
       }
     }
@@ -120,7 +120,9 @@ routerAdd(
             )
             logRec.set('data_hora', new Date().toISOString())
             $app.save(logRec)
-          } catch (e) {}
+          } catch (e) {
+            console.error('Failed to save connection log:', e)
+          }
 
           if (statusCode === 200 && html) {
             const scriptMatch = html.match(
@@ -170,7 +172,9 @@ routerAdd(
                   logRec.set('mensagem', `JSON Parsing Error: ${String(e)}`)
                   logRec.set('data_hora', new Date().toISOString())
                   $app.save(logRec)
-                } catch (err) {}
+                } catch (err) {
+                  console.error('Failed to save parse error log:', err)
+                }
                 hasMore = false
               }
             } else {
@@ -181,7 +185,9 @@ routerAdd(
           }
           page++
         }
-      } catch (err) {}
+      } catch (err) {
+        logProcess('Orquestrador Ro-DOU', 'Erro Primário', String(err))
+      }
 
       // 2. Secondary (Fallback): Querido Diário
       if (!sourceSuccess && territoryId) {
@@ -234,7 +240,9 @@ routerAdd(
           )
           logRec.set('data_hora', new Date().toISOString())
           $app.save(logRec)
-        } catch (e) {}
+        } catch (e) {
+          console.error('Failed to save QD log:', e)
+        }
       }
 
       // Priority 3: Local Cache
@@ -251,7 +259,9 @@ routerAdd(
             sourceSuccess = true
             sourceUsed = 'CACHE_LOCAL'
           }
-        } catch (e) {}
+        } catch (e) {
+          logProcess('Cache Local', 'Erro', String(e))
+        }
       }
 
       if (!sourceSuccess) {
@@ -298,31 +308,35 @@ routerAdd(
         }
         if (!pubDate.includes(':')) pubDate = pubDate + ' 00:00:00'
 
-        const record = new Record(pubDou)
-        record.set('titulo', item.title)
-        record.set('secao', item.section)
-        record.set('orgao', item.department)
-        record.set('texto_bruto', cleanText)
-        record.set('texto_normalizado', cleanText.toLowerCase())
-        record.set('url_origem', item.url)
-        record.set('hash_conteudo', hash)
-        record.set('fonte_coleta', item.source)
-        record.set('data_publicacao', pubDate)
-        record.set('data_coleta', new Date().toISOString())
-        record.set('status_processamento', 'bruto')
-        record.set('metadados_adicionais', {
-          search_id: searchId,
-          abstract: item.abstract,
-          tipo_ato: item.tipo_ato,
-          orgao_principal: item.orgao_principal,
-          organizacao_subordinada: item.organizacao_subordinada,
-          timestamp: new Date().toISOString(),
-          fonte_utilizada: sourceUsed,
-          termo_buscado: termStr,
-        })
-        $app.save(record)
-        savedCount++
-        totalSaved++
+        try {
+          const record = new Record(pubDou)
+          record.set('titulo', item.title)
+          record.set('secao', item.section)
+          record.set('orgao', item.department)
+          record.set('texto_bruto', cleanText)
+          record.set('texto_normalizado', cleanText.toLowerCase())
+          record.set('url_origem', item.url)
+          record.set('hash_conteudo', hash)
+          record.set('fonte_coleta', item.source)
+          record.set('data_publicacao', pubDate)
+          record.set('data_coleta', new Date().toISOString())
+          record.set('status_processamento', 'bruto')
+          record.set('metadados_adicionais', {
+            search_id: searchId,
+            abstract: item.abstract,
+            tipo_ato: item.tipo_ato,
+            orgao_principal: item.orgao_principal,
+            organizacao_subordinada: item.organizacao_subordinada,
+            timestamp: new Date().toISOString(),
+            fonte_utilizada: sourceUsed,
+            termo_buscado: termStr,
+          })
+          $app.save(record)
+          savedCount++
+          totalSaved++
+        } catch (saveErr) {
+          logProcess('Salvar Publicação Manual', 'Erro', String(saveErr))
+        }
       }
 
       logProcess(
