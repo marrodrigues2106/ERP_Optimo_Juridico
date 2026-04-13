@@ -111,7 +111,7 @@ export default function Layout() {
           { title: 'Processos', url: '/intranet/processos' },
           { title: 'CRM', url: '/intranet/crm' },
           { title: 'Agenda', url: '/intranet/agenda' },
-          { title: 'Diários Oficiais', url: '/intranet/diarios-oficiais' },
+          { title: 'Diários Oficiais', url: '/intranet/busca-dou' },
         ],
       },
       {

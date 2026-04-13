@@ -52,7 +52,10 @@ function App() {
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="publicacoes" element={<PublicacoesManager />} />
-              <Route path="diarios-oficiais" element={<Navigate to="busca-dou" replace />} />
+              <Route
+                path="diarios-oficiais"
+                element={<Navigate to="/intranet/busca-dou" replace />}
+              />
               <Route path="busca-dou" element={<DouSearch />} />
               <Route path="processos" element={<ProcessManager />} />
               <Route path="processos/:id" element={<ProcessDetail />} />
