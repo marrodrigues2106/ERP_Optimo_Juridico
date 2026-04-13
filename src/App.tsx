@@ -27,6 +27,7 @@ import AgendaManager from '@/components/intranet/AgendaManager'
 import AuditLogs from '@/components/intranet/AuditLogs'
 import PublicacoesManager from '@/components/intranet/PublicacoesManager'
 import GazetteManager from '@/components/intranet/GazetteManager'
+import DouSearch from '@/components/intranet/DouSearch'
 
 function App() {
   return (
@@ -52,6 +53,7 @@ function App() {
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="publicacoes" element={<PublicacoesManager />} />
               <Route path="diarios-oficiais" element={<GazetteManager />} />
+              <Route path="busca-dou" element={<DouSearch />} />
               <Route path="processos" element={<ProcessManager />} />
               <Route path="processos/:id" element={<ProcessDetail />} />
               <Route path="clientes/:id" element={<ClientDetail />} />

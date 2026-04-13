@@ -132,6 +132,18 @@ export default function PublicacoesManager() {
           >
             <Archive className="w-4 h-4 mr-2" /> Arquivo (Lidos)
           </Button>
+          <div className="pt-4 mt-4 border-t border-slate-100">
+            <Button
+              variant="outline"
+              className="w-full justify-start bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 border-indigo-200"
+              asChild
+            >
+              <Link to="/intranet/busca-dou">
+                <Search className="w-4 h-4 mr-2" />
+                Motor de Busca DOU
+              </Link>
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

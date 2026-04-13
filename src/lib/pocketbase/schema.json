@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-10T03:35:32.635Z",
+  "generatedAt": "2026-04-13T02:40:47.011Z",
   "collections": [
     {
       "name": "users",
@@ -2077,6 +2077,30 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "editionNumber",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "numberPage",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "hierarchyStr",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "artType",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE UNIQUE INDEX idx_pub_dou_hash ON publicacoes_dou (hash_conteudo)"]
