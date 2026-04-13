@@ -7,6 +7,7 @@ import { searchDou, DouSearchResult } from '@/services/dou'
 import { Search, Loader2, ExternalLink, Database, Globe, AlertTriangle, Zap } from 'lucide-react'
 import { format } from 'date-fns'
 import { useAuth } from '@/hooks/use-auth'
+import { useToast } from '@/hooks/use-toast'
 import {
   Pagination,
   PaginationContent,
@@ -16,14 +17,35 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination'
 
+function getLocalDateStr(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function getLastBusinessDay() {
+  const date = new Date()
+  const dayOfWeek = date.getDay()
+  if (dayOfWeek === 0)
+    date.setDate(date.getDate() - 2) // Sunday -> Friday
+  else if (dayOfWeek === 6) date.setDate(date.getDate() - 1) // Saturday -> Friday
+  return getLocalDateStr(date)
+}
+
 export default function DouSearch() {
   const { user } = useAuth()
+  const { toast } = useToast()
+
+  const todayStr = getLocalDateStr(new Date())
 
   const [q, setQ] = useState(() => sessionStorage.getItem('dou_q') || '')
   const [publishFrom, setPublishFrom] = useState(
-    () => sessionStorage.getItem('dou_publishFrom') || '',
+    () => sessionStorage.getItem('dou_publishFrom') || getLastBusinessDay(),
   )
-  const [publishTo, setPublishTo] = useState(() => sessionStorage.getItem('dou_publishTo') || '')
+  const [publishTo, setPublishTo] = useState(
+    () => sessionStorage.getItem('dou_publishTo') || getLastBusinessDay(),
+  )
   const [orgPrin, setOrgPrin] = useState(() => sessionStorage.getItem('dou_orgPrin') || '')
   const [artType, setArtType] = useState(() => sessionStorage.getItem('dou_artType') || '')
 
@@ -76,6 +98,15 @@ export default function DouSearch() {
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!q.trim()) return
+
+    if (publishFrom && publishTo && publishFrom > publishTo) {
+      toast({
+        title: 'Data inválida',
+        description: 'A Data Final não pode ser anterior à Data Inicial.',
+        variant: 'destructive',
+      })
+      return
+    }
 
     setLoading(true)
     setSearched(true)
@@ -159,6 +190,7 @@ export default function DouSearch() {
                   id="publishFrom"
                   type="date"
                   value={publishFrom}
+                  max={todayStr}
                   onChange={(e) => setPublishFrom(e.target.value)}
                 />
               </div>
@@ -168,6 +200,7 @@ export default function DouSearch() {
                   id="publishTo"
                   type="date"
                   value={publishTo}
+                  max={todayStr}
                   onChange={(e) => setPublishTo(e.target.value)}
                 />
               </div>
