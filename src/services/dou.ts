@@ -44,3 +44,9 @@ export const checkDouHealth = async (): Promise<{ status: string; message: strin
     method: 'GET',
   })
 }
+
+export const clearDouLogs = async (): Promise<{ success: boolean; deleted: number }> => {
+  return pb.send('/backend/v1/dou/logs', {
+    method: 'DELETE',
+  })
+}

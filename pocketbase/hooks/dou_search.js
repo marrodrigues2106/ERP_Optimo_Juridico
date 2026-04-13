@@ -216,9 +216,17 @@ routerAdd(
               hasMore = false
               scrapeError = 'Structure Mismatch: Script tag not found'
             }
+          } else if (res.statusCode === 403) {
+            hasMore = false
+            scrapeError = `HTTP 403: Acesso bloqueado pelo firewall do DOU (Forbidden).`
+            logProcess('Busca Ativa DOU - Erro Scraping', 'Erro', scrapeError)
+          } else if (res.statusCode === 500) {
+            hasMore = false
+            scrapeError = `HTTP 500: Erro interno no servidor do DOU (Internal Server Error).`
+            logProcess('Busca Ativa DOU - Erro Scraping', 'Erro', scrapeError)
           } else {
             hasMore = false
-            scrapeError = `HTTP ${res.statusCode}: Blocked Source or Unavailable`
+            scrapeError = `HTTP ${res.statusCode}: Resposta inesperada do servidor.`
             logProcess('Busca Ativa DOU - Erro Scraping', 'Erro', scrapeError)
           }
         } catch (err) {

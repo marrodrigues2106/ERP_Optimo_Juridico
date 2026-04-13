@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { searchDou, checkDouHealth, DouSearchResult } from '@/services/dou'
+import { searchDou, checkDouHealth, clearDouLogs, DouSearchResult } from '@/services/dou'
 import {
   Search,
   Loader2,
@@ -17,12 +17,16 @@ import {
   Activity,
   CheckCircle2,
   XCircle,
+  CalendarIcon,
+  Trash2,
 } from 'lucide-react'
 import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
 import { cn } from '@/lib/utils'
+import pb from '@/lib/pocketbase/client'
 import {
   Pagination,
   PaginationContent,
@@ -31,6 +35,9 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
+import { DateRange } from 'react-day-picker'
 
 function getLocalDateStr(date: Date) {
   const year = date.getFullYear()
@@ -42,9 +49,8 @@ function getLocalDateStr(date: Date) {
 function getLastBusinessDay() {
   const date = new Date()
   const dayOfWeek = date.getDay()
-  if (dayOfWeek === 0)
-    date.setDate(date.getDate() - 2) // Sunday -> Friday
-  else if (dayOfWeek === 6) date.setDate(date.getDate() - 1) // Saturday -> Friday
+  if (dayOfWeek === 0) date.setDate(date.getDate() - 2)
+  else if (dayOfWeek === 6) date.setDate(date.getDate() - 1)
   return getLocalDateStr(date)
 }
 
@@ -60,15 +66,17 @@ export default function DouSearch() {
   const { user } = useAuth()
   const { toast } = useToast()
 
-  const todayStr = getLocalDateStr(new Date())
-
   const [q, setQ] = useState(() => sessionStorage.getItem('dou_q') || '')
-  const [publishFrom, setPublishFrom] = useState(
-    () => sessionStorage.getItem('dou_publishFrom') || getLastBusinessDay(),
-  )
-  const [publishTo, setPublishTo] = useState(
-    () => sessionStorage.getItem('dou_publishTo') || getLastBusinessDay(),
-  )
+
+  const [date, setDate] = useState<DateRange | undefined>(() => {
+    const fromStr = sessionStorage.getItem('dou_publishFrom') || getLastBusinessDay()
+    const toStr = sessionStorage.getItem('dou_publishTo') || getLastBusinessDay()
+    return {
+      from: fromStr ? new Date(fromStr + 'T12:00:00Z') : new Date(),
+      to: toStr ? new Date(toStr + 'T12:00:00Z') : new Date(),
+    }
+  })
+
   const [orgPrin, setOrgPrin] = useState(() => sessionStorage.getItem('dou_orgPrin') || '')
   const [artType, setArtType] = useState(() => sessionStorage.getItem('dou_artType') || '')
 
@@ -93,11 +101,11 @@ export default function DouSearch() {
 
   useEffect(() => {
     sessionStorage.setItem('dou_q', q)
-    sessionStorage.setItem('dou_publishFrom', publishFrom)
-    sessionStorage.setItem('dou_publishTo', publishTo)
+    if (date?.from) sessionStorage.setItem('dou_publishFrom', format(date.from, 'yyyy-MM-dd'))
+    if (date?.to) sessionStorage.setItem('dou_publishTo', format(date.to, 'yyyy-MM-dd'))
     sessionStorage.setItem('dou_orgPrin', orgPrin)
     sessionStorage.setItem('dou_artType', artType)
-  }, [q, publishFrom, publishTo, orgPrin, artType])
+  }, [q, date, orgPrin, artType])
 
   useEffect(() => {
     if (searched) {
@@ -121,12 +129,37 @@ export default function DouSearch() {
     checkHealth()
   }, [])
 
+  useEffect(() => {
+    const fetchInitialLogs = async () => {
+      try {
+        const records = await pb.collection('logs_processamento').getList(1, 50, {
+          sort: '-created',
+        })
+        const items = records.items
+          .map((r: any) => ({
+            id: r.id,
+            etapa: r.etapa,
+            status: r.status,
+            mensagem: r.mensagem,
+            data_hora: r.data_hora,
+          }))
+          .reverse()
+        setLiveLogs(items)
+      } catch (error) {
+        console.error('Failed to fetch initial logs', error)
+      }
+    }
+    fetchInitialLogs()
+  }, [])
+
   useRealtime('logs_processamento', (e) => {
-    if ((loading || liveLogs.length > 0) && e.action === 'create') {
+    if (e.action === 'create') {
       setLiveLogs((prev) => {
         const next = [...prev, e.record as unknown as LogEntry]
-        return next.slice(-50)
+        return next.slice(-100)
       })
+    } else if (e.action === 'delete') {
+      setLiveLogs((prev) => prev.filter((log) => log.id !== e.record.id))
     }
   })
 
@@ -153,6 +186,9 @@ export default function DouSearch() {
     e.preventDefault()
     if (!q.trim()) return
 
+    const publishFrom = date?.from ? format(date.from, 'yyyy-MM-dd') : ''
+    const publishTo = date?.to ? format(date.to, 'yyyy-MM-dd') : ''
+
     if (publishFrom && publishTo && publishFrom > publishTo) {
       toast({
         title: 'Data inválida',
@@ -162,7 +198,6 @@ export default function DouSearch() {
       return
     }
 
-    setLiveLogs([])
     setLoading(true)
     setSearched(true)
     setCurrentPage(1)
@@ -179,6 +214,16 @@ export default function DouSearch() {
       setMessage('Ocorreu um erro inesperado ao realizar a busca.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleClearLogs = async () => {
+    try {
+      await clearDouLogs()
+      setLiveLogs([])
+      toast({ title: 'Histórico de logs apagado com sucesso' })
+    } catch (error) {
+      toast({ title: 'Erro ao apagar histórico', variant: 'destructive' })
     }
   }
 
@@ -270,7 +315,7 @@ export default function DouSearch() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSearch} className="flex flex-col gap-4">
-            <div className="flex flex-col md:flex-row gap-4 items-end">
+            <div className="flex flex-col md:flex-row gap-4 md:items-end">
               <div className="flex-1 space-y-2 w-full">
                 <Label htmlFor="q">Termo de Busca (obrigatório)</Label>
                 <Input
@@ -281,25 +326,44 @@ export default function DouSearch() {
                   required
                 />
               </div>
-              <div className="space-y-2 w-full md:w-48">
-                <Label htmlFor="publishFrom">Data Inicial</Label>
-                <Input
-                  id="publishFrom"
-                  type="date"
-                  value={publishFrom}
-                  max={todayStr}
-                  onChange={(e) => setPublishFrom(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2 w-full md:w-48">
-                <Label htmlFor="publishTo">Data Final</Label>
-                <Input
-                  id="publishTo"
-                  type="date"
-                  value={publishTo}
-                  max={todayStr}
-                  onChange={(e) => setPublishTo(e.target.value)}
-                />
+              <div className="space-y-2 w-full md:w-auto flex flex-col">
+                <Label>Período</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="date"
+                      variant={'outline'}
+                      className={cn(
+                        'w-full md:w-[280px] justify-start text-left font-normal',
+                        !date && 'text-slate-500',
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {date?.from ? (
+                        date.to ? (
+                          <>
+                            {format(date.from, 'dd/MM/yyyy')} - {format(date.to, 'dd/MM/yyyy')}
+                          </>
+                        ) : (
+                          format(date.from, 'dd/MM/yyyy')
+                        )
+                      ) : (
+                        <span>Selecione um período</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      initialFocus
+                      mode="range"
+                      defaultMonth={date?.from}
+                      selected={date}
+                      onSelect={setDate}
+                      numberOfMonths={2}
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
@@ -355,19 +419,34 @@ export default function DouSearch() {
       {(loading || liveLogs.length > 0) && (
         <Card className="border-indigo-100/50 shadow-md animate-fade-in overflow-hidden">
           <CardHeader className="py-3 px-4 bg-slate-50 border-b border-slate-100 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-semibold flex items-center text-slate-700">
+            <div className="flex items-center gap-2">
               {loading ? (
-                <Activity className="w-4 h-4 mr-2 animate-pulse text-indigo-600" />
+                <Activity className="w-4 h-4 animate-pulse text-indigo-600" />
               ) : (
-                <Database className="w-4 h-4 mr-2 text-slate-500" />
+                <Database className="w-4 h-4 text-slate-500" />
               )}
-              {loading ? currentStepText : 'Último Log de Execução'}
-            </CardTitle>
-            {loading && (
-              <span className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full animate-pulse">
-                Running
-              </span>
-            )}
+              <CardTitle className="text-sm font-semibold text-slate-700">
+                {loading ? currentStepText : 'Console de Processamento'}
+              </CardTitle>
+            </div>
+            <div className="flex items-center gap-2">
+              {loading && (
+                <span className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full animate-pulse">
+                  Processando
+                </span>
+              )}
+              {!loading && liveLogs.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearLogs}
+                  className="h-7 text-xs text-slate-500 hover:text-red-600"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                  Limpar Histórico
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="p-0 bg-slate-950">
             <ScrollArea className="h-48 p-4 font-mono text-[11px] leading-relaxed tracking-tight sm:text-xs">
@@ -379,7 +458,10 @@ export default function DouSearch() {
               ) : (
                 <div className="flex flex-col">
                   {liveLogs.map((log, i) => (
-                    <div key={i} className="mb-2 flex flex-col sm:flex-row sm:gap-2 text-slate-300">
+                    <div
+                      key={log.id || i}
+                      className="mb-2 flex flex-col sm:flex-row sm:gap-2 text-slate-300"
+                    >
                       <div className="flex gap-2 shrink-0">
                         <span className="text-slate-500">
                           [{log.data_hora ? new Date(log.data_hora).toLocaleTimeString() : ''}]
@@ -388,7 +470,9 @@ export default function DouSearch() {
                           className={cn(
                             'font-semibold',
                             log.status?.toLowerCase().includes('erro') ||
-                              log.status?.toLowerCase().includes('fail')
+                              log.status?.toLowerCase().includes('fail') ||
+                              log.mensagem?.includes('403') ||
+                              log.mensagem?.includes('500')
                               ? 'text-red-400'
                               : log.status?.toLowerCase().includes('aviso')
                                 ? 'text-yellow-400'
