@@ -6,7 +6,7 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
   try {
     const pending = $app.findRecordsByFilter(
       'dou_reprocessing_queue',
-      "status = 'pending' || (status = 'failed' && retry_count < 5)",
+      "status = 'pending' || (status = 'failed' && retry_count < 3)",
       'updated',
       10,
       0,
@@ -83,11 +83,25 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
                 const urlTitle = item.urlTitle
                   ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}`
                   : ''
-                const hash = $security.md5(item.title + urlTitle + pubDateStr + cleanText)
+                const hash = item.urlTitle
+                  ? $security.md5(item.urlTitle)
+                  : $security.md5(item.title + urlTitle + pubDateStr + cleanText)
 
+                let exists = false
                 try {
-                  $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash)
-                } catch (_) {
+                  if (item.urlTitle) {
+                    try {
+                      $app.findFirstRecordByData('publicacoes_dou', 'url_origem', urlTitle)
+                      exists = true
+                    } catch (_) {}
+                  }
+                  if (!exists) {
+                    $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash)
+                    exists = true
+                  }
+                } catch (_) {}
+
+                if (!exists) {
                   try {
                     const record = new Record(pubDouCol)
                     record.set(

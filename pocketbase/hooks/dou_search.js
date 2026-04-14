@@ -56,7 +56,7 @@ routerAdd(
       if (
         status === 'pending' ||
         status === 'processing' ||
-        (status === 'failed' && qRec.get('retry_count') >= 5)
+        (status === 'failed' && qRec.get('retry_count') >= 3)
       ) {
         skipRemote = true
       }
@@ -66,7 +66,8 @@ routerAdd(
     let sourceUsed = ''
 
     // 3. Local Database Search
-    let filter = `texto_normalizado ~ "${q.toLowerCase().replace(/"/g, '')}"`
+    const filterQ = q.toLowerCase().replace(/"/g, '')
+    let filter = `(texto_normalizado ~ "${filterQ}" || titulo ~ "${filterQ}")`
     if (publishFrom) filter += ` && data_publicacao >= "${publishFrom} 00:00:00"`
     if (publishTo) filter += ` && data_publicacao <= "${publishTo} 23:59:59"`
     if (orgPrin) filter += ` && orgao ~ "${orgPrin}"`
@@ -231,9 +232,9 @@ routerAdd(
               hasMore = false
               scrapeError = 'Structure Mismatch: Script tag not found'
             }
-          } else if (res.statusCode === 403 || res.statusCode === 429) {
+          } else if (res.statusCode === 401 || res.statusCode === 403 || res.statusCode === 429) {
             hasMore = false
-            scrapeError = `HTTP ${res.statusCode}: Acesso bloqueado pelo firewall do DOU (Forbidden/Too Many Requests).`
+            scrapeError = `HTTP ${res.statusCode}: Acesso bloqueado pelo firewall do DOU (Unauthorized/Forbidden/Too Many Requests).`
             logProcess('Busca Ativa DOU - Erro Scraping', 'Erro', scrapeError)
           } else if (res.statusCode === 500) {
             hasMore = false
@@ -271,11 +272,25 @@ routerAdd(
           if (!pubDateStr.includes(':')) pubDateStr += ' 00:00:00'
 
           const urlTitle = item.urlTitle ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}` : ''
-          const hash = $security.md5(item.title + urlTitle + pubDateStr + cleanText)
+          const hash = item.urlTitle
+            ? $security.md5(item.urlTitle)
+            : $security.md5(item.title + urlTitle + pubDateStr + cleanText)
 
+          let exists = false
           try {
-            $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash)
-          } catch (_) {
+            if (item.urlTitle) {
+              try {
+                $app.findFirstRecordByData('publicacoes_dou', 'url_origem', urlTitle)
+                exists = true
+              } catch (_) {}
+            }
+            if (!exists) {
+              $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash)
+              exists = true
+            }
+          } catch (_) {}
+
+          if (!exists) {
             try {
               const record = new Record(pubDouCol)
               record.set(
@@ -353,23 +368,31 @@ routerAdd(
         const qdUrl = `https://queridodiario.ok.org.br/api/gazettes?querystring=${encodeURIComponent(q)}&published_since=${publishFrom || new Date().toISOString().split('T')[0]}&published_until=${publishTo || new Date().toISOString().split('T')[0]}&excerpt_size=500`
         const qdRes = $http.send({ url: qdUrl, method: 'GET', timeout: 10 })
 
-        logProcess(
-          'Busca Ativa DOU - Fallback HTTP',
-          qdRes.statusCode === 200 ? 'Sucesso' : 'Aviso',
-          `HTTP Status Code: ${qdRes.statusCode}`,
-        )
+        if (qdRes.statusCode === 403) {
+          logProcess(
+            'Busca Ativa DOU - Fallback HTTP',
+            'Bloqueio Funcional',
+            `HTTP Status Code: 403 Forbidden`,
+          )
+        } else {
+          logProcess(
+            'Busca Ativa DOU - Fallback HTTP',
+            qdRes.statusCode === 200 ? 'Sucesso' : 'Aviso',
+            `HTTP Status Code: ${qdRes.statusCode}`,
+          )
 
-        if (qdRes.statusCode === 200 && qdRes.json && qdRes.json.gazettes) {
-          sourceUsed = 'QUERIDO_DIARIO'
-          results = qdRes.json.gazettes.map((g) => ({
-            title: 'Publicação Municipal ' + g.territory_name,
-            content: g.excerpts?.[0] || g.excerpt || '',
-            pubName: g.territory_name,
-            artType: 'Ato Municipal',
-            urlTitle: g.url || '',
-            pubDate: g.date || publishFrom,
-            source: 'QUERIDO_DIARIO',
-          }))
+          if (qdRes.statusCode === 200 && qdRes.json && qdRes.json.gazettes) {
+            sourceUsed = 'QUERIDO_DIARIO'
+            results = qdRes.json.gazettes.map((g) => ({
+              title: 'Publicação Municipal ' + g.territory_name,
+              content: g.excerpts?.[0] || g.excerpt || '',
+              pubName: g.territory_name,
+              artType: 'Ato Municipal',
+              urlTitle: g.url || '',
+              pubDate: g.date || publishFrom,
+              source: 'QUERIDO_DIARIO',
+            }))
+          }
         }
       } catch (err) {
         logProcess('Busca Ativa DOU - Fallback Erro', 'Erro', String(err))

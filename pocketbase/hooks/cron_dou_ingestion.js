@@ -128,6 +128,8 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
                   html = String(res.body)
                 }
               }
+            } else if (res.statusCode === 401 || res.statusCode === 403 || res.statusCode === 429) {
+              errorMsg = `Bloqueio Funcional (HTTP ${res.statusCode})`
             } else {
               errorMsg = `HTTP Error ${res.statusCode}`
             }
@@ -141,7 +143,14 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
           try {
             const logRec = new Record(logs)
             logRec.set('etapa', 'Conexão HTTP - DOU')
-            logRec.set('status', statusCode === 200 ? 'Sucesso' : 'Erro')
+            logRec.set(
+              'status',
+              statusCode === 200
+                ? 'Sucesso'
+                : statusCode === 401 || statusCode === 403 || statusCode === 429
+                  ? 'Bloqueio Funcional'
+                  : 'Erro',
+            )
             logRec.set(
               'mensagem',
               `URL: ${url} | Status: ${statusCode} | Latência: ${latency}ms | Erro: ${errorMsg}`,
@@ -246,6 +255,8 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
             )
             sourceSuccess = true
             sourceUsed = 'QUERIDO_DIARIO'
+          } else if (qdRes.statusCode === 403) {
+            errorMsg = 'Bloqueio Funcional - 403 Forbidden'
           } else {
             errorMsg = `HTTP Error ${qdRes.statusCode}`
           }
@@ -258,7 +269,10 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
         try {
           const logRec = new Record(logs)
           logRec.set('etapa', 'Conexão HTTP - Querido Diário')
-          logRec.set('status', statusCode === 200 ? 'Sucesso' : 'Erro')
+          logRec.set(
+            'status',
+            statusCode === 200 ? 'Sucesso' : statusCode === 403 ? 'Bloqueio Funcional' : 'Erro',
+          )
           logRec.set(
             'mensagem',
             `URL: ${url} | Status: ${statusCode} | Latência: ${latency}ms | Erro: ${errorMsg}`,
