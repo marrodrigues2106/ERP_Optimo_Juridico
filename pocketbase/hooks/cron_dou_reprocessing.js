@@ -55,7 +55,8 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
             method: 'GET',
             headers: {
               'User-Agent': randomUA,
-              Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+              Accept:
+                'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
               'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
               Referer: 'https://www.in.gov.br/consulta/-/buscar/dou',
               'Sec-Fetch-Dest': 'document',
@@ -117,75 +118,71 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
 
         if (allScraped.length > 0) {
           for (const item of allScraped) {
-                let cleanText = (item.content || '').replace(/<[^>]*>?/gm, '').trim()
-                let pubDateStr = item.pubDate || fromDDMMYYYY
-                if (pubDateStr.includes('/')) {
-                  const parts = pubDateStr.split('/')
-                  if (parts.length === 3) pubDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`
-                }
-                if (!pubDateStr.includes(':')) pubDateStr += ' 00:00:00'
+            let cleanText = (item.content || '').replace(/<[^>]*>?/gm, '').trim()
+            let pubDateStr = item.pubDate || fromDDMMYYYY
+            if (pubDateStr.includes('/')) {
+              const parts = pubDateStr.split('/')
+              if (parts.length === 3) pubDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`
+            }
+            if (!pubDateStr.includes(':')) pubDateStr += ' 00:00:00'
 
-                const urlTitle = item.urlTitle
-                  ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}`
-                  : ''
-                const hash = item.urlTitle
-                  ? $security.md5(item.urlTitle)
-                  : $security.md5(item.title + urlTitle + pubDateStr + cleanText)
+            const urlTitle = item.urlTitle ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}` : ''
+            const hash = item.urlTitle
+              ? $security.md5(item.urlTitle)
+              : $security.md5(item.title + urlTitle + pubDateStr + cleanText)
 
-                let exists = false
+            let exists = false
+            try {
+              if (item.urlTitle) {
                 try {
-                  if (item.urlTitle) {
-                    try {
-                      $app.findFirstRecordByData('publicacoes_dou', 'url_origem', urlTitle)
-                      exists = true
-                    } catch (_) {}
-                  }
-                  if (!exists) {
-                    $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash)
-                    exists = true
-                  }
+                  $app.findFirstRecordByData('publicacoes_dou', 'url_origem', urlTitle)
+                  exists = true
                 } catch (_) {}
-
-                if (!exists) {
-                  try {
-                    const record = new Record(pubDouCol)
-                    record.set(
-                      'titulo',
-                      (item.title || item.artType || '').replace(/<[^>]*>?/gm, '').trim(),
-                    )
-                    record.set('secao', item.artType || 'Seção 1')
-                    record.set('orgao', item.pubName || 'DOU')
-                    record.set('texto_bruto', cleanText)
-                    record.set('texto_normalizado', cleanText.toLowerCase())
-                    record.set('url_origem', urlTitle)
-                    record.set('hash_conteudo', hash)
-                    record.set('fonte_coleta', 'DOU_SCRAPING')
-                    record.set('data_publicacao', pubDateStr)
-                    record.set(
-                      'data_coleta',
-                      new Date().toISOString().replace('T', ' ').substring(0, 19),
-                    )
-                    record.set('status_processamento', 'bruto')
-                    record.set('editionNumber', String(item.editionNumber || ''))
-                    record.set('numberPage', String(item.numberPage || ''))
-                    record.set('hierarchyStr', item.hierarchyStr || '')
-                    record.set('artType', item.artType || '')
-
-                    let org_principal = ''
-                    let org_subordinada = ''
-                    if (item.hierarchyStr) {
-                      const parts = item.hierarchyStr.split('-').map((p) => p.trim())
-                      if (parts.length > 0) org_principal = parts[0]
-                      if (parts.length > 1) org_subordinada = parts.slice(1).join(' - ')
-                    }
-                    record.set('orgao_principal', org_principal)
-                    record.set('organizacao_subordinada', org_subordinada)
-
-                    $app.save(record)
-                  } catch (saveErr) {}
-                }
               }
+              if (!exists) {
+                $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash)
+                exists = true
+              }
+            } catch (_) {}
 
+            if (!exists) {
+              try {
+                const record = new Record(pubDouCol)
+                record.set(
+                  'titulo',
+                  (item.title || item.artType || '').replace(/<[^>]*>?/gm, '').trim(),
+                )
+                record.set('secao', item.artType || 'Seção 1')
+                record.set('orgao', item.pubName || 'DOU')
+                record.set('texto_bruto', cleanText)
+                record.set('texto_normalizado', cleanText.toLowerCase())
+                record.set('url_origem', urlTitle)
+                record.set('hash_conteudo', hash)
+                record.set('fonte_coleta', 'DOU_SCRAPING')
+                record.set('data_publicacao', pubDateStr)
+                record.set(
+                  'data_coleta',
+                  new Date().toISOString().replace('T', ' ').substring(0, 19),
+                )
+                record.set('status_processamento', 'bruto')
+                record.set('editionNumber', String(item.editionNumber || ''))
+                record.set('numberPage', String(item.numberPage || ''))
+                record.set('hierarchyStr', item.hierarchyStr || '')
+                record.set('artType', item.artType || '')
+
+                let org_principal = ''
+                let org_subordinada = ''
+                if (item.hierarchyStr) {
+                  const parts = item.hierarchyStr.split('-').map((p) => p.trim())
+                  if (parts.length > 0) org_principal = parts[0]
+                  if (parts.length > 1) org_subordinada = parts.slice(1).join(' - ')
+                }
+                record.set('orgao_principal', org_principal)
+                record.set('organizacao_subordinada', org_subordinada)
+
+                $app.save(record)
+              } catch (saveErr) {}
+            }
           }
 
           rec.set('status', 'completed')
