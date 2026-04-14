@@ -8,6 +8,7 @@ routerAdd(
     let publishTo = body.publishTo || ''
     let orgPrin = body.orgPrin || ''
     let artType = body.artType || ''
+    let searchType = body.searchType || 'palavra-chave'
 
     if (!q) {
       return e.badRequestError('O termo de busca (q) é obrigatório.')
@@ -37,7 +38,7 @@ routerAdd(
     logProcess(
       '[Busca Ativa DOU - Início]',
       'Iniciada',
-      `Buscando por: ${q} | Período: ${fromDate} a ${toDate} | Params: ${JSON.stringify(body)}`,
+      `Buscando por: ${q} | Tipo: ${searchType} | Período: ${fromDate} a ${toDate} | Params: ${JSON.stringify(body)}`,
       'DOU_SCRAPING',
     )
 
@@ -57,7 +58,7 @@ routerAdd(
     // Conjunto para evitar itens duplicados na própria varredura
     const seenUrls = {}
 
-    const normalizeText = (text) => {
+    const normalizar_texto = (text) => {
       if (!text) return ''
       return text
         .normalize('NFD')
@@ -69,8 +70,15 @@ routerAdd(
         .trim()
     }
 
-    const qNorm = normalizeText(q)
-    const qTokens = qNorm.split(' ').filter((t) => t.length >= 3)
+    const extrair_tokens = (text) => {
+      const stopwords = ['de', 'da', 'do', 'das', 'dos', 'e', 'a', 'o']
+      return normalizar_texto(text)
+        .split(' ')
+        .filter((t) => t.length >= 3 && !stopwords.includes(t))
+    }
+
+    const qNorm = normalizar_texto(q)
+    const qTokens = extrair_tokens(q)
 
     const parseDouDate = (pubDateStr) => {
       if (!pubDateStr) return ''
@@ -82,40 +90,86 @@ routerAdd(
       return datePart
     }
 
-    const calculateScore = (item) => {
+    const calcular_peso_por_campo = (item, typeStr) => {
       let score = 0
 
-      const titleNorm = normalizeText(item.title || '')
-      const contentNorm = normalizeText(item.content || '')
-      const pubNameNorm = normalizeText(item.pubName || '')
-      const artTypeNorm = normalizeText(item.artType || '')
-      const hierarchyStrNorm = normalizeText(item.hierarchyStr || '')
+      const titleNorm = normalizar_texto(item.title || '')
+      const contentNorm = normalizar_texto(item.content || '')
+      const pubNameNorm = normalizar_texto(item.pubName || '')
+      const hierarchyStrNorm = normalizar_texto(item.hierarchyStr || '')
+      const fullText = `${titleNorm} ${contentNorm} ${pubNameNorm} ${hierarchyStrNorm}`
 
-      const fullText = `${titleNorm} ${contentNorm} ${pubNameNorm} ${artTypeNorm} ${hierarchyStrNorm}`
-
-      // Exact Match
-      if (qNorm && fullText.includes(qNorm)) {
-        score += 100
+      if (typeStr === 'regex') {
+        try {
+          const regex = new RegExp(q, 'i')
+          if (
+            regex.test(item.title || '') ||
+            regex.test(item.content || '') ||
+            regex.test(item.hierarchyStr || '')
+          ) {
+            return 100
+          }
+          return 0
+        } catch (e) {
+          return 0
+        }
       }
 
-      // Token Match
+      if (typeStr === 'frase') {
+        if (fullText.includes(qNorm)) return 100
+        return 0
+      }
+
+      // Keyword logic
+      let matchedTokens = 0
       for (let token of qTokens) {
-        if (fullText.includes(token)) {
-          score += 10
-        }
+        if (fullText.includes(token)) matchedTokens++
       }
 
-      // Specific Keyword Bonus
-      const bonusKeywords = ['tribunal', 'contas', 'uniao']
-      for (let bk of bonusKeywords) {
-        if (fullText.includes(bk)) {
-          score += 5
-        }
+      let passesKeywordRule = false
+      if (qTokens.length === 1) {
+        if (matchedTokens === 1) passesKeywordRule = true
+      } else if (qTokens.length === 2) {
+        if (matchedTokens >= 1) passesKeywordRule = true
+      } else if (qTokens.length >= 3) {
+        if (matchedTokens / qTokens.length >= 0.6) passesKeywordRule = true
       }
 
-      // Field Specific Bonus
-      if (qNorm && titleNorm.includes(qNorm)) score += 20
-      if (qNorm && hierarchyStrNorm.includes(qNorm)) score += 15
+      if (!passesKeywordRule) return 0
+
+      // Full Expression Match
+      if (qNorm && titleNorm.includes(qNorm)) score += 40
+      if (qNorm && hierarchyStrNorm.includes(qNorm)) score += 35
+      if (qNorm && contentNorm.includes(qNorm)) score += 20
+      if (qNorm && pubNameNorm.includes(qNorm)) score += 15
+
+      // Individual Token Match
+      for (let token of qTokens) {
+        if (titleNorm.includes(token)) score += 12
+        if (hierarchyStrNorm.includes(token)) score += 10
+        if (contentNorm.includes(token)) score += 6
+        if (pubNameNorm.includes(token)) score += 4
+      }
+
+      // Institutional
+      if (
+        fullText.includes('tribunal') &&
+        fullText.includes('contas') &&
+        fullText.includes('uniao')
+      ) {
+        score += 10
+      }
+
+      // Proper Names/Density
+      let titleHierarchyMatches = 0
+      for (let token of qTokens) {
+        if (titleNorm.includes(token) || hierarchyStrNorm.includes(token)) {
+          titleHierarchyMatches++
+        }
+      }
+      if (titleHierarchyMatches >= 2) {
+        score += 8
+      }
 
       return score
     }
@@ -206,19 +260,33 @@ routerAdd(
                 for (let item of parsed.jsonArray) {
                   pageExtracted++
 
-                  const score = calculateScore(item)
-                  if (score < 30) {
-                    pageTextFiltered++
-                    continue
-                  }
-
                   const itemPubDate = item.pubDate || ''
                   const itemDateISO = parseDouDate(itemPubDate)
 
                   if (!itemDateISO || itemDateISO < fromDate || itemDateISO > toDate) {
                     pageDateFiltered++
+                    logProcess(
+                      '[Busca Ativa DOU - Rejeitado]',
+                      'Aviso',
+                      `Rejeitado por Data (Fora do período): ${item.title || item.artType}`,
+                      'DOU_SCRAPING',
+                    )
                     continue
                   }
+
+                  const score = calcular_peso_por_campo(item, searchType)
+                  if (score < 30) {
+                    pageTextFiltered++
+                    logProcess(
+                      '[Busca Ativa DOU - Rejeitado]',
+                      'Aviso',
+                      `Rejeitado por Score (<30): ${item.title || item.artType}`,
+                      'DOU_SCRAPING',
+                    )
+                    continue
+                  }
+
+                  item.calculatedScore = score
 
                   if (item.urlTitle && !seenUrls[item.urlTitle]) {
                     seenUrls[item.urlTitle] = true
@@ -236,25 +304,12 @@ routerAdd(
                 lastId = newLastId
                 lastDisplayDate = parsed.jsonArray[parsed.jsonArray.length - 1].pubDate || ''
 
-                logProcess(
-                  '[Busca Ativa DOU - Filtros]',
-                  'Processando',
-                  `Página ${page}: Extraídos ${pageExtracted} | Descartados por Texto (Score < 30): ${pageTextFiltered} | Descartados por Data (Outside date range): ${pageDateFiltered}`,
-                  'DOU_SCRAPING',
-                )
-
                 if (parsed.jsonArray.length < 20) hasMore = false
               }
               scrapeSuccess = true
             } else {
               hasMore = false
               scrapeSuccess = true
-              logProcess(
-                '[Busca Ativa DOU - Parse]',
-                'Aviso',
-                `Página ${page}: jsonArray vazio.`,
-                'DOU_SCRAPING',
-              )
             }
           } else {
             hasMore = false
@@ -267,17 +322,9 @@ routerAdd(
               'DOU_SCRAPING',
             )
           }
-        } else if (res.statusCode === 401 || res.statusCode === 403 || res.statusCode === 429) {
-          hasMore = false
-          scrapeError = `HTTP ${res.statusCode}: Acesso bloqueado pelo firewall do DOU (Unauthorized/Forbidden/Too Many Requests).`
-          logProcess('[Busca Ativa DOU - Erro Scraping]', 'Erro', scrapeError, 'DOU_SCRAPING')
-        } else if (res.statusCode === 500) {
-          hasMore = false
-          scrapeError = `HTTP 500: Erro interno no servidor do DOU (Internal Server Error).`
-          logProcess('[Busca Ativa DOU - Erro Scraping]', 'Erro', scrapeError, 'DOU_SCRAPING')
         } else {
           hasMore = false
-          scrapeError = `HTTP ${res.statusCode}: Resposta inesperada do servidor.`
+          scrapeError = `HTTP ${res.statusCode}: Erro de acesso/servidor.`
           logProcess('[Busca Ativa DOU - Erro Scraping]', 'Erro', scrapeError, 'DOU_SCRAPING')
         }
       } catch (err) {
@@ -291,13 +338,6 @@ routerAdd(
     let results = []
 
     if (scrapeSuccess && scrapeResults.length > 0) {
-      logProcess(
-        '[Busca Ativa DOU - Tratamento]',
-        'Processando',
-        `Páginas processadas: ${page - 1} | Normalizando ${scrapeResults.length} registros válidos...`,
-        'DOU_SCRAPING',
-      )
-
       results = scrapeResults.map((item) => {
         let cleanText = (item.content || '').replace(/<[^>]*>?/gm, '').trim()
         let cleanTitle = (item.title || item.artType || '').replace(/<[^>]*>?/gm, '').trim()
@@ -332,6 +372,7 @@ routerAdd(
           orgao_principal: org_principal,
           organizacao_subordinada: org_subordinada,
           source: 'DOU_SCRAPING',
+          score: item.calculatedScore,
         }
       })
 
@@ -350,7 +391,7 @@ routerAdd(
     logProcess(
       '[Busca Ativa DOU - Resumo Final]',
       'Concluída',
-      `Extraídos: ${totalExtracted} | Descartados Texto (Score < 30): ${totalTextFiltered} | Descartados Data (Outside date range): ${totalDateFiltered} | Mantidos: ${scrapeResults.length}`,
+      `total_extraidos: ${totalExtracted} | descartados_texto: ${totalTextFiltered} | descartados_data: ${totalDateFiltered} | mantidos: ${results.length}`,
       'DOU_SCRAPING',
     )
 
