@@ -271,10 +271,9 @@ export default function DouSearch() {
       const lastLog = liveLogs[liveLogs.length - 1]
       if (lastLog.etapa.includes('Scraping') || lastLog.etapa.includes('Conexão'))
         currentStepText = 'Conectando ao DOU...'
+      else if (lastLog.etapa.includes('Parse')) currentStepText = 'Lendo e decodificando dados...'
       else if (lastLog.etapa.includes('Tratamento') || lastLog.etapa.includes('Normalizando'))
         currentStepText = 'Extraindo e Normalizando dados...'
-      else if (lastLog.etapa.includes('Salvar') || lastLog.etapa.includes('Cache'))
-        currentStepText = 'Indexando resultados...'
       else currentStepText = lastLog.etapa
     } else {
       currentStepText = 'Iniciando Busca...'
@@ -287,8 +286,8 @@ export default function DouSearch() {
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Motor de Busca DOU</h1>
           <p className="text-slate-500">
-            Pesquisa avançada multicamadas no Diário Oficial da União. O sistema tenta buscar no
-            Cache, Dados Locais, realiza ingestão direta se necessário e utiliza fallbacks.
+            Pesquisa ativa diretamente no Diário Oficial da União (DOU). O sistema realiza a busca
+            em tempo real na fonte oficial, garantindo dados sempre atualizados.
           </p>
         </div>
         <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm text-sm font-medium">
@@ -313,8 +312,8 @@ export default function DouSearch() {
                 </TooltipTrigger>
                 <TooltipContent>
                   <p className="max-w-xs text-xs">
-                    O portal DOU está ativo, mas bloqueou nossa requisição (Erro 403/429). Fallbacks
-                    (Querido Diário/Cache) estão em uso.
+                    O portal DOU está ativo, mas bloqueou nossa requisição temporariamente (Erro
+                    403/429). Tente novamente mais tarde.
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -430,10 +429,9 @@ export default function DouSearch() {
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Conexão Bloqueada</AlertTitle>
           <AlertDescription>
-            O portal do DOU bloqueou a nossa requisição de extração (Erro 403 - Forbidden). Isso
-            geralmente ocorre devido a limites de segurança do governo contra acessos automatizados.
-            O sistema tentará buscar dados no Cache Local ou via Querido Diário, mas os resultados
-            podem estar incompletos.
+            O portal do DOU bloqueou a nossa requisição de extração (Erro 403/429). Isso geralmente
+            ocorre devido a limites de segurança do governo contra acessos automatizados. Tente
+            refazer a busca em alguns minutos.
           </AlertDescription>
         </Alert>
       )}
