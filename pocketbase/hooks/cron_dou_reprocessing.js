@@ -27,51 +27,96 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
       let fromDDMMYYYY = fromDate.split('-').reverse().join('/')
       let toDDMMYYYY = toDate.split('-').reverse().join('/')
 
-      let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${encodeURIComponent(q)}&s=do1,do2,do3,doextra&exactDate=personalizado&publishFrom=${fromDDMMYYYY}&publishTo=${toDDMMYYYY}&sortType=0&delta=20&currentPage=1&orgPrin=${encodeURIComponent(params.orgPrin || '')}`
+      let page = 1
+      let hasMore = true
+      let lastScore = ''
+      let lastId = ''
+      let lastDisplayDate = ''
+      let allScraped = []
 
       try {
-        const res = $http.send({
-          url: url,
-          method: 'GET',
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            Accept:
-              'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-            Referer: 'https://www.in.gov.br/consulta/-/buscar/dou',
-            'Accept-Encoding': 'identity',
-          },
-          timeout: 15,
-        })
+        while (page <= 5 && hasMore) {
+          let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${encodeURIComponent(q)}&s=do1,do2,do3,doextra&exactDate=personalizado&publishFrom=${fromDDMMYYYY}&publishTo=${toDDMMYYYY}&sortType=0&delta=20&currentPage=${page}&orgPrin=${encodeURIComponent(params.orgPrin || '')}`
 
-        if (res.statusCode === 200) {
-          let html = ''
-          if (typeof res.body === 'string') {
-            html = res.body
-          } else if (res.body) {
-            let bytes = new Uint8Array(res.body)
-            let chunk = []
-            for (let i = 0; i < bytes.length; i += 8000) {
-              let end = i + 8000 > bytes.length ? bytes.length : i + 8000
-              chunk.push(String.fromCharCode.apply(null, bytes.subarray(i, end)))
-            }
-            let latin1 = chunk.join('')
-            try {
-              html = decodeURIComponent(escape(latin1))
-            } catch (e) {
-              html = latin1
-            }
+          if (page > 1 && lastScore && lastId && lastDisplayDate) {
+            url += `&newPage=${page}&score=${lastScore}&id=${lastId}&displayDate=${lastDisplayDate}`
           }
 
-          const scriptMatch = html.match(
-            /<script[^>]*id="_br_com_seatecnologia_in_buscadou_BuscaDouPortlet_params"[^>]*>([\s\S]*?)<\/script>/,
-          )
-          if (scriptMatch && scriptMatch[1]) {
-            const parsed = JSON.parse(scriptMatch[1].trim())
-            if (parsed.jsonArray && parsed.jsonArray.length > 0) {
-              const scrapeResults = parsed.jsonArray
+          const userAgents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Safari/605.1.15',
+          ]
+          const randomUA = userAgents[Math.floor(Math.random() * userAgents.length)]
 
-              for (const item of scrapeResults) {
+          const res = $http.send({
+            url: url,
+            method: 'GET',
+            headers: {
+              'User-Agent': randomUA,
+              Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+              'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+              Referer: 'https://www.in.gov.br/consulta/-/buscar/dou',
+              'Sec-Fetch-Dest': 'document',
+              'Sec-Fetch-Mode': 'navigate',
+              'Sec-Fetch-Site': 'same-origin',
+              'Sec-Fetch-User': '?1',
+              'Upgrade-Insecure-Requests': '1',
+              'Accept-Encoding': 'identity',
+            },
+            timeout: 15,
+          })
+
+          if (res.statusCode === 200) {
+            let html = ''
+            if (typeof res.body === 'string') {
+              html = res.body
+            } else if (res.body) {
+              let bytes = new Uint8Array(res.body)
+              let chunk = []
+              for (let i = 0; i < bytes.length; i += 8000) {
+                let end = i + 8000 > bytes.length ? bytes.length : i + 8000
+                chunk.push(String.fromCharCode.apply(null, bytes.subarray(i, end)))
+              }
+              let latin1 = chunk.join('')
+              try {
+                html = decodeURIComponent(escape(latin1))
+              } catch (e) {
+                html = latin1
+              }
+            }
+
+            const scriptMatch = html.match(
+              /<script[^>]*id="_br_com_seatecnologia_in_buscadou_BuscaDouPortlet_params"[^>]*>([\s\S]*?)<\/script>/,
+            )
+            if (scriptMatch && scriptMatch[1]) {
+              const parsed = JSON.parse(scriptMatch[1].trim())
+              if (parsed.jsonArray && parsed.jsonArray.length > 0) {
+                const newLastId = parsed.jsonArray[parsed.jsonArray.length - 1].id || ''
+                if (newLastId === lastId && lastId !== '') {
+                  hasMore = false
+                } else {
+                  allScraped = allScraped.concat(parsed.jsonArray)
+                  lastScore = parsed.jsonArray[parsed.jsonArray.length - 1].score || ''
+                  lastId = newLastId
+                  lastDisplayDate = parsed.jsonArray[parsed.jsonArray.length - 1].pubDate || ''
+                  if (parsed.jsonArray.length < 20) hasMore = false
+                }
+              } else {
+                hasMore = false
+              }
+            } else {
+              throw new Error('Structure Mismatch: Script tag not found')
+            }
+          } else {
+            throw new Error(`HTTP ${res.statusCode}`)
+          }
+          page++
+        }
+
+        if (allScraped.length > 0) {
+          for (const item of allScraped) {
                 let cleanText = (item.content || '').replace(/<[^>]*>?/gm, '').trim()
                 let pubDateStr = item.pubDate || fromDDMMYYYY
                 if (pubDateStr.includes('/')) {
@@ -141,18 +186,14 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
                 }
               }
 
-              rec.set('status', 'completed')
-              rec.set('error_message', '')
-              rec.set('last_attempt', new Date().toISOString().replace('T', ' ').substring(0, 19))
-              $app.save(rec)
-            } else {
-              throw new Error('No array results')
-            }
-          } else {
-            throw new Error('Structure Mismatch')
           }
+
+          rec.set('status', 'completed')
+          rec.set('error_message', '')
+          rec.set('last_attempt', new Date().toISOString().replace('T', ' ').substring(0, 19))
+          $app.save(rec)
         } else {
-          throw new Error(`HTTP ${res.statusCode}`)
+          throw new Error('No array results from any page')
         }
       } catch (err) {
         rec.set('status', 'failed')

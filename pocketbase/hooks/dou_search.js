@@ -32,7 +32,11 @@ routerAdd(
       }
     }
 
-    logProcess('Busca Ativa DOU', 'Iniciada', `Buscando por: ${q}`)
+    logProcess(
+      'Busca Ativa DOU',
+      'Iniciada',
+      `Buscando por: ${q} | Params: ${JSON.stringify(body)}`,
+    )
 
     // 1. Cache
     try {
@@ -155,7 +159,7 @@ routerAdd(
           logProcess(
             'Busca Ativa DOU - Scraping',
             'Processando',
-            `Buscando página ${page} na API do DOU...`,
+            `Buscando página ${page} na API do DOU... URL: ${url}`,
           )
           const userAgents = [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -217,12 +221,16 @@ routerAdd(
             if (scriptMatch && scriptMatch[1]) {
               const parsed = JSON.parse(scriptMatch[1].trim())
               if (parsed.jsonArray && parsed.jsonArray.length > 0) {
-                scrapeResults = scrapeResults.concat(parsed.jsonArray)
-                const lastItem = parsed.jsonArray[parsed.jsonArray.length - 1]
-                lastScore = lastItem.score || ''
-                lastId = lastItem.id || ''
-                lastDisplayDate = lastItem.pubDate || ''
-                if (parsed.jsonArray.length < 20) hasMore = false
+                const newLastId = parsed.jsonArray[parsed.jsonArray.length - 1].id || ''
+                if (newLastId === lastId && lastId !== '') {
+                  hasMore = false
+                } else {
+                  scrapeResults = scrapeResults.concat(parsed.jsonArray)
+                  lastScore = parsed.jsonArray[parsed.jsonArray.length - 1].score || ''
+                  lastId = newLastId
+                  lastDisplayDate = parsed.jsonArray[parsed.jsonArray.length - 1].pubDate || ''
+                  if (parsed.jsonArray.length < 20) hasMore = false
+                }
                 scrapeSuccess = true
               } else {
                 hasMore = false
@@ -257,7 +265,7 @@ routerAdd(
         logProcess(
           'Busca Ativa DOU - Tratamento',
           'Processando',
-          `Normalizando e salvando ${scrapeResults.length} registros...`,
+          `Páginas processadas: ${page - 1} | Normalizando e salvando ${scrapeResults.length} registros...`,
         )
         sourceUsed = 'DOU_SCRAPING'
         updateQueue('completed', '')
@@ -363,7 +371,11 @@ routerAdd(
 
     // 5. Fallback to Querido Diário
     if (results.length === 0) {
-      logProcess('Busca Ativa DOU - Fallback', 'Processando', 'Iniciando busca no Querido Diário')
+      logProcess(
+        'Busca Ativa DOU - Fallback',
+        'Aviso',
+        'Iniciando busca no Querido Diário devido a falta de resultados ou falha nas etapas anteriores',
+      )
       try {
         const qdUrl = `https://queridodiario.ok.org.br/api/gazettes?querystring=${encodeURIComponent(q)}&published_since=${publishFrom || new Date().toISOString().split('T')[0]}&published_until=${publishTo || new Date().toISOString().split('T')[0]}&excerpt_size=500`
         const qdRes = $http.send({ url: qdUrl, method: 'GET', timeout: 10 })
@@ -402,7 +414,7 @@ routerAdd(
     logProcess(
       'Busca Ativa DOU',
       'Concluída',
-      `Resultados: ${results.length}`,
+      `Total Resultados: ${results.length} | Fonte: ${sourceUsed || 'NENHUM'} | Params: ${JSON.stringify(body)}`,
       sourceUsed || 'NENHUM',
     )
 
