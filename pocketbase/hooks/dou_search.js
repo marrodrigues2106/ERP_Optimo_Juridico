@@ -63,12 +63,14 @@ routerAdd(
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
+        .replace(/[.,:;!?(){}\[\]"'-]/g, ' ')
+        .replace(/\n|\r/g, ' ')
         .replace(/\s+/g, ' ')
         .trim()
     }
 
     const qNorm = normalizeText(q)
-    const qTokens = qNorm.split(' ').filter((t) => t.length > 2)
+    const qTokens = qNorm.split(' ').filter((t) => t.length >= 3)
 
     const parseDouDate = (pubDateStr) => {
       if (!pubDateStr) return ''
@@ -78,6 +80,44 @@ routerAdd(
         if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`
       }
       return datePart
+    }
+
+    const calculateScore = (item) => {
+      let score = 0
+
+      const titleNorm = normalizeText(item.title || '')
+      const contentNorm = normalizeText(item.content || '')
+      const pubNameNorm = normalizeText(item.pubName || '')
+      const artTypeNorm = normalizeText(item.artType || '')
+      const hierarchyStrNorm = normalizeText(item.hierarchyStr || '')
+
+      const fullText = `${titleNorm} ${contentNorm} ${pubNameNorm} ${artTypeNorm} ${hierarchyStrNorm}`
+
+      // Exact Match
+      if (qNorm && fullText.includes(qNorm)) {
+        score += 100
+      }
+
+      // Token Match
+      for (let token of qTokens) {
+        if (fullText.includes(token)) {
+          score += 10
+        }
+      }
+
+      // Specific Keyword Bonus
+      const bonusKeywords = ['tribunal', 'contas', 'uniao']
+      for (let bk of bonusKeywords) {
+        if (fullText.includes(bk)) {
+          score += 5
+        }
+      }
+
+      // Field Specific Bonus
+      if (qNorm && titleNorm.includes(qNorm)) score += 20
+      if (qNorm && hierarchyStrNorm.includes(qNorm)) score += 15
+
+      return score
     }
 
     while (page <= 5 && hasMore) {
@@ -166,28 +206,16 @@ routerAdd(
                 for (let item of parsed.jsonArray) {
                   pageExtracted++
 
-                  // Textual Adherence Validation
-                  const contentNorm = normalizeText(item.content || '')
-                  const titleNorm = normalizeText(item.title || item.artType || '')
-                  const fullText = titleNorm + ' ' + contentNorm
-
-                  let matchesText = false
-                  if (fullText.includes(qNorm)) {
-                    matchesText = true
-                  } else if (qTokens.length > 0 && qTokens.every((t) => fullText.includes(t))) {
-                    matchesText = true
-                  }
-
-                  if (!matchesText) {
+                  const score = calculateScore(item)
+                  if (score < 30) {
                     pageTextFiltered++
                     continue
                   }
 
-                  // Date Interval Validation
-                  const itemPubDate = item.pubDate || fromDDMMYYYY
+                  const itemPubDate = item.pubDate || ''
                   const itemDateISO = parseDouDate(itemPubDate)
 
-                  if (itemDateISO < fromDate || itemDateISO > toDate) {
+                  if (!itemDateISO || itemDateISO < fromDate || itemDateISO > toDate) {
                     pageDateFiltered++
                     continue
                   }
@@ -211,7 +239,7 @@ routerAdd(
                 logProcess(
                   '[Busca Ativa DOU - Filtros]',
                   'Processando',
-                  `Página ${page}: Extraídos ${pageExtracted} | Descartados por Texto: ${pageTextFiltered} | Descartados por Data: ${pageDateFiltered}`,
+                  `Página ${page}: Extraídos ${pageExtracted} | Descartados por Texto (Score < 30): ${pageTextFiltered} | Descartados por Data (Outside date range): ${pageDateFiltered}`,
                   'DOU_SCRAPING',
                 )
 
@@ -274,12 +302,12 @@ routerAdd(
         let cleanText = (item.content || '').replace(/<[^>]*>?/gm, '').trim()
         let cleanTitle = (item.title || item.artType || '').replace(/<[^>]*>?/gm, '').trim()
 
-        let pubDateStr = item.pubDate || fromDDMMYYYY
+        let pubDateStr = item.pubDate || ''
         if (pubDateStr.includes('/')) {
           const parts = pubDateStr.split(' ')[0].split('/')
           if (parts.length === 3) pubDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`
         }
-        if (!pubDateStr.includes(':')) pubDateStr += ' 00:00:00'
+        if (!pubDateStr.includes(':') && pubDateStr) pubDateStr += ' 00:00:00'
 
         const urlTitle = item.urlTitle ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}` : ''
 
@@ -307,18 +335,22 @@ routerAdd(
         }
       })
 
-      // Filtrar localmente caso o parâmetro artType tenha sido preenchido,
-      // pois o DOU não processa esse filtro nativamente na URL.
       if (artType) {
         const lowerArtType = artType.toLowerCase()
         results = results.filter((r) => r.artType && r.artType.toLowerCase().includes(lowerArtType))
       }
+
+      results.sort((a, b) => {
+        const dateA = a.pubDate || ''
+        const dateB = b.pubDate || ''
+        return dateB.localeCompare(dateA)
+      })
     }
 
     logProcess(
       '[Busca Ativa DOU - Resumo Final]',
       'Concluída',
-      `Extraídos: ${totalExtracted} | Descartados Texto: ${totalTextFiltered} | Descartados Data: ${totalDateFiltered} | Mantidos: ${scrapeResults.length}`,
+      `Extraídos: ${totalExtracted} | Descartados Texto (Score < 30): ${totalTextFiltered} | Descartados Data (Outside date range): ${totalDateFiltered} | Mantidos: ${scrapeResults.length}`,
       'DOU_SCRAPING',
     )
 
