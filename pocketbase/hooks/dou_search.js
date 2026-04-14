@@ -28,18 +28,18 @@ routerAdd(
       }
     }
 
-    logProcess(
-      '[Busca Ativa DOU - Início]',
-      'Iniciada',
-      `Buscando por: ${q} | Params: ${JSON.stringify(body)}`,
-      'DOU_SCRAPING',
-    )
-
     let today = new Date().toISOString().split('T')[0]
     let fromDate = publishFrom || today
     let toDate = publishTo || today
     let fromDDMMYYYY = fromDate.split('-').reverse().join('/')
     let toDDMMYYYY = toDate.split('-').reverse().join('/')
+
+    logProcess(
+      '[Busca Ativa DOU - Início]',
+      'Iniciada',
+      `Buscando por: ${q} | Período: ${fromDate} a ${toDate} | Params: ${JSON.stringify(body)}`,
+      'DOU_SCRAPING',
+    )
 
     let page = 1
     let hasMore = true
@@ -50,8 +50,35 @@ routerAdd(
     let scrapeSuccess = false
     let scrapeError = ''
 
+    let totalExtracted = 0
+    let totalTextFiltered = 0
+    let totalDateFiltered = 0
+
     // Conjunto para evitar itens duplicados na própria varredura
     const seenUrls = {}
+
+    const normalizeText = (text) => {
+      if (!text) return ''
+      return text
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim()
+    }
+
+    const qNorm = normalizeText(q)
+    const qTokens = qNorm.split(' ').filter((t) => t.length > 2)
+
+    const parseDouDate = (pubDateStr) => {
+      if (!pubDateStr) return ''
+      const datePart = pubDateStr.split(' ')[0]
+      if (datePart.includes('/')) {
+        const parts = datePart.split('/')
+        if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`
+      }
+      return datePart
+    }
 
     while (page <= 5 && hasMore) {
       let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${encodeURIComponent(q)}&s=do1,do2,do3,doextra&exactDate=personalizado&publishFrom=${fromDDMMYYYY}&publishTo=${toDDMMYYYY}&sortType=0&delta=20&currentPage=${page}`
@@ -68,7 +95,7 @@ routerAdd(
         logProcess(
           '[Busca Ativa DOU - Scraping]',
           'Processando',
-          `Buscando página ${page} na API do DOU... URL: ${url}`,
+          `Buscando página ${page}... URL: ${url}`,
           'DOU_SCRAPING',
         )
 
@@ -101,13 +128,6 @@ routerAdd(
           timeout: 15,
         })
 
-        logProcess(
-          '[Busca Ativa DOU - Scraping HTTP]',
-          res.statusCode === 200 ? 'Sucesso' : 'Aviso',
-          `HTTP Status Code: ${res.statusCode}`,
-          'DOU_SCRAPING',
-        )
-
         if (res.statusCode === 200) {
           let html = ''
           if (typeof res.body === 'string') {
@@ -139,7 +159,39 @@ routerAdd(
               if (newLastId === lastId && lastId !== '') {
                 hasMore = false
               } else {
+                let pageExtracted = 0
+                let pageTextFiltered = 0
+                let pageDateFiltered = 0
+
                 for (let item of parsed.jsonArray) {
+                  pageExtracted++
+
+                  // Textual Adherence Validation
+                  const contentNorm = normalizeText(item.content || '')
+                  const titleNorm = normalizeText(item.title || item.artType || '')
+                  const fullText = titleNorm + ' ' + contentNorm
+
+                  let matchesText = false
+                  if (fullText.includes(qNorm)) {
+                    matchesText = true
+                  } else if (qTokens.length > 0 && qTokens.every((t) => fullText.includes(t))) {
+                    matchesText = true
+                  }
+
+                  if (!matchesText) {
+                    pageTextFiltered++
+                    continue
+                  }
+
+                  // Date Interval Validation
+                  const itemPubDate = item.pubDate || fromDDMMYYYY
+                  const itemDateISO = parseDouDate(itemPubDate)
+
+                  if (itemDateISO < fromDate || itemDateISO > toDate) {
+                    pageDateFiltered++
+                    continue
+                  }
+
                   if (item.urlTitle && !seenUrls[item.urlTitle]) {
                     seenUrls[item.urlTitle] = true
                     scrapeResults.push(item)
@@ -148,14 +200,18 @@ routerAdd(
                   }
                 }
 
+                totalExtracted += pageExtracted
+                totalTextFiltered += pageTextFiltered
+                totalDateFiltered += pageDateFiltered
+
                 lastScore = parsed.jsonArray[parsed.jsonArray.length - 1].score || ''
                 lastId = newLastId
                 lastDisplayDate = parsed.jsonArray[parsed.jsonArray.length - 1].pubDate || ''
 
                 logProcess(
-                  '[Busca Ativa DOU - Parse]',
-                  'Sucesso',
-                  `Página ${page}: Extraídos ${parsed.jsonArray.length} itens.`,
+                  '[Busca Ativa DOU - Filtros]',
+                  'Processando',
+                  `Página ${page}: Extraídos ${pageExtracted} | Descartados por Texto: ${pageTextFiltered} | Descartados por Data: ${pageDateFiltered}`,
                   'DOU_SCRAPING',
                 )
 
@@ -210,7 +266,7 @@ routerAdd(
       logProcess(
         '[Busca Ativa DOU - Tratamento]',
         'Processando',
-        `Páginas processadas: ${page - 1} | Normalizando ${scrapeResults.length} registros...`,
+        `Páginas processadas: ${page - 1} | Normalizando ${scrapeResults.length} registros válidos...`,
         'DOU_SCRAPING',
       )
 
@@ -220,7 +276,7 @@ routerAdd(
 
         let pubDateStr = item.pubDate || fromDDMMYYYY
         if (pubDateStr.includes('/')) {
-          const parts = pubDateStr.split('/')
+          const parts = pubDateStr.split(' ')[0].split('/')
           if (parts.length === 3) pubDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`
         }
         if (!pubDateStr.includes(':')) pubDateStr += ' 00:00:00'
@@ -260,9 +316,9 @@ routerAdd(
     }
 
     logProcess(
-      '[Busca Ativa DOU - Conclusão]',
+      '[Busca Ativa DOU - Resumo Final]',
       'Concluída',
-      `Total Resultados: ${results.length} | Fonte: DOU_SCRAPING | Params: ${JSON.stringify(body)}`,
+      `Extraídos: ${totalExtracted} | Descartados Texto: ${totalTextFiltered} | Descartados Data: ${totalDateFiltered} | Mantidos: ${scrapeResults.length}`,
       'DOU_SCRAPING',
     )
 
@@ -270,7 +326,7 @@ routerAdd(
     if (results.length === 0) {
       finalMessage = scrapeError
         ? scrapeError
-        : 'No results for this date range / Rate limited / Blocked (403).'
+        : 'Nenhum resultado válido encontrado após a aplicação dos filtros locais de texto e data.'
     }
 
     return e.json(200, {
