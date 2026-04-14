@@ -3,6 +3,17 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
   const logsCol = $app.findCollectionByNameOrId('logs_processamento')
   const pubDouCol = $app.findCollectionByNameOrId('publicacoes_dou')
 
+  const logProcess = (etapa, status, msg) => {
+    try {
+      const logRec = new Record(logsCol)
+      logRec.set('etapa', etapa)
+      logRec.set('status', status)
+      logRec.set('mensagem', msg)
+      logRec.set('data_hora', new Date().toISOString())
+      $app.save(logRec)
+    } catch (_) {}
+  }
+
   try {
     const pending = $app.findRecordsByFilter(
       'dou_reprocessing_queue',
@@ -19,6 +30,12 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
       const params = rec.get('params') || {}
       const q = params.q || ''
       let publishFrom = params.publishFrom || ''
+
+      logProcess(
+        '[Cron DOU - Início]',
+        'Processando',
+        `Reprocessando query: ${q} (Retry: ${rec.get('retry_count')})`,
+      )
       let publishTo = params.publishTo || ''
 
       let today = new Date().toISOString().split('T')[0]
@@ -68,6 +85,12 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
             },
             timeout: 15,
           })
+
+          logProcess(
+            '[Cron DOU - Scraping HTTP]',
+            res.statusCode === 200 ? 'Sucesso' : 'Aviso',
+            `Página ${page} HTTP: ${res.statusCode}`,
+          )
 
           if (res.statusCode === 200) {
             let html = ''
@@ -160,10 +183,7 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
                 record.set('hash_conteudo', hash)
                 record.set('fonte_coleta', 'DOU_SCRAPING')
                 record.set('data_publicacao', pubDateStr)
-                record.set(
-                  'data_coleta',
-                  new Date().toISOString().replace('T', ' ').substring(0, 19),
-                )
+                record.set('data_coleta', new Date().toISOString())
                 record.set('status_processamento', 'bruto')
                 record.set('editionNumber', String(item.editionNumber || ''))
                 record.set('numberPage', String(item.numberPage || ''))
@@ -187,8 +207,14 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
 
           rec.set('status', 'completed')
           rec.set('error_message', '')
-          rec.set('last_attempt', new Date().toISOString().replace('T', ' ').substring(0, 19))
+          rec.set('last_attempt', new Date().toISOString())
           $app.save(rec)
+
+          logProcess(
+            '[Cron DOU - Conclusão]',
+            'Sucesso',
+            `Salvos ${allScraped.length} registros no banco local para query: ${q}`,
+          )
         } else {
           throw new Error('No array results from any page')
         }
@@ -196,17 +222,10 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
         rec.set('status', 'failed')
         rec.set('retry_count', rec.get('retry_count') + 1)
         rec.set('error_message', String(err))
-        rec.set('last_attempt', new Date().toISOString().replace('T', ' ').substring(0, 19))
+        rec.set('last_attempt', new Date().toISOString())
         $app.save(rec)
 
-        try {
-          const logRec = new Record(logsCol)
-          logRec.set('etapa', 'Reprocessing Cron')
-          logRec.set('status', 'Erro')
-          logRec.set('mensagem', `Erro reprocessamento ${q}: ${String(err)}`)
-          logRec.set('data_hora', new Date().toISOString().replace('T', ' ').substring(0, 19))
-          $app.save(logRec)
-        } catch (_) {}
+        logProcess('[Cron DOU - Erro]', 'Erro', `Erro reprocessamento ${q}: ${String(err)}`)
       }
     }
   } catch (err) {

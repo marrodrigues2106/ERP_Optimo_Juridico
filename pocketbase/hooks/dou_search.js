@@ -33,7 +33,7 @@ routerAdd(
     }
 
     logProcess(
-      'Busca Ativa DOU',
+      '[Busca Ativa DOU - Início]',
       'Iniciada',
       `Buscando por: ${q} | Params: ${JSON.stringify(body)}`,
     )
@@ -42,7 +42,7 @@ routerAdd(
     try {
       const cacheRec = $app.findFirstRecordByData('dou_search_cache', 'query_key', queryKey)
       if (new Date(cacheRec.get('expires_at')) > new Date()) {
-        logProcess('Busca Ativa DOU', 'Concluída', 'Retornado do Cache', 'CACHE')
+        logProcess('[Cache Used]', 'Concluída', 'Retornado do Cache', 'CACHE')
         return e.json(200, {
           success: true,
           source: 'CACHE',
@@ -86,6 +86,11 @@ routerAdd(
         0,
       )
       if (localRecords.length > 0) {
+        logProcess(
+          '[Local DB Used]',
+          'Sucesso',
+          `Encontrados ${localRecords.length} registros locais`,
+        )
         sourceUsed = 'LOCAL_DB'
         results = localRecords.map((r) => ({
           id: r.id,
@@ -104,7 +109,7 @@ routerAdd(
         }))
       }
     } catch (err) {
-      logProcess('Busca Local', 'Erro', String(err))
+      logProcess('[Busca Local]', 'Erro', String(err))
     }
 
     const updateQueue = (statusStr, errorMsg) => {
@@ -127,7 +132,7 @@ routerAdd(
         }
         $app.save(qRec)
       } catch (err) {
-        logProcess('Update Queue', 'Erro', String(err))
+        logProcess('[Update Queue]', 'Erro', String(err))
       }
     }
 
@@ -157,7 +162,7 @@ routerAdd(
 
         try {
           logProcess(
-            'Busca Ativa DOU - Scraping',
+            '[Busca Ativa DOU - Scraping]',
             'Processando',
             `Buscando página ${page} na API do DOU... URL: ${url}`,
           )
@@ -191,7 +196,7 @@ routerAdd(
           })
 
           logProcess(
-            'Busca Ativa DOU - Scraping HTTP',
+            '[Busca Ativa DOU - Scraping HTTP]',
             res.statusCode === 200 ? 'Sucesso' : 'Aviso',
             `HTTP Status Code: ${res.statusCode}`,
           )
@@ -243,18 +248,18 @@ routerAdd(
           } else if (res.statusCode === 401 || res.statusCode === 403 || res.statusCode === 429) {
             hasMore = false
             scrapeError = `HTTP ${res.statusCode}: Acesso bloqueado pelo firewall do DOU (Unauthorized/Forbidden/Too Many Requests).`
-            logProcess('Busca Ativa DOU - Erro Scraping', 'Erro', scrapeError)
+            logProcess('[Busca Ativa DOU - Erro Scraping]', 'Erro', scrapeError)
           } else if (res.statusCode === 500) {
             hasMore = false
             scrapeError = `HTTP 500: Erro interno no servidor do DOU (Internal Server Error).`
-            logProcess('Busca Ativa DOU - Erro Scraping', 'Erro', scrapeError)
+            logProcess('[Busca Ativa DOU - Erro Scraping]', 'Erro', scrapeError)
           } else {
             hasMore = false
             scrapeError = `HTTP ${res.statusCode}: Resposta inesperada do servidor.`
-            logProcess('Busca Ativa DOU - Erro Scraping', 'Erro', scrapeError)
+            logProcess('[Busca Ativa DOU - Erro Scraping]', 'Erro', scrapeError)
           }
         } catch (err) {
-          logProcess('Busca Ativa DOU - Erro Scraping', 'Erro', String(err))
+          logProcess('[Busca Ativa DOU - Erro Scraping]', 'Erro', String(err))
           hasMore = false
           scrapeError = String(err)
         }
@@ -263,7 +268,7 @@ routerAdd(
 
       if (scrapeSuccess && scrapeResults.length > 0) {
         logProcess(
-          'Busca Ativa DOU - Tratamento',
+          '[Busca Ativa DOU - Tratamento]',
           'Processando',
           `Páginas processadas: ${page - 1} | Normalizando e salvando ${scrapeResults.length} registros...`,
         )
@@ -337,7 +342,7 @@ routerAdd(
 
               $app.save(record)
             } catch (saveErr) {
-              logProcess('Busca Ativa DOU - Salvar', 'Erro', String(saveErr))
+              logProcess('[Busca Ativa DOU - Salvar]', 'Erro', String(saveErr))
             }
           }
 
@@ -372,7 +377,7 @@ routerAdd(
     // 5. Fallback to Querido Diário
     if (results.length === 0) {
       logProcess(
-        'Busca Ativa DOU - Fallback',
+        '[Fallback]',
         'Aviso',
         'Iniciando busca no Querido Diário devido a falta de resultados ou falha nas etapas anteriores',
       )
@@ -380,15 +385,15 @@ routerAdd(
         const qdUrl = `https://queridodiario.ok.org.br/api/gazettes?querystring=${encodeURIComponent(q)}&published_since=${publishFrom || new Date().toISOString().split('T')[0]}&published_until=${publishTo || new Date().toISOString().split('T')[0]}&excerpt_size=500`
         const qdRes = $http.send({ url: qdUrl, method: 'GET', timeout: 10 })
 
-        if (qdRes.statusCode === 403) {
+        if (qdRes.statusCode === 403 || qdRes.statusCode === 401 || qdRes.statusCode === 429) {
           logProcess(
-            'Busca Ativa DOU - Fallback HTTP',
+            '[Fallback HTTP]',
             'Bloqueio Funcional',
-            `HTTP Status Code: 403 Forbidden`,
+            `HTTP Status Code: ${qdRes.statusCode} Blocked`,
           )
         } else {
           logProcess(
-            'Busca Ativa DOU - Fallback HTTP',
+            '[Fallback HTTP]',
             qdRes.statusCode === 200 ? 'Sucesso' : 'Aviso',
             `HTTP Status Code: ${qdRes.statusCode}`,
           )
@@ -407,12 +412,12 @@ routerAdd(
           }
         }
       } catch (err) {
-        logProcess('Busca Ativa DOU - Fallback Erro', 'Erro', String(err))
+        logProcess('[Fallback Erro]', 'Erro', String(err))
       }
     }
 
     logProcess(
-      'Busca Ativa DOU',
+      '[Busca Ativa DOU - Conclusão]',
       'Concluída',
       `Total Resultados: ${results.length} | Fonte: ${sourceUsed || 'NENHUM'} | Params: ${JSON.stringify(body)}`,
       sourceUsed || 'NENHUM',
@@ -435,7 +440,7 @@ routerAdd(
         cacheRec.set('expires_at', expiresAt.toISOString())
         $app.save(cacheRec)
       } catch (err) {
-        logProcess('Salvar Cache', 'Erro', String(err))
+        logProcess('[Salvar Cache]', 'Erro', String(err))
       }
     }
 
