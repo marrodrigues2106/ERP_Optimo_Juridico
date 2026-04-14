@@ -8,7 +8,7 @@ routerAdd(
     let publishTo = body.publishTo || ''
     let orgPrin = body.orgPrin || ''
     let artType = body.artType || ''
-    let searchType = body.searchType || 'palavra-chave'
+    let searchType = body.searchType || 'palavras_chave'
 
     if (!q) {
       return e.badRequestError('O termo de busca (q) é obrigatório.')
@@ -115,7 +115,7 @@ routerAdd(
         }
       }
 
-      if (typeStr === 'frase') {
+      if (typeStr === 'frase_exata') {
         if (fullText.includes(qNorm)) return 100
         return 0
       }
@@ -388,12 +388,28 @@ routerAdd(
       })
     }
 
-    logProcess(
-      '[Busca Ativa DOU - Resumo Final]',
-      'Concluída',
-      `total_extraidos: ${totalExtracted} | descartados_texto: ${totalTextFiltered} | descartados_data: ${totalDateFiltered} | mantidos: ${results.length}`,
-      'DOU_SCRAPING',
-    )
+    try {
+      const logRec = new Record(logsCol)
+      logRec.set('etapa', '[Busca Ativa DOU - Resumo Final]')
+      logRec.set('status', 'Concluída')
+      logRec.set(
+        'mensagem',
+        `total_extraidos: ${totalExtracted} | descartados_texto: ${totalTextFiltered} | descartados_data: ${totalDateFiltered} | mantidos: ${results.length} | Source: DOU_SCRAPING`,
+      )
+      logRec.set('data_hora', new Date().toISOString())
+      logRec.set('termo', q)
+      logRec.set('tipo_busca', searchType)
+      logRec.set('periodo', `${fromDate} a ${toDate}`)
+      logRec.set('metadados', {
+        total_extraidos: totalExtracted,
+        mantidos: results.length,
+        descartados_texto: totalTextFiltered,
+        descartados_data: totalDateFiltered,
+      })
+      $app.save(logRec)
+    } catch (err) {
+      console.error('Log summary error in dou_search:', err)
+    }
 
     let finalMessage = 'Sucesso'
     if (results.length === 0) {

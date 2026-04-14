@@ -39,6 +39,13 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import { DateRange } from 'react-day-picker'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 function getLocalDateStr(date: Date) {
   const year = date.getFullYear()
@@ -68,6 +75,9 @@ export default function DouSearch() {
   const { toast } = useToast()
 
   const [q, setQ] = useState(() => sessionStorage.getItem('dou_q') || '')
+  const [searchType, setSearchType] = useState(
+    () => sessionStorage.getItem('dou_searchType') || 'palavras_chave',
+  )
 
   const [date, setDate] = useState<DateRange | undefined>(() => {
     const fromStr = sessionStorage.getItem('dou_publishFrom') || getLastBusinessDay()
@@ -102,11 +112,12 @@ export default function DouSearch() {
 
   useEffect(() => {
     sessionStorage.setItem('dou_q', q)
+    sessionStorage.setItem('dou_searchType', searchType)
     if (date?.from) sessionStorage.setItem('dou_publishFrom', format(date.from, 'yyyy-MM-dd'))
     if (date?.to) sessionStorage.setItem('dou_publishTo', format(date.to, 'yyyy-MM-dd'))
     sessionStorage.setItem('dou_orgPrin', orgPrin)
     sessionStorage.setItem('dou_artType', artType)
-  }, [q, date, orgPrin, artType])
+  }, [q, searchType, date, orgPrin, artType])
 
   useEffect(() => {
     if (searched) {
@@ -204,7 +215,7 @@ export default function DouSearch() {
     setCurrentPage(1)
 
     try {
-      const res = await searchDou({ q, publishFrom, publishTo, orgPrin, artType })
+      const res = await searchDou({ q, searchType, publishFrom, publishTo, orgPrin, artType })
       setResults(res.data || [])
       setSource(res.source)
       setMessage(res.message || '')
@@ -347,6 +358,21 @@ export default function DouSearch() {
                   required
                 />
               </div>
+
+              <div className="space-y-2 w-full md:w-48">
+                <Label htmlFor="searchType">Modo de Busca</Label>
+                <Select value={searchType} onValueChange={setSearchType} required>
+                  <SelectTrigger id="searchType">
+                    <SelectValue placeholder="Selecione o modo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="palavras_chave">Palavras-chave</SelectItem>
+                    <SelectItem value="frase_exata">Frase Exata</SelectItem>
+                    <SelectItem value="regex">Regex Avançado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-2 w-full md:w-auto flex flex-col">
                 <Label>Período</Label>
                 <Popover>
@@ -409,7 +435,7 @@ export default function DouSearch() {
               </div>
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !q.trim() || !searchType}
                 className="w-full md:w-auto min-w-40 mt-6 md:mt-0"
               >
                 {loading ? (

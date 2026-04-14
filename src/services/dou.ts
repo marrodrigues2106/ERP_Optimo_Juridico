@@ -2,6 +2,7 @@ import pb from '@/lib/pocketbase/client'
 
 export interface DouSearchParams {
   q: string
+  searchType?: string
   publishFrom?: string
   publishTo?: string
   orgPrin?: string

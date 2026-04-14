@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-14T02:52:38.760Z",
+  "generatedAt": "2026-04-14T03:01:56.020Z",
   "collections": [
     {
       "name": "users",
@@ -2577,6 +2577,30 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "termo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tipo_busca",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "periodo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "metadados",
+          "type": "json",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []
