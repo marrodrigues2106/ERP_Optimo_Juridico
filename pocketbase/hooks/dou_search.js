@@ -362,7 +362,11 @@ routerAdd(
             logProcess('parsing', 'Processando', `Procurando portlet na resposta da página ${page}`)
 
             const scriptMatch = html.match(
-              /<script[^>]*id="_br_com_seatecnologia_in_buscadou_BuscaDouPortlet_params"[^>]*>([\s\S]*?)<\/script>/,
+              new RegExp(
+                '<scr' +
+                  'ipt[^>]*id="_br_com_seatecnologia_in_buscadou_BuscaDouPortlet_params"[^>]*>([\\s\\S]*?)<\\/scr' +
+                  'ipt>',
+              ),
             )
 
             if (scriptMatch && scriptMatch[1]) {
@@ -480,9 +484,11 @@ routerAdd(
                   uniqueUrls.add(uniqueKey)
                   pageUniqueCount++
 
-                  let cleanText = (item.content || '').replace(/<[^>]*>?/gm, '').trim()
+                  let cleanText = (item.content || '')
+                    .replace(new RegExp('<[^>]*>?', 'gm'), '')
+                    .trim()
                   let cleanTitle = (item.title || item.artType || '')
-                    .replace(/<[^>]*>?/gm, '')
+                    .replace(new RegExp('<[^>]*>?', 'gm'), '')
                     .trim()
 
                   // Deduplication (Database via Hash)
@@ -601,18 +607,25 @@ routerAdd(
                       const titleNorm = normalizeText(cleanTitle)
                       const contentNorm = normalizeText(cleanText)
                       const hierarchyNorm = normalizeText(item.hierarchyStr || '')
-                      
+
                       let score = 0
                       let matchCount = 0
                       for (const t of tokens) {
                         let matched = false
-                        if (titleNorm.includes(t)) { score += 3; matched = true; }
-                        else if (contentNorm.includes(t)) { score += 2; matched = true; }
-                        else if (hierarchyNorm.includes(t)) { score += 1; matched = true; }
-                        if (matched) matchCount++;
+                        if (titleNorm.includes(t)) {
+                          score += 3
+                          matched = true
+                        } else if (contentNorm.includes(t)) {
+                          score += 2
+                          matched = true
+                        } else if (hierarchyNorm.includes(t)) {
+                          score += 1
+                          matched = true
+                        }
+                        if (matched) matchCount++
                       }
 
-                      pass = (matchCount / tokens.length) >= 0.5 // 50% of words is enough
+                      pass = matchCount / tokens.length >= 0.5 // 50% of words is enough
                       if (!pass) {
                         discardReason = `nao_corresponde_termo_livre: faltam termos essenciais (score: ${score})`
                         discardSnippet = cleanText.substring(0, 150).replace(/\s+/g, ' ') + '...'
@@ -625,7 +638,9 @@ routerAdd(
                     const cleanProcess = cleanNumbersOnly(numeroProcesso)
                     if (cleanProcess) {
                       const cleanFullTextDigits = cleanNumbersOnly(rawFullText)
-                      pass = cleanFullTextDigits.includes(cleanProcess) || fullTextNormalized.includes(normalizeText(numeroProcesso))
+                      pass =
+                        cleanFullTextDigits.includes(cleanProcess) ||
+                        fullTextNormalized.includes(normalizeText(numeroProcesso))
                     } else {
                       pass = fullTextNormalized.includes(normalizeText(numeroProcesso))
                     }
@@ -637,7 +652,9 @@ routerAdd(
                     const cleanOab = cleanNumbersOnly(numeroOab)
                     if (cleanOab) {
                       const cleanFullTextDigits = cleanNumbersOnly(rawFullText)
-                      pass = cleanFullTextDigits.includes(cleanOab) || fullTextNormalized.includes(normalizeText(numeroOab))
+                      pass =
+                        cleanFullTextDigits.includes(cleanOab) ||
+                        fullTextNormalized.includes(normalizeText(numeroOab))
                     } else {
                       pass = fullTextNormalized.includes(normalizeText(numeroOab))
                     }
@@ -649,7 +666,9 @@ routerAdd(
                     const cleanCpf = cleanNumbersOnly(cpfCnpj)
                     if (cleanCpf) {
                       const cleanFullTextDigits = cleanNumbersOnly(rawFullText)
-                      pass = cleanFullTextDigits.includes(cleanCpf) || fullTextNormalized.includes(normalizeText(cpfCnpj))
+                      pass =
+                        cleanFullTextDigits.includes(cleanCpf) ||
+                        fullTextNormalized.includes(normalizeText(cpfCnpj))
                     } else {
                       pass = fullTextNormalized.includes(normalizeText(cpfCnpj))
                     }

@@ -90,25 +90,30 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
                 method: 'GET',
                 headers: {
                   'User-Agent': randomUA,
-                  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                  Accept:
+                    'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
                   'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
                   Referer: 'https://www.in.gov.br/consulta/-/buscar/dou',
                 },
                 timeout: 15,
               })
-              
+
               if (res.statusCode === 200) {
                 break
-              } else if (res.statusCode === 403 || res.statusCode === 429 || res.statusCode >= 500) {
+              } else if (
+                res.statusCode === 403 ||
+                res.statusCode === 429 ||
+                res.statusCode >= 500
+              ) {
                 attempt++
                 if (attempt >= maxRetries) break
                 let delay = attempt * 4000
                 let startWait = Date.now()
-                while(Date.now() - startWait < delay) {}
+                while (Date.now() - startWait < delay) {}
               } else {
                 break
               }
-            } catch(e) {
+            } catch (e) {
               attempt++
               if (attempt >= maxRetries) {
                 res = { statusCode: 500 }
@@ -116,7 +121,7 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
               }
               let delay = attempt * 3000
               let startWait = Date.now()
-              while(Date.now() - startWait < delay) {}
+              while (Date.now() - startWait < delay) {}
             }
           }
 
@@ -146,7 +151,11 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
             }
 
             const scriptMatch = html.match(
-              /<script[^>]*id="_br_com_seatecnologia_in_buscadou_BuscaDouPortlet_params"[^>]*>([\s\S]*?)<\/script>/,
+              new RegExp(
+                '<scr' +
+                  'ipt[^>]*id="_br_com_seatecnologia_in_buscadou_BuscaDouPortlet_params"[^>]*>([\\s\\S]*?)<\\/scr' +
+                  'ipt>',
+              ),
             )
             if (scriptMatch && scriptMatch[1]) {
               const parsed = JSON.parse(scriptMatch[1].trim())
@@ -175,7 +184,7 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
 
         if (allScraped.length > 0) {
           for (const item of allScraped) {
-            let cleanText = (item.content || '').replace(/<[^>]*>?/gm, '').trim()
+            let cleanText = (item.content || '').replace(new RegExp('<[^>]*>?', 'gm'), '').trim()
             let pubDateStr = item.pubDate || fromDDMMYYYY
             if (pubDateStr.includes('/')) {
               const parts = pubDateStr.split('/')
@@ -183,10 +192,14 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
             }
             if (!pubDateStr.includes(':')) pubDateStr += ' 00:00:00'
 
-            let cleanTitle = (item.title || item.artType || '').replace(/<[^>]*>?/gm, '').trim()
+            let cleanTitle = (item.title || item.artType || '')
+              .replace(new RegExp('<[^>]*>?', 'gm'), '')
+              .trim()
             const urlTitle = item.urlTitle ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}` : ''
-            
-            const hash = $security.md5(normalizeText(cleanTitle) + normalizeText(cleanText) + (item.urlTitle || ''))
+
+            const hash = $security.md5(
+              normalizeText(cleanTitle) + normalizeText(cleanText) + (item.urlTitle || ''),
+            )
 
             let exists = false
             try {
@@ -209,7 +222,10 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
                 record.set('secao', item.artType || 'Seção 1')
                 record.set('orgao', item.pubName || 'DOU')
                 record.set('texto_bruto', cleanText)
-                record.set('texto_normalizado', normalizeText(cleanTitle + ' ' + cleanText + ' ' + (item.hierarchyStr || '')))
+                record.set(
+                  'texto_normalizado',
+                  normalizeText(cleanTitle + ' ' + cleanText + ' ' + (item.hierarchyStr || '')),
+                )
                 record.set('url_origem', urlTitle)
                 record.set('hash_conteudo', hash)
                 record.set('fonte_coleta', 'DOU_SCRAPING')

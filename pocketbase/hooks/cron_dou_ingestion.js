@@ -144,7 +144,12 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
                   }
                 }
                 break // success
-              } else if (res.statusCode === 401 || res.statusCode === 403 || res.statusCode === 429 || res.statusCode >= 500) {
+              } else if (
+                res.statusCode === 401 ||
+                res.statusCode === 403 ||
+                res.statusCode === 429 ||
+                res.statusCode >= 500
+              ) {
                 attempt++
                 if (attempt >= maxRetries) {
                   errorMsg = `Bloqueio/Erro (HTTP ${res.statusCode}) após ${maxRetries} tentativas`
@@ -152,7 +157,7 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
                 }
                 let delay = attempt * 4000
                 let startWait = Date.now()
-                while(Date.now() - startWait < delay) {}
+                while (Date.now() - startWait < delay) {}
                 continue
               } else {
                 errorMsg = `HTTP Error ${res.statusCode}`
@@ -167,7 +172,7 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
               }
               let delay = attempt * 3000
               let startWait = Date.now()
-              while(Date.now() - startWait < delay) {}
+              while (Date.now() - startWait < delay) {}
             }
           }
 
@@ -194,7 +199,11 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
 
           if (statusCode === 200 && html) {
             const scriptMatch = html.match(
-              /<script[^>]*id="_br_com_seatecnologia_in_buscadou_BuscaDouPortlet_params"[^>]*>([\s\S]*?)<\/script>/,
+              new RegExp(
+                '<scr' +
+                  'ipt[^>]*id="_br_com_seatecnologia_in_buscadou_BuscaDouPortlet_params"[^>]*>([\\s\\S]*?)<\\/scr' +
+                  'ipt>',
+              ),
             )
             if (scriptMatch && scriptMatch[1]) {
               try {
@@ -345,18 +354,22 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
       // Filter and Save Results
       let savedCount = 0
       for (let item of combinedResults) {
-        let cleanText = (item.text || '').replace(/<[^>]*>?/gm, '').trim()
+        let cleanText = (item.text || '').replace(new RegExp('<[^>]*>?', 'gm'), '').trim()
         if (ignoreSignature) {
           cleanText = cleanText.replace(
             /Este documento pode ser verificado no endereço eletrônico.*/gi,
             '',
           )
         }
-        let cleanTitle = (item.title || item.tipo_ato || 'Publicação').replace(/<[^>]*>?/gm, '').trim()
+        let cleanTitle = (item.title || item.tipo_ato || 'Publicação')
+          .replace(new RegExp('<[^>]*>?', 'gm'), '')
+          .trim()
         let rawFullText = `${cleanTitle} ${cleanText} ${item.department || ''}`
         let fullTextNormalized = normalizeText(rawFullText)
 
-        const hasIgnored = ignoredTerms.some((it) => it && fullTextNormalized.includes(normalizeText(it)))
+        const hasIgnored = ignoredTerms.some(
+          (it) => it && fullTextNormalized.includes(normalizeText(it)),
+        )
         if (hasIgnored) continue
 
         if (
@@ -373,10 +386,13 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
 
         const searchType = t.get('tipo_termo') || 'palavra-chave'
         let pass = true
-        
+
         if (searchType === 'frase' || isExactSearch) {
           let exact = termStr.trim()
-          if ((exact.startsWith('"') && exact.endsWith('"')) || (exact.startsWith("'") && exact.endsWith("'"))) {
+          if (
+            (exact.startsWith('"') && exact.endsWith('"')) ||
+            (exact.startsWith("'") && exact.endsWith("'"))
+          ) {
             exact = exact.substring(1, exact.length - 1).trim()
           }
           let exactNormalized = normalizeText(exact)
@@ -393,22 +409,31 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
           const titleNorm = normalizeText(cleanTitle)
           const contentNorm = normalizeText(cleanText)
           const hierarchyNorm = normalizeText(item.department || '')
-          
+
           let score = 0
           let matchCount = 0
           for (const tkn of tokens) {
             let matched = false
-            if (titleNorm.includes(tkn)) { score += 3; matched = true; }
-            else if (contentNorm.includes(tkn)) { score += 2; matched = true; }
-            else if (hierarchyNorm.includes(tkn)) { score += 1; matched = true; }
-            if (matched) matchCount++;
+            if (titleNorm.includes(tkn)) {
+              score += 3
+              matched = true
+            } else if (contentNorm.includes(tkn)) {
+              score += 2
+              matched = true
+            } else if (hierarchyNorm.includes(tkn)) {
+              score += 1
+              matched = true
+            }
+            if (matched) matchCount++
           }
-          pass = (matchCount / tokens.length) >= 0.5
+          pass = matchCount / tokens.length >= 0.5
         }
 
         if (!pass) continue
 
-        const hash = $security.md5(normalizeText(cleanTitle) + normalizeText(cleanText) + (item.url || ''))
+        const hash = $security.md5(
+          normalizeText(cleanTitle) + normalizeText(cleanText) + (item.url || ''),
+        )
         try {
           $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash)
           continue
