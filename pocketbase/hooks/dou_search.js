@@ -93,6 +93,7 @@ routerAdd(
       fora_do_periodo: 0,
       nao_corresponde_frase: 0,
       nao_corresponde_regex: 0,
+      nao_corresponde_termo_livre: 0,
       duplicado: 0,
       tipo_ato_incompativel: 0,
       ausencia_campo_obrigatorio: 0,
@@ -280,6 +281,15 @@ routerAdd(
                   if (item.urlTitle && uniqueUrls.has(item.urlTitle)) {
                     discardedCount++
                     discardReasons['duplicado']++
+                    logProcess(
+                      'normalization',
+                      'Aviso',
+                      `Descartado: duplicado (Url: ${item.urlTitle})`,
+                      {
+                        url: item.urlTitle,
+                        motivo: 'duplicado',
+                      },
+                    )
                     continue
                   }
                   if (item.urlTitle) uniqueUrls.add(item.urlTitle)
@@ -310,9 +320,17 @@ routerAdd(
                   let discardReason = ''
 
                   // 5. Temporal Filter
-                  if (pubYYYYMMDD < publishFrom || pubYYYYMMDD > publishTo) {
-                    pass = false
-                    discardReason = 'fora_do_periodo'
+                  if (pubYYYYMMDD && pubYYYYMMDD.length === 10 && pubYYYYMMDD.includes('-')) {
+                    if (pubYYYYMMDD < publishFrom || pubYYYYMMDD > publishTo) {
+                      pass = false
+                      discardReason = `fora_do_periodo: data ${pubYYYYMMDD} fora de ${publishFrom} a ${publishTo}`
+                    }
+                  } else {
+                    logProcess(
+                      'normalization',
+                      'Aviso',
+                      `Data com formatação inconsistente (${pubDateStr}), assumindo no período por segurança.`,
+                    )
                   }
 
                   // 7. SearchType Filter
@@ -320,20 +338,20 @@ routerAdd(
                     if (searchType === 'frase_exata') {
                       const exact = q.toLowerCase().trim()
                       pass = fullText.includes(exact)
-                      if (!pass) discardReason = 'nao_corresponde_frase'
+                      if (!pass) discardReason = `nao_corresponde_frase: não contém '${exact}'`
                     } else if (searchType === 'regex') {
                       try {
                         const regex = new RegExp(q, 'i')
                         pass = regex.test(fullText)
-                        if (!pass) discardReason = 'nao_corresponde_regex'
+                        if (!pass) discardReason = `nao_corresponde_regex: regex falhou`
                       } catch (err) {
                         pass = false
-                        discardReason = 'nao_corresponde_regex'
+                        discardReason = `nao_corresponde_regex: regex inválido`
                       }
                     } else {
                       const tokens = q.toLowerCase().trim().split(/\s+/)
                       pass = tokens.every((t) => fullText.includes(t))
-                      if (!pass) discardReason = 'ausencia_campo_obrigatorio'
+                      if (!pass) discardReason = `nao_corresponde_termo_livre: faltam termos`
                     }
                   }
 
@@ -343,14 +361,20 @@ routerAdd(
                       try {
                         pass = new RegExp(numeroProcesso, 'i').test(fullText)
                       } catch (err) {}
+                    } else if (searchType === 'frase_exata') {
+                      pass = fullText.includes(numeroProcesso.toLowerCase())
                     } else {
-                      const cleanFullText = fullText.replace(/[\.\-\/]/g, '')
-                      const cleanProcess = numeroProcesso.replace(/[\.\-\/]/g, '').toLowerCase()
+                      const cleanFullText = fullText.replace(/[\.\-\/\s]/g, '').replace(/^0+/, '')
+                      const cleanProcess = numeroProcesso
+                        .replace(/[\.\-\/\s]/g, '')
+                        .replace(/^0+/, '')
+                        .toLowerCase()
                       pass =
                         cleanFullText.includes(cleanProcess) ||
                         fullText.includes(numeroProcesso.toLowerCase())
                     }
-                    if (!pass && !discardReason) discardReason = 'ausencia_campo_obrigatorio'
+                    if (!pass && !discardReason)
+                      discardReason = `ausencia_campo_obrigatorio: processo '${numeroProcesso}' não corresponde`
                   }
 
                   if (pass && numeroOab) {
@@ -358,14 +382,20 @@ routerAdd(
                       try {
                         pass = new RegExp(numeroOab, 'i').test(fullText)
                       } catch (err) {}
+                    } else if (searchType === 'frase_exata') {
+                      pass = fullText.includes(numeroOab.toLowerCase())
                     } else {
-                      const cleanFullText = fullText.replace(/[\.\-\/]/g, '')
-                      const cleanOab = numeroOab.replace(/[\.\-\/]/g, '').toLowerCase()
+                      const cleanFullText = fullText.replace(/[\.\-\/\s]/g, '').replace(/^0+/, '')
+                      const cleanOab = numeroOab
+                        .replace(/[\.\-\/\s]/g, '')
+                        .replace(/^0+/, '')
+                        .toLowerCase()
                       pass =
                         cleanFullText.includes(cleanOab) ||
                         fullText.includes(numeroOab.toLowerCase())
                     }
-                    if (!pass && !discardReason) discardReason = 'ausencia_campo_obrigatorio'
+                    if (!pass && !discardReason)
+                      discardReason = `ausencia_campo_obrigatorio: OAB '${numeroOab}' não corresponde`
                   }
 
                   if (pass && cpfCnpj) {
@@ -373,13 +403,19 @@ routerAdd(
                       try {
                         pass = new RegExp(cpfCnpj, 'i').test(fullText)
                       } catch (err) {}
+                    } else if (searchType === 'frase_exata') {
+                      pass = fullText.includes(cpfCnpj.toLowerCase())
                     } else {
-                      const cleanFullText = fullText.replace(/[\.\-\/]/g, '')
-                      const cleanCpf = cpfCnpj.replace(/[\.\-\/]/g, '').toLowerCase()
+                      const cleanFullText = fullText.replace(/[\.\-\/\s]/g, '').replace(/^0+/, '')
+                      const cleanCpf = cpfCnpj
+                        .replace(/[\.\-\/\s]/g, '')
+                        .replace(/^0+/, '')
+                        .toLowerCase()
                       pass =
                         cleanFullText.includes(cleanCpf) || fullText.includes(cpfCnpj.toLowerCase())
                     }
-                    if (!pass && !discardReason) discardReason = 'ausencia_campo_obrigatorio'
+                    if (!pass && !discardReason)
+                      discardReason = `ausencia_campo_obrigatorio: CPF/CNPJ '${cpfCnpj}' não corresponde`
                   }
 
                   if (pass && artType) {
@@ -387,7 +423,8 @@ routerAdd(
                     const filterArtType = artType.toLowerCase().trim()
                     if (!itemArtType.includes(filterArtType)) {
                       pass = false
-                      if (!discardReason) discardReason = 'tipo_ato_incompativel'
+                      if (!discardReason)
+                        discardReason = `tipo_ato_incompativel: '${itemArtType}' != '${filterArtType}'`
                     }
                   }
 
@@ -399,16 +436,29 @@ routerAdd(
                     } else {
                       pass = (item.pubName || '').toLowerCase().includes(fonteColeta.toLowerCase())
                     }
-                    if (!pass && !discardReason) discardReason = 'ausencia_campo_obrigatorio'
+                    if (!pass && !discardReason)
+                      discardReason = `ausencia_campo_obrigatorio: fonte '${fonteColeta}' não corresponde`
                   }
 
                   if (!pass) {
                     discardedCount++
-                    if (discardReason && discardReasons[discardReason] !== undefined) {
-                      discardReasons[discardReason]++
-                    } else if (discardReason) {
-                      discardReasons[discardReason] = (discardReasons[discardReason] || 0) + 1
+                    const simpleReason = discardReason ? discardReason.split(':')[0] : 'descartado'
+                    if (discardReasons[simpleReason] !== undefined) {
+                      discardReasons[simpleReason]++
+                    } else {
+                      discardReasons[simpleReason] = 1
                     }
+
+                    logProcess(
+                      'normalization',
+                      'Aviso',
+                      `Descartado: ${discardReason} (Url: ${urlTitle || item.title || 'Desconhecido'})`,
+                      {
+                        url: urlTitle,
+                        title: cleanTitle,
+                        motivo: discardReason,
+                      },
+                    )
                     continue
                   }
 
@@ -434,12 +484,12 @@ routerAdd(
 
                 if (pagePassedCount === 0) {
                   consecutivePagesZeroPassed++
-                  if (consecutivePagesZeroPassed >= 5) {
+                  if (consecutivePagesZeroPassed >= 10) {
                     hasMore = false
                     logProcess(
                       'parsing',
                       'Aviso',
-                      `Parando paginação: 5 páginas consecutivas sem itens válidos. (Página ${page})`,
+                      `Parando paginação: 10 páginas consecutivas sem itens válidos. (Página ${page})`,
                     )
                   }
                 } else {
