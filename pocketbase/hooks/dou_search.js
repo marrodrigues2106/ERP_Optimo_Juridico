@@ -8,9 +8,16 @@ routerAdd(
     let publishFrom = body.publishFrom || ''
     let publishTo = body.publishTo || ''
     let orgPrin = body.orgPrin || ''
+    let processNumber = body.processNumber || ''
+    let oabNumber = body.oabNumber || ''
+    let cpfCnpj = body.cpfCnpj || ''
+    let douSection = body.douSection || ''
 
     if (!q) {
       return e.badRequestError('O termo de busca (q) é obrigatório.')
+    }
+    if (!publishFrom || !publishTo) {
+      return e.badRequestError('O período (Data Inicial e Data Final) é obrigatório.')
     }
 
     const logProcess = (etapa, status, msg, metadados = {}) => {
@@ -28,11 +35,8 @@ routerAdd(
       }
     }
 
-    let today = new Date().toISOString().split('T')[0]
-    let fromDate = publishFrom || today
-    let toDate = publishTo || today
-    let fromDDMMYYYY = fromDate.split('-').reverse().join('/')
-    let toDDMMYYYY = toDate.split('-').reverse().join('/')
+    let fromDDMMYYYY = publishFrom.split('-').reverse().join('/')
+    let toDDMMYYYY = publishTo.split('-').reverse().join('/')
 
     let page = 1
     let hasMore = true
@@ -52,6 +56,11 @@ routerAdd(
       qUrl = qTerm.split(' ').map(encodeURIComponent).join('+')
     }
 
+    let sParam = 'do1,do2,do3,doextra'
+    if (douSection && douSection !== 'all') {
+      sParam = douSection
+    }
+
     const fetchWithRetry = (url, headers, maxRetries = 3) => {
       let attempt = 0
       while (attempt < maxRetries) {
@@ -63,6 +72,7 @@ routerAdd(
             timeout: 15,
           })
           if (
+            res.statusCode === 403 ||
             res.statusCode === 429 ||
             res.statusCode === 502 ||
             res.statusCode === 503 ||
@@ -71,7 +81,7 @@ routerAdd(
             attempt++
             if (attempt >= maxRetries) return res
             let start = new Date().getTime()
-            while (new Date().getTime() - start < 1000) {} // wait 1s
+            while (new Date().getTime() - start < 2000) {} // wait 2s
             continue
           }
           return res
@@ -90,7 +100,7 @@ routerAdd(
     const getCookieHeader = () => cookies.join('; ')
 
     while (page <= maxPages && hasMore) {
-      let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${qUrl}&s=do1,do2,do3,doextra&exactDate=personalizado&publishFrom=${fromDDMMYYYY}&publishTo=${toDDMMYYYY}&sortType=0&delta=20&currentPage=${page}`
+      let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${qUrl}&s=${sParam}&exactDate=personalizado&publishFrom=${fromDDMMYYYY}&publishTo=${toDDMMYYYY}&sortType=0&delta=20&currentPage=${page}`
       if (orgPrin) {
         url += `&orgPrin=${encodeURIComponent(orgPrin)}`
       }
@@ -124,9 +134,13 @@ routerAdd(
           q,
           qUrl,
           searchType,
-          s: 'do1,do2,do3,doextra',
+          s: sParam,
           publishFrom: fromDDMMYYYY,
           publishTo: toDDMMYYYY,
+          orgPrin,
+          processNumber,
+          oabNumber,
+          cpfCnpj,
           currentPage: page,
           newPage: page > 1 ? page : undefined,
           score: lastScore || undefined,
@@ -245,6 +259,7 @@ routerAdd(
 
     let results = []
     let discardedCount = 0
+    let discardReasons = {}
 
     if (scrapeSuccess && scrapeResults.length > 0) {
       logProcess(
@@ -284,7 +299,7 @@ routerAdd(
         }
 
         let fullText = `${cleanTitle} ${cleanText} ${item.hierarchyStr || ''}`.toLowerCase()
-        let pass = false
+        let pass = true
         let discardReason = ''
 
         if (searchType === 'frase_exata') {
@@ -294,15 +309,11 @@ routerAdd(
         } else if (searchType === 'regex') {
           try {
             const regex = new RegExp(q, 'i')
-            pass =
-              regex.test(cleanTitle) ||
-              regex.test(cleanText) ||
-              regex.test(item.hierarchyStr || '') ||
-              regex.test(org_principal)
-            if (!pass) discardReason = 'Padrão regex não encontrado'
+            pass = regex.test(fullText)
+            if (!pass) discardReason = 'Padrão regex principal não encontrado'
           } catch (e) {
             pass = false
-            discardReason = 'Regex inválido'
+            discardReason = 'Regex principal inválido'
           }
         } else {
           const tokens = q.toLowerCase().trim().split(/\s+/)
@@ -310,8 +321,53 @@ routerAdd(
           if (!pass) discardReason = 'Nem todas as palavras-chave foram encontradas no texto limpo'
         }
 
+        if (pass && processNumber) {
+          if (searchType === 'regex') {
+            try {
+              pass = new RegExp(processNumber, 'i').test(fullText)
+            } catch (e) {
+              pass = false
+              discardReason = 'Regex de processo inválido'
+            }
+          } else {
+            pass = fullText.includes(processNumber.toLowerCase().trim())
+          }
+          if (!pass && !discardReason) discardReason = 'Número do processo não encontrado'
+        }
+
+        if (pass && oabNumber) {
+          if (searchType === 'regex') {
+            try {
+              pass = new RegExp(oabNumber, 'i').test(fullText)
+            } catch (e) {
+              pass = false
+              discardReason = 'Regex de OAB inválido'
+            }
+          } else {
+            pass = fullText.includes(oabNumber.toLowerCase().trim())
+          }
+          if (!pass && !discardReason) discardReason = 'Número da OAB não encontrado'
+        }
+
+        if (pass && cpfCnpj) {
+          if (searchType === 'regex') {
+            try {
+              pass = new RegExp(cpfCnpj, 'i').test(fullText)
+            } catch (e) {
+              pass = false
+              discardReason = 'Regex de CPF/CNPJ inválido'
+            }
+          } else {
+            pass = fullText.includes(cpfCnpj.toLowerCase().trim())
+          }
+          if (!pass && !discardReason) discardReason = 'CPF/CNPJ não encontrado'
+        }
+
         if (!pass) {
           discardedCount++
+          if (discardReason) {
+            discardReasons[discardReason] = (discardReasons[discardReason] || 0) + 1
+          }
           continue
         }
 
@@ -336,8 +392,13 @@ routerAdd(
       logProcess(
         'normalization',
         'Sucesso',
-        `Normalização concluída. Total mantidos: ${results.length}. Descartados pelo filtro local: ${discardedCount}.`,
-        { quantidade_itens: results.length, descartados: discardedCount, searchType: searchType },
+        `Normalização concluída. Mantidos: ${results.length}. Descartados: ${discardedCount}.`,
+        {
+          quantidade_itens: results.length,
+          descartados: discardedCount,
+          searchType: searchType,
+          motivos_descarte: discardReasons,
+        },
       )
     }
 

@@ -90,6 +90,15 @@ export default function DouSearch() {
 
   const [orgPrin, setOrgPrin] = useState(() => sessionStorage.getItem('dou_orgPrin') || '')
   const [artType, setArtType] = useState(() => sessionStorage.getItem('dou_artType') || '')
+  const [processNumber, setProcessNumber] = useState(
+    () => sessionStorage.getItem('dou_processNumber') || '',
+  )
+  const [oabNumber, setOabNumber] = useState(() => sessionStorage.getItem('dou_oabNumber') || '')
+  const [cpfCnpj, setCpfCnpj] = useState(() => sessionStorage.getItem('dou_cpfCnpj') || '')
+  const [fonteColeta, setFonteColeta] = useState(
+    () => sessionStorage.getItem('dou_fonteColeta') || '',
+  )
+  const [douSection, setDouSection] = useState(() => sessionStorage.getItem('dou_douSection') || '')
 
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<DouSearchResult[]>(() => {
@@ -117,7 +126,23 @@ export default function DouSearch() {
     if (date?.to) sessionStorage.setItem('dou_publishTo', format(date.to, 'yyyy-MM-dd'))
     sessionStorage.setItem('dou_orgPrin', orgPrin)
     sessionStorage.setItem('dou_artType', artType)
-  }, [q, searchType, date, orgPrin, artType])
+    sessionStorage.setItem('dou_processNumber', processNumber)
+    sessionStorage.setItem('dou_oabNumber', oabNumber)
+    sessionStorage.setItem('dou_cpfCnpj', cpfCnpj)
+    sessionStorage.setItem('dou_fonteColeta', fonteColeta)
+    sessionStorage.setItem('dou_douSection', douSection)
+  }, [
+    q,
+    searchType,
+    date,
+    orgPrin,
+    artType,
+    processNumber,
+    oabNumber,
+    cpfCnpj,
+    fonteColeta,
+    douSection,
+  ])
 
   useEffect(() => {
     if (searched) {
@@ -201,7 +226,16 @@ export default function DouSearch() {
     const publishFrom = date?.from ? format(date.from, 'yyyy-MM-dd') : ''
     const publishTo = date?.to ? format(date.to, 'yyyy-MM-dd') : ''
 
-    if (publishFrom && publishTo && publishFrom > publishTo) {
+    if (!publishFrom || !publishTo) {
+      toast({
+        title: 'Período obrigatório',
+        description: 'Por favor, selecione a Data Inicial e a Data Final.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (publishFrom > publishTo) {
       toast({
         title: 'Data inválida',
         description: 'A Data Final não pode ser anterior à Data Inicial.',
@@ -215,7 +249,19 @@ export default function DouSearch() {
     setCurrentPage(1)
 
     try {
-      const res = await searchDou({ q, searchType, publishFrom, publishTo, orgPrin, artType })
+      const res = await searchDou({
+        q,
+        searchType,
+        publishFrom,
+        publishTo,
+        orgPrin,
+        artType,
+        processNumber,
+        oabNumber,
+        cpfCnpj,
+        fonteColeta,
+        douSection,
+      })
       setResults(res.data || [])
       setSource(res.source)
       setMessage(res.message || '')
@@ -374,7 +420,7 @@ export default function DouSearch() {
               </div>
 
               <div className="space-y-2 w-full md:w-auto flex flex-col">
-                <Label>Período</Label>
+                <Label>Período (obrigatório)</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -414,9 +460,36 @@ export default function DouSearch() {
               </div>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-4 items-end">
-              <div className="flex-1 space-y-2 w-full">
-                <Label htmlFor="orgPrin">Órgão (opcional)</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="processNumber">Número do Processo</Label>
+                <Input
+                  id="processNumber"
+                  placeholder="Ex: 0000000-00.0000.0.00.0000"
+                  value={processNumber}
+                  onChange={(e) => setProcessNumber(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="oabNumber">Número da OAB</Label>
+                <Input
+                  id="oabNumber"
+                  placeholder="Ex: 123456/SP"
+                  value={oabNumber}
+                  onChange={(e) => setOabNumber(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cpfCnpj">CPF / CNPJ</Label>
+                <Input
+                  id="cpfCnpj"
+                  placeholder="Ex: 000.000.000-00"
+                  value={cpfCnpj}
+                  onChange={(e) => setCpfCnpj(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="orgPrin">Órgão / Tribunal</Label>
                 <Input
                   id="orgPrin"
                   placeholder="Ex: Ministério da Fazenda"
@@ -424,8 +497,32 @@ export default function DouSearch() {
                   onChange={(e) => setOrgPrin(e.target.value)}
                 />
               </div>
-              <div className="flex-1 space-y-2 w-full">
-                <Label htmlFor="artType">Tipo de Ato (opcional)</Label>
+              <div className="space-y-2">
+                <Label htmlFor="douSection">Seção DOU</Label>
+                <Select value={douSection} onValueChange={setDouSection}>
+                  <SelectTrigger id="douSection">
+                    <SelectValue placeholder="Todas as seções" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as seções</SelectItem>
+                    <SelectItem value="do1">Seção 1</SelectItem>
+                    <SelectItem value="do2">Seção 2</SelectItem>
+                    <SelectItem value="do3">Seção 3</SelectItem>
+                    <SelectItem value="doextra">Edição Extra</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="fonteColeta">Fonte de Coleta</Label>
+                <Input
+                  id="fonteColeta"
+                  placeholder="Ex: Diário Oficial da União"
+                  value={fonteColeta}
+                  onChange={(e) => setFonteColeta(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="artType">Tipo de Ato</Label>
                 <Input
                   id="artType"
                   placeholder="Ex: Portaria, Resolução"
@@ -433,18 +530,20 @@ export default function DouSearch() {
                   onChange={(e) => setArtType(e.target.value)}
                 />
               </div>
-              <Button
-                type="submit"
-                disabled={loading || !q.trim() || !searchType}
-                className="w-full md:w-auto min-w-40 mt-6 md:mt-0"
-              >
-                {loading ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Search className="w-4 h-4 mr-2" />
-                )}
-                Pesquisar
-              </Button>
+              <div className="flex items-end">
+                <Button
+                  type="submit"
+                  disabled={loading || !q.trim() || !searchType || !date?.from || !date?.to}
+                  className="w-full"
+                >
+                  {loading ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Search className="w-4 h-4 mr-2" />
+                  )}
+                  Pesquisar
+                </Button>
+              </div>
             </div>
           </form>
         </CardContent>

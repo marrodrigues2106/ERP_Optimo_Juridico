@@ -3,10 +3,15 @@ import pb from '@/lib/pocketbase/client'
 export interface DouSearchParams {
   q: string
   searchType?: string
-  publishFrom?: string
-  publishTo?: string
+  publishFrom: string
+  publishTo: string
   orgPrin?: string
   artType?: string
+  processNumber?: string
+  oabNumber?: string
+  cpfCnpj?: string
+  fonteColeta?: string
+  douSection?: string
 }
 
 export interface DouSearchResult {
