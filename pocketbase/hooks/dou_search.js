@@ -29,16 +29,44 @@ routerAdd(
       }
     }
 
-    let today = new Date().toISOString().split('T')[0]
-    let fromDate = publishFrom || today
-    let toDate = publishTo || today
-    let fromDDMMYYYY = fromDate.split('-').reverse().join('/')
-    let toDDMMYYYY = toDate.split('-').reverse().join('/')
+    const normalizar_termo = (term) => {
+      if (!term) return ''
+      return term.trim().replace(/\s+/g, ' ')
+    }
+
+    let exactDateParam = 'all'
+    let dateParams = ''
+    if (publishFrom || publishTo) {
+      exactDateParam = 'personalizado'
+      if (publishFrom) dateParams += `&publishFrom=${publishFrom.split('-').reverse().join('/')}`
+      if (publishTo) dateParams += `&publishTo=${publishTo.split('-').reverse().join('/')}`
+    }
+
+    let cleanQ = normalizar_termo(q)
+    if (searchType === 'regex') {
+      let stripped = cleanQ.replace(/[\.\*\+\?\^\$\{\}\(\)\|\[\]\\]/g, ' ')
+      stripped = normalizar_termo(stripped)
+      if (!stripped) stripped = cleanQ
+      cleanQ = stripped
+    }
+    let formattedQ = cleanQ
+      .split(' ')
+      .map((w) => encodeURIComponent(w))
+      .join('+')
+
+    if (searchType === 'frase_exata') {
+      formattedQ = `%22${formattedQ}%22`
+    }
+
+    let firstPageUrl = `https://www.in.gov.br/consulta/-/buscar/dou?q=${formattedQ}&s=do1,do2,do3,doextra&exactDate=${exactDateParam}${dateParams}&sortType=0&delta=20&currentPage=1`
+    if (orgPrin) {
+      firstPageUrl += `&orgPrin=${encodeURIComponent(orgPrin)}`
+    }
 
     logProcess(
       '[Busca Ativa DOU - Início]',
       'Iniciada',
-      `Buscando por: ${q} | Tipo: ${searchType} | Período: ${fromDate} a ${toDate} | Params: ${JSON.stringify(body)}`,
+      `Termo original: ${q} | Tipo: ${searchType} | URL gerada: ${firstPageUrl}`,
       'DOU_SCRAPING',
     )
 
@@ -79,23 +107,6 @@ routerAdd(
 
     const qNorm = normalizar_texto(q)
     const qTokens = extrair_tokens(q)
-
-    let cleanQ = q.trim().replace(/\s+/g, ' ')
-    if (searchType === 'regex') {
-      let stripped = cleanQ
-        .replace(/[\.\*\+\?\^\$\{\}\(\)\|\[\]\\]/g, ' ')
-        .trim()
-        .replace(/\s+/g, ' ')
-      if (!stripped) stripped = cleanQ.replace(/\s+/g, ' ')
-      cleanQ = stripped
-    }
-    let formattedQ = cleanQ
-      .split(' ')
-      .map((w) => encodeURIComponent(w))
-      .join('+')
-    if (searchType === 'frase_exata') {
-      formattedQ = `%22${formattedQ}%22`
-    }
 
     const parseDouDate = (pubDateStr) => {
       if (!pubDateStr) return ''
@@ -192,7 +203,7 @@ routerAdd(
     }
 
     while (page <= 5 && hasMore) {
-      let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${formattedQ}&s=do1,do2,do3,doextra&exactDate=personalizado&publishFrom=${fromDDMMYYYY}&publishTo=${toDDMMYYYY}&sortType=0&delta=20&currentPage=${page}`
+      let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${formattedQ}&s=do1,do2,do3,doextra&exactDate=${exactDateParam}${dateParams}&sortType=0&delta=20&currentPage=${page}`
 
       if (orgPrin) {
         url += `&orgPrin=${encodeURIComponent(orgPrin)}`
@@ -280,7 +291,11 @@ routerAdd(
                   const itemPubDate = item.pubDate || ''
                   const itemDateISO = parseDouDate(itemPubDate)
 
-                  if (!itemDateISO || itemDateISO < fromDate || itemDateISO > toDate) {
+                  let outOfDateRange = false
+                  if (publishFrom && itemDateISO && itemDateISO < publishFrom) outOfDateRange = true
+                  if (publishTo && itemDateISO && itemDateISO > publishTo) outOfDateRange = true
+
+                  if (outOfDateRange) {
                     pageDateFiltered++
                     logProcess(
                       '[Busca Ativa DOU - Rejeitado]',
@@ -416,7 +431,7 @@ routerAdd(
       logRec.set('data_hora', new Date().toISOString())
       logRec.set('termo', q)
       logRec.set('tipo_busca', searchType)
-      logRec.set('periodo', `${fromDate} a ${toDate}`)
+      logRec.set('periodo', `${publishFrom || 'sem_data'} a ${publishTo || 'sem_data'}`)
       logRec.set('metadados', {
         total_extraidos: totalExtracted,
         mantidos: results.length,
