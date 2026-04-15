@@ -38,6 +38,35 @@ routerAdd(
       return dStr
     }
 
+    const splitDateRange = (startStr, endStr, maxDays) => {
+      const chunks = []
+      let current = new Date(startStr + 'T12:00:00Z')
+      const end = new Date(endStr + 'T12:00:00Z')
+
+      if (isNaN(current.getTime()) || isNaN(end.getTime()) || current > end) {
+        return [{ start: startStr, end: endStr }]
+      }
+
+      while (current <= end) {
+        let chunkStart = new Date(current)
+        let chunkEnd = new Date(current)
+        chunkEnd.setDate(chunkEnd.getDate() + (maxDays - 1))
+
+        if (chunkEnd > end) {
+          chunkEnd = new Date(end)
+        }
+
+        chunks.push({
+          start: chunkStart.toISOString().split('T')[0],
+          end: chunkEnd.toISOString().split('T')[0],
+        })
+
+        current = new Date(chunkEnd)
+        current.setDate(current.getDate() + 1)
+      }
+      return chunks
+    }
+
     const body = e.requestInfo().body || {}
     const q = body.q || ''
     const searchType = body.searchType || 'palavras_chave'
@@ -73,33 +102,13 @@ routerAdd(
       }
     }
 
-    let fromDDMMYYYY = publishFrom.split('-').reverse().join('/')
-    let toDDMMYYYY = publishTo.split('-').reverse().join('/')
+    const dateChunks = splitDateRange(publishFrom, publishTo, 10)
 
-    let page = 1
-    let hasMore = true
-    let lastScore = ''
-    let lastId = ''
-    let lastDisplayDate = ''
     let scrapeSuccess = false
     let scrapeError = ''
-    const maxPages = 50
-
-    let consecutivePagesZeroPassed = 0
     let results = []
     let discardedCount = 0
-
-    let loopAttempts = 0
-    let useCursor = true
-    let delta = 20
-    let userAgentIndex = 0
-
-    const userAgents = [
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 14.3; rv:123.0) Gecko/20100101 Firefox/123.0',
-    ]
+    let totalPagesProcessed = 0
 
     let discardReasons = {
       fora_do_periodo: 0,
@@ -173,514 +182,585 @@ routerAdd(
     let cookies = []
     const getCookieHeader = () => cookies.join('; ')
 
-    // 2. Raw Collection Loop
-    while (page <= maxPages && hasMore) {
-      let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${qUrl}&s=${sParam}&exactDate=personalizado&publishFrom=${fromDDMMYYYY}&publishTo=${toDDMMYYYY}&sortType=0&delta=${delta}&currentPage=${page}`
-      if (orgPrin) {
-        url += `&orgPrin=${encodeURIComponent(orgPrin)}`
-      }
+    const userAgents = [
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 14.3; rv:123.0) Gecko/20100101 Firefox/123.0',
+    ]
+    let userAgentIndex = 0
 
-      if (page > 1 && useCursor && lastScore && lastId && lastDisplayDate) {
-        url += `&newPage=${page}&score=${lastScore}&id=${lastId}&displayDate=${encodeURIComponent(lastDisplayDate)}`
-      }
+    // 2. Loop over partitioned date chunks
+    for (const chunk of dateChunks) {
+      let fromDDMMYYYY = chunk.start.split('-').reverse().join('/')
+      let toDDMMYYYY = chunk.end.split('-').reverse().join('/')
 
-      try {
-        const randomUA = userAgents[userAgentIndex % userAgents.length]
+      logProcess(
+        'partitioning',
+        'Processando',
+        `Iniciando bloco temporal: ${fromDDMMYYYY} - ${toDDMMYYYY}`,
+        {
+          start: chunk.start,
+          end: chunk.end,
+        },
+      )
 
-        const headers = {
-          'User-Agent': randomUA,
-          Accept:
-            'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-          Referer: 'https://www.in.gov.br/consulta/-/buscar/dou',
-          Connection: 'keep-alive',
+      let page = 1
+      let hasMore = true
+      let lastScore = ''
+      let lastId = ''
+      let lastDisplayDate = ''
+      const maxPages = 50
+
+      let consecutivePagesZeroPassed = 0
+      let loopAttempts = 0
+      let useCursor = true
+      let delta = 20
+
+      while (page <= maxPages && hasMore) {
+        let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${qUrl}&s=${sParam}&exactDate=personalizado&publishFrom=${fromDDMMYYYY}&publishTo=${toDDMMYYYY}&sortType=0&delta=${delta}&currentPage=${page}`
+        if (orgPrin) {
+          url += `&orgPrin=${encodeURIComponent(orgPrin)}`
         }
 
-        let cHeader = getCookieHeader()
-        if (cHeader) {
-          headers['Cookie'] = cHeader
+        if (page > 1 && useCursor && lastScore && lastId && lastDisplayDate) {
+          url += `&newPage=${page}&score=${lastScore}&id=${lastId}&displayDate=${encodeURIComponent(lastDisplayDate)}`
         }
 
-        const metadadosParams = {
-          q,
-          qUrl,
-          searchType,
-          s: sParam,
-          publishFrom: publishFrom,
-          publishTo: publishTo,
-          orgPrin,
-          numeroProcesso,
-          numeroOab,
-          cpfCnpj,
-          lastId: lastId || undefined,
-          lastScore: lastScore || undefined,
-          lastDisplayDate: lastDisplayDate || undefined,
-          pageNumber: page,
-          newPage: page > 1 ? page : undefined,
-          score: lastScore || undefined,
-          id: lastId || undefined,
-          displayDate: lastDisplayDate || undefined,
-        }
+        try {
+          const randomUA = userAgents[userAgentIndex % userAgents.length]
 
-        logProcess('request', 'Processando', `Requisitando página ${page}`, {
-          url_consultada: url,
-          params_enviados: metadadosParams,
-          pagina_atual: page,
-        })
-
-        const res = fetchWithRetry(url, headers, 3)
-
-        const setCookieHeaders = res.headers['Set-Cookie'] || res.headers['set-cookie'] || []
-        if (setCookieHeaders && setCookieHeaders.length > 0) {
-          for (let c of setCookieHeaders) {
-            cookies.push(c.split(';')[0])
-          }
-        }
-
-        logProcess(
-          'request',
-          res.statusCode === 200 ? 'Sucesso' : 'Falha',
-          `HTTP Status Code: ${res.statusCode}`,
-          {
-            url_consultada: url,
-            status_http: res.statusCode,
-            pagina_atual: page,
-          },
-        )
-
-        if (res.statusCode === 200) {
-          let html = ''
-          if (typeof res.body === 'string') {
-            html = res.body
-          } else if (res.body) {
-            let bytes = new Uint8Array(res.body)
-            let chunk = []
-            for (let i = 0; i < bytes.length; i += 8000) {
-              let end = i + 8000 > bytes.length ? bytes.length : i + 8000
-              chunk.push(String.fromCharCode.apply(null, bytes.subarray(i, end)))
-            }
-            let latin1 = chunk.join('')
-            try {
-              html = decodeURIComponent(escape(latin1))
-            } catch (err) {
-              html = latin1
-            }
+          const headers = {
+            'User-Agent': randomUA,
+            Accept:
+              'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            Referer: 'https://www.in.gov.br/consulta/-/buscar/dou',
+            Connection: 'keep-alive',
           }
 
-          // 3. Parse
-          logProcess('parsing', 'Processando', `Procurando portlet na resposta da página ${page}`)
+          let cHeader = getCookieHeader()
+          if (cHeader) {
+            headers['Cookie'] = cHeader
+          }
 
-          const scriptMatch = html.match(
-            /<script[^>]*id="_br_com_seatecnologia_in_buscadou_BuscaDouPortlet_params"[^>]*>([\s\S]*?)<\/script>/,
+          const metadadosParams = {
+            q,
+            qUrl,
+            searchType,
+            s: sParam,
+            publishFrom: chunk.start,
+            publishTo: chunk.end,
+            orgPrin,
+            numeroProcesso,
+            numeroOab,
+            cpfCnpj,
+            lastId: lastId || undefined,
+            lastScore: lastScore || undefined,
+            lastDisplayDate: lastDisplayDate || undefined,
+            pageNumber: page,
+            newPage: page > 1 ? page : undefined,
+            score: lastScore || undefined,
+            id: lastId || undefined,
+            displayDate: lastDisplayDate || undefined,
+          }
+
+          logProcess(
+            'request',
+            'Processando',
+            `Requisitando página ${page} do bloco ${fromDDMMYYYY}-${toDDMMYYYY}`,
+            {
+              url_consultada: url,
+              params_enviados: metadadosParams,
+              pagina_atual: page,
+            },
           )
 
-          if (scriptMatch && scriptMatch[1]) {
-            const parsed = JSON.parse(scriptMatch[1].trim())
-            if (parsed.jsonArray && parsed.jsonArray.length > 0) {
-              const newLastId = parsed.jsonArray[parsed.jsonArray.length - 1].id || ''
+          const res = fetchWithRetry(url, headers, 3)
 
-              // LOOP DETECTION
-              let isLoop = false
-              if (newLastId === lastId && lastId !== '') {
-                isLoop = true
+          const setCookieHeaders = res.headers['Set-Cookie'] || res.headers['set-cookie'] || []
+          if (setCookieHeaders && setCookieHeaders.length > 0) {
+            for (let c of setCookieHeaders) {
+              cookies.push(c.split(';')[0])
+            }
+          }
+
+          logProcess(
+            'request',
+            res.statusCode === 200 ? 'Sucesso' : 'Falha',
+            `HTTP Status Code: ${res.statusCode}`,
+            {
+              url_consultada: url,
+              status_http: res.statusCode,
+              pagina_atual: page,
+            },
+          )
+
+          if (res.statusCode === 200) {
+            let html = ''
+            if (typeof res.body === 'string') {
+              html = res.body
+            } else if (res.body) {
+              let bytes = new Uint8Array(res.body)
+              let chunk = []
+              for (let i = 0; i < bytes.length; i += 8000) {
+                let end = i + 8000 > bytes.length ? bytes.length : i + 8000
+                chunk.push(String.fromCharCode.apply(null, bytes.subarray(i, end)))
               }
+              let latin1 = chunk.join('')
+              try {
+                html = decodeURIComponent(escape(latin1))
+              } catch (err) {
+                html = latin1
+              }
+            }
 
-              let sessionNewItems = 0
-              for (const item of parsed.jsonArray) {
-                let uk = item.urlTitle || item.id || item.title + item.pubDate
-                if (!uniqueUrls.has(uk)) {
-                  sessionNewItems++
+            // 3. Parse
+            logProcess('parsing', 'Processando', `Procurando portlet na resposta da página ${page}`)
+
+            const scriptMatch = html.match(
+              /<script[^>]*id="_br_com_seatecnologia_in_buscadou_BuscaDouPortlet_params"[^>]*>([\s\S]*?)<\/script>/,
+            )
+
+            if (scriptMatch && scriptMatch[1]) {
+              const parsed = JSON.parse(scriptMatch[1].trim())
+              if (parsed.jsonArray && parsed.jsonArray.length > 0) {
+                const newLastId = parsed.jsonArray[parsed.jsonArray.length - 1].id || ''
+
+                // LOOP DETECTION
+                let isLoop = false
+                if (newLastId === lastId && lastId !== '') {
+                  isLoop = true
                 }
-              }
 
-              if (sessionNewItems === 0 && parsed.jsonArray.length > 0) {
-                isLoop = true
-              }
+                let sessionNewItems = 0
+                for (const item of parsed.jsonArray) {
+                  let uk = item.urlTitle || item.id || item.title + item.pubDate
+                  if (!uniqueUrls.has(uk)) {
+                    sessionNewItems++
+                  }
+                }
 
-              if (isLoop) {
-                loopAttempts++
-                let strategyMsg = ''
+                if (sessionNewItems === 0 && parsed.jsonArray.length > 0) {
+                  isLoop = true
+                }
 
-                if (loopAttempts === 1) {
-                  strategyMsg = 'Iniciando Salto Temporal Forçado (Ajuste de cursor)'
-                  if (lastDisplayDate) {
-                    try {
-                      let d = new Date(lastDisplayDate)
-                      if (!isNaN(d.getTime())) {
-                        d.setSeconds(d.getSeconds() - 1)
-                        lastDisplayDate = d.toISOString().replace('Z', '000Z')
-                      } else {
+                if (isLoop) {
+                  loopAttempts++
+                  let strategyMsg = ''
+
+                  if (loopAttempts === 1) {
+                    strategyMsg = 'Iniciando Salto Temporal Forçado (Ajuste de cursor)'
+                    if (lastDisplayDate) {
+                      try {
+                        let d = new Date(lastDisplayDate)
+                        if (!isNaN(d.getTime())) {
+                          d.setSeconds(d.getSeconds() - 1)
+                          lastDisplayDate = d.toISOString().replace('Z', '000Z')
+                        } else {
+                          lastScore = String(parseFloat(lastScore || '1') - 0.001)
+                        }
+                      } catch (e) {
                         lastScore = String(parseFloat(lastScore || '1') - 0.001)
                       }
-                    } catch (e) {
+                    } else {
                       lastScore = String(parseFloat(lastScore || '1') - 0.001)
                     }
-                  } else {
-                    lastScore = String(parseFloat(lastScore || '1') - 0.001)
+                    useCursor = true
+                  } else if (loopAttempts === 2) {
+                    strategyMsg = 'Alterando tamanho da página para 21 (Cache Breaking)'
+                    delta = 21
+                    useCursor = true
+                  } else if (loopAttempts === 3) {
+                    strategyMsg = 'Rotacionando User-Agent e limpando cookies (Session Reset)'
+                    userAgentIndex++
+                    cookies = []
+                    delta = 25
+                    useCursor = false
                   }
+
+                  logProcess(
+                    'parsing',
+                    'Aviso',
+                    `Erro de Loop de Paginação detectado no DOU. Tentativa de recuperação ${loopAttempts}/3. ${strategyMsg}`,
+                    {
+                      pageNumber: page,
+                      lastId: lastId,
+                      lastScore: lastScore,
+                      quantidade_itens: parsed.jsonArray.length,
+                      estrategia: strategyMsg,
+                    },
+                  )
+
+                  if (loopAttempts > 3) {
+                    hasMore = false
+                    logProcess(
+                      'parsing',
+                      'Falha',
+                      `Falha ao recuperar de loop após 3 tentativas. Parando paginação para o bloco atual.`,
+                    )
+                  } else {
+                    if (loopAttempts === 3) {
+                      page++
+                    }
+                    continue
+                  }
+                } else {
+                  loopAttempts = 0
                   useCursor = true
-                } else if (loopAttempts === 2) {
-                  strategyMsg = 'Alterando tamanho da página para 21 (Cache Breaking)'
-                  delta = 21
-                  useCursor = true
-                } else if (loopAttempts === 3) {
-                  strategyMsg = 'Rotacionando User-Agent e limpando cookies (Session Reset)'
-                  userAgentIndex++
-                  cookies = []
-                  delta = 25
-                  useCursor = false
+                  delta = 20
                 }
+
+                let pagePassedCount = 0
+                let pageUniqueCount = 0
+
+                // 4. Normalization
+                for (const item of parsed.jsonArray) {
+                  // 8. Deduplication (Session)
+                  let uniqueKey = item.urlTitle || item.id || item.title + item.pubDate
+                  if (uniqueUrls.has(uniqueKey)) {
+                    discardedCount++
+                    discardReasons['duplicado']++
+                    logProcess(
+                      'normalization',
+                      'Aviso',
+                      `Descartado: duplicado na sessão (Url/Id: ${uniqueKey})`,
+                      {
+                        url: uniqueKey,
+                        motivo: 'duplicado',
+                      },
+                    )
+                    continue
+                  }
+                  uniqueUrls.add(uniqueKey)
+                  pageUniqueCount++
+
+                  let cleanText = (item.content || '').replace(/<[^>]*>?/gm, '').trim()
+                  let cleanTitle = (item.title || item.artType || '')
+                    .replace(/<[^>]*>?/gm, '')
+                    .trim()
+
+                  // Deduplication (Database via Hash)
+                  const hash_conteudo = $security.md5(
+                    cleanTitle + cleanText + (item.urlTitle || ''),
+                  )
+
+                  let inDb = false
+                  try {
+                    $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash_conteudo)
+                    inDb = true
+                  } catch (_) {}
+
+                  if (!inDb) {
+                    try {
+                      $app.findFirstRecordByData(
+                        'gazette_publications',
+                        'hash_conteudo',
+                        hash_conteudo,
+                      )
+                      inDb = true
+                    } catch (_) {}
+                  }
+
+                  if (inDb) {
+                    discardedCount++
+                    discardReasons['ja_no_banco']++
+                    logProcess(
+                      'normalization',
+                      'Aviso',
+                      `Descartado: já existente no banco (Hash: ${hash_conteudo})`,
+                      { hash: hash_conteudo, motivo: 'ja_no_banco' },
+                    )
+                    continue
+                  }
+
+                  let pubDateStr = item.pubDate || fromDDMMYYYY
+                  let pubYYYYMMDD = parseDateToYYYYMMDD(pubDateStr)
+
+                  const urlTitle = item.urlTitle
+                    ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}`
+                    : ''
+
+                  let org_principal = ''
+                  let org_subordinada = ''
+                  if (item.hierarchyStr) {
+                    const parts = item.hierarchyStr.split('-').map((p) => p.trim())
+                    if (parts.length > 0) org_principal = parts[0]
+                    if (parts.length > 1) org_subordinada = parts.slice(1).join(' - ')
+                  }
+
+                  let fullText =
+                    `${cleanTitle} ${cleanText} ${item.hierarchyStr || ''}`.toLowerCase()
+                  let pass = true
+                  let discardReason = ''
+
+                  // 5. Temporal Filter
+                  if (pubYYYYMMDD && pubYYYYMMDD.length === 10 && pubYYYYMMDD.includes('-')) {
+                    if (pubYYYYMMDD < publishFrom || pubYYYYMMDD > publishTo) {
+                      pass = false
+                      discardReason = `fora_do_periodo: data ${pubYYYYMMDD} fora de ${publishFrom} a ${publishTo}`
+                    }
+                  } else {
+                    logProcess(
+                      'normalization',
+                      'Aviso',
+                      `Data com formatação inconsistente (${pubDateStr}), assumindo no período por segurança.`,
+                    )
+                  }
+
+                  // 7. SearchType Filter (Relaxed/Permissive)
+                  if (pass) {
+                    if (searchType === 'frase_exata') {
+                      const exact = q.toLowerCase().trim()
+                      pass = fullText.includes(exact)
+
+                      if (!pass) {
+                        const tokens = exact.split(/\s+/).filter((t) => t.length > 2)
+                        if (tokens.length > 0) {
+                          const matchCount = tokens.filter((t) => fullText.includes(t)).length
+                          pass = matchCount / tokens.length >= 0.6 // 60% of significant words
+                        } else {
+                          const tokensAll = exact.split(/\s+/)
+                          const matchCount = tokensAll.filter((t) => fullText.includes(t)).length
+                          pass = matchCount / tokensAll.length >= 0.6
+                        }
+                        if (!pass)
+                          discardReason = `nao_corresponde_frase: correspondência parcial baixa para '${exact}'`
+                      }
+                    } else if (searchType === 'regex') {
+                      try {
+                        const regex = new RegExp(q, 'i')
+                        pass = regex.test(fullText)
+                        if (!pass) discardReason = `nao_corresponde_regex: regex falhou`
+                      } catch (err) {
+                        pass = false
+                        discardReason = `nao_corresponde_regex: regex inválido`
+                      }
+                    } else {
+                      const tokens = q.toLowerCase().trim().split(/\s+/)
+                      const matchCount = tokens.filter((t) => fullText.includes(t)).length
+                      pass = matchCount / tokens.length >= 0.5 // 50% of words is enough
+                      if (!pass)
+                        discardReason = `nao_corresponde_termo_livre: faltam termos essenciais`
+                    }
+                  }
+
+                  // 6. Structured Field Filter
+                  if (pass && numeroProcesso) {
+                    if (searchType === 'regex') {
+                      try {
+                        pass = new RegExp(numeroProcesso, 'i').test(fullText)
+                      } catch (err) {}
+                    } else if (searchType === 'frase_exata') {
+                      pass = fullText.includes(numeroProcesso.toLowerCase())
+                    } else {
+                      const cleanFullText = fullText.replace(/[\.\-\/\s]/g, '').replace(/^0+/, '')
+                      const cleanProcess = numeroProcesso
+                        .replace(/[\.\-\/\s]/g, '')
+                        .replace(/^0+/, '')
+                        .toLowerCase()
+                      pass =
+                        cleanFullText.includes(cleanProcess) ||
+                        fullText.includes(numeroProcesso.toLowerCase())
+                    }
+                    if (!pass && !discardReason)
+                      discardReason = `ausencia_campo_obrigatorio: processo '${numeroProcesso}' não corresponde`
+                  }
+
+                  if (pass && numeroOab) {
+                    if (searchType === 'regex') {
+                      try {
+                        pass = new RegExp(numeroOab, 'i').test(fullText)
+                      } catch (err) {}
+                    } else if (searchType === 'frase_exata') {
+                      pass = fullText.includes(numeroOab.toLowerCase())
+                    } else {
+                      const cleanFullText = fullText.replace(/[\.\-\/\s]/g, '').replace(/^0+/, '')
+                      const cleanOab = numeroOab
+                        .replace(/[\.\-\/\s]/g, '')
+                        .replace(/^0+/, '')
+                        .toLowerCase()
+                      pass =
+                        cleanFullText.includes(cleanOab) ||
+                        fullText.includes(numeroOab.toLowerCase())
+                    }
+                    if (!pass && !discardReason)
+                      discardReason = `ausencia_campo_obrigatorio: OAB '${numeroOab}' não corresponde`
+                  }
+
+                  if (pass && cpfCnpj) {
+                    if (searchType === 'regex') {
+                      try {
+                        pass = new RegExp(cpfCnpj, 'i').test(fullText)
+                      } catch (err) {}
+                    } else if (searchType === 'frase_exata') {
+                      pass = fullText.includes(cpfCnpj.toLowerCase())
+                    } else {
+                      const cleanFullText = fullText.replace(/[\.\-\/\s]/g, '').replace(/^0+/, '')
+                      const cleanCpf = cpfCnpj
+                        .replace(/[\.\-\/\s]/g, '')
+                        .replace(/^0+/, '')
+                        .toLowerCase()
+                      pass =
+                        cleanFullText.includes(cleanCpf) || fullText.includes(cpfCnpj.toLowerCase())
+                    }
+                    if (!pass && !discardReason)
+                      discardReason = `ausencia_campo_obrigatorio: CPF/CNPJ '${cpfCnpj}' não corresponde`
+                  }
+
+                  if (pass && artType) {
+                    const itemArtType = (item.artType || '').toLowerCase()
+                    const filterArtType = artType.toLowerCase().trim()
+                    if (!itemArtType.includes(filterArtType)) {
+                      pass = false
+                      if (!discardReason)
+                        discardReason = `tipo_ato_incompativel: '${itemArtType}' != '${filterArtType}'`
+                    }
+                  }
+
+                  if (pass && fonteColeta) {
+                    if (searchType === 'regex') {
+                      try {
+                        pass = new RegExp(fonteColeta, 'i').test(item.pubName || '')
+                      } catch (err) {}
+                    } else {
+                      pass = (item.pubName || '').toLowerCase().includes(fonteColeta.toLowerCase())
+                    }
+                    if (!pass && !discardReason)
+                      discardReason = `ausencia_campo_obrigatorio: fonte '${fonteColeta}' não corresponde`
+                  }
+
+                  if (!pass) {
+                    discardedCount++
+                    const simpleReason = discardReason ? discardReason.split(':')[0] : 'descartado'
+                    if (discardReasons[simpleReason] !== undefined) {
+                      discardReasons[simpleReason]++
+                    } else {
+                      discardReasons[simpleReason] = 1
+                    }
+
+                    logProcess(
+                      'normalization',
+                      'Aviso',
+                      `Descartado: ${discardReason} (Url: ${urlTitle || item.title || 'Desconhecido'})`,
+                      {
+                        url: urlTitle,
+                        title: cleanTitle,
+                        motivo: discardReason,
+                      },
+                    )
+                    continue
+                  }
+
+                  let normalizedArtType = item.artType || 'Publicação'
+
+                  results.push({
+                    title: cleanTitle,
+                    content: cleanText,
+                    pubName: item.pubName || 'DOU',
+                    artType: normalizedArtType,
+                    urlTitle: urlTitle,
+                    pubDate: pubYYYYMMDD + 'T00:00:00.000Z',
+                    editionNumber: String(item.editionNumber || ''),
+                    numberPage: String(item.numberPage || ''),
+                    hierarchyStr: item.hierarchyStr || '',
+                    orgao_principal: org_principal,
+                    organizacao_subordinada: org_subordinada,
+                    source: 'DOU_SCRAPING',
+                    hash_conteudo: hash_conteudo,
+                  })
+
+                  pagePassedCount++
+                }
+
+                if (pagePassedCount === 0 && pageUniqueCount > 0) {
+                  consecutivePagesZeroPassed++
+                  if (consecutivePagesZeroPassed >= 10) {
+                    hasMore = false
+                    logProcess(
+                      'parsing',
+                      'Aviso',
+                      `Parando paginação: 10 páginas consecutivas sem itens válidos. (Página ${page})`,
+                    )
+                  }
+                } else if (pagePassedCount > 0) {
+                  consecutivePagesZeroPassed = 0
+                }
+
+                lastScore = parsed.jsonArray[parsed.jsonArray.length - 1].score || ''
+                lastId = newLastId
+                lastDisplayDate =
+                  parsed.jsonArray[parsed.jsonArray.length - 1].displayDate ||
+                  parsed.jsonArray[parsed.jsonArray.length - 1].pubDate ||
+                  ''
+
+                if (parsed.jsonArray.length < delta) hasMore = false
 
                 logProcess(
                   'parsing',
-                  'Aviso',
-                  `Erro de Loop de Paginação detectado no DOU. Tentativa de recuperação ${loopAttempts}/3. ${strategyMsg}`,
+                  'Sucesso',
+                  `Extraídos ${parsed.jsonArray.length} itens da página ${page} do bloco ${fromDDMMYYYY}-${toDDMMYYYY}. Aprovados localmente: ${pagePassedCount}`,
                   {
-                    pageNumber: page,
-                    lastId: lastId,
-                    lastScore: lastScore,
                     quantidade_itens: parsed.jsonArray.length,
-                    estrategia: strategyMsg,
+                    mantidos: pagePassedCount,
+                    lastDisplayDate: lastDisplayDate,
+                    datas_avaliadas: parsed.jsonArray.map((item) => {
+                      const dStr = item.pubDate || fromDDMMYYYY
+                      const ymd = parseDateToYYYYMMDD(dStr)
+                      const inRange = ymd >= publishFrom && ymd <= publishTo
+                      return { raw_date: dStr, parsed_date: ymd, in_range: inRange }
+                    }),
                   },
                 )
-
-                if (loopAttempts > 3) {
-                  hasMore = false
-                  logProcess(
-                    'parsing',
-                    'Falha',
-                    `Falha ao recuperar de loop após 3 tentativas. Parando paginação.`,
-                  )
-                } else {
-                  if (loopAttempts === 3) {
-                    page++
-                  }
-                  continue
-                }
+                scrapeSuccess = true
               } else {
-                loopAttempts = 0
-                useCursor = true
-                delta = 20
+                hasMore = false
+                scrapeSuccess = true
+                logProcess(
+                  'parsing',
+                  'Sucesso',
+                  `Nenhum item retornado na página ${page} do bloco ${fromDDMMYYYY}-${toDDMMYYYY} (jsonArray vazio)`,
+                  { quantidade_itens: 0 },
+                )
               }
-
-              let pagePassedCount = 0
-              let pageUniqueCount = 0
-
-              // 4. Normalization
-              for (const item of parsed.jsonArray) {
-                // 8. Deduplication (Session)
-                let uniqueKey = item.urlTitle || item.id || item.title + item.pubDate
-                if (uniqueUrls.has(uniqueKey)) {
-                  discardedCount++
-                  discardReasons['duplicado']++
-                  logProcess(
-                    'normalization',
-                    'Aviso',
-                    `Descartado: duplicado na sessão (Url/Id: ${uniqueKey})`,
-                    {
-                      url: uniqueKey,
-                      motivo: 'duplicado',
-                    },
-                  )
-                  continue
-                }
-                uniqueUrls.add(uniqueKey)
-                pageUniqueCount++
-
-                let cleanText = (item.content || '').replace(/<[^>]*>?/gm, '').trim()
-                let cleanTitle = (item.title || item.artType || '').replace(/<[^>]*>?/gm, '').trim()
-
-                // Deduplication (Database via Hash)
-                const hash_conteudo = $security.md5(cleanTitle + cleanText + (item.urlTitle || ''))
-
-                let inDb = false
-                try {
-                  $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash_conteudo)
-                  inDb = true
-                } catch (_) {}
-
-                if (!inDb) {
-                  try {
-                    $app.findFirstRecordByData(
-                      'gazette_publications',
-                      'hash_conteudo',
-                      hash_conteudo,
-                    )
-                    inDb = true
-                  } catch (_) {}
-                }
-
-                if (inDb) {
-                  discardedCount++
-                  discardReasons['ja_no_banco']++
-                  logProcess(
-                    'normalization',
-                    'Aviso',
-                    `Descartado: já existente no banco (Hash: ${hash_conteudo})`,
-                    { hash: hash_conteudo, motivo: 'ja_no_banco' },
-                  )
-                  continue
-                }
-
-                let pubDateStr = item.pubDate || fromDDMMYYYY
-                let pubYYYYMMDD = parseDateToYYYYMMDD(pubDateStr)
-
-                const urlTitle = item.urlTitle
-                  ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}`
-                  : ''
-
-                let org_principal = ''
-                let org_subordinada = ''
-                if (item.hierarchyStr) {
-                  const parts = item.hierarchyStr.split('-').map((p) => p.trim())
-                  if (parts.length > 0) org_principal = parts[0]
-                  if (parts.length > 1) org_subordinada = parts.slice(1).join(' - ')
-                }
-
-                let fullText = `${cleanTitle} ${cleanText} ${item.hierarchyStr || ''}`.toLowerCase()
-                let pass = true
-                let discardReason = ''
-
-                // 5. Temporal Filter
-                if (pubYYYYMMDD && pubYYYYMMDD.length === 10 && pubYYYYMMDD.includes('-')) {
-                  if (pubYYYYMMDD < publishFrom || pubYYYYMMDD > publishTo) {
-                    pass = false
-                    discardReason = `fora_do_periodo: data ${pubYYYYMMDD} fora de ${publishFrom} a ${publishTo}`
-                  }
-                } else {
-                  logProcess(
-                    'normalization',
-                    'Aviso',
-                    `Data com formatação inconsistente (${pubDateStr}), assumindo no período por segurança.`,
-                  )
-                }
-
-                // 7. SearchType Filter
-                if (pass) {
-                  if (searchType === 'frase_exata') {
-                    const exact = q.toLowerCase().trim()
-                    pass = fullText.includes(exact)
-                    if (!pass) discardReason = `nao_corresponde_frase: não contém '${exact}'`
-                  } else if (searchType === 'regex') {
-                    try {
-                      const regex = new RegExp(q, 'i')
-                      pass = regex.test(fullText)
-                      if (!pass) discardReason = `nao_corresponde_regex: regex falhou`
-                    } catch (err) {
-                      pass = false
-                      discardReason = `nao_corresponde_regex: regex inválido`
-                    }
-                  } else {
-                    const tokens = q.toLowerCase().trim().split(/\s+/)
-                    pass = tokens.every((t) => fullText.includes(t))
-                    if (!pass) discardReason = `nao_corresponde_termo_livre: faltam termos`
-                  }
-                }
-
-                // 6. Structured Field Filter
-                if (pass && numeroProcesso) {
-                  if (searchType === 'regex') {
-                    try {
-                      pass = new RegExp(numeroProcesso, 'i').test(fullText)
-                    } catch (err) {}
-                  } else if (searchType === 'frase_exata') {
-                    pass = fullText.includes(numeroProcesso.toLowerCase())
-                  } else {
-                    const cleanFullText = fullText.replace(/[\.\-\/\s]/g, '').replace(/^0+/, '')
-                    const cleanProcess = numeroProcesso
-                      .replace(/[\.\-\/\s]/g, '')
-                      .replace(/^0+/, '')
-                      .toLowerCase()
-                    pass =
-                      cleanFullText.includes(cleanProcess) ||
-                      fullText.includes(numeroProcesso.toLowerCase())
-                  }
-                  if (!pass && !discardReason)
-                    discardReason = `ausencia_campo_obrigatorio: processo '${numeroProcesso}' não corresponde`
-                }
-
-                if (pass && numeroOab) {
-                  if (searchType === 'regex') {
-                    try {
-                      pass = new RegExp(numeroOab, 'i').test(fullText)
-                    } catch (err) {}
-                  } else if (searchType === 'frase_exata') {
-                    pass = fullText.includes(numeroOab.toLowerCase())
-                  } else {
-                    const cleanFullText = fullText.replace(/[\.\-\/\s]/g, '').replace(/^0+/, '')
-                    const cleanOab = numeroOab
-                      .replace(/[\.\-\/\s]/g, '')
-                      .replace(/^0+/, '')
-                      .toLowerCase()
-                    pass =
-                      cleanFullText.includes(cleanOab) || fullText.includes(numeroOab.toLowerCase())
-                  }
-                  if (!pass && !discardReason)
-                    discardReason = `ausencia_campo_obrigatorio: OAB '${numeroOab}' não corresponde`
-                }
-
-                if (pass && cpfCnpj) {
-                  if (searchType === 'regex') {
-                    try {
-                      pass = new RegExp(cpfCnpj, 'i').test(fullText)
-                    } catch (err) {}
-                  } else if (searchType === 'frase_exata') {
-                    pass = fullText.includes(cpfCnpj.toLowerCase())
-                  } else {
-                    const cleanFullText = fullText.replace(/[\.\-\/\s]/g, '').replace(/^0+/, '')
-                    const cleanCpf = cpfCnpj
-                      .replace(/[\.\-\/\s]/g, '')
-                      .replace(/^0+/, '')
-                      .toLowerCase()
-                    pass =
-                      cleanFullText.includes(cleanCpf) || fullText.includes(cpfCnpj.toLowerCase())
-                  }
-                  if (!pass && !discardReason)
-                    discardReason = `ausencia_campo_obrigatorio: CPF/CNPJ '${cpfCnpj}' não corresponde`
-                }
-
-                if (pass && artType) {
-                  const itemArtType = (item.artType || '').toLowerCase()
-                  const filterArtType = artType.toLowerCase().trim()
-                  if (!itemArtType.includes(filterArtType)) {
-                    pass = false
-                    if (!discardReason)
-                      discardReason = `tipo_ato_incompativel: '${itemArtType}' != '${filterArtType}'`
-                  }
-                }
-
-                if (pass && fonteColeta) {
-                  if (searchType === 'regex') {
-                    try {
-                      pass = new RegExp(fonteColeta, 'i').test(item.pubName || '')
-                    } catch (err) {}
-                  } else {
-                    pass = (item.pubName || '').toLowerCase().includes(fonteColeta.toLowerCase())
-                  }
-                  if (!pass && !discardReason)
-                    discardReason = `ausencia_campo_obrigatorio: fonte '${fonteColeta}' não corresponde`
-                }
-
-                if (!pass) {
-                  discardedCount++
-                  const simpleReason = discardReason ? discardReason.split(':')[0] : 'descartado'
-                  if (discardReasons[simpleReason] !== undefined) {
-                    discardReasons[simpleReason]++
-                  } else {
-                    discardReasons[simpleReason] = 1
-                  }
-
-                  logProcess(
-                    'normalization',
-                    'Aviso',
-                    `Descartado: ${discardReason} (Url: ${urlTitle || item.title || 'Desconhecido'})`,
-                    {
-                      url: urlTitle,
-                      title: cleanTitle,
-                      motivo: discardReason,
-                    },
-                  )
-                  continue
-                }
-
-                let normalizedArtType = item.artType || 'Publicação'
-
-                results.push({
-                  title: cleanTitle,
-                  content: cleanText,
-                  pubName: item.pubName || 'DOU',
-                  artType: normalizedArtType,
-                  urlTitle: urlTitle,
-                  pubDate: pubYYYYMMDD + 'T00:00:00.000Z',
-                  editionNumber: String(item.editionNumber || ''),
-                  numberPage: String(item.numberPage || ''),
-                  hierarchyStr: item.hierarchyStr || '',
-                  orgao_principal: org_principal,
-                  organizacao_subordinada: org_subordinada,
-                  source: 'DOU_SCRAPING',
-                  hash_conteudo: hash_conteudo,
-                })
-
-                pagePassedCount++
-              }
-
-              if (pagePassedCount === 0 && pageUniqueCount > 0) {
-                consecutivePagesZeroPassed++
-                if (consecutivePagesZeroPassed >= 10) {
-                  hasMore = false
-                  logProcess(
-                    'parsing',
-                    'Aviso',
-                    `Parando paginação: 10 páginas consecutivas sem itens válidos. (Página ${page})`,
-                  )
-                }
-              } else if (pagePassedCount > 0) {
-                consecutivePagesZeroPassed = 0
-              }
-
-              lastScore = parsed.jsonArray[parsed.jsonArray.length - 1].score || ''
-              lastId = newLastId
-              lastDisplayDate =
-                parsed.jsonArray[parsed.jsonArray.length - 1].displayDate ||
-                parsed.jsonArray[parsed.jsonArray.length - 1].pubDate ||
-                ''
-
-              if (parsed.jsonArray.length < delta) hasMore = false
-
-              logProcess(
-                'parsing',
-                'Sucesso',
-                `Extraídos ${parsed.jsonArray.length} itens da página ${page}. Aprovados localmente: ${pagePassedCount}`,
-                {
-                  quantidade_itens: parsed.jsonArray.length,
-                  mantidos: pagePassedCount,
-                  lastDisplayDate: lastDisplayDate,
-                  datas_avaliadas: parsed.jsonArray.map((item) => {
-                    const dStr = item.pubDate || fromDDMMYYYY
-                    const ymd = parseDateToYYYYMMDD(dStr)
-                    const inRange = ymd >= publishFrom && ymd <= publishTo
-                    return { raw_date: dStr, parsed_date: ymd, in_range: inRange }
-                  }),
-                },
-              )
-              scrapeSuccess = true
             } else {
               hasMore = false
-              scrapeSuccess = true
-              logProcess(
-                'parsing',
-                'Sucesso',
-                `Nenhum item retornado na página ${page} (jsonArray vazio)`,
-                { quantidade_itens: 0 },
-              )
+              scrapeError = 'ausência do portlet na resposta HTTP 200'
+              logProcess('parsing', 'Falha', 'falha de parsing: ' + scrapeError)
             }
+          } else if (res.statusCode === 401 || res.statusCode === 403 || res.statusCode === 429) {
+            hasMore = false
+            scrapeError = `bloqueio funcional por origem (HTTP ${res.statusCode})`
+            logProcess('request', 'Falha', scrapeError, { status_http: res.statusCode })
           } else {
             hasMore = false
-            scrapeError = 'ausência do portlet na resposta HTTP 200'
-            logProcess('parsing', 'Falha', 'falha de parsing: ' + scrapeError)
+            scrapeError = `Falha inesperada (HTTP ${res.statusCode})`
+            logProcess('request', 'Falha', scrapeError, { status_http: res.statusCode })
           }
-        } else if (res.statusCode === 401 || res.statusCode === 403 || res.statusCode === 429) {
+        } catch (err) {
           hasMore = false
-          scrapeError = `bloqueio funcional por origem (HTTP ${res.statusCode})`
-          logProcess('request', 'Falha', scrapeError, { status_http: res.statusCode })
-        } else {
-          hasMore = false
-          scrapeError = `Falha inesperada (HTTP ${res.statusCode})`
-          logProcess('request', 'Falha', scrapeError, { status_http: res.statusCode })
+          scrapeError = String(err)
+          logProcess(
+            'request',
+            'Falha',
+            'Erro de conexão/timeout no bloco ' +
+              fromDDMMYYYY +
+              '-' +
+              toDDMMYYYY +
+              ': ' +
+              scrapeError,
+          )
         }
-      } catch (err) {
-        hasMore = false
-        scrapeError = String(err)
-        logProcess('request', 'Falha', 'Erro de conexão/timeout: ' + scrapeError)
+        page++
+        totalPagesProcessed++
       }
-      page++
-    }
+    } // End of date chunk loop
 
     if (scrapeSuccess || results.length > 0) {
       logProcess(
         'normalization',
         'Sucesso',
-        `Busca concluída. Mantidos: ${results.length}. Descartados: ${discardedCount}.`,
+        `Busca concluída. Mantidos: ${results.length}. Descartados: ${discardedCount}. Blocos executados: ${dateChunks.length}`,
         {
           query_key: `${q}_${publishFrom}_${publishTo}`,
           timeframe: `${publishFrom} to ${publishTo}`,
@@ -688,8 +768,8 @@ routerAdd(
           descartados: discardedCount,
           searchType: searchType,
           motivos_descarte: discardReasons,
-          lastDisplayDate: lastDisplayDate,
-          total_pages_processed: page - 1,
+          total_pages_processed: totalPagesProcessed,
+          chunks_count: dateChunks.length,
         },
       )
     }
