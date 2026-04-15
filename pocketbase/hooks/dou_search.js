@@ -89,12 +89,16 @@ routerAdd(
     let results = []
     let discardedCount = 0
 
+    let loopAttempts = 0
+    let useCursor = true
+
     let discardReasons = {
       fora_do_periodo: 0,
       nao_corresponde_frase: 0,
       nao_corresponde_regex: 0,
       nao_corresponde_termo_livre: 0,
       duplicado: 0,
+      ja_no_banco: 0,
       tipo_ato_incompativel: 0,
       ausencia_campo_obrigatorio: 0,
     }
@@ -167,7 +171,7 @@ routerAdd(
         url += `&orgPrin=${encodeURIComponent(orgPrin)}`
       }
 
-      if (page > 1 && lastScore && lastId && lastDisplayDate) {
+      if (page > 1 && useCursor && lastScore && lastId && lastDisplayDate) {
         url += `&newPage=${page}&score=${lastScore}&id=${lastId}&displayDate=${encodeURIComponent(lastDisplayDate)}`
       }
 
@@ -203,7 +207,10 @@ routerAdd(
           numeroProcesso,
           numeroOab,
           cpfCnpj,
-          currentPage: page,
+          lastId: lastId || undefined,
+          lastScore: lastScore || undefined,
+          lastDisplayDate: lastDisplayDate || undefined,
+          pageNumber: page,
           newPage: page > 1 ? page : undefined,
           score: lastScore || undefined,
           id: lastId || undefined,
@@ -267,261 +274,335 @@ routerAdd(
             if (parsed.jsonArray && parsed.jsonArray.length > 0) {
               const newLastId = parsed.jsonArray[parsed.jsonArray.length - 1].id || ''
 
+              // LOOP DETECTION
+              let isLoop = false
               if (newLastId === lastId && lastId !== '') {
-                hasMore = false
-                logProcess('parsing', 'Sucesso', `Resultados repetidos, parando paginação.`, {
-                  quantidade_itens: parsed.jsonArray.length,
-                })
-              } else {
-                let pagePassedCount = 0
+                isLoop = true
+              }
 
-                // 4. Normalization
-                for (const item of parsed.jsonArray) {
-                  // 8. Deduplication
-                  if (item.urlTitle && uniqueUrls.has(item.urlTitle)) {
-                    discardedCount++
-                    discardReasons['duplicado']++
-                    logProcess(
-                      'normalization',
-                      'Aviso',
-                      `Descartado: duplicado (Url: ${item.urlTitle})`,
-                      {
-                        url: item.urlTitle,
-                        motivo: 'duplicado',
-                      },
-                    )
-                    continue
-                  }
-                  if (item.urlTitle) uniqueUrls.add(item.urlTitle)
-
-                  let cleanText = (item.content || '').replace(/<[^>]*>?/gm, '').trim()
-                  let cleanTitle = (item.title || item.artType || '')
-                    .replace(/<[^>]*>?/gm, '')
-                    .trim()
-
-                  let pubDateStr = item.pubDate || fromDDMMYYYY
-                  let pubYYYYMMDD = parseDateToYYYYMMDD(pubDateStr)
-
-                  const urlTitle = item.urlTitle
-                    ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}`
-                    : ''
-
-                  let org_principal = ''
-                  let org_subordinada = ''
-                  if (item.hierarchyStr) {
-                    const parts = item.hierarchyStr.split('-').map((p) => p.trim())
-                    if (parts.length > 0) org_principal = parts[0]
-                    if (parts.length > 1) org_subordinada = parts.slice(1).join(' - ')
-                  }
-
-                  let fullText =
-                    `${cleanTitle} ${cleanText} ${item.hierarchyStr || ''}`.toLowerCase()
-                  let pass = true
-                  let discardReason = ''
-
-                  // 5. Temporal Filter
-                  if (pubYYYYMMDD && pubYYYYMMDD.length === 10 && pubYYYYMMDD.includes('-')) {
-                    if (pubYYYYMMDD < publishFrom || pubYYYYMMDD > publishTo) {
-                      pass = false
-                      discardReason = `fora_do_periodo: data ${pubYYYYMMDD} fora de ${publishFrom} a ${publishTo}`
-                    }
-                  } else {
-                    logProcess(
-                      'normalization',
-                      'Aviso',
-                      `Data com formatação inconsistente (${pubDateStr}), assumindo no período por segurança.`,
-                    )
-                  }
-
-                  // 7. SearchType Filter
-                  if (pass) {
-                    if (searchType === 'frase_exata') {
-                      const exact = q.toLowerCase().trim()
-                      pass = fullText.includes(exact)
-                      if (!pass) discardReason = `nao_corresponde_frase: não contém '${exact}'`
-                    } else if (searchType === 'regex') {
-                      try {
-                        const regex = new RegExp(q, 'i')
-                        pass = regex.test(fullText)
-                        if (!pass) discardReason = `nao_corresponde_regex: regex falhou`
-                      } catch (err) {
-                        pass = false
-                        discardReason = `nao_corresponde_regex: regex inválido`
-                      }
-                    } else {
-                      const tokens = q.toLowerCase().trim().split(/\s+/)
-                      pass = tokens.every((t) => fullText.includes(t))
-                      if (!pass) discardReason = `nao_corresponde_termo_livre: faltam termos`
-                    }
-                  }
-
-                  // 6. Structured Field Filter
-                  if (pass && numeroProcesso) {
-                    if (searchType === 'regex') {
-                      try {
-                        pass = new RegExp(numeroProcesso, 'i').test(fullText)
-                      } catch (err) {}
-                    } else if (searchType === 'frase_exata') {
-                      pass = fullText.includes(numeroProcesso.toLowerCase())
-                    } else {
-                      const cleanFullText = fullText.replace(/[\.\-\/\s]/g, '').replace(/^0+/, '')
-                      const cleanProcess = numeroProcesso
-                        .replace(/[\.\-\/\s]/g, '')
-                        .replace(/^0+/, '')
-                        .toLowerCase()
-                      pass =
-                        cleanFullText.includes(cleanProcess) ||
-                        fullText.includes(numeroProcesso.toLowerCase())
-                    }
-                    if (!pass && !discardReason)
-                      discardReason = `ausencia_campo_obrigatorio: processo '${numeroProcesso}' não corresponde`
-                  }
-
-                  if (pass && numeroOab) {
-                    if (searchType === 'regex') {
-                      try {
-                        pass = new RegExp(numeroOab, 'i').test(fullText)
-                      } catch (err) {}
-                    } else if (searchType === 'frase_exata') {
-                      pass = fullText.includes(numeroOab.toLowerCase())
-                    } else {
-                      const cleanFullText = fullText.replace(/[\.\-\/\s]/g, '').replace(/^0+/, '')
-                      const cleanOab = numeroOab
-                        .replace(/[\.\-\/\s]/g, '')
-                        .replace(/^0+/, '')
-                        .toLowerCase()
-                      pass =
-                        cleanFullText.includes(cleanOab) ||
-                        fullText.includes(numeroOab.toLowerCase())
-                    }
-                    if (!pass && !discardReason)
-                      discardReason = `ausencia_campo_obrigatorio: OAB '${numeroOab}' não corresponde`
-                  }
-
-                  if (pass && cpfCnpj) {
-                    if (searchType === 'regex') {
-                      try {
-                        pass = new RegExp(cpfCnpj, 'i').test(fullText)
-                      } catch (err) {}
-                    } else if (searchType === 'frase_exata') {
-                      pass = fullText.includes(cpfCnpj.toLowerCase())
-                    } else {
-                      const cleanFullText = fullText.replace(/[\.\-\/\s]/g, '').replace(/^0+/, '')
-                      const cleanCpf = cpfCnpj
-                        .replace(/[\.\-\/\s]/g, '')
-                        .replace(/^0+/, '')
-                        .toLowerCase()
-                      pass =
-                        cleanFullText.includes(cleanCpf) || fullText.includes(cpfCnpj.toLowerCase())
-                    }
-                    if (!pass && !discardReason)
-                      discardReason = `ausencia_campo_obrigatorio: CPF/CNPJ '${cpfCnpj}' não corresponde`
-                  }
-
-                  if (pass && artType) {
-                    const itemArtType = (item.artType || '').toLowerCase()
-                    const filterArtType = artType.toLowerCase().trim()
-                    if (!itemArtType.includes(filterArtType)) {
-                      pass = false
-                      if (!discardReason)
-                        discardReason = `tipo_ato_incompativel: '${itemArtType}' != '${filterArtType}'`
-                    }
-                  }
-
-                  if (pass && fonteColeta) {
-                    if (searchType === 'regex') {
-                      try {
-                        pass = new RegExp(fonteColeta, 'i').test(item.pubName || '')
-                      } catch (err) {}
-                    } else {
-                      pass = (item.pubName || '').toLowerCase().includes(fonteColeta.toLowerCase())
-                    }
-                    if (!pass && !discardReason)
-                      discardReason = `ausencia_campo_obrigatorio: fonte '${fonteColeta}' não corresponde`
-                  }
-
-                  if (!pass) {
-                    discardedCount++
-                    const simpleReason = discardReason ? discardReason.split(':')[0] : 'descartado'
-                    if (discardReasons[simpleReason] !== undefined) {
-                      discardReasons[simpleReason]++
-                    } else {
-                      discardReasons[simpleReason] = 1
-                    }
-
-                    logProcess(
-                      'normalization',
-                      'Aviso',
-                      `Descartado: ${discardReason} (Url: ${urlTitle || item.title || 'Desconhecido'})`,
-                      {
-                        url: urlTitle,
-                        title: cleanTitle,
-                        motivo: discardReason,
-                      },
-                    )
-                    continue
-                  }
-
-                  let normalizedArtType = item.artType || 'Publicação'
-
-                  results.push({
-                    title: cleanTitle,
-                    content: cleanText,
-                    pubName: item.pubName || 'DOU',
-                    artType: normalizedArtType,
-                    urlTitle: urlTitle,
-                    pubDate: pubYYYYMMDD + 'T00:00:00.000Z',
-                    editionNumber: String(item.editionNumber || ''),
-                    numberPage: String(item.numberPage || ''),
-                    hierarchyStr: item.hierarchyStr || '',
-                    orgao_principal: org_principal,
-                    organizacao_subordinada: org_subordinada,
-                    source: 'DOU_SCRAPING',
-                  })
-
-                  pagePassedCount++
+              let sessionNewItems = 0
+              for (const item of parsed.jsonArray) {
+                let uk = item.urlTitle || item.id || item.title + item.pubDate
+                if (!uniqueUrls.has(uk)) {
+                  sessionNewItems++
                 }
+              }
 
-                if (pagePassedCount === 0) {
-                  consecutivePagesZeroPassed++
-                  if (consecutivePagesZeroPassed >= 10) {
-                    hasMore = false
-                    logProcess(
-                      'parsing',
-                      'Aviso',
-                      `Parando paginação: 10 páginas consecutivas sem itens válidos. (Página ${page})`,
-                    )
-                  }
-                } else {
-                  consecutivePagesZeroPassed = 0
-                }
+              if (sessionNewItems === 0 && parsed.jsonArray.length > 0) {
+                isLoop = true
+              }
 
-                lastScore = parsed.jsonArray[parsed.jsonArray.length - 1].score || ''
-                lastId = newLastId
-                lastDisplayDate =
-                  parsed.jsonArray[parsed.jsonArray.length - 1].displayDate ||
-                  parsed.jsonArray[parsed.jsonArray.length - 1].pubDate ||
-                  ''
-
-                if (parsed.jsonArray.length < 20) hasMore = false
-
+              if (isLoop) {
+                loopAttempts++
                 logProcess(
                   'parsing',
-                  'Sucesso',
-                  `Extraídos ${parsed.jsonArray.length} itens da página ${page}. Aprovados localmente: ${pagePassedCount}`,
+                  'Aviso',
+                  `Erro de Loop de Paginação detectado no DOU. Tentativa de recuperação ${loopAttempts}/3`,
                   {
+                    pageNumber: page,
+                    lastId: lastId,
+                    lastScore: lastScore,
                     quantidade_itens: parsed.jsonArray.length,
-                    mantidos: pagePassedCount,
-                    lastDisplayDate: lastDisplayDate,
-                    datas_avaliadas: parsed.jsonArray.map((item) => {
-                      const dStr = item.pubDate || fromDDMMYYYY
-                      const ymd = parseDateToYYYYMMDD(dStr)
-                      const inRange = ymd >= publishFrom && ymd <= publishTo
-                      return { raw_date: dStr, parsed_date: ymd, in_range: inRange }
-                    }),
                   },
                 )
+
+                if (loopAttempts > 3) {
+                  hasMore = false
+                  logProcess(
+                    'parsing',
+                    'Falha',
+                    `Falha ao recuperar de loop após 3 tentativas. Parando paginação.`,
+                  )
+                } else {
+                  useCursor = false
+                  page++
+                  continue
+                }
+              } else {
+                loopAttempts = 0
+                useCursor = true
               }
+
+              let pagePassedCount = 0
+              let pageUniqueCount = 0
+
+              // 4. Normalization
+              for (const item of parsed.jsonArray) {
+                // 8. Deduplication (Session)
+                let uniqueKey = item.urlTitle || item.id || item.title + item.pubDate
+                if (uniqueUrls.has(uniqueKey)) {
+                  discardedCount++
+                  discardReasons['duplicado']++
+                  logProcess(
+                    'normalization',
+                    'Aviso',
+                    `Descartado: duplicado na sessão (Url/Id: ${uniqueKey})`,
+                    {
+                      url: uniqueKey,
+                      motivo: 'duplicado',
+                    },
+                  )
+                  continue
+                }
+                uniqueUrls.add(uniqueKey)
+                pageUniqueCount++
+
+                let cleanText = (item.content || '').replace(/<[^>]*>?/gm, '').trim()
+                let cleanTitle = (item.title || item.artType || '').replace(/<[^>]*>?/gm, '').trim()
+
+                // Deduplication (Database via Hash)
+                const hash_conteudo = $security.md5(cleanTitle + cleanText + (item.urlTitle || ''))
+
+                let inDb = false
+                try {
+                  $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash_conteudo)
+                  inDb = true
+                } catch (_) {}
+
+                if (!inDb) {
+                  try {
+                    $app.findFirstRecordByData(
+                      'gazette_publications',
+                      'hash_conteudo',
+                      hash_conteudo,
+                    )
+                    inDb = true
+                  } catch (_) {}
+                }
+
+                if (inDb) {
+                  discardedCount++
+                  discardReasons['ja_no_banco']++
+                  logProcess(
+                    'normalization',
+                    'Aviso',
+                    `Descartado: já existente no banco (Hash: ${hash_conteudo})`,
+                    { hash: hash_conteudo, motivo: 'ja_no_banco' },
+                  )
+                  continue
+                }
+
+                let pubDateStr = item.pubDate || fromDDMMYYYY
+                let pubYYYYMMDD = parseDateToYYYYMMDD(pubDateStr)
+
+                const urlTitle = item.urlTitle
+                  ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}`
+                  : ''
+
+                let org_principal = ''
+                let org_subordinada = ''
+                if (item.hierarchyStr) {
+                  const parts = item.hierarchyStr.split('-').map((p) => p.trim())
+                  if (parts.length > 0) org_principal = parts[0]
+                  if (parts.length > 1) org_subordinada = parts.slice(1).join(' - ')
+                }
+
+                let fullText = `${cleanTitle} ${cleanText} ${item.hierarchyStr || ''}`.toLowerCase()
+                let pass = true
+                let discardReason = ''
+
+                // 5. Temporal Filter
+                if (pubYYYYMMDD && pubYYYYMMDD.length === 10 && pubYYYYMMDD.includes('-')) {
+                  if (pubYYYYMMDD < publishFrom || pubYYYYMMDD > publishTo) {
+                    pass = false
+                    discardReason = `fora_do_periodo: data ${pubYYYYMMDD} fora de ${publishFrom} a ${publishTo}`
+                  }
+                } else {
+                  logProcess(
+                    'normalization',
+                    'Aviso',
+                    `Data com formatação inconsistente (${pubDateStr}), assumindo no período por segurança.`,
+                  )
+                }
+
+                // 7. SearchType Filter
+                if (pass) {
+                  if (searchType === 'frase_exata') {
+                    const exact = q.toLowerCase().trim()
+                    pass = fullText.includes(exact)
+                    if (!pass) discardReason = `nao_corresponde_frase: não contém '${exact}'`
+                  } else if (searchType === 'regex') {
+                    try {
+                      const regex = new RegExp(q, 'i')
+                      pass = regex.test(fullText)
+                      if (!pass) discardReason = `nao_corresponde_regex: regex falhou`
+                    } catch (err) {
+                      pass = false
+                      discardReason = `nao_corresponde_regex: regex inválido`
+                    }
+                  } else {
+                    const tokens = q.toLowerCase().trim().split(/\s+/)
+                    pass = tokens.every((t) => fullText.includes(t))
+                    if (!pass) discardReason = `nao_corresponde_termo_livre: faltam termos`
+                  }
+                }
+
+                // 6. Structured Field Filter
+                if (pass && numeroProcesso) {
+                  if (searchType === 'regex') {
+                    try {
+                      pass = new RegExp(numeroProcesso, 'i').test(fullText)
+                    } catch (err) {}
+                  } else if (searchType === 'frase_exata') {
+                    pass = fullText.includes(numeroProcesso.toLowerCase())
+                  } else {
+                    const cleanFullText = fullText.replace(/[\.\-\/\s]/g, '').replace(/^0+/, '')
+                    const cleanProcess = numeroProcesso
+                      .replace(/[\.\-\/\s]/g, '')
+                      .replace(/^0+/, '')
+                      .toLowerCase()
+                    pass =
+                      cleanFullText.includes(cleanProcess) ||
+                      fullText.includes(numeroProcesso.toLowerCase())
+                  }
+                  if (!pass && !discardReason)
+                    discardReason = `ausencia_campo_obrigatorio: processo '${numeroProcesso}' não corresponde`
+                }
+
+                if (pass && numeroOab) {
+                  if (searchType === 'regex') {
+                    try {
+                      pass = new RegExp(numeroOab, 'i').test(fullText)
+                    } catch (err) {}
+                  } else if (searchType === 'frase_exata') {
+                    pass = fullText.includes(numeroOab.toLowerCase())
+                  } else {
+                    const cleanFullText = fullText.replace(/[\.\-\/\s]/g, '').replace(/^0+/, '')
+                    const cleanOab = numeroOab
+                      .replace(/[\.\-\/\s]/g, '')
+                      .replace(/^0+/, '')
+                      .toLowerCase()
+                    pass =
+                      cleanFullText.includes(cleanOab) || fullText.includes(numeroOab.toLowerCase())
+                  }
+                  if (!pass && !discardReason)
+                    discardReason = `ausencia_campo_obrigatorio: OAB '${numeroOab}' não corresponde`
+                }
+
+                if (pass && cpfCnpj) {
+                  if (searchType === 'regex') {
+                    try {
+                      pass = new RegExp(cpfCnpj, 'i').test(fullText)
+                    } catch (err) {}
+                  } else if (searchType === 'frase_exata') {
+                    pass = fullText.includes(cpfCnpj.toLowerCase())
+                  } else {
+                    const cleanFullText = fullText.replace(/[\.\-\/\s]/g, '').replace(/^0+/, '')
+                    const cleanCpf = cpfCnpj
+                      .replace(/[\.\-\/\s]/g, '')
+                      .replace(/^0+/, '')
+                      .toLowerCase()
+                    pass =
+                      cleanFullText.includes(cleanCpf) || fullText.includes(cpfCnpj.toLowerCase())
+                  }
+                  if (!pass && !discardReason)
+                    discardReason = `ausencia_campo_obrigatorio: CPF/CNPJ '${cpfCnpj}' não corresponde`
+                }
+
+                if (pass && artType) {
+                  const itemArtType = (item.artType || '').toLowerCase()
+                  const filterArtType = artType.toLowerCase().trim()
+                  if (!itemArtType.includes(filterArtType)) {
+                    pass = false
+                    if (!discardReason)
+                      discardReason = `tipo_ato_incompativel: '${itemArtType}' != '${filterArtType}'`
+                  }
+                }
+
+                if (pass && fonteColeta) {
+                  if (searchType === 'regex') {
+                    try {
+                      pass = new RegExp(fonteColeta, 'i').test(item.pubName || '')
+                    } catch (err) {}
+                  } else {
+                    pass = (item.pubName || '').toLowerCase().includes(fonteColeta.toLowerCase())
+                  }
+                  if (!pass && !discardReason)
+                    discardReason = `ausencia_campo_obrigatorio: fonte '${fonteColeta}' não corresponde`
+                }
+
+                if (!pass) {
+                  discardedCount++
+                  const simpleReason = discardReason ? discardReason.split(':')[0] : 'descartado'
+                  if (discardReasons[simpleReason] !== undefined) {
+                    discardReasons[simpleReason]++
+                  } else {
+                    discardReasons[simpleReason] = 1
+                  }
+
+                  logProcess(
+                    'normalization',
+                    'Aviso',
+                    `Descartado: ${discardReason} (Url: ${urlTitle || item.title || 'Desconhecido'})`,
+                    {
+                      url: urlTitle,
+                      title: cleanTitle,
+                      motivo: discardReason,
+                    },
+                  )
+                  continue
+                }
+
+                let normalizedArtType = item.artType || 'Publicação'
+
+                results.push({
+                  title: cleanTitle,
+                  content: cleanText,
+                  pubName: item.pubName || 'DOU',
+                  artType: normalizedArtType,
+                  urlTitle: urlTitle,
+                  pubDate: pubYYYYMMDD + 'T00:00:00.000Z',
+                  editionNumber: String(item.editionNumber || ''),
+                  numberPage: String(item.numberPage || ''),
+                  hierarchyStr: item.hierarchyStr || '',
+                  orgao_principal: org_principal,
+                  organizacao_subordinada: org_subordinada,
+                  source: 'DOU_SCRAPING',
+                  hash_conteudo: hash_conteudo,
+                })
+
+                pagePassedCount++
+              }
+
+              if (pagePassedCount === 0 && pageUniqueCount > 0) {
+                consecutivePagesZeroPassed++
+                if (consecutivePagesZeroPassed >= 10) {
+                  hasMore = false
+                  logProcess(
+                    'parsing',
+                    'Aviso',
+                    `Parando paginação: 10 páginas consecutivas sem itens válidos. (Página ${page})`,
+                  )
+                }
+              } else if (pagePassedCount > 0) {
+                consecutivePagesZeroPassed = 0
+              }
+
+              lastScore = parsed.jsonArray[parsed.jsonArray.length - 1].score || ''
+              lastId = newLastId
+              lastDisplayDate =
+                parsed.jsonArray[parsed.jsonArray.length - 1].displayDate ||
+                parsed.jsonArray[parsed.jsonArray.length - 1].pubDate ||
+                ''
+
+              if (parsed.jsonArray.length < 20) hasMore = false
+
+              logProcess(
+                'parsing',
+                'Sucesso',
+                `Extraídos ${parsed.jsonArray.length} itens da página ${page}. Aprovados localmente: ${pagePassedCount}`,
+                {
+                  quantidade_itens: parsed.jsonArray.length,
+                  mantidos: pagePassedCount,
+                  lastDisplayDate: lastDisplayDate,
+                  datas_avaliadas: parsed.jsonArray.map((item) => {
+                    const dStr = item.pubDate || fromDDMMYYYY
+                    const ymd = parseDateToYYYYMMDD(dStr)
+                    const inRange = ymd >= publishFrom && ymd <= publishTo
+                    return { raw_date: dStr, parsed_date: ymd, in_range: inRange }
+                  }),
+                },
+              )
               scrapeSuccess = true
             } else {
               hasMore = false
