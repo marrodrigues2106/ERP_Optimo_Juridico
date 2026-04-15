@@ -91,6 +91,15 @@ routerAdd(
 
     let loopAttempts = 0
     let useCursor = true
+    let delta = 20
+    let userAgentIndex = 0
+
+    const userAgents = [
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 14.3; rv:123.0) Gecko/20100101 Firefox/123.0',
+    ]
 
     let discardReasons = {
       fora_do_periodo: 0,
@@ -166,7 +175,7 @@ routerAdd(
 
     // 2. Raw Collection Loop
     while (page <= maxPages && hasMore) {
-      let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${qUrl}&s=${sParam}&exactDate=personalizado&publishFrom=${fromDDMMYYYY}&publishTo=${toDDMMYYYY}&sortType=0&delta=20&currentPage=${page}`
+      let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${qUrl}&s=${sParam}&exactDate=personalizado&publishFrom=${fromDDMMYYYY}&publishTo=${toDDMMYYYY}&sortType=0&delta=${delta}&currentPage=${page}`
       if (orgPrin) {
         url += `&orgPrin=${encodeURIComponent(orgPrin)}`
       }
@@ -176,11 +185,7 @@ routerAdd(
       }
 
       try {
-        const userAgents = [
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        ]
-        const randomUA = userAgents[Math.floor(Math.random() * userAgents.length)]
+        const randomUA = userAgents[userAgentIndex % userAgents.length]
 
         const headers = {
           'User-Agent': randomUA,
@@ -294,15 +299,48 @@ routerAdd(
 
               if (isLoop) {
                 loopAttempts++
+                let strategyMsg = ''
+
+                if (loopAttempts === 1) {
+                  strategyMsg = 'Iniciando Salto Temporal Forçado (Ajuste de cursor)'
+                  if (lastDisplayDate) {
+                    try {
+                      let d = new Date(lastDisplayDate)
+                      if (!isNaN(d.getTime())) {
+                        d.setSeconds(d.getSeconds() - 1)
+                        lastDisplayDate = d.toISOString().replace('Z', '000Z')
+                      } else {
+                        lastScore = String(parseFloat(lastScore || '1') - 0.001)
+                      }
+                    } catch (e) {
+                      lastScore = String(parseFloat(lastScore || '1') - 0.001)
+                    }
+                  } else {
+                    lastScore = String(parseFloat(lastScore || '1') - 0.001)
+                  }
+                  useCursor = true
+                } else if (loopAttempts === 2) {
+                  strategyMsg = 'Alterando tamanho da página para 21 (Cache Breaking)'
+                  delta = 21
+                  useCursor = true
+                } else if (loopAttempts === 3) {
+                  strategyMsg = 'Rotacionando User-Agent e limpando cookies (Session Reset)'
+                  userAgentIndex++
+                  cookies = []
+                  delta = 25
+                  useCursor = false
+                }
+
                 logProcess(
                   'parsing',
                   'Aviso',
-                  `Erro de Loop de Paginação detectado no DOU. Tentativa de recuperação ${loopAttempts}/3`,
+                  `Erro de Loop de Paginação detectado no DOU. Tentativa de recuperação ${loopAttempts}/3. ${strategyMsg}`,
                   {
                     pageNumber: page,
                     lastId: lastId,
                     lastScore: lastScore,
                     quantidade_itens: parsed.jsonArray.length,
+                    estrategia: strategyMsg,
                   },
                 )
 
@@ -314,13 +352,15 @@ routerAdd(
                     `Falha ao recuperar de loop após 3 tentativas. Parando paginação.`,
                   )
                 } else {
-                  useCursor = false
-                  page++
+                  if (loopAttempts === 3) {
+                    page++
+                  }
                   continue
                 }
               } else {
                 loopAttempts = 0
                 useCursor = true
+                delta = 20
               }
 
               let pagePassedCount = 0
@@ -585,7 +625,7 @@ routerAdd(
                 parsed.jsonArray[parsed.jsonArray.length - 1].pubDate ||
                 ''
 
-              if (parsed.jsonArray.length < 20) hasMore = false
+              if (parsed.jsonArray.length < delta) hasMore = false
 
               logProcess(
                 'parsing',
