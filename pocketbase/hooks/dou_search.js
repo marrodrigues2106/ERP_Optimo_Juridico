@@ -80,6 +80,23 @@ routerAdd(
     const qNorm = normalizar_texto(q)
     const qTokens = extrair_tokens(q)
 
+    let cleanQ = q.trim().replace(/\s+/g, ' ')
+    if (searchType === 'regex') {
+      let stripped = cleanQ
+        .replace(/[\.\*\+\?\^\$\{\}\(\)\|\[\]\\]/g, ' ')
+        .trim()
+        .replace(/\s+/g, ' ')
+      if (!stripped) stripped = cleanQ.replace(/\s+/g, ' ')
+      cleanQ = stripped
+    }
+    let formattedQ = cleanQ
+      .split(' ')
+      .map((w) => encodeURIComponent(w))
+      .join('+')
+    if (searchType === 'frase_exata') {
+      formattedQ = `%22${formattedQ}%22`
+    }
+
     const parseDouDate = (pubDateStr) => {
       if (!pubDateStr) return ''
       const datePart = pubDateStr.split(' ')[0]
@@ -175,7 +192,7 @@ routerAdd(
     }
 
     while (page <= 5 && hasMore) {
-      let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${encodeURIComponent(q)}&s=do1,do2,do3,doextra&exactDate=personalizado&publishFrom=${fromDDMMYYYY}&publishTo=${toDDMMYYYY}&sortType=0&delta=20&currentPage=${page}`
+      let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${formattedQ}&s=do1,do2,do3,doextra&exactDate=personalizado&publishFrom=${fromDDMMYYYY}&publishTo=${toDDMMYYYY}&sortType=0&delta=20&currentPage=${page}`
 
       if (orgPrin) {
         url += `&orgPrin=${encodeURIComponent(orgPrin)}`
