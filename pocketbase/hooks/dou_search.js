@@ -4,6 +4,7 @@ routerAdd(
   (e) => {
     const body = e.requestInfo().body || {}
     const q = body.q || ''
+    const searchType = body.searchType || 'palavras_chave'
     let publishFrom = body.publishFrom || ''
     let publishTo = body.publishTo || ''
     let orgPrin = body.orgPrin || ''
@@ -43,6 +44,14 @@ routerAdd(
     let scrapeError = ''
     const maxPages = 10
 
+    let qTerm = q.trim().replace(/\s+/g, ' ')
+    let qUrl = ''
+    if (searchType === 'frase_exata') {
+      qUrl = '%22' + qTerm.split(' ').map(encodeURIComponent).join('+') + '%22'
+    } else {
+      qUrl = qTerm.split(' ').map(encodeURIComponent).join('+')
+    }
+
     const fetchWithRetry = (url, headers, maxRetries = 3) => {
       let attempt = 0
       while (attempt < maxRetries) {
@@ -53,18 +62,35 @@ routerAdd(
             headers: headers,
             timeout: 15,
           })
+          if (
+            res.statusCode === 429 ||
+            res.statusCode === 502 ||
+            res.statusCode === 503 ||
+            res.statusCode === 504
+          ) {
+            attempt++
+            if (attempt >= maxRetries) return res
+            let start = new Date().getTime()
+            while (new Date().getTime() - start < 1000) {} // wait 1s
+            continue
+          }
           return res
         } catch (err) {
           attempt++
           if (attempt >= maxRetries) {
             throw err
           }
+          let start = new Date().getTime()
+          while (new Date().getTime() - start < 1000) {} // wait 1s
         }
       }
     }
 
+    let cookies = []
+    const getCookieHeader = () => cookies.join('; ')
+
     while (page <= maxPages && hasMore) {
-      let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${encodeURIComponent(q)}&s=do1,do2,do3,doextra&exactDate=personalizado&publishFrom=${fromDDMMYYYY}&publishTo=${toDDMMYYYY}&sortType=0&delta=20&currentPage=${page}`
+      let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${qUrl}&s=do1,do2,do3,doextra&exactDate=personalizado&publishFrom=${fromDDMMYYYY}&publishTo=${toDDMMYYYY}&sortType=0&delta=20&currentPage=${page}`
       if (orgPrin) {
         url += `&orgPrin=${encodeURIComponent(orgPrin)}`
       }
@@ -89,8 +115,15 @@ routerAdd(
           Connection: 'keep-alive',
         }
 
+        let cHeader = getCookieHeader()
+        if (cHeader) {
+          headers['Cookie'] = cHeader
+        }
+
         const metadadosParams = {
           q,
+          qUrl,
+          searchType,
           s: 'do1,do2,do3,doextra',
           publishFrom: fromDDMMYYYY,
           publishTo: toDDMMYYYY,
@@ -108,6 +141,13 @@ routerAdd(
         })
 
         const res = fetchWithRetry(url, headers, 3)
+
+        const setCookieHeaders = res.headers['Set-Cookie'] || res.headers['set-cookie'] || []
+        if (setCookieHeaders && setCookieHeaders.length > 0) {
+          for (let c of setCookieHeaders) {
+            cookies.push(c.split(';')[0])
+          }
+        }
 
         logProcess(
           'request',
@@ -188,7 +228,7 @@ routerAdd(
           }
         } else if (res.statusCode === 401 || res.statusCode === 403 || res.statusCode === 429) {
           hasMore = false
-          scrapeError = `bloqueio por origem (HTTP ${res.statusCode})`
+          scrapeError = `bloqueio funcional por origem (HTTP ${res.statusCode})`
           logProcess('request', 'Falha', scrapeError, { status_http: res.statusCode })
         } else {
           hasMore = false
@@ -204,11 +244,13 @@ routerAdd(
     }
 
     let results = []
+    let discardedCount = 0
+
     if (scrapeSuccess && scrapeResults.length > 0) {
       logProcess(
         'normalization',
         'Processando',
-        `Normalizando ${scrapeResults.length} registros...`,
+        `Normalizando e filtrando ${scrapeResults.length} registros (Modo: ${searchType})...`,
       )
 
       const uniqueUrls = new Set()
@@ -241,6 +283,38 @@ routerAdd(
           if (parts.length > 1) org_subordinada = parts.slice(1).join(' - ')
         }
 
+        let fullText = `${cleanTitle} ${cleanText} ${item.hierarchyStr || ''}`.toLowerCase()
+        let pass = false
+        let discardReason = ''
+
+        if (searchType === 'frase_exata') {
+          const exact = q.toLowerCase().trim()
+          pass = fullText.includes(exact)
+          if (!pass) discardReason = 'Frase exata não encontrada no texto limpo'
+        } else if (searchType === 'regex') {
+          try {
+            const regex = new RegExp(q, 'i')
+            pass =
+              regex.test(cleanTitle) ||
+              regex.test(cleanText) ||
+              regex.test(item.hierarchyStr || '') ||
+              regex.test(org_principal)
+            if (!pass) discardReason = 'Padrão regex não encontrado'
+          } catch (e) {
+            pass = false
+            discardReason = 'Regex inválido'
+          }
+        } else {
+          const tokens = q.toLowerCase().trim().split(/\s+/)
+          pass = tokens.every((t) => fullText.includes(t))
+          if (!pass) discardReason = 'Nem todas as palavras-chave foram encontradas no texto limpo'
+        }
+
+        if (!pass) {
+          discardedCount++
+          continue
+        }
+
         let normalizedArtType = item.artType || 'Publicação'
 
         results.push({
@@ -262,8 +336,8 @@ routerAdd(
       logProcess(
         'normalization',
         'Sucesso',
-        `Normalização concluída. Total de itens únicos: ${results.length}`,
-        { quantidade_itens: results.length },
+        `Normalização concluída. Total mantidos: ${results.length}. Descartados pelo filtro local: ${discardedCount}.`,
+        { quantidade_itens: results.length, descartados: discardedCount, searchType: searchType },
       )
     }
 
