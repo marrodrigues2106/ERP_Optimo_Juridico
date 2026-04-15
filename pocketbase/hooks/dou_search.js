@@ -7,68 +7,31 @@ routerAdd(
     let publishFrom = body.publishFrom || ''
     let publishTo = body.publishTo || ''
     let orgPrin = body.orgPrin || ''
-    let artType = body.artType || ''
-    let searchType = body.searchType || 'palavras_chave'
 
     if (!q) {
       return e.badRequestError('O termo de busca (q) é obrigatório.')
     }
 
-    const logsCol = $app.findCollectionByNameOrId('logs_processamento')
-
-    const logProcess = (etapa, status, msg, source = '') => {
+    const logProcess = (etapa, status, msg, metadados = {}) => {
       try {
+        const logsCol = $app.findCollectionByNameOrId('logs_processamento')
         const logRec = new Record(logsCol)
         logRec.set('etapa', etapa)
         logRec.set('status', status)
-        logRec.set('mensagem', source ? `${msg} | Source: ${source}` : msg)
+        logRec.set('mensagem', msg)
         logRec.set('data_hora', new Date().toISOString())
+        logRec.set('metadados', metadados)
         $app.save(logRec)
       } catch (err) {
-        console.error('Log error in dou_search:', err)
+        console.log('Log error in dou_search:', err)
       }
     }
 
-    const normalizar_termo = (term) => {
-      if (!term) return ''
-      return term.trim().replace(/\s+/g, ' ')
-    }
-
-    let exactDateParam = 'all'
-    let dateParams = ''
-    if (publishFrom || publishTo) {
-      exactDateParam = 'personalizado'
-      if (publishFrom) dateParams += `&publishFrom=${publishFrom.split('-').reverse().join('/')}`
-      if (publishTo) dateParams += `&publishTo=${publishTo.split('-').reverse().join('/')}`
-    }
-
-    let cleanQ = normalizar_termo(q)
-    if (searchType === 'regex') {
-      let stripped = cleanQ.replace(/[\.\*\+\?\^\$\{\}\(\)\|\[\]\\]/g, ' ')
-      stripped = normalizar_termo(stripped)
-      if (!stripped) stripped = cleanQ
-      cleanQ = stripped
-    }
-    let formattedQ = cleanQ
-      .split(' ')
-      .map((w) => encodeURIComponent(w))
-      .join('+')
-
-    if (searchType === 'frase_exata') {
-      formattedQ = `%22${formattedQ}%22`
-    }
-
-    let firstPageUrl = `https://www.in.gov.br/consulta/-/buscar/dou?q=${formattedQ}&s=do1,do2,do3,doextra&exactDate=${exactDateParam}${dateParams}&sortType=0&delta=20&currentPage=1`
-    if (orgPrin) {
-      firstPageUrl += `&orgPrin=${encodeURIComponent(orgPrin)}`
-    }
-
-    logProcess(
-      '[Busca Ativa DOU - Início]',
-      'Iniciada',
-      `Termo original: ${q} | Tipo: ${searchType} | URL gerada: ${firstPageUrl}`,
-      'DOU_SCRAPING',
-    )
+    let today = new Date().toISOString().split('T')[0]
+    let fromDate = publishFrom || today
+    let toDate = publishTo || today
+    let fromDDMMYYYY = fromDate.split('-').reverse().join('/')
+    let toDDMMYYYY = toDate.split('-').reverse().join('/')
 
     let page = 1
     let hasMore = true
@@ -78,133 +41,30 @@ routerAdd(
     let scrapeResults = []
     let scrapeSuccess = false
     let scrapeError = ''
+    const maxPages = 10
 
-    let totalExtracted = 0
-    let totalTextFiltered = 0
-    let totalDateFiltered = 0
-
-    // Conjunto para evitar itens duplicados na própria varredura
-    const seenUrls = {}
-
-    const normalizar_texto = (text) => {
-      if (!text) return ''
-      return text
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .replace(/[.,:;!?(){}\[\]"'-]/g, ' ')
-        .replace(/\n|\r/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-    }
-
-    const extrair_tokens = (text) => {
-      const stopwords = ['de', 'da', 'do', 'das', 'dos', 'e', 'a', 'o']
-      return normalizar_texto(text)
-        .split(' ')
-        .filter((t) => t.length >= 3 && !stopwords.includes(t))
-    }
-
-    const qNorm = normalizar_texto(q)
-    const qTokens = extrair_tokens(q)
-
-    const parseDouDate = (pubDateStr) => {
-      if (!pubDateStr) return ''
-      const datePart = pubDateStr.split(' ')[0]
-      if (datePart.includes('/')) {
-        const parts = datePart.split('/')
-        if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`
-      }
-      return datePart
-    }
-
-    const calcular_peso_por_campo = (item, typeStr) => {
-      let score = 0
-
-      const titleNorm = normalizar_texto(item.title || '')
-      const contentNorm = normalizar_texto(item.content || '')
-      const pubNameNorm = normalizar_texto(item.pubName || '')
-      const hierarchyStrNorm = normalizar_texto(item.hierarchyStr || '')
-      const fullText = `${titleNorm} ${contentNorm} ${pubNameNorm} ${hierarchyStrNorm}`
-
-      if (typeStr === 'regex') {
+    const fetchWithRetry = (url, headers, maxRetries = 3) => {
+      let attempt = 0
+      while (attempt < maxRetries) {
         try {
-          const regex = new RegExp(q, 'i')
-          if (
-            regex.test(item.title || '') ||
-            regex.test(item.content || '') ||
-            regex.test(item.hierarchyStr || '')
-          ) {
-            return 100
+          const res = $http.send({
+            url: url,
+            method: 'GET',
+            headers: headers,
+            timeout: 15,
+          })
+          return res
+        } catch (err) {
+          attempt++
+          if (attempt >= maxRetries) {
+            throw err
           }
-          return 0
-        } catch (e) {
-          return 0
         }
       }
-
-      if (typeStr === 'frase_exata') {
-        if (fullText.includes(qNorm)) return 100
-        return 0
-      }
-
-      // Keyword logic
-      let matchedTokens = 0
-      for (let token of qTokens) {
-        if (fullText.includes(token)) matchedTokens++
-      }
-
-      let passesKeywordRule = false
-      if (qTokens.length === 1) {
-        if (matchedTokens === 1) passesKeywordRule = true
-      } else if (qTokens.length === 2) {
-        if (matchedTokens >= 1) passesKeywordRule = true
-      } else if (qTokens.length >= 3) {
-        if (matchedTokens / qTokens.length >= 0.6) passesKeywordRule = true
-      }
-
-      if (!passesKeywordRule) return 0
-
-      // Full Expression Match
-      if (qNorm && titleNorm.includes(qNorm)) score += 40
-      if (qNorm && hierarchyStrNorm.includes(qNorm)) score += 35
-      if (qNorm && contentNorm.includes(qNorm)) score += 20
-      if (qNorm && pubNameNorm.includes(qNorm)) score += 15
-
-      // Individual Token Match
-      for (let token of qTokens) {
-        if (titleNorm.includes(token)) score += 12
-        if (hierarchyStrNorm.includes(token)) score += 10
-        if (contentNorm.includes(token)) score += 6
-        if (pubNameNorm.includes(token)) score += 4
-      }
-
-      // Institutional
-      if (
-        fullText.includes('tribunal') &&
-        fullText.includes('contas') &&
-        fullText.includes('uniao')
-      ) {
-        score += 10
-      }
-
-      // Proper Names/Density
-      let titleHierarchyMatches = 0
-      for (let token of qTokens) {
-        if (titleNorm.includes(token) || hierarchyStrNorm.includes(token)) {
-          titleHierarchyMatches++
-        }
-      }
-      if (titleHierarchyMatches >= 2) {
-        score += 8
-      }
-
-      return score
     }
 
-    while (page <= 5 && hasMore) {
-      let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${formattedQ}&s=do1,do2,do3,doextra&exactDate=${exactDateParam}${dateParams}&sortType=0&delta=20&currentPage=${page}`
-
+    while (page <= maxPages && hasMore) {
+      let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${encodeURIComponent(q)}&s=do1,do2,do3,doextra&exactDate=personalizado&publishFrom=${fromDDMMYYYY}&publishTo=${toDDMMYYYY}&sortType=0&delta=20&currentPage=${page}`
       if (orgPrin) {
         url += `&orgPrin=${encodeURIComponent(orgPrin)}`
       }
@@ -214,41 +74,51 @@ routerAdd(
       }
 
       try {
-        logProcess(
-          '[Busca Ativa DOU - Scraping]',
-          'Processando',
-          `Buscando página ${page}... URL: ${url}`,
-          'DOU_SCRAPING',
-        )
-
         const userAgents = [
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Safari/605.1.15',
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0',
         ]
         const randomUA = userAgents[Math.floor(Math.random() * userAgents.length)]
 
-        const res = $http.send({
-          url: url,
-          method: 'GET',
-          headers: {
-            'User-Agent': randomUA,
-            Accept:
-              'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-            Referer: 'https://www.in.gov.br/consulta/-/buscar/dou',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'same-origin',
-            'Sec-Fetch-User': '?1',
-            'Upgrade-Insecure-Requests': '1',
-            'Accept-Encoding': 'identity',
-          },
-          timeout: 15,
+        const headers = {
+          'User-Agent': randomUA,
+          Accept:
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+          Referer: 'https://www.in.gov.br/consulta/-/buscar/dou',
+          Connection: 'keep-alive',
+        }
+
+        const metadadosParams = {
+          q,
+          s: 'do1,do2,do3,doextra',
+          publishFrom: fromDDMMYYYY,
+          publishTo: toDDMMYYYY,
+          currentPage: page,
+          newPage: page > 1 ? page : undefined,
+          score: lastScore || undefined,
+          id: lastId || undefined,
+          displayDate: lastDisplayDate || undefined,
+        }
+
+        logProcess('request', 'Processando', `Requisitando página ${page}`, {
+          url_consultada: url,
+          params_enviados: metadadosParams,
+          pagina_atual: page,
         })
+
+        const res = fetchWithRetry(url, headers, 3)
+
+        logProcess(
+          'request',
+          res.statusCode === 200 ? 'Sucesso' : 'Falha',
+          `HTTP Status Code: ${res.statusCode}`,
+          {
+            url_consultada: url,
+            status_http: res.statusCode,
+            pagina_atual: page,
+          },
+        )
 
         if (res.statusCode === 200) {
           let html = ''
@@ -269,6 +139,8 @@ routerAdd(
             }
           }
 
+          logProcess('parsing', 'Processando', `Procurando portlet na resposta da página ${page}`)
+
           const scriptMatch = html.match(
             /<script[^>]*id="_br_com_seatecnologia_in_buscadou_BuscaDouPortlet_params"[^>]*>([\s\S]*?)<\/script>/,
           )
@@ -280,106 +152,84 @@ routerAdd(
 
               if (newLastId === lastId && lastId !== '') {
                 hasMore = false
+                logProcess('parsing', 'Sucesso', `Resultados repetidos, parando paginação.`, {
+                  quantidade_itens: parsed.jsonArray.length,
+                })
               } else {
-                let pageExtracted = 0
-                let pageTextFiltered = 0
-                let pageDateFiltered = 0
-
-                for (let item of parsed.jsonArray) {
-                  pageExtracted++
-
-                  const itemPubDate = item.pubDate || ''
-                  const itemDateISO = parseDouDate(itemPubDate)
-
-                  let outOfDateRange = false
-                  if (publishFrom && itemDateISO && itemDateISO < publishFrom) outOfDateRange = true
-                  if (publishTo && itemDateISO && itemDateISO > publishTo) outOfDateRange = true
-
-                  if (outOfDateRange) {
-                    pageDateFiltered++
-                    logProcess(
-                      '[Busca Ativa DOU - Rejeitado]',
-                      'Aviso',
-                      `Rejeitado por Data (Fora do período): ${item.title || item.artType}`,
-                      'DOU_SCRAPING',
-                    )
-                    continue
-                  }
-
-                  const score = calcular_peso_por_campo(item, searchType)
-                  if (score < 30) {
-                    pageTextFiltered++
-                    logProcess(
-                      '[Busca Ativa DOU - Rejeitado]',
-                      'Aviso',
-                      `Rejeitado por Score (<30): ${item.title || item.artType}`,
-                      'DOU_SCRAPING',
-                    )
-                    continue
-                  }
-
-                  item.calculatedScore = score
-
-                  if (item.urlTitle && !seenUrls[item.urlTitle]) {
-                    seenUrls[item.urlTitle] = true
-                    scrapeResults.push(item)
-                  } else if (!item.urlTitle) {
-                    scrapeResults.push(item)
-                  }
-                }
-
-                totalExtracted += pageExtracted
-                totalTextFiltered += pageTextFiltered
-                totalDateFiltered += pageDateFiltered
-
+                scrapeResults = scrapeResults.concat(parsed.jsonArray)
                 lastScore = parsed.jsonArray[parsed.jsonArray.length - 1].score || ''
                 lastId = newLastId
                 lastDisplayDate = parsed.jsonArray[parsed.jsonArray.length - 1].pubDate || ''
 
                 if (parsed.jsonArray.length < 20) hasMore = false
+
+                logProcess(
+                  'parsing',
+                  'Sucesso',
+                  `Extraídos ${parsed.jsonArray.length} itens da página ${page}`,
+                  { quantidade_itens: parsed.jsonArray.length },
+                )
               }
               scrapeSuccess = true
             } else {
               hasMore = false
               scrapeSuccess = true
+              logProcess(
+                'parsing',
+                'Sucesso',
+                `Nenhum item retornado na página ${page} (jsonArray vazio)`,
+                { quantidade_itens: 0 },
+              )
             }
           } else {
             hasMore = false
-            scrapeError =
-              'Structure Mismatch: Script tag _br_com_seatecnologia_in_buscadou_BuscaDouPortlet_params not found'
-            logProcess(
-              '[Busca Ativa DOU - Parse]',
-              'Erro',
-              `Página ${page}: Script não encontrado no HTML retornado.`,
-              'DOU_SCRAPING',
-            )
+            scrapeError = 'ausência do portlet na resposta HTTP 200'
+            logProcess('parsing', 'Falha', 'falha de parsing: ' + scrapeError)
           }
+        } else if (res.statusCode === 401 || res.statusCode === 403 || res.statusCode === 429) {
+          hasMore = false
+          scrapeError = `bloqueio por origem (HTTP ${res.statusCode})`
+          logProcess('request', 'Falha', scrapeError, { status_http: res.statusCode })
         } else {
           hasMore = false
-          scrapeError = `HTTP ${res.statusCode}: Erro de acesso/servidor.`
-          logProcess('[Busca Ativa DOU - Erro Scraping]', 'Erro', scrapeError, 'DOU_SCRAPING')
+          scrapeError = `Falha inesperada (HTTP ${res.statusCode})`
+          logProcess('request', 'Falha', scrapeError, { status_http: res.statusCode })
         }
       } catch (err) {
-        logProcess('[Busca Ativa DOU - Erro Scraping]', 'Erro', String(err), 'DOU_SCRAPING')
         hasMore = false
         scrapeError = String(err)
+        logProcess('request', 'Falha', 'Erro de conexão/timeout: ' + scrapeError)
       }
       page++
     }
 
     let results = []
-
     if (scrapeSuccess && scrapeResults.length > 0) {
-      results = scrapeResults.map((item) => {
+      logProcess(
+        'normalization',
+        'Processando',
+        `Normalizando ${scrapeResults.length} registros...`,
+      )
+
+      const uniqueUrls = new Set()
+
+      for (const item of scrapeResults) {
+        if (item.urlTitle && uniqueUrls.has(item.urlTitle)) {
+          continue
+        }
+        if (item.urlTitle) uniqueUrls.add(item.urlTitle)
+
         let cleanText = (item.content || '').replace(/<[^>]*>?/gm, '').trim()
         let cleanTitle = (item.title || item.artType || '').replace(/<[^>]*>?/gm, '').trim()
 
-        let pubDateStr = item.pubDate || ''
+        let pubDateStr = item.pubDate || fromDDMMYYYY
         if (pubDateStr.includes('/')) {
-          const parts = pubDateStr.split(' ')[0].split('/')
+          const parts = pubDateStr.split('/')
           if (parts.length === 3) pubDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`
         }
-        if (!pubDateStr.includes(':') && pubDateStr) pubDateStr += ' 00:00:00'
+        if (!pubDateStr.includes('T') && !pubDateStr.includes(':')) {
+          pubDateStr += 'T00:00:00.000Z'
+        }
 
         const urlTitle = item.urlTitle ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}` : ''
 
@@ -391,71 +241,38 @@ routerAdd(
           if (parts.length > 1) org_subordinada = parts.slice(1).join(' - ')
         }
 
-        return {
+        let normalizedArtType = item.artType || 'Publicação'
+
+        results.push({
           title: cleanTitle,
           content: cleanText,
-          pubName: item.pubName,
-          artType: item.artType,
+          pubName: item.pubName || 'DOU',
+          artType: normalizedArtType,
           urlTitle: urlTitle,
           pubDate: pubDateStr,
-          editionNumber: item.editionNumber,
-          numberPage: item.numberPage,
-          hierarchyStr: item.hierarchyStr,
+          editionNumber: String(item.editionNumber || ''),
+          numberPage: String(item.numberPage || ''),
+          hierarchyStr: item.hierarchyStr || '',
           orgao_principal: org_principal,
           organizacao_subordinada: org_subordinada,
           source: 'DOU_SCRAPING',
-          score: item.calculatedScore,
-        }
-      })
-
-      if (artType) {
-        const lowerArtType = artType.toLowerCase()
-        results = results.filter((r) => r.artType && r.artType.toLowerCase().includes(lowerArtType))
+        })
       }
 
-      results.sort((a, b) => {
-        const dateA = a.pubDate || ''
-        const dateB = b.pubDate || ''
-        return dateB.localeCompare(dateA)
-      })
-    }
-
-    try {
-      const logRec = new Record(logsCol)
-      logRec.set('etapa', '[Busca Ativa DOU - Resumo Final]')
-      logRec.set('status', 'Concluída')
-      logRec.set(
-        'mensagem',
-        `total_extraidos: ${totalExtracted} | descartados_texto: ${totalTextFiltered} | descartados_data: ${totalDateFiltered} | mantidos: ${results.length} | Source: DOU_SCRAPING`,
+      logProcess(
+        'normalization',
+        'Sucesso',
+        `Normalização concluída. Total de itens únicos: ${results.length}`,
+        { quantidade_itens: results.length },
       )
-      logRec.set('data_hora', new Date().toISOString())
-      logRec.set('termo', q)
-      logRec.set('tipo_busca', searchType)
-      logRec.set('periodo', `${publishFrom || 'sem_data'} a ${publishTo || 'sem_data'}`)
-      logRec.set('metadados', {
-        total_extraidos: totalExtracted,
-        mantidos: results.length,
-        descartados_texto: totalTextFiltered,
-        descartados_data: totalDateFiltered,
-      })
-      $app.save(logRec)
-    } catch (err) {
-      console.error('Log summary error in dou_search:', err)
-    }
-
-    let finalMessage = 'Sucesso'
-    if (results.length === 0) {
-      finalMessage = scrapeError
-        ? scrapeError
-        : 'Nenhum resultado válido encontrado após a aplicação dos filtros locais de texto e data.'
     }
 
     return e.json(200, {
-      success: true,
+      success: scrapeSuccess || results.length > 0,
       source: 'DOU_SCRAPING',
       total: results.length,
       data: results,
-      message: finalMessage,
+      message: scrapeError || (results.length > 0 ? 'Sucesso' : 'Nenhum resultado encontrado'),
     })
   },
   $apis.requireAuth(),
