@@ -508,24 +508,20 @@ routerAdd(
                     )
                   }
 
-                  // 7. SearchType Filter (Relaxed/Permissive)
+                  // 7. SearchType Filter (Strict)
                   if (pass) {
                     if (searchType === 'frase_exata') {
-                      const exact = q.toLowerCase().trim()
+                      let exact = q.toLowerCase().trim()
+                      if (exact.startsWith('"') && exact.endsWith('"')) {
+                        exact = exact.substring(1, exact.length - 1).trim()
+                      } else if (exact.startsWith("'") && exact.endsWith("'")) {
+                        exact = exact.substring(1, exact.length - 1).trim()
+                      }
+
                       pass = fullText.includes(exact)
 
                       if (!pass) {
-                        const tokens = exact.split(/\s+/).filter((t) => t.length > 2)
-                        if (tokens.length > 0) {
-                          const matchCount = tokens.filter((t) => fullText.includes(t)).length
-                          pass = matchCount / tokens.length >= 0.6 // 60% of significant words
-                        } else {
-                          const tokensAll = exact.split(/\s+/)
-                          const matchCount = tokensAll.filter((t) => fullText.includes(t)).length
-                          pass = matchCount / tokensAll.length >= 0.6
-                        }
-                        if (!pass)
-                          discardReason = `nao_corresponde_frase: correspondência parcial baixa para '${exact}'`
+                        discardReason = `nao_corresponde_frase: não contém '${exact}'`
                       }
                     } else if (searchType === 'regex') {
                       try {
