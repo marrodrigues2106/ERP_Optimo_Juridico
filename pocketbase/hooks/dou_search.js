@@ -46,7 +46,7 @@ routerAdd(
     let scrapeResults = []
     let scrapeSuccess = false
     let scrapeError = ''
-    const maxPages = 10
+    const maxPages = 50 // Increased to allow deep historical scraping
 
     let qTerm = q.trim().replace(/\s+/g, ' ')
     let qUrl = ''
@@ -55,6 +55,9 @@ routerAdd(
     } else {
       qUrl = qTerm.split(' ').map(encodeURIComponent).join('+')
     }
+
+    const publishFromDate = new Date(publishFrom + 'T00:00:00.000Z')
+    const publishToDate = new Date(publishTo + 'T23:59:59.999Z')
 
     let sParam = 'do1,do2,do3,doextra'
     if (douSection && douSection !== 'all') {
@@ -272,6 +275,8 @@ routerAdd(
 
       for (const item of scrapeResults) {
         if (item.urlTitle && uniqueUrls.has(item.urlTitle)) {
+          discardedCount++
+          discardReasons['Duplicate'] = (discardReasons['Duplicate'] || 0) + 1
           continue
         }
         if (item.urlTitle) uniqueUrls.add(item.urlTitle)
@@ -302,23 +307,32 @@ routerAdd(
         let pass = true
         let discardReason = ''
 
-        if (searchType === 'frase_exata') {
-          const exact = q.toLowerCase().trim()
-          pass = fullText.includes(exact)
-          if (!pass) discardReason = 'Frase exata não encontrada no texto limpo'
-        } else if (searchType === 'regex') {
-          try {
-            const regex = new RegExp(q, 'i')
-            pass = regex.test(fullText)
-            if (!pass) discardReason = 'Padrão regex principal não encontrado'
-          } catch (e) {
-            pass = false
-            discardReason = 'Regex principal inválido'
+        const pubDateObj = new Date(pubDateStr)
+        if (pubDateObj < publishFromDate || pubDateObj > publishToDate) {
+          pass = false
+          discardReason = 'Out of Date'
+        }
+
+        if (pass) {
+          if (searchType === 'frase_exata') {
+            const exact = q.toLowerCase().trim()
+            pass = fullText.includes(exact)
+            if (!pass) discardReason = 'Frase exata não encontrada no texto limpo'
+          } else if (searchType === 'regex') {
+            try {
+              const regex = new RegExp(q, 'i')
+              pass = regex.test(fullText)
+              if (!pass) discardReason = 'Failed Regex'
+            } catch (e) {
+              pass = false
+              discardReason = 'Regex principal inválido'
+            }
+          } else {
+            const tokens = q.toLowerCase().trim().split(/\s+/)
+            pass = tokens.every((t) => fullText.includes(t))
+            if (!pass)
+              discardReason = 'Nem todas as palavras-chave foram encontradas no texto limpo'
           }
-        } else {
-          const tokens = q.toLowerCase().trim().split(/\s+/)
-          pass = tokens.every((t) => fullText.includes(t))
-          if (!pass) discardReason = 'Nem todas as palavras-chave foram encontradas no texto limpo'
         }
 
         if (pass && processNumber) {
@@ -327,7 +341,7 @@ routerAdd(
               pass = new RegExp(processNumber, 'i').test(fullText)
             } catch (e) {
               pass = false
-              discardReason = 'Regex de processo inválido'
+              discardReason = 'Failed Regex'
             }
           } else {
             pass = fullText.includes(processNumber.toLowerCase().trim())
@@ -341,7 +355,7 @@ routerAdd(
               pass = new RegExp(oabNumber, 'i').test(fullText)
             } catch (e) {
               pass = false
-              discardReason = 'Regex de OAB inválido'
+              discardReason = 'Failed Regex'
             }
           } else {
             pass = fullText.includes(oabNumber.toLowerCase().trim())
@@ -355,7 +369,7 @@ routerAdd(
               pass = new RegExp(cpfCnpj, 'i').test(fullText)
             } catch (e) {
               pass = false
-              discardReason = 'Regex de CPF/CNPJ inválido'
+              discardReason = 'Failed Regex'
             }
           } else {
             pass = fullText.includes(cpfCnpj.toLowerCase().trim())
