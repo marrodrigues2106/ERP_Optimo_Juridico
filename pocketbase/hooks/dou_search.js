@@ -2,6 +2,32 @@ routerAdd(
   'POST',
   '/backend/v1/dou/search',
   (e) => {
+    const parseDateToYYYYMMDD = (dStr) => {
+      if (!dStr) return ''
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dStr)) {
+        const parts = dStr.split('/')
+        return `${parts[2]}-${parts[1]}-${parts[0]}`
+      }
+      if (/^\d{4}-\d{2}-\d{2}/.test(dStr)) {
+        return dStr.substring(0, 10)
+      }
+      if (/^\d{12,}$/.test(dStr)) {
+        try {
+          const dateObj = new Date(parseInt(dStr, 10))
+          if (!isNaN(dateObj.getTime())) {
+            return dateObj.toISOString().split('T')[0]
+          }
+        } catch (e) {}
+      }
+      try {
+        const dateObj = new Date(dStr)
+        if (!isNaN(dateObj.getTime())) {
+          return dateObj.toISOString().split('T')[0]
+        }
+      } catch (e) {}
+      return dStr
+    }
+
     const body = e.requestInfo().body || {}
     const q = body.q || ''
     const searchType = body.searchType || 'palavras_chave'
@@ -119,7 +145,7 @@ routerAdd(
       }
 
       if (page > 1 && lastScore && lastId && lastDisplayDate) {
-        url += `&newPage=${page}&score=${lastScore}&id=${lastId}&displayDate=${lastDisplayDate}`
+        url += `&newPage=${page}&score=${lastScore}&id=${lastId}&displayDate=${encodeURIComponent(lastDisplayDate)}`
       }
 
       try {
@@ -239,15 +265,7 @@ routerAdd(
                     .trim()
 
                   let pubDateStr = item.pubDate || fromDDMMYYYY
-                  let pubYYYYMMDD = ''
-                  if (pubDateStr.includes('/')) {
-                    const parts = pubDateStr.split('/')
-                    if (parts.length === 3) pubYYYYMMDD = `${parts[2]}-${parts[1]}-${parts[0]}`
-                  } else if (pubDateStr.includes('T')) {
-                    pubYYYYMMDD = pubDateStr.split('T')[0]
-                  } else {
-                    pubYYYYMMDD = pubDateStr
-                  }
+                  let pubYYYYMMDD = parseDateToYYYYMMDD(pubDateStr)
 
                   const urlTitle = item.urlTitle
                     ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}`
@@ -391,7 +409,10 @@ routerAdd(
 
                 lastScore = parsed.jsonArray[parsed.jsonArray.length - 1].score || ''
                 lastId = newLastId
-                lastDisplayDate = parsed.jsonArray[parsed.jsonArray.length - 1].pubDate || ''
+                lastDisplayDate =
+                  parsed.jsonArray[parsed.jsonArray.length - 1].displayDate ||
+                  parsed.jsonArray[parsed.jsonArray.length - 1].pubDate ||
+                  ''
 
                 if (parsed.jsonArray.length < 20) hasMore = false
 
@@ -399,7 +420,17 @@ routerAdd(
                   'parsing',
                   'Sucesso',
                   `Extraídos ${parsed.jsonArray.length} itens da página ${page}. Aprovados localmente: ${pagePassedCount}`,
-                  { quantidade_itens: parsed.jsonArray.length, mantidos: pagePassedCount },
+                  {
+                    quantidade_itens: parsed.jsonArray.length,
+                    mantidos: pagePassedCount,
+                    lastDisplayDate: lastDisplayDate,
+                    datas_avaliadas: parsed.jsonArray.map((item) => {
+                      const dStr = item.pubDate || fromDDMMYYYY
+                      const ymd = parseDateToYYYYMMDD(dStr)
+                      const inRange = ymd >= publishFrom && ymd <= publishTo
+                      return { raw_date: dStr, parsed_date: ymd, in_range: inRange }
+                    }),
+                  },
                 )
               }
               scrapeSuccess = true
@@ -441,10 +472,15 @@ routerAdd(
         'Sucesso',
         `Busca concluída. Mantidos: ${results.length}. Descartados: ${discardedCount}.`,
         {
+          query_key: `${q}_${publishFrom}_${publishTo}`,
+          timeframe: `${publishFrom} to ${publishTo}`,
           quantidade_itens: results.length,
           descartados: discardedCount,
+          descartados_fora_periodo: discardReasons['Fora do período'] || 0,
           searchType: searchType,
           motivos_descarte: discardReasons,
+          lastDisplayDate: lastDisplayDate,
+          total_pages_processed: page - 1,
         },
       )
     }

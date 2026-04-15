@@ -420,7 +420,7 @@ export default function DouSearch() {
               </div>
 
               <div className="space-y-2 w-full md:w-auto flex flex-col">
-                <Label>Período (obrigatório)</Label>
+                <Label>Período: Data Inicial e Data Final (obrigatório)</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -441,7 +441,7 @@ export default function DouSearch() {
                           format(date.from, 'dd/MM/yyyy')
                         )
                       ) : (
-                        <span>Selecione um período</span>
+                        <span>Data Inicial - Data Final</span>
                       )}
                     </Button>
                   </PopoverTrigger>
