@@ -7,11 +7,11 @@ export interface DouSearchParams {
   publishTo: string
   orgPrin?: string
   artType?: string
-  processNumber?: string
-  oabNumber?: string
+  numeroProcesso?: string
+  numeroOab?: string
   cpfCnpj?: string
   fonteColeta?: string
-  douSection?: string
+  secaoDou?: string
 }
 
 export interface DouSearchResult {

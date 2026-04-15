@@ -2,6 +2,16 @@ routerAdd(
   'POST',
   '/backend/v1/dou/search',
   (e) => {
+    // Security & Permissions
+    if (
+      !e.auth ||
+      (!e.auth.getBool('can_view_search_module') && e.auth.getString('role') !== 'admin')
+    ) {
+      return e.forbiddenError(
+        'Acesso Negado: Você não tem permissão para acessar o módulo de busca.',
+      )
+    }
+
     const parseDateToYYYYMMDD = (dStr) => {
       if (!dStr) return ''
       if (/^\d{2}\/\d{2}\/\d{4}$/.test(dStr)) {
@@ -17,14 +27,14 @@ routerAdd(
           if (!isNaN(dateObj.getTime())) {
             return dateObj.toISOString().split('T')[0]
           }
-        } catch (e) {}
+        } catch (err) {}
       }
       try {
         const dateObj = new Date(dStr)
         if (!isNaN(dateObj.getTime())) {
           return dateObj.toISOString().split('T')[0]
         }
-      } catch (e) {}
+      } catch (err) {}
       return dStr
     }
 
@@ -34,11 +44,12 @@ routerAdd(
     let publishFrom = body.publishFrom || ''
     let publishTo = body.publishTo || ''
     let orgPrin = body.orgPrin || ''
-    let processNumber = body.processNumber || ''
-    let oabNumber = body.oabNumber || ''
+    let numeroProcesso = body.numeroProcesso || ''
+    let numeroOab = body.numeroOab || ''
     let cpfCnpj = body.cpfCnpj || ''
-    let douSection = body.douSection || ''
+    let secaoDou = body.secaoDou || ''
     let fonteColeta = body.fonteColeta || ''
+    let artType = body.artType || ''
 
     if (!q) {
       return e.badRequestError('O termo de busca (q) é obrigatório.')
@@ -77,11 +88,21 @@ routerAdd(
     let consecutivePagesZeroPassed = 0
     let results = []
     let discardedCount = 0
-    let discardReasons = {}
+
+    let discardReasons = {
+      fora_do_periodo: 0,
+      nao_corresponde_frase: 0,
+      nao_corresponde_regex: 0,
+      duplicado: 0,
+      tipo_ato_incompativel: 0,
+      ausencia_campo_obrigatorio: 0,
+    }
     const uniqueUrls = new Set()
 
     let qTerm = q.trim().replace(/\s+/g, ' ')
     let qUrl = ''
+
+    // 1. Build Query
     if (searchType === 'frase_exata') {
       qUrl = '%22' + qTerm.split(' ').map(encodeURIComponent).join('+') + '%22'
     } else if (searchType === 'regex') {
@@ -96,8 +117,8 @@ routerAdd(
     }
 
     let sParam = 'do1,do2,do3,doextra'
-    if (douSection && douSection !== 'all') {
-      sParam = douSection
+    if (secaoDou && secaoDou !== 'all') {
+      sParam = secaoDou
     }
 
     const fetchWithRetry = (url, headers, maxRetries = 3) => {
@@ -120,7 +141,7 @@ routerAdd(
             attempt++
             if (attempt >= maxRetries) return res
             let start = new Date().getTime()
-            while (new Date().getTime() - start < 2000) {} // wait 2s
+            while (new Date().getTime() - start < 2000) {}
             continue
           }
           return res
@@ -130,7 +151,7 @@ routerAdd(
             throw err
           }
           let start = new Date().getTime()
-          while (new Date().getTime() - start < 1000) {} // wait 1s
+          while (new Date().getTime() - start < 1000) {}
         }
       }
     }
@@ -138,6 +159,7 @@ routerAdd(
     let cookies = []
     const getCookieHeader = () => cookies.join('; ')
 
+    // 2. Raw Collection Loop
     while (page <= maxPages && hasMore) {
       let url = `https://www.in.gov.br/consulta/-/buscar/dou?q=${qUrl}&s=${sParam}&exactDate=personalizado&publishFrom=${fromDDMMYYYY}&publishTo=${toDDMMYYYY}&sortType=0&delta=20&currentPage=${page}`
       if (orgPrin) {
@@ -174,11 +196,11 @@ routerAdd(
           qUrl,
           searchType,
           s: sParam,
-          publishFrom: fromDDMMYYYY,
-          publishTo: toDDMMYYYY,
+          publishFrom: publishFrom,
+          publishTo: publishTo,
           orgPrin,
-          processNumber,
-          oabNumber,
+          numeroProcesso,
+          numeroOab,
           cpfCnpj,
           currentPage: page,
           newPage: page > 1 ? page : undefined,
@@ -227,11 +249,12 @@ routerAdd(
             let latin1 = chunk.join('')
             try {
               html = decodeURIComponent(escape(latin1))
-            } catch (e) {
+            } catch (err) {
               html = latin1
             }
           }
 
+          // 3. Parse
           logProcess('parsing', 'Processando', `Procurando portlet na resposta da página ${page}`)
 
           const scriptMatch = html.match(
@@ -251,10 +274,12 @@ routerAdd(
               } else {
                 let pagePassedCount = 0
 
+                // 4. Normalization
                 for (const item of parsed.jsonArray) {
+                  // 8. Deduplication
                   if (item.urlTitle && uniqueUrls.has(item.urlTitle)) {
                     discardedCount++
-                    discardReasons['Duplicado'] = (discardReasons['Duplicado'] || 0) + 1
+                    discardReasons['duplicado']++
                     continue
                   }
                   if (item.urlTitle) uniqueUrls.add(item.urlTitle)
@@ -284,90 +309,104 @@ routerAdd(
                   let pass = true
                   let discardReason = ''
 
+                  // 5. Temporal Filter
                   if (pubYYYYMMDD < publishFrom || pubYYYYMMDD > publishTo) {
                     pass = false
-                    discardReason = 'Fora do período'
+                    discardReason = 'fora_do_periodo'
                   }
 
+                  // 7. SearchType Filter
                   if (pass) {
                     if (searchType === 'frase_exata') {
                       const exact = q.toLowerCase().trim()
                       pass = fullText.includes(exact)
-                      if (!pass) discardReason = 'Frase exata não encontrada'
+                      if (!pass) discardReason = 'nao_corresponde_frase'
                     } else if (searchType === 'regex') {
                       try {
                         const regex = new RegExp(q, 'i')
                         pass = regex.test(fullText)
-                        if (!pass) discardReason = 'Regex principal não encontrado'
-                      } catch (e) {
+                        if (!pass) discardReason = 'nao_corresponde_regex'
+                      } catch (err) {
                         pass = false
-                        discardReason = 'Regex principal inválido'
+                        discardReason = 'nao_corresponde_regex'
                       }
                     } else {
                       const tokens = q.toLowerCase().trim().split(/\s+/)
                       pass = tokens.every((t) => fullText.includes(t))
-                      if (!pass) discardReason = 'Palavras-chave incompletas'
+                      if (!pass) discardReason = 'ausencia_campo_obrigatorio'
                     }
                   }
 
-                  if (pass && processNumber) {
+                  // 6. Structured Field Filter
+                  if (pass && numeroProcesso) {
                     if (searchType === 'regex') {
                       try {
-                        pass = new RegExp(processNumber, 'i').test(fullText)
-                      } catch (e) {}
+                        pass = new RegExp(numeroProcesso, 'i').test(fullText)
+                      } catch (err) {}
                     } else {
                       const cleanFullText = fullText.replace(/[\.\-\/]/g, '')
-                      const cleanProcess = processNumber.replace(/[\.\-\/]/g, '').toLowerCase()
+                      const cleanProcess = numeroProcesso.replace(/[\.\-\/]/g, '').toLowerCase()
                       pass =
                         cleanFullText.includes(cleanProcess) ||
-                        fullText.includes(processNumber.toLowerCase())
+                        fullText.includes(numeroProcesso.toLowerCase())
                     }
-                    if (!pass && !discardReason) discardReason = 'Número do processo não encontrado'
+                    if (!pass && !discardReason) discardReason = 'ausencia_campo_obrigatorio'
                   }
 
-                  if (pass && oabNumber) {
+                  if (pass && numeroOab) {
                     if (searchType === 'regex') {
                       try {
-                        pass = new RegExp(oabNumber, 'i').test(fullText)
-                      } catch (e) {}
+                        pass = new RegExp(numeroOab, 'i').test(fullText)
+                      } catch (err) {}
                     } else {
                       const cleanFullText = fullText.replace(/[\.\-\/]/g, '')
-                      const cleanOab = oabNumber.replace(/[\.\-\/]/g, '').toLowerCase()
+                      const cleanOab = numeroOab.replace(/[\.\-\/]/g, '').toLowerCase()
                       pass =
                         cleanFullText.includes(cleanOab) ||
-                        fullText.includes(oabNumber.toLowerCase())
+                        fullText.includes(numeroOab.toLowerCase())
                     }
-                    if (!pass && !discardReason) discardReason = 'Número da OAB não encontrado'
+                    if (!pass && !discardReason) discardReason = 'ausencia_campo_obrigatorio'
                   }
 
                   if (pass && cpfCnpj) {
                     if (searchType === 'regex') {
                       try {
                         pass = new RegExp(cpfCnpj, 'i').test(fullText)
-                      } catch (e) {}
+                      } catch (err) {}
                     } else {
                       const cleanFullText = fullText.replace(/[\.\-\/]/g, '')
                       const cleanCpf = cpfCnpj.replace(/[\.\-\/]/g, '').toLowerCase()
                       pass =
                         cleanFullText.includes(cleanCpf) || fullText.includes(cpfCnpj.toLowerCase())
                     }
-                    if (!pass && !discardReason) discardReason = 'CPF/CNPJ não encontrado'
+                    if (!pass && !discardReason) discardReason = 'ausencia_campo_obrigatorio'
+                  }
+
+                  if (pass && artType) {
+                    const itemArtType = (item.artType || '').toLowerCase()
+                    const filterArtType = artType.toLowerCase().trim()
+                    if (!itemArtType.includes(filterArtType)) {
+                      pass = false
+                      if (!discardReason) discardReason = 'tipo_ato_incompativel'
+                    }
                   }
 
                   if (pass && fonteColeta) {
                     if (searchType === 'regex') {
                       try {
                         pass = new RegExp(fonteColeta, 'i').test(item.pubName || '')
-                      } catch (e) {}
+                      } catch (err) {}
                     } else {
                       pass = (item.pubName || '').toLowerCase().includes(fonteColeta.toLowerCase())
                     }
-                    if (!pass && !discardReason) discardReason = 'Fonte de coleta não compatível'
+                    if (!pass && !discardReason) discardReason = 'ausencia_campo_obrigatorio'
                   }
 
                   if (!pass) {
                     discardedCount++
-                    if (discardReason) {
+                    if (discardReason && discardReasons[discardReason] !== undefined) {
+                      discardReasons[discardReason]++
+                    } else if (discardReason) {
                       discardReasons[discardReason] = (discardReasons[discardReason] || 0) + 1
                     }
                     continue
@@ -476,7 +515,6 @@ routerAdd(
           timeframe: `${publishFrom} to ${publishTo}`,
           quantidade_itens: results.length,
           descartados: discardedCount,
-          descartados_fora_periodo: discardReasons['Fora do período'] || 0,
           searchType: searchType,
           motivos_descarte: discardReasons,
           lastDisplayDate: lastDisplayDate,
@@ -485,6 +523,7 @@ routerAdd(
       )
     }
 
+    // 9. Final Response
     return e.json(200, {
       success: scrapeSuccess || results.length > 0,
       source: 'DOU_SCRAPING',

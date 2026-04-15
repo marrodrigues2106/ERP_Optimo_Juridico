@@ -90,15 +90,15 @@ export default function DouSearch() {
 
   const [orgPrin, setOrgPrin] = useState(() => sessionStorage.getItem('dou_orgPrin') || '')
   const [artType, setArtType] = useState(() => sessionStorage.getItem('dou_artType') || '')
-  const [processNumber, setProcessNumber] = useState(
-    () => sessionStorage.getItem('dou_processNumber') || '',
+  const [numeroProcesso, setNumeroProcesso] = useState(
+    () => sessionStorage.getItem('dou_numeroProcesso') || '',
   )
-  const [oabNumber, setOabNumber] = useState(() => sessionStorage.getItem('dou_oabNumber') || '')
+  const [numeroOab, setNumeroOab] = useState(() => sessionStorage.getItem('dou_numeroOab') || '')
   const [cpfCnpj, setCpfCnpj] = useState(() => sessionStorage.getItem('dou_cpfCnpj') || '')
   const [fonteColeta, setFonteColeta] = useState(
     () => sessionStorage.getItem('dou_fonteColeta') || '',
   )
-  const [douSection, setDouSection] = useState(() => sessionStorage.getItem('dou_douSection') || '')
+  const [secaoDou, setSecaoDou] = useState(() => sessionStorage.getItem('dou_secaoDou') || '')
 
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<DouSearchResult[]>(() => {
@@ -126,22 +126,22 @@ export default function DouSearch() {
     if (date?.to) sessionStorage.setItem('dou_publishTo', format(date.to, 'yyyy-MM-dd'))
     sessionStorage.setItem('dou_orgPrin', orgPrin)
     sessionStorage.setItem('dou_artType', artType)
-    sessionStorage.setItem('dou_processNumber', processNumber)
-    sessionStorage.setItem('dou_oabNumber', oabNumber)
+    sessionStorage.setItem('dou_numeroProcesso', numeroProcesso)
+    sessionStorage.setItem('dou_numeroOab', numeroOab)
     sessionStorage.setItem('dou_cpfCnpj', cpfCnpj)
     sessionStorage.setItem('dou_fonteColeta', fonteColeta)
-    sessionStorage.setItem('dou_douSection', douSection)
+    sessionStorage.setItem('dou_secaoDou', secaoDou)
   }, [
     q,
     searchType,
     date,
     orgPrin,
     artType,
-    processNumber,
-    oabNumber,
+    numeroProcesso,
+    numeroOab,
     cpfCnpj,
     fonteColeta,
-    douSection,
+    secaoDou,
   ])
 
   useEffect(() => {
@@ -256,11 +256,11 @@ export default function DouSearch() {
         publishTo,
         orgPrin,
         artType,
-        processNumber,
-        oabNumber,
+        numeroProcesso,
+        numeroOab,
         cpfCnpj,
         fonteColeta,
-        douSection,
+        secaoDou,
       })
       setResults(res.data || [])
       setSource(res.source)
@@ -462,21 +462,21 @@ export default function DouSearch() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="processNumber">Número do Processo</Label>
+                <Label htmlFor="numeroProcesso">Número do Processo</Label>
                 <Input
-                  id="processNumber"
+                  id="numeroProcesso"
                   placeholder="Ex: 0000000-00.0000.0.00.0000"
-                  value={processNumber}
-                  onChange={(e) => setProcessNumber(e.target.value)}
+                  value={numeroProcesso}
+                  onChange={(e) => setNumeroProcesso(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="oabNumber">Número da OAB</Label>
+                <Label htmlFor="numeroOab">Número da OAB</Label>
                 <Input
-                  id="oabNumber"
+                  id="numeroOab"
                   placeholder="Ex: 123456/SP"
-                  value={oabNumber}
-                  onChange={(e) => setOabNumber(e.target.value)}
+                  value={numeroOab}
+                  onChange={(e) => setNumeroOab(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
@@ -498,9 +498,9 @@ export default function DouSearch() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="douSection">Seção DOU</Label>
-                <Select value={douSection} onValueChange={setDouSection}>
-                  <SelectTrigger id="douSection">
+                <Label htmlFor="secaoDou">Seção DOU</Label>
+                <Select value={secaoDou} onValueChange={setSecaoDou}>
+                  <SelectTrigger id="secaoDou">
                     <SelectValue placeholder="Todas as seções" />
                   </SelectTrigger>
                   <SelectContent>
