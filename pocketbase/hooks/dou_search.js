@@ -12,6 +12,7 @@ routerAdd(
     let oabNumber = body.oabNumber || ''
     let cpfCnpj = body.cpfCnpj || ''
     let douSection = body.douSection || ''
+    let fonteColeta = body.fonteColeta || ''
 
     if (!q) {
       return e.badRequestError('O termo de busca (q) é obrigatório.')
@@ -43,21 +44,30 @@ routerAdd(
     let lastScore = ''
     let lastId = ''
     let lastDisplayDate = ''
-    let scrapeResults = []
     let scrapeSuccess = false
     let scrapeError = ''
-    const maxPages = 50 // Increased to allow deep historical scraping
+    const maxPages = 50
+
+    let consecutivePagesZeroPassed = 0
+    let results = []
+    let discardedCount = 0
+    let discardReasons = {}
+    const uniqueUrls = new Set()
 
     let qTerm = q.trim().replace(/\s+/g, ' ')
     let qUrl = ''
     if (searchType === 'frase_exata') {
       qUrl = '%22' + qTerm.split(' ').map(encodeURIComponent).join('+') + '%22'
+    } else if (searchType === 'regex') {
+      let broad = qTerm
+        .replace(/[^a-zA-Z0-9À-ÿ\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+      if (!broad) broad = 'União'
+      qUrl = broad.split(' ').map(encodeURIComponent).join('+')
     } else {
       qUrl = qTerm.split(' ').map(encodeURIComponent).join('+')
     }
-
-    const publishFromDate = new Date(publishFrom + 'T00:00:00.000Z')
-    const publishToDate = new Date(publishTo + 'T23:59:59.999Z')
 
     let sParam = 'do1,do2,do3,doextra'
     if (douSection && douSection !== 'all') {
@@ -213,7 +223,172 @@ routerAdd(
                   quantidade_itens: parsed.jsonArray.length,
                 })
               } else {
-                scrapeResults = scrapeResults.concat(parsed.jsonArray)
+                let pagePassedCount = 0
+
+                for (const item of parsed.jsonArray) {
+                  if (item.urlTitle && uniqueUrls.has(item.urlTitle)) {
+                    discardedCount++
+                    discardReasons['Duplicado'] = (discardReasons['Duplicado'] || 0) + 1
+                    continue
+                  }
+                  if (item.urlTitle) uniqueUrls.add(item.urlTitle)
+
+                  let cleanText = (item.content || '').replace(/<[^>]*>?/gm, '').trim()
+                  let cleanTitle = (item.title || item.artType || '')
+                    .replace(/<[^>]*>?/gm, '')
+                    .trim()
+
+                  let pubDateStr = item.pubDate || fromDDMMYYYY
+                  let pubYYYYMMDD = ''
+                  if (pubDateStr.includes('/')) {
+                    const parts = pubDateStr.split('/')
+                    if (parts.length === 3) pubYYYYMMDD = `${parts[2]}-${parts[1]}-${parts[0]}`
+                  } else if (pubDateStr.includes('T')) {
+                    pubYYYYMMDD = pubDateStr.split('T')[0]
+                  } else {
+                    pubYYYYMMDD = pubDateStr
+                  }
+
+                  const urlTitle = item.urlTitle
+                    ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}`
+                    : ''
+
+                  let org_principal = ''
+                  let org_subordinada = ''
+                  if (item.hierarchyStr) {
+                    const parts = item.hierarchyStr.split('-').map((p) => p.trim())
+                    if (parts.length > 0) org_principal = parts[0]
+                    if (parts.length > 1) org_subordinada = parts.slice(1).join(' - ')
+                  }
+
+                  let fullText =
+                    `${cleanTitle} ${cleanText} ${item.hierarchyStr || ''}`.toLowerCase()
+                  let pass = true
+                  let discardReason = ''
+
+                  if (pubYYYYMMDD < publishFrom || pubYYYYMMDD > publishTo) {
+                    pass = false
+                    discardReason = 'Fora do período'
+                  }
+
+                  if (pass) {
+                    if (searchType === 'frase_exata') {
+                      const exact = q.toLowerCase().trim()
+                      pass = fullText.includes(exact)
+                      if (!pass) discardReason = 'Frase exata não encontrada'
+                    } else if (searchType === 'regex') {
+                      try {
+                        const regex = new RegExp(q, 'i')
+                        pass = regex.test(fullText)
+                        if (!pass) discardReason = 'Regex principal não encontrado'
+                      } catch (e) {
+                        pass = false
+                        discardReason = 'Regex principal inválido'
+                      }
+                    } else {
+                      const tokens = q.toLowerCase().trim().split(/\s+/)
+                      pass = tokens.every((t) => fullText.includes(t))
+                      if (!pass) discardReason = 'Palavras-chave incompletas'
+                    }
+                  }
+
+                  if (pass && processNumber) {
+                    if (searchType === 'regex') {
+                      try {
+                        pass = new RegExp(processNumber, 'i').test(fullText)
+                      } catch (e) {}
+                    } else {
+                      const cleanFullText = fullText.replace(/[\.\-\/]/g, '')
+                      const cleanProcess = processNumber.replace(/[\.\-\/]/g, '').toLowerCase()
+                      pass =
+                        cleanFullText.includes(cleanProcess) ||
+                        fullText.includes(processNumber.toLowerCase())
+                    }
+                    if (!pass && !discardReason) discardReason = 'Número do processo não encontrado'
+                  }
+
+                  if (pass && oabNumber) {
+                    if (searchType === 'regex') {
+                      try {
+                        pass = new RegExp(oabNumber, 'i').test(fullText)
+                      } catch (e) {}
+                    } else {
+                      const cleanFullText = fullText.replace(/[\.\-\/]/g, '')
+                      const cleanOab = oabNumber.replace(/[\.\-\/]/g, '').toLowerCase()
+                      pass =
+                        cleanFullText.includes(cleanOab) ||
+                        fullText.includes(oabNumber.toLowerCase())
+                    }
+                    if (!pass && !discardReason) discardReason = 'Número da OAB não encontrado'
+                  }
+
+                  if (pass && cpfCnpj) {
+                    if (searchType === 'regex') {
+                      try {
+                        pass = new RegExp(cpfCnpj, 'i').test(fullText)
+                      } catch (e) {}
+                    } else {
+                      const cleanFullText = fullText.replace(/[\.\-\/]/g, '')
+                      const cleanCpf = cpfCnpj.replace(/[\.\-\/]/g, '').toLowerCase()
+                      pass =
+                        cleanFullText.includes(cleanCpf) || fullText.includes(cpfCnpj.toLowerCase())
+                    }
+                    if (!pass && !discardReason) discardReason = 'CPF/CNPJ não encontrado'
+                  }
+
+                  if (pass && fonteColeta) {
+                    if (searchType === 'regex') {
+                      try {
+                        pass = new RegExp(fonteColeta, 'i').test(item.pubName || '')
+                      } catch (e) {}
+                    } else {
+                      pass = (item.pubName || '').toLowerCase().includes(fonteColeta.toLowerCase())
+                    }
+                    if (!pass && !discardReason) discardReason = 'Fonte de coleta não compatível'
+                  }
+
+                  if (!pass) {
+                    discardedCount++
+                    if (discardReason) {
+                      discardReasons[discardReason] = (discardReasons[discardReason] || 0) + 1
+                    }
+                    continue
+                  }
+
+                  let normalizedArtType = item.artType || 'Publicação'
+
+                  results.push({
+                    title: cleanTitle,
+                    content: cleanText,
+                    pubName: item.pubName || 'DOU',
+                    artType: normalizedArtType,
+                    urlTitle: urlTitle,
+                    pubDate: pubYYYYMMDD + 'T00:00:00.000Z',
+                    editionNumber: String(item.editionNumber || ''),
+                    numberPage: String(item.numberPage || ''),
+                    hierarchyStr: item.hierarchyStr || '',
+                    orgao_principal: org_principal,
+                    organizacao_subordinada: org_subordinada,
+                    source: 'DOU_SCRAPING',
+                  })
+
+                  pagePassedCount++
+                }
+
+                if (pagePassedCount === 0) {
+                  consecutivePagesZeroPassed++
+                  if (consecutivePagesZeroPassed >= 5) {
+                    hasMore = false
+                    logProcess(
+                      'parsing',
+                      'Aviso',
+                      `Parando paginação: 5 páginas consecutivas sem itens válidos. (Página ${page})`,
+                    )
+                  }
+                } else {
+                  consecutivePagesZeroPassed = 0
+                }
+
                 lastScore = parsed.jsonArray[parsed.jsonArray.length - 1].score || ''
                 lastId = newLastId
                 lastDisplayDate = parsed.jsonArray[parsed.jsonArray.length - 1].pubDate || ''
@@ -223,8 +398,8 @@ routerAdd(
                 logProcess(
                   'parsing',
                   'Sucesso',
-                  `Extraídos ${parsed.jsonArray.length} itens da página ${page}`,
-                  { quantidade_itens: parsed.jsonArray.length },
+                  `Extraídos ${parsed.jsonArray.length} itens da página ${page}. Aprovados localmente: ${pagePassedCount}`,
+                  { quantidade_itens: parsed.jsonArray.length, mantidos: pagePassedCount },
                 )
               }
               scrapeSuccess = true
@@ -260,153 +435,11 @@ routerAdd(
       page++
     }
 
-    let results = []
-    let discardedCount = 0
-    let discardReasons = {}
-
-    if (scrapeSuccess && scrapeResults.length > 0) {
-      logProcess(
-        'normalization',
-        'Processando',
-        `Normalizando e filtrando ${scrapeResults.length} registros (Modo: ${searchType})...`,
-      )
-
-      const uniqueUrls = new Set()
-
-      for (const item of scrapeResults) {
-        if (item.urlTitle && uniqueUrls.has(item.urlTitle)) {
-          discardedCount++
-          discardReasons['Duplicate'] = (discardReasons['Duplicate'] || 0) + 1
-          continue
-        }
-        if (item.urlTitle) uniqueUrls.add(item.urlTitle)
-
-        let cleanText = (item.content || '').replace(/<[^>]*>?/gm, '').trim()
-        let cleanTitle = (item.title || item.artType || '').replace(/<[^>]*>?/gm, '').trim()
-
-        let pubDateStr = item.pubDate || fromDDMMYYYY
-        if (pubDateStr.includes('/')) {
-          const parts = pubDateStr.split('/')
-          if (parts.length === 3) pubDateStr = `${parts[2]}-${parts[1]}-${parts[0]}`
-        }
-        if (!pubDateStr.includes('T') && !pubDateStr.includes(':')) {
-          pubDateStr += 'T00:00:00.000Z'
-        }
-
-        const urlTitle = item.urlTitle ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}` : ''
-
-        let org_principal = ''
-        let org_subordinada = ''
-        if (item.hierarchyStr) {
-          const parts = item.hierarchyStr.split('-').map((p) => p.trim())
-          if (parts.length > 0) org_principal = parts[0]
-          if (parts.length > 1) org_subordinada = parts.slice(1).join(' - ')
-        }
-
-        let fullText = `${cleanTitle} ${cleanText} ${item.hierarchyStr || ''}`.toLowerCase()
-        let pass = true
-        let discardReason = ''
-
-        const pubDateObj = new Date(pubDateStr)
-        if (pubDateObj < publishFromDate || pubDateObj > publishToDate) {
-          pass = false
-          discardReason = 'Out of Date'
-        }
-
-        if (pass) {
-          if (searchType === 'frase_exata') {
-            const exact = q.toLowerCase().trim()
-            pass = fullText.includes(exact)
-            if (!pass) discardReason = 'Frase exata não encontrada no texto limpo'
-          } else if (searchType === 'regex') {
-            try {
-              const regex = new RegExp(q, 'i')
-              pass = regex.test(fullText)
-              if (!pass) discardReason = 'Failed Regex'
-            } catch (e) {
-              pass = false
-              discardReason = 'Regex principal inválido'
-            }
-          } else {
-            const tokens = q.toLowerCase().trim().split(/\s+/)
-            pass = tokens.every((t) => fullText.includes(t))
-            if (!pass)
-              discardReason = 'Nem todas as palavras-chave foram encontradas no texto limpo'
-          }
-        }
-
-        if (pass && processNumber) {
-          if (searchType === 'regex') {
-            try {
-              pass = new RegExp(processNumber, 'i').test(fullText)
-            } catch (e) {
-              pass = false
-              discardReason = 'Failed Regex'
-            }
-          } else {
-            pass = fullText.includes(processNumber.toLowerCase().trim())
-          }
-          if (!pass && !discardReason) discardReason = 'Número do processo não encontrado'
-        }
-
-        if (pass && oabNumber) {
-          if (searchType === 'regex') {
-            try {
-              pass = new RegExp(oabNumber, 'i').test(fullText)
-            } catch (e) {
-              pass = false
-              discardReason = 'Failed Regex'
-            }
-          } else {
-            pass = fullText.includes(oabNumber.toLowerCase().trim())
-          }
-          if (!pass && !discardReason) discardReason = 'Número da OAB não encontrado'
-        }
-
-        if (pass && cpfCnpj) {
-          if (searchType === 'regex') {
-            try {
-              pass = new RegExp(cpfCnpj, 'i').test(fullText)
-            } catch (e) {
-              pass = false
-              discardReason = 'Failed Regex'
-            }
-          } else {
-            pass = fullText.includes(cpfCnpj.toLowerCase().trim())
-          }
-          if (!pass && !discardReason) discardReason = 'CPF/CNPJ não encontrado'
-        }
-
-        if (!pass) {
-          discardedCount++
-          if (discardReason) {
-            discardReasons[discardReason] = (discardReasons[discardReason] || 0) + 1
-          }
-          continue
-        }
-
-        let normalizedArtType = item.artType || 'Publicação'
-
-        results.push({
-          title: cleanTitle,
-          content: cleanText,
-          pubName: item.pubName || 'DOU',
-          artType: normalizedArtType,
-          urlTitle: urlTitle,
-          pubDate: pubDateStr,
-          editionNumber: String(item.editionNumber || ''),
-          numberPage: String(item.numberPage || ''),
-          hierarchyStr: item.hierarchyStr || '',
-          orgao_principal: org_principal,
-          organizacao_subordinada: org_subordinada,
-          source: 'DOU_SCRAPING',
-        })
-      }
-
+    if (scrapeSuccess || results.length > 0) {
       logProcess(
         'normalization',
         'Sucesso',
-        `Normalização concluída. Mantidos: ${results.length}. Descartados: ${discardedCount}.`,
+        `Busca concluída. Mantidos: ${results.length}. Descartados: ${discardedCount}.`,
         {
           quantidade_itens: results.length,
           descartados: discardedCount,
