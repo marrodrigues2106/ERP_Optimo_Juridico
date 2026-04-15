@@ -73,9 +73,15 @@ routerAdd(
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
-        .replace(/[\r\n\t]+/g, ' ')
+        .replace(/[\r\n\t\-\/]+/g, ' ')
+        .replace(/[^\w\s]/g, '')
         .replace(/\s+/g, ' ')
         .trim()
+    }
+
+    const cleanNumbersOnly = (str) => {
+      if (!str) return ''
+      return str.replace(/\D/g, '')
     }
 
     const body = e.requestInfo().body || {}
@@ -422,9 +428,11 @@ routerAdd(
                     `Erro de Loop de Paginação detectado no DOU. Tentativa de recuperação ${loopAttempts}/3. ${strategyMsg}`,
                     {
                       pageNumber: page,
-                      lastId: lastId,
-                      lastScore: lastScore,
-                      quantidade_itens: parsed.jsonArray.length,
+                      previousCursor: lastId,
+                      currentCursor: newLastId,
+                      receivedItems: parsed.jsonArray.length,
+                      keptItems: sessionNewItems,
+                      reason: 'Mesmo ID retornado ou nenhum item novo na sessão',
                       estrategia: strategyMsg,
                     },
                   )
@@ -479,7 +487,7 @@ routerAdd(
 
                   // Deduplication (Database via Hash)
                   const hash_conteudo = $security.md5(
-                    cleanTitle + cleanText + (item.urlTitle || ''),
+                    normalizeText(cleanTitle) + normalizeText(cleanText) + (item.urlTitle || ''),
                   )
 
                   let inDb = false
@@ -566,7 +574,7 @@ routerAdd(
                         logProcess(
                           'normalization',
                           'Info',
-                          `Almost matched: O termo foi encontrado apenas após normalização (remoção de acentos/espaços).`,
+                          `semantic match: O termo foi encontrado apenas após normalização (remoção de acentos/espaços).`,
                           {
                             url: urlTitle || item.title,
                             termo_buscado: exact,
@@ -586,14 +594,27 @@ routerAdd(
                         if (!pass) discardReason = `nao_corresponde_regex: regex falhou`
                       } catch (err) {
                         pass = false
-                        discardReason = `nao_corresponde_regex: regex inválido`
+                        discardReason = `nao_corresponde_regex: regex inválido (${err.message})`
                       }
                     } else {
                       const tokens = normalizeText(q).split(/\s+/)
-                      const matchCount = tokens.filter((t) => fullTextNormalized.includes(t)).length
-                      pass = matchCount / tokens.length >= 0.5 // 50% of words is enough
+                      const titleNorm = normalizeText(cleanTitle)
+                      const contentNorm = normalizeText(cleanText)
+                      const hierarchyNorm = normalizeText(item.hierarchyStr || '')
+                      
+                      let score = 0
+                      let matchCount = 0
+                      for (const t of tokens) {
+                        let matched = false
+                        if (titleNorm.includes(t)) { score += 3; matched = true; }
+                        else if (contentNorm.includes(t)) { score += 2; matched = true; }
+                        else if (hierarchyNorm.includes(t)) { score += 1; matched = true; }
+                        if (matched) matchCount++;
+                      }
+
+                      pass = (matchCount / tokens.length) >= 0.5 // 50% of words is enough
                       if (!pass) {
-                        discardReason = `nao_corresponde_termo_livre: faltam termos essenciais`
+                        discardReason = `nao_corresponde_termo_livre: faltam termos essenciais (score: ${score})`
                         discardSnippet = cleanText.substring(0, 150).replace(/\s+/g, ' ') + '...'
                       }
                     }
@@ -601,69 +622,36 @@ routerAdd(
 
                   // 6. Structured Field Filter
                   if (pass && numeroProcesso) {
-                    if (searchType === 'regex') {
-                      try {
-                        pass = new RegExp(numeroProcesso, 'i').test(rawFullText)
-                      } catch (err) {}
-                    } else if (searchType === 'frase_exata') {
-                      pass = fullTextNormalized.includes(normalizeText(numeroProcesso))
+                    const cleanProcess = cleanNumbersOnly(numeroProcesso)
+                    if (cleanProcess) {
+                      const cleanFullTextDigits = cleanNumbersOnly(rawFullText)
+                      pass = cleanFullTextDigits.includes(cleanProcess) || fullTextNormalized.includes(normalizeText(numeroProcesso))
                     } else {
-                      const cleanFullText = fullTextNormalized
-                        .replace(/[\.\-\/\s]/g, '')
-                        .replace(/^0+/, '')
-                      const cleanProcess = numeroProcesso
-                        .replace(/[\.\-\/\s]/g, '')
-                        .replace(/^0+/, '')
-                        .toLowerCase()
-                      pass =
-                        cleanFullText.includes(cleanProcess) ||
-                        fullTextNormalized.includes(numeroProcesso.toLowerCase())
+                      pass = fullTextNormalized.includes(normalizeText(numeroProcesso))
                     }
                     if (!pass && !discardReason)
                       discardReason = `ausencia_campo_obrigatorio: processo '${numeroProcesso}' não corresponde`
                   }
 
                   if (pass && numeroOab) {
-                    if (searchType === 'regex') {
-                      try {
-                        pass = new RegExp(numeroOab, 'i').test(rawFullText)
-                      } catch (err) {}
-                    } else if (searchType === 'frase_exata') {
-                      pass = fullTextNormalized.includes(normalizeText(numeroOab))
+                    const cleanOab = cleanNumbersOnly(numeroOab)
+                    if (cleanOab) {
+                      const cleanFullTextDigits = cleanNumbersOnly(rawFullText)
+                      pass = cleanFullTextDigits.includes(cleanOab) || fullTextNormalized.includes(normalizeText(numeroOab))
                     } else {
-                      const cleanFullText = fullTextNormalized
-                        .replace(/[\.\-\/\s]/g, '')
-                        .replace(/^0+/, '')
-                      const cleanOab = numeroOab
-                        .replace(/[\.\-\/\s]/g, '')
-                        .replace(/^0+/, '')
-                        .toLowerCase()
-                      pass =
-                        cleanFullText.includes(cleanOab) ||
-                        fullTextNormalized.includes(numeroOab.toLowerCase())
+                      pass = fullTextNormalized.includes(normalizeText(numeroOab))
                     }
                     if (!pass && !discardReason)
                       discardReason = `ausencia_campo_obrigatorio: OAB '${numeroOab}' não corresponde`
                   }
 
                   if (pass && cpfCnpj) {
-                    if (searchType === 'regex') {
-                      try {
-                        pass = new RegExp(cpfCnpj, 'i').test(rawFullText)
-                      } catch (err) {}
-                    } else if (searchType === 'frase_exata') {
-                      pass = fullTextNormalized.includes(normalizeText(cpfCnpj))
+                    const cleanCpf = cleanNumbersOnly(cpfCnpj)
+                    if (cleanCpf) {
+                      const cleanFullTextDigits = cleanNumbersOnly(rawFullText)
+                      pass = cleanFullTextDigits.includes(cleanCpf) || fullTextNormalized.includes(normalizeText(cpfCnpj))
                     } else {
-                      const cleanFullText = fullTextNormalized
-                        .replace(/[\.\-\/\s]/g, '')
-                        .replace(/^0+/, '')
-                      const cleanCpf = cpfCnpj
-                        .replace(/[\.\-\/\s]/g, '')
-                        .replace(/^0+/, '')
-                        .toLowerCase()
-                      pass =
-                        cleanFullText.includes(cleanCpf) ||
-                        fullTextNormalized.includes(cpfCnpj.toLowerCase())
+                      pass = fullTextNormalized.includes(normalizeText(cpfCnpj))
                     }
                     if (!pass && !discardReason)
                       discardReason = `ausencia_campo_obrigatorio: CPF/CNPJ '${cpfCnpj}' não corresponde`

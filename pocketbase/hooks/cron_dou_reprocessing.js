@@ -3,13 +3,26 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
   const logsCol = $app.findCollectionByNameOrId('logs_processamento')
   const pubDouCol = $app.findCollectionByNameOrId('publicacoes_dou')
 
-  const logProcess = (etapa, status, msg) => {
+  const normalizeText = (str) => {
+    if (!str) return ''
+    return str
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[\r\n\t\-\/]+/g, ' ')
+      .replace(/[^\w\s]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
+  const logProcess = (etapa, status, msg, metadados = {}) => {
     try {
       const logRec = new Record(logsCol)
       logRec.set('etapa', etapa)
       logRec.set('status', status)
       logRec.set('mensagem', msg)
       logRec.set('data_hora', new Date().toISOString())
+      logRec.set('metadados', metadados)
       $app.save(logRec)
     } catch (_) {}
   }
@@ -67,32 +80,53 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
           ]
           const randomUA = userAgents[Math.floor(Math.random() * userAgents.length)]
 
-          const res = $http.send({
-            url: url,
-            method: 'GET',
-            headers: {
-              'User-Agent': randomUA,
-              Accept:
-                'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-              'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-              Referer: 'https://www.in.gov.br/consulta/-/buscar/dou',
-              'Sec-Fetch-Dest': 'document',
-              'Sec-Fetch-Mode': 'navigate',
-              'Sec-Fetch-Site': 'same-origin',
-              'Sec-Fetch-User': '?1',
-              'Upgrade-Insecure-Requests': '1',
-              'Accept-Encoding': 'identity',
-            },
-            timeout: 15,
-          })
+          let attempt = 0
+          let maxRetries = 3
+          let res = null
+          while (attempt < maxRetries) {
+            try {
+              res = $http.send({
+                url: url,
+                method: 'GET',
+                headers: {
+                  'User-Agent': randomUA,
+                  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                  'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+                  Referer: 'https://www.in.gov.br/consulta/-/buscar/dou',
+                },
+                timeout: 15,
+              })
+              
+              if (res.statusCode === 200) {
+                break
+              } else if (res.statusCode === 403 || res.statusCode === 429 || res.statusCode >= 500) {
+                attempt++
+                if (attempt >= maxRetries) break
+                let delay = attempt * 4000
+                let startWait = Date.now()
+                while(Date.now() - startWait < delay) {}
+              } else {
+                break
+              }
+            } catch(e) {
+              attempt++
+              if (attempt >= maxRetries) {
+                res = { statusCode: 500 }
+                break
+              }
+              let delay = attempt * 3000
+              let startWait = Date.now()
+              while(Date.now() - startWait < delay) {}
+            }
+          }
 
           logProcess(
             '[Cron DOU - Scraping HTTP]',
-            res.statusCode === 200 ? 'Sucesso' : 'Aviso',
-            `Página ${page} HTTP: ${res.statusCode}`,
+            res && res.statusCode === 200 ? 'Sucesso' : 'Aviso',
+            `Página ${page} HTTP: ${res ? res.statusCode : 'Erro'} após retries`,
           )
 
-          if (res.statusCode === 200) {
+          if (res && res.statusCode === 200) {
             let html = ''
             if (typeof res.body === 'string') {
               html = res.body
@@ -149,10 +183,10 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
             }
             if (!pubDateStr.includes(':')) pubDateStr += ' 00:00:00'
 
+            let cleanTitle = (item.title || item.artType || '').replace(/<[^>]*>?/gm, '').trim()
             const urlTitle = item.urlTitle ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}` : ''
-            const hash = item.urlTitle
-              ? $security.md5(item.urlTitle)
-              : $security.md5(item.title + urlTitle + pubDateStr + cleanText)
+            
+            const hash = $security.md5(normalizeText(cleanTitle) + normalizeText(cleanText) + (item.urlTitle || ''))
 
             let exists = false
             try {
@@ -171,14 +205,11 @@ cronAdd('dou_reprocessing', '*/15 * * * *', () => {
             if (!exists) {
               try {
                 const record = new Record(pubDouCol)
-                record.set(
-                  'titulo',
-                  (item.title || item.artType || '').replace(/<[^>]*>?/gm, '').trim(),
-                )
+                record.set('titulo', cleanTitle)
                 record.set('secao', item.artType || 'Seção 1')
                 record.set('orgao', item.pubName || 'DOU')
                 record.set('texto_bruto', cleanText)
-                record.set('texto_normalizado', cleanText.toLowerCase())
+                record.set('texto_normalizado', normalizeText(cleanTitle + ' ' + cleanText + ' ' + (item.hierarchyStr || '')))
                 record.set('url_origem', urlTitle)
                 record.set('hash_conteudo', hash)
                 record.set('fonte_coleta', 'DOU_SCRAPING')

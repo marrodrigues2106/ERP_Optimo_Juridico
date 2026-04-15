@@ -5,6 +5,18 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
   const logs = $app.findCollectionByNameOrId('logs_processamento')
   const notifsCol = $app.findCollectionByNameOrId('lawsuit_notifications')
 
+  const normalizeText = (str) => {
+    if (!str) return ''
+    return str
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[\r\n\t\-\/]+/g, ' ')
+      .replace(/[^\w\s]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
   const logProcess = (etapa, status, msg, termoStr = '', fonte = '') => {
     try {
       const logRec = new Record(logs)
@@ -96,46 +108,67 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
           let errorMsg = ''
           let html = ''
 
-          try {
-            const res = $http.send({
-              url: url,
-              method: 'GET',
-              headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-              },
-              timeout: 15,
-            })
-            statusCode = res.statusCode
+          let attempt = 0
+          let maxRetries = 3
+          while (attempt < maxRetries) {
+            try {
+              const res = $http.send({
+                url: url,
+                method: 'GET',
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                },
+                timeout: 15,
+              })
+              statusCode = res.statusCode
 
-            if (res.statusCode === 200) {
-              if (typeof res.body === 'string') {
-                html = res.body
-              } else if (res.body) {
-                try {
-                  let bytes = new Uint8Array(res.body)
-                  let result = []
-                  for (let i = 0; i < bytes.length; i += 8000) {
-                    let end = i + 8000 > bytes.length ? bytes.length : i + 8000
-                    result.push(String.fromCharCode.apply(null, bytes.subarray(i, end)))
-                  }
-                  let latin1 = result.join('')
+              if (res.statusCode === 200) {
+                if (typeof res.body === 'string') {
+                  html = res.body
+                } else if (res.body) {
                   try {
-                    html = decodeURIComponent(escape(latin1))
+                    let bytes = new Uint8Array(res.body)
+                    let result = []
+                    for (let i = 0; i < bytes.length; i += 8000) {
+                      let end = i + 8000 > bytes.length ? bytes.length : i + 8000
+                      result.push(String.fromCharCode.apply(null, bytes.subarray(i, end)))
+                    }
+                    let latin1 = result.join('')
+                    try {
+                      html = decodeURIComponent(escape(latin1))
+                    } catch (e) {
+                      html = latin1
+                    }
                   } catch (e) {
-                    html = latin1
+                    html = String(res.body)
                   }
-                } catch (e) {
-                  html = String(res.body)
                 }
+                break // success
+              } else if (res.statusCode === 401 || res.statusCode === 403 || res.statusCode === 429 || res.statusCode >= 500) {
+                attempt++
+                if (attempt >= maxRetries) {
+                  errorMsg = `Bloqueio/Erro (HTTP ${res.statusCode}) após ${maxRetries} tentativas`
+                  break
+                }
+                let delay = attempt * 4000
+                let startWait = Date.now()
+                while(Date.now() - startWait < delay) {}
+                continue
+              } else {
+                errorMsg = `HTTP Error ${res.statusCode}`
+                break
               }
-            } else if (res.statusCode === 401 || res.statusCode === 403 || res.statusCode === 429) {
-              errorMsg = `Bloqueio Funcional (HTTP ${res.statusCode})`
-            } else {
-              errorMsg = `HTTP Error ${res.statusCode}`
+            } catch (e) {
+              attempt++
+              statusCode = 500
+              if (attempt >= maxRetries) {
+                errorMsg = String(e)
+                break
+              }
+              let delay = attempt * 3000
+              let startWait = Date.now()
+              while(Date.now() - startWait < delay) {}
             }
-          } catch (e) {
-            statusCode = 500
-            errorMsg = String(e)
           }
 
           const latency = Date.now() - start
@@ -312,28 +345,6 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
       // Filter and Save Results
       let savedCount = 0
       for (let item of combinedResults) {
-        const textLower = (item.text || '').toLowerCase()
-        const hasIgnored = ignoredTerms.some((it) => it && textLower.includes(it))
-        if (hasIgnored) continue
-
-        if (
-          departmentIgnore &&
-          item.department.toLowerCase().includes(departmentIgnore.toLowerCase())
-        )
-          continue
-        if (item.source === 'DOU') {
-          const matchSec = douSections
-            .split(',')
-            .some((sec) => item.section.toLowerCase().includes(sec.trim().toLowerCase()))
-          if (!matchSec) continue
-        }
-
-        const hash = $security.md5(item.title + item.url + item.date + item.source + item.text)
-        try {
-          $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash)
-          continue
-        } catch (_) {}
-
         let cleanText = (item.text || '').replace(/<[^>]*>?/gm, '').trim()
         if (ignoreSignature) {
           cleanText = cleanText.replace(
@@ -341,6 +352,67 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
             '',
           )
         }
+        let cleanTitle = (item.title || item.tipo_ato || 'Publicação').replace(/<[^>]*>?/gm, '').trim()
+        let rawFullText = `${cleanTitle} ${cleanText} ${item.department || ''}`
+        let fullTextNormalized = normalizeText(rawFullText)
+
+        const hasIgnored = ignoredTerms.some((it) => it && fullTextNormalized.includes(normalizeText(it)))
+        if (hasIgnored) continue
+
+        if (
+          departmentIgnore &&
+          normalizeText(item.department).includes(normalizeText(departmentIgnore))
+        )
+          continue
+        if (item.source === 'DOU') {
+          const matchSec = douSections
+            .split(',')
+            .some((sec) => normalizeText(item.section).includes(normalizeText(sec.trim())))
+          if (!matchSec) continue
+        }
+
+        const searchType = t.get('tipo_termo') || 'palavra-chave'
+        let pass = true
+        
+        if (searchType === 'frase' || isExactSearch) {
+          let exact = termStr.trim()
+          if ((exact.startsWith('"') && exact.endsWith('"')) || (exact.startsWith("'") && exact.endsWith("'"))) {
+            exact = exact.substring(1, exact.length - 1).trim()
+          }
+          let exactNormalized = normalizeText(exact)
+          pass = fullTextNormalized.includes(exactNormalized)
+        } else if (searchType === 'regex') {
+          try {
+            const regex = new RegExp(termStr, 'i')
+            pass = regex.test(rawFullText)
+          } catch (err) {
+            pass = false
+          }
+        } else {
+          const tokens = normalizeText(termStr).split(/\s+/)
+          const titleNorm = normalizeText(cleanTitle)
+          const contentNorm = normalizeText(cleanText)
+          const hierarchyNorm = normalizeText(item.department || '')
+          
+          let score = 0
+          let matchCount = 0
+          for (const tkn of tokens) {
+            let matched = false
+            if (titleNorm.includes(tkn)) { score += 3; matched = true; }
+            else if (contentNorm.includes(tkn)) { score += 2; matched = true; }
+            else if (hierarchyNorm.includes(tkn)) { score += 1; matched = true; }
+            if (matched) matchCount++;
+          }
+          pass = (matchCount / tokens.length) >= 0.5
+        }
+
+        if (!pass) continue
+
+        const hash = $security.md5(normalizeText(cleanTitle) + normalizeText(cleanText) + (item.url || ''))
+        try {
+          $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash)
+          continue
+        } catch (_) {}
 
         let pubDate = item.date
         if (pubDate && pubDate.includes('/')) {
@@ -350,11 +422,11 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
         if (!pubDate.includes(':')) pubDate = pubDate + ' 00:00:00'
 
         const record = new Record(pubDou)
-        record.set('titulo', item.title)
+        record.set('titulo', cleanTitle)
         record.set('secao', item.section)
         record.set('orgao', item.department)
         record.set('texto_bruto', cleanText)
-        record.set('texto_normalizado', cleanText.toLowerCase())
+        record.set('texto_normalizado', fullTextNormalized)
         record.set('url_origem', item.url)
         record.set('hash_conteudo', hash)
         record.set('fonte_coleta', item.source)
