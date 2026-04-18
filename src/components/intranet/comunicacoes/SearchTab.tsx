@@ -52,7 +52,8 @@ export function SearchTab() {
       if (
         customMessage.includes('WAF (403)') ||
         customMessage.includes('Bloqueio Geográfico') ||
-        error?.status === 403
+        error?.status === 403 ||
+        customMessage.includes('403')
       ) {
         customMessage =
           'Bloqueio Geográfico ou Acesso Negado pelo WAF (403). Verifique se o IP do servidor ou a sua API Key estão autorizados no portal do PJe.'

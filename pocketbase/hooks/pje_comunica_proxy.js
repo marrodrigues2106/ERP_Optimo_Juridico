@@ -70,28 +70,17 @@ routerAdd(
     const sep = baseUrl.indexOf('?') !== -1 ? '&' : '?'
     const url = queryString ? `${baseUrl}${sep}${queryString}` : baseUrl
 
-    let origin = 'https://comunicaapi.pje.jus.br'
-    try {
-      const parts = baseUrl.split('/')
-      if (parts.length >= 3) {
-        origin = parts[0] + '//' + parts[2]
-      }
-    } catch (_) {}
-
     const headers = {
       Authorization: 'Bearer ' + apiKey,
       Accept: 'application/json, text/plain, */*',
       'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-      Origin: origin,
-      Referer: origin + '/',
-      'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-      'Sec-Ch-Ua-Mobile': '?0',
-      'Sec-Ch-Ua-Platform': '"Windows"',
+      Origin: 'https://comunicaapi.pje.jus.br',
+      Referer: 'https://comunicaapi.pje.jus.br/',
       'Sec-Fetch-Dest': 'empty',
       'Sec-Fetch-Mode': 'cors',
-      'Sec-Fetch-Site': 'same-origin',
+      'Sec-Fetch-Site': 'cross-site',
     }
 
     if (body.wafBypass) {
