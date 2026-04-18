@@ -49,6 +49,11 @@ export function SearchTab() {
         customMessage = error.message
       }
 
+      if (customMessage.includes('WAF (403)') || customMessage.includes('Bloqueio Geográfico')) {
+        customMessage =
+          'Bloqueio Geográfico ou Acesso Negado pelo WAF (403). O IP do servidor pode estar bloqueado.'
+      }
+
       toast({
         title: 'Erro na busca',
         description: customMessage || 'Erro ao processar sua requisição.',

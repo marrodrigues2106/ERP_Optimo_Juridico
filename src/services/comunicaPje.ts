@@ -71,6 +71,7 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
       body: {
         baseUrl,
         apiKey,
+        wafBypass: config.pje_waf_bypass_active === true,
       },
     })
 
@@ -91,9 +92,15 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
     }
 
     if (error?.status === 403) {
-      customErrorMessage =
-        error?.response?.message ||
-        'Acesso Negado (403). Verifique se a chave da API é válida ou se o servidor está bloqueado pelo WAF.'
+      const errorMsg = error?.response?.message || ''
+      if (errorMsg.includes('WAF') || errorMsg.includes('Bloqueio Geográfico')) {
+        customErrorMessage =
+          'Bloqueio Geográfico ou Acesso Negado pelo WAF (403). O IP do servidor pode estar bloqueado.'
+      } else {
+        customErrorMessage =
+          errorMsg ||
+          'Bloqueio Geográfico ou Acesso Negado pelo WAF (403). O IP do servidor pode estar bloqueado.'
+      }
     } else if (error?.status === 401) {
       customErrorMessage = 'Token de acesso inválido ou expirado (401).'
     } else {
