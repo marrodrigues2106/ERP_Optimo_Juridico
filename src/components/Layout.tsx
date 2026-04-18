@@ -20,6 +20,9 @@ import {
   Library,
   Wallet,
   ShieldCheck,
+  MessageSquare,
+  History,
+  Settings,
 } from 'lucide-react'
 import WhatsAppFAB from './WhatsAppFAB'
 import { Toaster } from '@/components/ui/toaster'
@@ -133,6 +136,19 @@ export default function Layout() {
         ],
       },
       {
+        label: 'Comunicações PJe',
+        items: [
+          { title: 'Consultar', url: '/intranet/comunicacoes', exact: true, icon: MessageSquare },
+          { title: 'Histórico', url: '/intranet/comunicacoes/historico', icon: History },
+          {
+            title: 'Configurações',
+            url: '/intranet/comunicacoes/configuracoes',
+            adminOnly: true,
+            icon: Settings,
+          },
+        ],
+      },
+      {
         label: 'Gestão',
         items: [
           { title: 'Equipe', url: '/intranet/team', icon: Users },
@@ -206,7 +222,11 @@ export default function Layout() {
                                 to={item.url}
                                 className={cn(
                                   'flex items-center gap-3 px-6 py-2 text-sm font-medium transition-colors',
-                                  pathname.startsWith(item.url)
+                                  (
+                                    (item as any).exact
+                                      ? pathname === item.url
+                                      : pathname.startsWith(item.url)
+                                  )
                                     ? 'text-primary bg-secondary/50 border-r-2 border-primary'
                                     : 'text-foreground hover:bg-slate-50 hover:text-primary',
                                 )}
