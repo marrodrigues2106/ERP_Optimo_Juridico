@@ -53,11 +53,7 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
   const encodedQueryString = query.toString().replace(/\+/g, '%20')
   const proxyUrl = `/backend/v1/pje_comunica_proxy?${encodedQueryString}`
 
-  const user = pb.authStore.record
-  const organizationId = user?.active_organization || ''
-
   let responseData
-  let businessStatus = 'sucesso'
   let requestError: any = null
   let customErrorMessage = ''
 
@@ -70,23 +66,8 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
         wafBypass: config?.pje_waf_bypass_active === true,
       },
     })
-
-    const items = responseData?.items || []
-    if (items.length === 0) {
-      businessStatus = 'sem_resultados'
-    }
   } catch (error: any) {
     requestError = error
-    if (error?.status === 400) {
-      businessStatus = 'erro_validacao'
-    } else if (error?.status === 401) {
-      businessStatus = 'erro_rede'
-    } else if (error?.status === 403) {
-      businessStatus = 'acesso_proibido'
-    } else {
-      businessStatus = 'erro_rede'
-    }
-
     if (error?.status === 403) {
       customErrorMessage =
         'Bloqueio Geográfico ou Acesso Negado pelo WAF (403). Verifique se o IP do servidor ou a sua API Key estão autorizados no portal do PJe.'
@@ -97,55 +78,9 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
     }
   }
 
-  let historyId = ''
-  try {
-    const history = await pb.collection('pje_search_history').create({
-      consulta: params,
-      business_status: businessStatus,
-      organization: organizationId,
-      termo: params.nomeAdvogado || params.numeroProcesso || params.numeroOab || '',
-      tipo_busca: 'manual',
-      data_inicio: params.dataDisponibilizacaoInicio
-        ? String(params.dataDisponibilizacaoInicio)
-        : '',
-      data_fim: params.dataDisponibilizacaoFim ? String(params.dataDisponibilizacaoFim) : '',
-      status: requestError ? 'erro' : 'concluido',
-      mensagem: customErrorMessage,
-      quantidade_resultados: responseData?.items?.length || 0,
-      response_data: requestError ? JSON.stringify(requestError) : '',
-    })
-    historyId = history.id
-  } catch (err) {
-    console.error('Failed to create history record', err)
-  }
-
-  if (!requestError && historyId && responseData?.items?.length > 0) {
-    const resultPromises = responseData.items.map((item: any) => {
-      return pb
-        .collection('pje_search_results')
-        .create({
-          search_history: historyId,
-          sigla_tribunal: item.siglaTribunal,
-          tipo_comunicacao: item.tipoComunicacao,
-          nome_orgao: item.nomeOrgao,
-          texto: item.texto,
-          numero_processo: item.numeroProcesso,
-          meio: item.meio,
-          tipo_documento: item.tipoDocumento,
-          nome_classe: item.nomeClasse,
-          data_disponibilizacao: item.dataDisponibilizacao,
-          numero_comunicacao: item.numeroComunicacao,
-          link: item.link,
-          hash_comunicacao: item.hash || '',
-          status_comunicacao: 'novo',
-          advogado_nome: item.destinatarios?.[0]?.nome || params.nomeAdvogado || '',
-          raw_json: item,
-          organization: organizationId,
-        })
-        .catch((e) => console.error('Error saving result', e))
-    })
-    await Promise.allSettled(resultPromises)
-  }
+  // NOTE: The proxy hook (`pje_comunica_proxy.js`) handles securely saving the search
+  // history and the results on the server-side within `pje_search_history`
+  // and `pje_search_results` collections to ensure an auditable trace.
 
   if (requestError) {
     throw new Error(customErrorMessage || 'Erro de comunicação com o serviço PJe.')
