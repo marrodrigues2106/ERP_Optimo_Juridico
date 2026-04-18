@@ -361,4 +361,31 @@ export default function Layout() {
             ) : apiStatus === 'error' ? (
               <AlertTriangle className="w-4 h-4 text-destructive" />
             ) : (
-              <Activity
+              <Activity className="w-4 h-4 text-amber-500 animate-pulse" />
+            )}
+            <span>
+              {apiStatus === 'online'
+                ? 'Status DataJud: Operacional'
+                : apiStatus === 'error'
+                  ? 'Status DataJud: Serviço Indisponível'
+                  : 'Verificando Status...'}
+            </span>
+          </div>
+          <Toaster />
+        </div>
+      </TooltipProvider>
+    )
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col font-sans bg-background relative">
+      <Header />
+      <main className="flex-1 w-full">
+        <Outlet />
+      </main>
+      <Footer />
+      <WhatsAppFAB />
+      <Toaster />
+    </div>
+  )
+}
