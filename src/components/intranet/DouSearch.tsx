@@ -15,7 +15,7 @@ import {
   CalendarIcon,
 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { format } from 'date-fns'
+import { format, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
@@ -38,21 +38,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-function getLocalDateStr(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function getLastBusinessDay() {
-  const date = new Date()
-  const dayOfWeek = date.getDay()
-  if (dayOfWeek === 0) date.setDate(date.getDate() - 2)
-  else if (dayOfWeek === 6) date.setDate(date.getDate() - 1)
-  return getLocalDateStr(date)
-}
-
 export default function DouSearch() {
   const { user } = useAuth()
   const { toast } = useToast()
@@ -67,21 +52,27 @@ export default function DouSearch() {
   )
 
   const [date, setDate] = useState<DateRange | undefined>(() => {
-    const fromStr = sessionStorage.getItem('dou_publishFrom') || getLastBusinessDay()
-    const toStr = sessionStorage.getItem('dou_publishTo') || getLastBusinessDay()
+    const fromStr = sessionStorage.getItem('dou_publishFrom')
+    const toStr = sessionStorage.getItem('dou_publishTo')
+    if (fromStr && toStr) {
+      return {
+        from: new Date(fromStr + 'T12:00:00Z'),
+        to: new Date(toStr + 'T12:00:00Z'),
+      }
+    }
     return {
-      from: fromStr ? new Date(fromStr + 'T12:00:00Z') : new Date(),
-      to: toStr ? new Date(toStr + 'T12:00:00Z') : new Date(),
+      from: subDays(new Date(), 15),
+      to: new Date(),
     }
   })
 
   useEffect(() => {
     if (periodMode !== 'custom') {
       const days = parseInt(periodMode)
-      const end = new Date()
-      const start = new Date()
-      start.setDate(start.getDate() - days)
-      setDate({ from: start, to: end })
+      setDate({
+        from: subDays(new Date(), days),
+        to: new Date(),
+      })
     }
   }, [periodMode])
 
@@ -137,6 +128,7 @@ export default function DouSearch() {
     cpfCnpj,
     fonteColeta,
     secaoDou,
+    periodMode,
   ])
 
   useEffect(() => {
@@ -198,7 +190,7 @@ export default function DouSearch() {
       if (diffDays > 60) {
         toast({
           title: 'Período muito longo',
-          description: 'O período máximo de busca por data é de 60 dias',
+          description: 'O período máximo de busca por data é de 60 dias.',
           variant: 'destructive',
         })
         return
@@ -359,7 +351,7 @@ export default function DouSearch() {
               </div>
 
               <div className="space-y-3 w-full md:w-auto flex flex-col">
-                <Label className="text-lg font-bold">Data (Personalizado)</Label>
+                <Label className="text-lg font-bold text-slate-500">Data Inicial - Final</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -369,7 +361,8 @@ export default function DouSearch() {
                       className={cn(
                         'w-full md:w-[260px] justify-start text-left font-normal text-lg py-6 h-auto',
                         !date && 'text-slate-500',
-                        periodMode !== 'custom' && 'opacity-50 cursor-not-allowed',
+                        periodMode !== 'custom' &&
+                          'opacity-50 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-50 hover:text-slate-400',
                       )}
                     >
                       <CalendarIcon className="mr-3 h-5 w-5" />
@@ -382,7 +375,7 @@ export default function DouSearch() {
                           format(date.from, 'dd/MM/yyyy')
                         )
                       ) : (
-                        <span>Data Inicial - Data Final</span>
+                        <span>Selecione a data</span>
                       )}
                     </Button>
                   </PopoverTrigger>
@@ -598,7 +591,7 @@ export default function DouSearch() {
                             variant="outline"
                             size="lg"
                             asChild
-                            className="shrink-0 bg-white border-slate-300 text-base"
+                            className="shrink-0 bg-white border-slate-300 text-base font-bold"
                           >
                             <a href={item.urlTitle} target="_blank" rel="noreferrer">
                               <ExternalLink className="w-5 h-5 mr-2" /> Ler Original
@@ -662,7 +655,7 @@ export default function DouSearch() {
                           className={
                             currentPage === 1
                               ? 'pointer-events-none opacity-50 text-base'
-                              : 'text-base font-medium'
+                              : 'text-base font-bold cursor-pointer'
                           }
                         />
                       </PaginationItem>
@@ -680,7 +673,7 @@ export default function DouSearch() {
                           className={
                             currentPage === totalPages
                               ? 'pointer-events-none opacity-50 text-base'
-                              : 'text-base font-medium'
+                              : 'text-base font-bold cursor-pointer'
                           }
                         />
                       </PaginationItem>

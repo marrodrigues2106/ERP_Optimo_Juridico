@@ -7,8 +7,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/hooks/use-auth'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
-import { Camera, CheckCircle2, AlertCircle, History, Save, Loader2 } from 'lucide-react'
+import { Camera, History, Save, Loader2, X, Plus } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Switch } from '@/components/ui/switch'
 import {
   Pagination,
   PaginationContent,
@@ -37,15 +38,46 @@ export default function ProfileManager() {
     queridoDiarioToken: '',
     apiKey: '',
     datajud_tribunal_status: '',
-    frequency: '',
+    frequency: 'Daily',
     default_cpf_cnpj: '',
     default_numero_processo: '',
   })
+
+  const [comunicaUrl, setComunicaUrl] = useState('')
+  const [comunicaKey, setComunicaKey] = useState('')
+
+  const [termos, setTermos] = useState<any[]>([])
+  const [novoTermo, setNovoTermo] = useState('')
 
   const [searches, setSearches] = useState<any[]>([])
   const [historyPage, setHistoryPage] = useState(1)
   const [historyTotalPages, setHistoryTotalPages] = useState(1)
   const [saving, setSaving] = useState(false)
+
+  const loadSettings = async () => {
+    try {
+      const settings = await pb.collection('settings').getFullList()
+      const urlSetting = settings.find((s) => s.key === 'comunica_pje_url')
+      const keySetting = settings.find((s) => s.key === 'comunica_pje_key')
+      if (urlSetting) setComunicaUrl(urlSetting.value)
+      if (keySetting) setComunicaKey(keySetting.value)
+    } catch (e) {
+      // settings module might not be ready or empty
+    }
+  }
+
+  const loadTermos = async () => {
+    if (!user?.id) return
+    try {
+      const records = await pb.collection('termos_monitorados').getFullList({
+        filter: `usuario_id = "${user.id}"`,
+        sort: '-created',
+      })
+      setTermos(records)
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   useEffect(() => {
     pb.collection('monitoring_configs')
@@ -61,13 +93,16 @@ export default function ProfileManager() {
           datajud_tribunal_status: data.datajud_tribunal_status
             ? JSON.stringify(data.datajud_tribunal_status, null, 2)
             : '',
-          frequency: data.frequency || '',
+          frequency: data.frequency || 'Daily',
           default_cpf_cnpj: data.default_cpf_cnpj || '',
           default_numero_processo: data.default_numero_processo || '',
         })
       })
       .catch((e) => console.error(e))
-  }, [])
+
+    loadSettings()
+    loadTermos()
+  }, [user])
 
   const loadSearches = async (page = 1) => {
     try {
@@ -96,29 +131,53 @@ export default function ProfileManager() {
   }
 
   const handleSaveConfig = async () => {
-    if (!config) return
     setSaving(true)
     try {
-      await pb.collection('monitoring_configs').update(config.id, {
-        dou_sections: configForm.dou_sections,
-        douCredentials: configForm.douCredentials ? JSON.parse(configForm.douCredentials) : null,
-        termos_busca: configForm.termos_busca ? JSON.parse(configForm.termos_busca) : null,
-        queridoDiarioToken: configForm.queridoDiarioToken,
-        apiKey: configForm.apiKey,
-        datajud_tribunal_status: configForm.datajud_tribunal_status
-          ? JSON.parse(configForm.datajud_tribunal_status)
-          : null,
-        frequency: configForm.frequency,
-        default_cpf_cnpj: configForm.default_cpf_cnpj,
-        default_numero_processo: configForm.default_numero_processo,
-      })
+      if (config) {
+        await pb.collection('monitoring_configs').update(config.id, {
+          dou_sections: configForm.dou_sections,
+          douCredentials: configForm.douCredentials ? JSON.parse(configForm.douCredentials) : null,
+          termos_busca: configForm.termos_busca ? JSON.parse(configForm.termos_busca) : null,
+          queridoDiarioToken: configForm.queridoDiarioToken,
+          apiKey: configForm.apiKey,
+          datajud_tribunal_status: configForm.datajud_tribunal_status
+            ? JSON.parse(configForm.datajud_tribunal_status)
+            : null,
+          frequency: configForm.frequency,
+          default_cpf_cnpj: configForm.default_cpf_cnpj,
+          default_numero_processo: configForm.default_numero_processo,
+        })
+      } else {
+        await pb.collection('monitoring_configs').create({
+          apiKey: configForm.apiKey,
+          frequency: configForm.frequency,
+        })
+      }
+
+      try {
+        const settings = await pb.collection('settings').getFullList()
+        const urlSetting = settings.find((s) => s.key === 'comunica_pje_url')
+        if (urlSetting) {
+          await pb.collection('settings').update(urlSetting.id, { value: comunicaUrl })
+        } else {
+          await pb.collection('settings').create({ key: 'comunica_pje_url', value: comunicaUrl })
+        }
+
+        const keySetting = settings.find((s) => s.key === 'comunica_pje_key')
+        if (keySetting) {
+          await pb.collection('settings').update(keySetting.id, { value: comunicaKey })
+        } else {
+          await pb.collection('settings').create({ key: 'comunica_pje_key', value: comunicaKey })
+        }
+      } catch (settingsError) {
+        console.error('Settings collection error', settingsError)
+      }
+
       toast({ title: 'Configurações salvas com sucesso!' })
-      const updated = await pb.collection('monitoring_configs').getOne(config.id)
-      setConfig(updated)
     } catch (err) {
       toast({
         title: 'Erro ao salvar configurações',
-        description: 'Verifique o formato do JSON.',
+        description: 'Verifique o formato dos dados.',
         variant: 'destructive',
       })
     } finally {
@@ -126,8 +185,43 @@ export default function ProfileManager() {
     }
   }
 
+  const handleAddTermo = async () => {
+    if (!novoTermo.trim() || !user?.id) return
+    try {
+      await pb.collection('termos_monitorados').create({
+        termo: novoTermo,
+        tipo_termo: 'palavra-chave',
+        ativo: true,
+        usuario_id: user.id,
+      })
+      setNovoTermo('')
+      loadTermos()
+      toast({ title: 'Termo adicionado.' })
+    } catch (err) {
+      toast({ title: 'Erro ao adicionar termo', variant: 'destructive' })
+    }
+  }
+
+  const toggleTermo = async (id: string, current: boolean) => {
+    try {
+      await pb.collection('termos_monitorados').update(id, { ativo: !current })
+      loadTermos()
+    } catch (e) {
+      toast({ title: 'Erro ao atualizar termo', variant: 'destructive' })
+    }
+  }
+
+  const deleteTermo = async (id: string) => {
+    try {
+      await pb.collection('termos_monitorados').delete(id)
+      loadTermos()
+    } catch (e) {
+      toast({ title: 'Erro ao deletar termo', variant: 'destructive' })
+    }
+  }
+
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6 pb-12">
       <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900 mb-6">
         Configurações e Perfil
       </h1>
@@ -136,9 +230,12 @@ export default function ProfileManager() {
         className="w-full animate-fade-in"
         onValueChange={(v) => v === 'historico' && loadSearches(1)}
       >
-        <TabsList className="mb-8 flex-wrap bg-slate-100 p-1.5 rounded-lg gap-1">
+        <TabsList className="mb-8 flex-wrap bg-slate-100 p-1.5 rounded-lg gap-1 h-auto">
           <TabsTrigger value="perfil" className="text-base px-4 py-2 font-medium">
             Perfil
+          </TabsTrigger>
+          <TabsTrigger value="monitoramento-geral" className="text-base px-4 py-2 font-medium">
+            Monitoramento Geral
           </TabsTrigger>
           <TabsTrigger value="monitoramento-dou" className="text-base px-4 py-2 font-medium">
             Monitoramento DOU
@@ -147,7 +244,7 @@ export default function ProfileManager() {
             Monitoramento Datajud
           </TabsTrigger>
           <TabsTrigger value="monitoramento-pje" className="text-base px-4 py-2 font-medium">
-            Monitoramento PJe
+            Comunica PJe
           </TabsTrigger>
           <TabsTrigger value="historico" className="text-base px-4 py-2 font-medium">
             Histórico de Buscas
@@ -208,7 +305,7 @@ export default function ProfileManager() {
                       className="text-base py-6"
                     />
                   </div>
-                  <Button type="submit" className="w-full py-6 text-base font-medium">
+                  <Button type="submit" className="w-full py-6 text-base font-bold">
                     Salvar Perfil
                   </Button>
                 </form>
@@ -217,55 +314,53 @@ export default function ProfileManager() {
           </div>
         </TabsContent>
 
+        <TabsContent value="monitoramento-geral">
+          <Card className="max-w-3xl border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-2xl">Frequência de Sincronização</CardTitle>
+              <CardDescription className="text-base">
+                Frequência global de monitoramento para o Datajud, PJe e DOU.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-3">
+                <Label className="text-base font-medium">Frequência</Label>
+                <select
+                  value={configForm.frequency}
+                  onChange={(e) => setConfigForm({ ...configForm, frequency: e.target.value })}
+                  className="flex h-12 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="Hourly">A cada hora</option>
+                  <option value="Daily">Diariamente</option>
+                  <option value="Weekly">Semanalmente</option>
+                </select>
+              </div>
+              <Button
+                onClick={handleSaveConfig}
+                disabled={saving}
+                className="py-6 px-8 text-base font-bold"
+              >
+                {saving ? (
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                ) : (
+                  <Save className="w-5 h-5 mr-2" />
+                )}
+                Salvar Configurações
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="monitoramento-dou">
           <Card className="max-w-3xl border-slate-200 shadow-sm">
             <CardHeader>
               <CardTitle className="text-2xl">Monitoramento DOU</CardTitle>
               <CardDescription className="text-base">
-                Configurações para a integração e raspagem do Diário Oficial da União.
+                Gerencie as credenciais e os termos monitorados no Diário Oficial.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
-              <div className="p-5 bg-slate-50 border rounded-xl flex items-start gap-4 shadow-sm">
-                {config?.douStatus === 200 ? (
-                  <div className="bg-emerald-100 p-2 rounded-full">
-                    <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-                  </div>
-                ) : (
-                  <div className="bg-amber-100 p-2 rounded-full">
-                    <AlertCircle className="w-6 h-6 text-amber-600" />
-                  </div>
-                )}
-                <div>
-                  <p className="text-lg font-semibold text-slate-900">Status da Integração DOU</p>
-                  <p className="text-base text-slate-600 mt-1">
-                    {config?.douStatus === 200
-                      ? 'Operacional e raspando ativamente.'
-                      : 'Inativo ou com falhas. Aguardando verificação.'}
-                  </p>
-                  {config?.douError && (
-                    <p className="text-sm font-medium text-red-600 mt-2 bg-red-50 p-2 rounded border border-red-100">
-                      {config.douError}
-                    </p>
-                  )}
-                  {config?.douLatency && (
-                    <p className="text-sm text-slate-500 mt-1">
-                      Latência de resposta: {config.douLatency}ms
-                    </p>
-                  )}
-                </div>
-              </div>
-
               <div className="space-y-6">
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Seções do DOU</Label>
-                  <Input
-                    value={configForm.dou_sections}
-                    onChange={(e) => setConfigForm({ ...configForm, dou_sections: e.target.value })}
-                    placeholder="Ex: do1, do2, do3"
-                    className="text-base py-6"
-                  />
-                </div>
                 <div className="space-y-3">
                   <Label className="text-base font-medium">Token Querido Diário</Label>
                   <Input
@@ -289,19 +384,63 @@ export default function ProfileManager() {
                     placeholder='{"user": "...", "pass": "..."}'
                   />
                 </div>
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Termos de Busca (JSON)</Label>
-                  <textarea
-                    value={configForm.termos_busca}
-                    onChange={(e) => setConfigForm({ ...configForm, termos_busca: e.target.value })}
-                    className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-4 py-3 text-base font-mono shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                    placeholder='["termo1", "termo2"]'
-                  />
+
+                <div className="pt-6 border-t border-slate-100">
+                  <h3 className="text-xl font-bold mb-4">Gerenciamento de Termos (DOU)</h3>
+                  <div className="flex gap-2 mb-6">
+                    <Input
+                      placeholder="Novo termo de busca..."
+                      value={novoTermo}
+                      onChange={(e) => setNovoTermo(e.target.value)}
+                      className="text-base"
+                    />
+                    <Button onClick={handleAddTermo} className="px-6 font-bold">
+                      <Plus className="w-5 h-5 mr-2" /> Adicionar
+                    </Button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {termos.map((t) => (
+                      <div
+                        key={t.id}
+                        className="flex items-center justify-between bg-slate-50 p-4 rounded-lg border border-slate-200 shadow-sm"
+                      >
+                        <div>
+                          <span className="font-bold text-slate-800 text-lg">{t.termo}</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              checked={t.ativo}
+                              onCheckedChange={() => toggleTermo(t.id, t.ativo)}
+                            />
+                            <span className="text-sm font-medium text-slate-600">
+                              {t.ativo ? 'Ativo' : 'Inativo'}
+                            </span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteTermo(t.id)}
+                            className="hover:bg-red-50"
+                          >
+                            <X className="w-5 h-5 text-red-500" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    {termos.length === 0 && (
+                      <p className="text-slate-500 text-center py-4 bg-slate-50 rounded-lg border border-dashed">
+                        Nenhum termo configurado.
+                      </p>
+                    )}
+                  </div>
                 </div>
+
                 <Button
                   onClick={handleSaveConfig}
                   disabled={saving}
-                  className="py-6 px-8 text-base font-medium"
+                  className="py-6 px-8 text-base font-bold mt-4"
                 >
                   {saving ? (
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
@@ -336,15 +475,6 @@ export default function ProfileManager() {
                   />
                 </div>
                 <div className="space-y-3">
-                  <Label className="text-base font-medium">Frequência de Sincronização</Label>
-                  <Input
-                    value={configForm.frequency}
-                    onChange={(e) => setConfigForm({ ...configForm, frequency: e.target.value })}
-                    className="text-base py-6"
-                    placeholder="Ex: Daily, Hourly"
-                  />
-                </div>
-                <div className="space-y-3">
                   <Label className="text-base font-medium">Status Tribunais (JSON)</Label>
                   <textarea
                     value={configForm.datajud_tribunal_status}
@@ -358,7 +488,7 @@ export default function ProfileManager() {
                 <Button
                   onClick={handleSaveConfig}
                   disabled={saving}
-                  className="py-6 px-8 text-base font-medium"
+                  className="py-6 px-8 text-base font-bold"
                 >
                   {saving ? (
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
@@ -375,13 +505,32 @@ export default function ProfileManager() {
         <TabsContent value="monitoramento-pje">
           <Card className="max-w-3xl border-slate-200 shadow-sm">
             <CardHeader>
-              <CardTitle className="text-2xl">Monitoramento PJe</CardTitle>
+              <CardTitle className="text-2xl">Monitoramento Comunica PJe</CardTitle>
               <CardDescription className="text-base">
-                Configurações para as buscas automáticas no painel Comunica PJe.
+                Configurações para as buscas no painel Comunica PJe.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
               <div className="space-y-6">
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">API URL (Endpoint Comunica PJe)</Label>
+                  <Input
+                    value={comunicaUrl}
+                    onChange={(e) => setComunicaUrl(e.target.value)}
+                    className="text-base py-6"
+                    placeholder="https://comunicaapi.pje.jus.br/api/v1"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">API Key (Token Comunica PJe)</Label>
+                  <Input
+                    type="password"
+                    value={comunicaKey}
+                    onChange={(e) => setComunicaKey(e.target.value)}
+                    className="text-base py-6"
+                    placeholder="Bearer token ou API Key..."
+                  />
+                </div>
                 <div className="space-y-3">
                   <Label className="text-base font-medium">CPF/CNPJ Padrão</Label>
                   <Input
@@ -393,21 +542,10 @@ export default function ProfileManager() {
                     placeholder="000.000.000-00"
                   />
                 </div>
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Número de Processo Padrão</Label>
-                  <Input
-                    value={configForm.default_numero_processo}
-                    onChange={(e) =>
-                      setConfigForm({ ...configForm, default_numero_processo: e.target.value })
-                    }
-                    className="text-base py-6"
-                    placeholder="0000000-00.0000..."
-                  />
-                </div>
                 <Button
                   onClick={handleSaveConfig}
                   disabled={saving}
-                  className="py-6 px-8 text-base font-medium"
+                  className="py-6 px-8 text-base font-bold"
                 >
                   {saving ? (
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
@@ -441,7 +579,7 @@ export default function ProfileManager() {
                   {searches.map((s) => (
                     <div
                       key={s.id}
-                      className="flex flex-col md:flex-row md:items-center justify-between p-6 border rounded-xl hover:bg-slate-50 transition-colors shadow-sm bg-white"
+                      className="flex flex-col md:flex-row md:items-center justify-between p-6 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm bg-white"
                     >
                       <div>
                         <p className="font-bold text-slate-900 text-xl">
@@ -449,17 +587,17 @@ export default function ProfileManager() {
                         </p>
                         <p className="text-base text-slate-600 mt-2">
                           Módulo:{' '}
-                          <span className="uppercase font-semibold text-primary">
+                          <span className="uppercase font-bold text-primary">
                             {s.search_type || 'Comunica PJe'}
                           </span>
                         </p>
                       </div>
                       <div className="flex flex-col items-end mt-4 md:mt-0 gap-3">
-                        <span className="text-base font-medium text-slate-600 bg-slate-100 px-4 py-1.5 rounded-full border border-slate-200">
+                        <span className="text-sm font-bold text-slate-600 bg-slate-100 px-4 py-2 rounded-full border border-slate-200">
                           {new Date(s.created).toLocaleString('pt-BR')}
                         </span>
                         {s.results_count !== undefined && (
-                          <span className="text-base font-bold text-emerald-700 bg-emerald-50 px-4 py-1.5 rounded-lg border border-emerald-100">
+                          <span className="text-sm font-bold text-emerald-700 bg-emerald-50 px-4 py-2 rounded-lg border border-emerald-100">
                             {s.results_count} resultados
                           </span>
                         )}
@@ -480,7 +618,7 @@ export default function ProfileManager() {
                             className={
                               historyPage === 1
                                 ? 'pointer-events-none opacity-50 text-base'
-                                : 'text-base font-medium'
+                                : 'text-base font-bold cursor-pointer'
                             }
                           />
                         </PaginationItem>
@@ -498,7 +636,7 @@ export default function ProfileManager() {
                             className={
                               historyPage === historyTotalPages
                                 ? 'pointer-events-none opacity-50 text-base'
-                                : 'text-base font-medium'
+                                : 'text-base font-bold cursor-pointer'
                             }
                           />
                         </PaginationItem>

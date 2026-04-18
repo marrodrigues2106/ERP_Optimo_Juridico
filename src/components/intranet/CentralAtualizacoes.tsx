@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/pagination'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Activity, BookOpen, Landmark, Bell, CheckCircle2 } from 'lucide-react'
+import { Activity, BookOpen, Landmark, CheckCircle2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 
@@ -74,105 +74,113 @@ export default function CentralAtualizacoes() {
         </p>
       </div>
 
-      <Card className="shadow-sm border-slate-200">
-        <CardContent className="p-0">
-          <div className="divide-y divide-slate-100">
-            {notifications.length === 0 && !loading && (
-              <div className="p-12 text-center text-slate-500 text-lg">
-                Nenhuma atualização encontrada.
-              </div>
-            )}
-            {notifications.map((n) => (
-              <div
-                key={n.id}
-                className={cn(
-                  'p-6 flex flex-col md:flex-row gap-6 hover:bg-slate-50 transition-colors',
-                  !n.is_read && 'bg-blue-50/40',
-                )}
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    {n.type === 'dou' ? (
-                      <BookOpen className="w-5 h-5 text-amber-500" />
-                    ) : (
-                      <Landmark className="w-5 h-5 text-indigo-500" />
-                    )}
-                    <span className="text-sm font-bold uppercase tracking-wider text-slate-500">
-                      {n.type === 'dou' ? 'Diário Oficial da União' : 'Comunicação PJe'}
-                    </span>
-                    <span className="text-sm font-medium text-slate-400 ml-auto">
-                      {format(new Date(n.created), "dd 'de' MMM, yyyy HH:mm", { locale: ptBR })}
-                    </span>
-                  </div>
-
-                  <div className="mb-4">
-                    {n.type === 'pje' ? (
-                      <div className="space-y-2">
-                        <p className="text-xl font-bold text-primary">{n.numero_processo}</p>
-                        <p
-                          className="text-lg text-slate-700 line-clamp-3"
-                          dangerouslySetInnerHTML={{ __html: n.texto || '' }}
-                        ></p>
-                        <div className="flex gap-4 text-sm text-slate-500 mt-2">
-                          <span>Tribunal: {n.sigla_tribunal}</span>
-                          <span>
-                            Data Disp:{' '}
-                            {n.data_disponibilizacao
-                              ? format(new Date(n.data_disponibilizacao), 'dd/MM/yyyy')
-                              : '-'}
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-xl font-bold text-amber-700">DOU - {n.orgao}</p>
-                        <p className="text-lg text-slate-700 line-clamp-3">
-                          {n.texto_normalizado || 'Publicação DOU encontrada'}
-                        </p>
-                        <div className="flex gap-4 text-sm text-slate-500 mt-2">
-                          <span>
-                            Data Pub:{' '}
-                            {n.data_publicacao
-                              ? format(new Date(n.data_publicacao), 'dd/MM/yyyy')
-                              : '-'}
-                          </span>
-                          {n.matched_term && <span>Termo: {n.matched_term}</span>}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-3 mt-4">
-                    <Button
-                      variant="ghost"
-                      className="h-10 text-base font-medium px-4"
-                      onClick={() => handleMarkRead(n.id, n.is_read, n.type)}
-                    >
-                      <CheckCircle2
-                        className={cn(
-                          'w-5 h-5 mr-2',
-                          n.is_read ? 'text-slate-400' : 'text-emerald-500',
-                        )}
-                      />
-                      {n.is_read ? 'Marcar como não lido' : 'Marcar como lido'}
-                    </Button>
-
-                    {n.type === 'pje' && (
-                      <Button
-                        variant="secondary"
-                        className="h-10 text-base font-medium px-4"
-                        asChild
-                      >
-                        <Link to={`/intranet/comunicacoes/${n.id}`}>Ver Detalhes</Link>
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+      <div className="grid gap-6">
+        {notifications.length === 0 && !loading && (
+          <div className="p-12 text-center text-slate-500 text-lg bg-white rounded-xl border border-slate-200">
+            Nenhuma atualização encontrada.
           </div>
-        </CardContent>
-      </Card>
+        )}
+        {notifications.map((n) => (
+          <Card
+            key={n.id}
+            className={cn(
+              'overflow-hidden border-slate-200 transition-colors shadow-sm',
+              !n.is_read ? 'bg-blue-50/40 border-blue-100' : 'bg-white',
+            )}
+          >
+            <div className="p-6 flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                {n.type === 'dou' ? (
+                  <BookOpen className="w-5 h-5 text-amber-500" />
+                ) : (
+                  <Landmark className="w-5 h-5 text-indigo-500" />
+                )}
+                <span className="text-sm font-bold uppercase tracking-wider text-slate-500">
+                  {n.type === 'dou' ? 'Diário Oficial da União' : 'Comunicação PJe'}
+                </span>
+                <span className="text-sm font-medium text-slate-400 ml-auto">
+                  {format(new Date(n.created), "dd 'de' MMM, yyyy HH:mm", { locale: ptBR })}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {n.type === 'pje' ? (
+                  <>
+                    <p className="text-2xl font-bold text-primary font-mono">{n.numero_processo}</p>
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                      <p
+                        className="text-lg text-slate-700 line-clamp-3 leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: n.texto || '' }}
+                      ></p>
+                    </div>
+                    <div className="flex flex-wrap gap-4 text-sm text-slate-600 font-medium">
+                      <span className="bg-slate-100 px-3 py-1 rounded">
+                        Tribunal: {n.sigla_tribunal}
+                      </span>
+                      <span className="bg-slate-100 px-3 py-1 rounded">
+                        Disp:{' '}
+                        {n.data_disponibilizacao
+                          ? format(new Date(n.data_disponibilizacao), 'dd/MM/yyyy')
+                          : '-'}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-2xl font-bold text-amber-700">
+                      {n.orgao || 'Órgão Desconhecido'}
+                    </p>
+                    <div className="bg-amber-50/50 p-4 rounded-lg border border-amber-100/50">
+                      <p className="text-lg text-slate-700 line-clamp-3 leading-relaxed">
+                        {n.texto_normalizado || 'Publicação DOU encontrada'}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-4 text-sm text-slate-600 font-medium">
+                      <span className="bg-slate-100 px-3 py-1 rounded">
+                        Pub:{' '}
+                        {n.data_publicacao
+                          ? format(new Date(n.data_publicacao), 'dd/MM/yyyy')
+                          : '-'}
+                      </span>
+                      {n.matched_term && (
+                        <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded font-bold">
+                          Termo: {n.matched_term}
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 mt-2">
+                <Button
+                  variant="outline"
+                  className={cn('h-10 text-base font-bold bg-white', n.is_read && 'text-slate-500')}
+                  onClick={() => handleMarkRead(n.id, n.is_read, n.type)}
+                >
+                  <CheckCircle2
+                    className={cn(
+                      'w-5 h-5 mr-2',
+                      n.is_read ? 'text-slate-400' : 'text-emerald-500',
+                    )}
+                  />
+                  {n.is_read ? 'Marcar como não lido' : 'Marcar como lido'}
+                </Button>
+
+                {n.type === 'pje' && (
+                  <Button
+                    variant="secondary"
+                    className="h-10 text-base font-bold px-6 bg-primary text-primary-foreground hover:bg-primary/90"
+                    asChild
+                  >
+                    <Link to={`/intranet/comunicacoes/${n.id}`}>Página Completa</Link>
+                  </Button>
+                )}
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
 
       {totalPages > 1 && (
         <Pagination className="mt-8 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
@@ -185,7 +193,9 @@ export default function CentralAtualizacoes() {
                   setPage((p) => Math.max(1, p - 1))
                 }}
                 className={
-                  page === 1 ? 'pointer-events-none opacity-50 text-base' : 'text-base font-medium'
+                  page === 1
+                    ? 'pointer-events-none opacity-50 text-base'
+                    : 'text-base font-bold cursor-pointer'
                 }
               />
             </PaginationItem>
@@ -203,7 +213,7 @@ export default function CentralAtualizacoes() {
                 className={
                   page === totalPages
                     ? 'pointer-events-none opacity-50 text-base'
-                    : 'text-base font-medium'
+                    : 'text-base font-bold cursor-pointer'
                 }
               />
             </PaginationItem>
