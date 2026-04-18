@@ -5,28 +5,41 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
-import { getSettingByKey, setSettingByKey } from '@/services/settings'
+import { getMonitoringConfig, saveMonitoringConfig } from '@/services/monitoring'
 
 interface SettingsFormData {
   baseUrl: string
+  apiKey: string
 }
 
 export function SettingsForm() {
   const [loading, setLoading] = useState(false)
+  const [configId, setConfigId] = useState<string | null>(null)
   const { register, handleSubmit, reset } = useForm<SettingsFormData>()
   const { toast } = useToast()
 
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const record = await getSettingByKey('pje_comunica_base_url')
-        if (record) {
-          reset({ baseUrl: record.value })
+        const config = await getMonitoringConfig()
+        if (config) {
+          setConfigId(config.id)
+          reset({
+            baseUrl: config.pje_base_url || 'https://comunicaapi.pje.jus.br/api/v1/comunicacao',
+            apiKey: config.pje_api_key || '',
+          })
         } else {
-          reset({ baseUrl: 'https://comunicaapi.pje.jus.br/api/v1/comunicacao' })
+          reset({
+            baseUrl: 'https://comunicaapi.pje.jus.br/api/v1/comunicacao',
+            apiKey: '',
+          })
         }
       } catch (err) {
-        reset({ baseUrl: 'https://comunicaapi.pje.jus.br/api/v1/comunicacao' })
+        console.error('Error loading config', err)
+        reset({
+          baseUrl: 'https://comunicaapi.pje.jus.br/api/v1/comunicacao',
+          apiKey: '',
+        })
       }
     }
     loadSettings()
@@ -35,10 +48,23 @@ export function SettingsForm() {
   const onSubmit = async (data: SettingsFormData) => {
     setLoading(true)
     try {
-      await setSettingByKey('pje_comunica_base_url', data.baseUrl)
+      const payload: any = {
+        pje_base_url: data.baseUrl,
+        pje_api_key: data.apiKey,
+      }
+
+      // If it's a new config, fill required schema fields
+      if (!configId) {
+        payload.apiKey = 'pending'
+        payload.frequency = 'Daily'
+      }
+
+      const saved = await saveMonitoringConfig(configId, payload)
+      setConfigId(saved.id)
+
       toast({
         title: 'Configurações salvas',
-        description: 'A URL base da API PJe Comunica foi atualizada com sucesso.',
+        description: 'As credenciais do Comunica PJe foram atualizadas com sucesso.',
       })
     } catch (err: any) {
       toast({
@@ -54,25 +80,31 @@ export function SettingsForm() {
   return (
     <Card className="max-w-2xl">
       <CardHeader>
-        <CardTitle>Configurações de Integração</CardTitle>
+        <CardTitle>Configurações de Integração (PJe)</CardTitle>
         <CardDescription>
-          Gerencie os parâmetros de conexão com a API do Comunica PJe.
+          Gerencie os parâmetros de conexão e credenciais com a API do Comunica PJe.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="baseUrl">URL Base da API (Comunica PJe)</Label>
+            <Label htmlFor="apiKey">Chave de API (API Key)</Label>
+            <Input
+              id="apiKey"
+              type="password"
+              {...register('apiKey', { required: 'A chave de API é obrigatória' })}
+              placeholder="Insira a sua API Key do PJe"
+              disabled={loading}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="baseUrl">URL Base da API</Label>
             <Input
               id="baseUrl"
-              {...register('baseUrl')}
+              {...register('baseUrl', { required: 'A URL base é obrigatória' })}
               placeholder="https://comunicaapi.pje.jus.br/api/v1/comunicacao"
               disabled={loading}
             />
-            <p className="text-sm text-muted-foreground">
-              A Chave da API (COMUNICA_PJE_KEY) está armazenada nos secrets do sistema e será
-              injetada automaticamente.
-            </p>
           </div>
           <Button type="submit" disabled={loading}>
             {loading ? 'Salvando...' : 'Salvar Configurações'}

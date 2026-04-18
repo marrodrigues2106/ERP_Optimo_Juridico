@@ -1,4 +1,5 @@
 import pb from '@/lib/pocketbase/client'
+import { getMonitoringConfig } from '@/services/monitoring'
 
 export interface PjeSearchParams {
   numeroOab?: string
@@ -42,6 +43,15 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
     }
   })
 
+  const config = await getMonitoringConfig()
+  if (!config || !config.pje_api_key) {
+    throw new Error('Chave de API não configurada. Por favor, preencha as configurações do módulo.')
+  }
+
+  const baseUrl = config.pje_base_url || 'https://comunicaapi.pje.jus.br/api/v1/comunicacao'
+  const apiKey = config.pje_api_key
+  const targetUrl = `${baseUrl}?${query.toString()}`
+
   const user = pb.authStore.record
   const organizationId = user?.active_organization || ''
 
@@ -51,10 +61,10 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
   let customErrorMessage = ''
 
   try {
-    responseData = await pb.send(`/backend/v1/pje-comunica?${query.toString()}`, {
+    responseData = await pb.send(targetUrl, {
       method: 'GET',
       headers: {
-        Authorization: 'Bearer COMUNICA_PJE_KEY',
+        Authorization: `Bearer ${apiKey}`,
       },
     })
 
