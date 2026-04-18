@@ -50,7 +50,7 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
 
   const baseUrl = config.pje_base_url || 'https://comunicaapi.pje.jus.br/api/v1/comunicacao'
   const apiKey = config.pje_api_key
-  const targetUrl = `${baseUrl}?${query.toString()}`
+  const proxyUrl = `/backend/v1/pje_comunica_proxy?${query.toString()}`
 
   const user = pb.authStore.record
   const organizationId = user?.active_organization || ''
@@ -61,11 +61,16 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
   let customErrorMessage = ''
 
   try {
-    responseData = await pb.send(targetUrl, {
-      method: 'GET',
+    responseData = await pb.send(proxyUrl, {
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        baseUrl,
+        apiKey,
+      }),
     })
 
     const items = responseData?.items || []
@@ -135,10 +140,7 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
   }
 
   if (requestError) {
-    if (customErrorMessage) {
-      throw new Error(customErrorMessage)
-    }
-    throw requestError
+    throw new Error(customErrorMessage || 'Erro de comunicação com o serviço PJe.')
   }
 
   return responseData
