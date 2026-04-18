@@ -46,7 +46,7 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased text-lg leading-relaxed;
+    @apply bg-background text-foreground font-sans antialiased text-xl leading-relaxed;
   }
 
   h1,
@@ -56,6 +56,22 @@
   h5,
   h6 {
     @apply font-sans tracking-tight;
+  }
+
+  h1 {
+    @apply text-5xl md:text-6xl font-bold;
+  }
+
+  h2 {
+    @apply text-4xl md:text-5xl font-bold;
+  }
+
+  h3 {
+    @apply text-3xl md:text-4xl font-bold;
+  }
+
+  p {
+    @apply text-lg md:text-xl;
   }
 }
 

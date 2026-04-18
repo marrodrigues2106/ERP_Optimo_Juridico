@@ -62,6 +62,10 @@ export default function DouSearch() {
     () => sessionStorage.getItem('dou_searchType') || 'palavras_chave',
   )
 
+  const [periodMode, setPeriodMode] = useState(
+    () => sessionStorage.getItem('dou_periodMode') || '15',
+  )
+
   const [date, setDate] = useState<DateRange | undefined>(() => {
     const fromStr = sessionStorage.getItem('dou_publishFrom') || getLastBusinessDay()
     const toStr = sessionStorage.getItem('dou_publishTo') || getLastBusinessDay()
@@ -70,6 +74,16 @@ export default function DouSearch() {
       to: toStr ? new Date(toStr + 'T12:00:00Z') : new Date(),
     }
   })
+
+  useEffect(() => {
+    if (periodMode !== 'custom') {
+      const days = parseInt(periodMode)
+      const end = new Date()
+      const start = new Date()
+      start.setDate(start.getDate() - days)
+      setDate({ from: start, to: end })
+    }
+  }, [periodMode])
 
   const [orgPrin, setOrgPrin] = useState(() => sessionStorage.getItem('dou_orgPrin') || '')
   const [artType, setArtType] = useState(() => sessionStorage.getItem('dou_artType') || '')
@@ -102,6 +116,7 @@ export default function DouSearch() {
   useEffect(() => {
     sessionStorage.setItem('dou_q', q)
     sessionStorage.setItem('dou_searchType', searchType)
+    sessionStorage.setItem('dou_periodMode', periodMode)
     if (date?.from) sessionStorage.setItem('dou_publishFrom', format(date.from, 'yyyy-MM-dd'))
     if (date?.to) sessionStorage.setItem('dou_publishTo', format(date.to, 'yyyy-MM-dd'))
     sessionStorage.setItem('dou_orgPrin', orgPrin)
@@ -150,13 +165,6 @@ export default function DouSearch() {
         </p>
       </div>
     )
-  }
-
-  const handleQuickPeriod = (days: number) => {
-    const end = new Date()
-    const start = new Date()
-    start.setDate(start.getDate() - days)
-    setDate({ from: start, to: end })
   }
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -327,16 +335,41 @@ export default function DouSearch() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-3 w-full md:w-48 flex flex-col">
+                <Label className="text-base font-medium">Período</Label>
+                <Select value={periodMode} onValueChange={setPeriodMode} required>
+                  <SelectTrigger className="text-base py-6 h-auto">
+                    <SelectValue placeholder="Período" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="15" className="text-base">
+                      Últimos 15 dias
+                    </SelectItem>
+                    <SelectItem value="30" className="text-base">
+                      Últimos 30 dias
+                    </SelectItem>
+                    <SelectItem value="60" className="text-base">
+                      Últimos 60 dias
+                    </SelectItem>
+                    <SelectItem value="custom" className="text-base">
+                      Personalizado
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-3 w-full md:w-auto flex flex-col">
-                <Label className="text-base font-medium">Período (Máx: 60 dias)</Label>
+                <Label className="text-base font-medium">Data (Personalizado)</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       id="date"
                       variant={'outline'}
+                      disabled={periodMode !== 'custom'}
                       className={cn(
-                        'w-full md:w-[300px] justify-start text-left font-normal text-base py-6 h-auto',
+                        'w-full md:w-[260px] justify-start text-left font-normal text-base py-6 h-auto',
                         !date && 'text-slate-500',
+                        periodMode !== 'custom' && 'opacity-50 cursor-not-allowed',
                       )}
                     >
                       <CalendarIcon className="mr-3 h-5 w-5" />
@@ -366,33 +399,6 @@ export default function DouSearch() {
                   </PopoverContent>
                 </Popover>
               </div>
-            </div>
-
-            <div className="flex gap-3 -mt-2 mb-2">
-              <Button
-                type="button"
-                variant="secondary"
-                className="text-sm font-medium px-4"
-                onClick={() => handleQuickPeriod(15)}
-              >
-                Últimos 15 dias
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                className="text-sm font-medium px-4"
-                onClick={() => handleQuickPeriod(30)}
-              >
-                Últimos 30 dias
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                className="text-sm font-medium px-4"
-                onClick={() => handleQuickPeriod(60)}
-              >
-                Últimos 60 dias
-              </Button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

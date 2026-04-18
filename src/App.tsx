@@ -25,8 +25,6 @@ import UsersManager from '@/components/intranet/UsersManager'
 import ProfileManager from '@/components/intranet/ProfileManager'
 import AgendaManager from '@/components/intranet/AgendaManager'
 import AuditLogs from '@/components/intranet/AuditLogs'
-import PublicacoesManager from '@/components/intranet/PublicacoesManager'
-import GazetteManager from '@/components/intranet/GazetteManager'
 import DouSearch from '@/components/intranet/DouSearch'
 import ComunicaPjeSearch from '@/components/intranet/comunica-pje/ComunicaPjeSearch'
 import CentralAtualizacoes from '@/components/intranet/CentralAtualizacoes'
@@ -60,7 +58,6 @@ function App() {
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="atualizacoes" element={<CentralAtualizacoes />} />
-                <Route path="publicacoes" element={<PublicacoesManager />} />
                 <Route
                   path="diarios-oficiais"
                   element={<Navigate to="/intranet/busca-dou" replace />}

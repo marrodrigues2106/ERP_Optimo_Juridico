@@ -34,7 +34,9 @@ export default function ProfileManager() {
     dou_sections: '',
     douCredentials: '',
     termos_busca: '',
+    queridoDiarioToken: '',
     apiKey: '',
+    datajud_tribunal_status: '',
     frequency: '',
     default_cpf_cnpj: '',
     default_numero_processo: '',
@@ -54,7 +56,11 @@ export default function ProfileManager() {
           dou_sections: data.dou_sections || '',
           douCredentials: data.douCredentials ? JSON.stringify(data.douCredentials, null, 2) : '',
           termos_busca: data.termos_busca ? JSON.stringify(data.termos_busca, null, 2) : '',
+          queridoDiarioToken: data.queridoDiarioToken || '',
           apiKey: data.apiKey || '',
+          datajud_tribunal_status: data.datajud_tribunal_status
+            ? JSON.stringify(data.datajud_tribunal_status, null, 2)
+            : '',
           frequency: data.frequency || '',
           default_cpf_cnpj: data.default_cpf_cnpj || '',
           default_numero_processo: data.default_numero_processo || '',
@@ -97,7 +103,11 @@ export default function ProfileManager() {
         dou_sections: configForm.dou_sections,
         douCredentials: configForm.douCredentials ? JSON.parse(configForm.douCredentials) : null,
         termos_busca: configForm.termos_busca ? JSON.parse(configForm.termos_busca) : null,
+        queridoDiarioToken: configForm.queridoDiarioToken,
         apiKey: configForm.apiKey,
+        datajud_tribunal_status: configForm.datajud_tribunal_status
+          ? JSON.parse(configForm.datajud_tribunal_status)
+          : null,
         frequency: configForm.frequency,
         default_cpf_cnpj: configForm.default_cpf_cnpj,
         default_numero_processo: configForm.default_numero_processo,
@@ -257,7 +267,19 @@ export default function ProfileManager() {
                   />
                 </div>
                 <div className="space-y-3">
-                  <Label className="text-base font-medium">Credenciais DOU (JSON)</Label>
+                  <Label className="text-base font-medium">Token Querido Diário</Label>
+                  <Input
+                    type="password"
+                    value={configForm.queridoDiarioToken}
+                    onChange={(e) =>
+                      setConfigForm({ ...configForm, queridoDiarioToken: e.target.value })
+                    }
+                    className="text-base py-6"
+                    placeholder="Token do Querido Diário..."
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">Credenciais IN.GOV (JSON)</Label>
                   <textarea
                     value={configForm.douCredentials}
                     onChange={(e) =>
@@ -320,6 +342,17 @@ export default function ProfileManager() {
                     onChange={(e) => setConfigForm({ ...configForm, frequency: e.target.value })}
                     className="text-base py-6"
                     placeholder="Ex: Daily, Hourly"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">Status Tribunais (JSON)</Label>
+                  <textarea
+                    value={configForm.datajud_tribunal_status}
+                    onChange={(e) =>
+                      setConfigForm({ ...configForm, datajud_tribunal_status: e.target.value })
+                    }
+                    className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-4 py-3 text-base font-mono shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    placeholder='{"TJSP": "active", "TRF3": "error"}'
                   />
                 </div>
                 <Button
