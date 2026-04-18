@@ -25,13 +25,25 @@ routerAdd(
         if (p === 'dataDisponibilizacaoInicio' || p === 'dataDisponibilizacaoFim') {
           if (val.indexOf('T') !== -1) {
             val = val.split('T')[0]
+          } else {
+            val = val.substring(0, 10)
           }
         }
         queryParams.push(encodeURIComponent(p) + '=' + encodeURIComponent(val))
       }
     })
 
-    const apiKey = body.apiKey || $secrets.get('COMUNICA_PJE_KEY')
+    let apiKey = body.apiKey
+    if (!apiKey) {
+      try {
+        const configs = $app.findRecordsByFilter('monitoring_configs', '1=1', '', 1, 0)
+        if (configs && configs.length > 0) {
+          apiKey = configs[0].getString('pje_api_key')
+        }
+      } catch (_) {}
+    }
+    if (!apiKey) apiKey = $secrets.get('COMUNICA_PJE_KEY')
+
     if (!apiKey) {
       return e.internalServerError('COMUNICA_PJE_KEY not configured')
     }
@@ -79,7 +91,7 @@ routerAdd(
       'Sec-Ch-Ua-Platform': '"Windows"',
       'Sec-Fetch-Dest': 'empty',
       'Sec-Fetch-Mode': 'cors',
-      'Sec-Fetch-Site': 'cross-site',
+      'Sec-Fetch-Site': 'same-origin',
     }
 
     if (body.wafBypass) {
@@ -117,7 +129,7 @@ routerAdd(
         message = 'Acesso Negado (403): ' + res.json.message
       } else {
         message =
-          'Bloqueio Geográfico ou Acesso Negado pelo WAF (403). O IP do servidor pode estar bloqueado.'
+          'Bloqueio Geográfico ou Acesso Negado pelo WAF (403). Verifique se o IP do servidor ou a sua API Key estão autorizados no portal do PJe.'
       }
       console.log('PJe 403 Error:', rawRes)
     } else if (res.statusCode === 429) {
