@@ -1,5 +1,6 @@
 import pb from '@/lib/pocketbase/client'
 import { ComunicaHistoryEntry } from '@/hooks/use-comunica-store'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 export interface ComunicaSearchParams {
   numeroProcesso?: string
@@ -76,23 +77,27 @@ export const searchComunicaPJe = async (
 
     const resultsToSave = items.slice(0, 50)
     for (const item of resultsToSave) {
-      await pb.collection('results').create({
-        search_id: searchRecord.id,
-        sigla_tribunal: item.siglaTribunal,
-        tipo_comunicacao: item.tipoComunicacao,
-        nome_orgao: item.nomeOrgao,
-        texto: item.texto,
-        numero_processo: item.numeroProcesso,
-        meio: item.meio,
-        tipo_documento: item.tipoDocumento,
-        nome_classe: item.nomeClasse,
-        data_disponibilizacao: item.dataDisponibilizacao,
-        numero_comunicacao: item.numeroComunicacao,
-        link: item.link,
-        hash_comunicacao: item.hash,
-        status_comunicacao: item.status,
-        raw_json: item,
-      })
+      try {
+        await pb.collection('results').create({
+          search_id: searchRecord.id,
+          sigla_tribunal: item.siglaTribunal,
+          tipo_comunicacao: item.tipoComunicacao,
+          nome_orgao: item.nomeOrgao,
+          texto: item.texto,
+          numero_processo: item.numeroProcesso,
+          meio: item.meio,
+          tipo_documento: item.tipoDocumento,
+          nome_classe: item.nomeClasse,
+          data_disponibilizacao: item.dataDisponibilizacao,
+          numero_comunicacao: item.numeroComunicacao,
+          link: item.link,
+          hash_comunicacao: item.hash,
+          status_comunicacao: item.status,
+          raw_json: item,
+        })
+      } catch (err: any) {
+        console.error('Failed to save communication result:', getErrorMessage(err))
+      }
     }
 
     historyEntry.status = 'success'
@@ -101,19 +106,25 @@ export const searchComunicaPJe = async (
 
     return items
   } catch (error: any) {
+    const errorMessage = getErrorMessage(error) || error.message || 'Erro na busca'
+
     historyEntry.status = 'error'
-    historyEntry.message = error.message
+    historyEntry.message = errorMessage
     addHistory(historyEntry)
 
-    await pb.collection('searches').create({
-      term: historyEntry.term,
-      search_type: 'comunica_pje',
-      status: 'error',
-      business_status: 'failed',
-      results_count: 0,
-      message: error.message,
-    })
+    try {
+      await pb.collection('searches').create({
+        term: historyEntry.term,
+        search_type: 'comunica_pje',
+        status: 'error',
+        business_status: 'failed',
+        results_count: 0,
+        message: errorMessage,
+      })
+    } catch (dbErr) {
+      console.error('Failed to save search error history', dbErr)
+    }
 
-    throw error
+    throw new Error(errorMessage)
   }
 }
