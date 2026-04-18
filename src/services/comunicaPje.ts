@@ -54,7 +54,8 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
   }
 
   const apiKey = config.pje_api_key
-  const proxyUrl = `/backend/v1/pje_comunica_proxy?${query.toString()}`
+  const encodedQueryString = query.toString().replace(/\+/g, '%20')
+  const proxyUrl = `/backend/v1/pje_comunica_proxy?${encodedQueryString}`
 
   const user = pb.authStore.record
   const organizationId = user?.active_organization || ''
@@ -92,7 +93,9 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
     if (error?.status === 403) {
       customErrorMessage =
         error?.response?.message ||
-        'Bloqueio Geográfico ou Acesso Negado (403). Verifique suas credenciais ou tente novamente.'
+        'Acesso Negado (403). Verifique se a chave da API é válida ou se o servidor está bloqueado pelo WAF.'
+    } else if (error?.status === 401) {
+      customErrorMessage = 'Token de acesso inválido ou expirado (401).'
     } else {
       customErrorMessage = error?.response?.message || error.message || 'Erro na requisição'
     }

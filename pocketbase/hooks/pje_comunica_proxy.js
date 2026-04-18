@@ -63,10 +63,18 @@ routerAdd(
       method: 'GET',
       headers: {
         Authorization: 'Bearer ' + apiKey,
-        Accept: 'application/json',
+        Accept: 'application/json, text/plain, */*',
         'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+        Origin: 'https://comunicaapi.pje.jus.br',
+        Referer: 'https://comunicaapi.pje.jus.br/',
+        'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
       },
       timeout: 30,
     })
@@ -89,7 +97,13 @@ routerAdd(
       message = 'Token de acesso inválido ou expirado (401)'
     } else if (res.statusCode === 403) {
       status = 'geoblocked'
-      message = 'Bloqueio Geográfico ou Acesso Negado (403)'
+      if (res.json && res.json.message) {
+        message = 'Acesso Negado (403): ' + res.json.message
+      } else {
+        message =
+          'Bloqueio Geográfico ou Acesso Negado pelo WAF (403). O IP do servidor pode estar bloqueado.'
+      }
+      console.log('PJe 403 Error:', res.raw)
     } else if (res.statusCode === 429) {
       status = 'rate_limit'
       message = 'Limite de requisições excedido (429)'
