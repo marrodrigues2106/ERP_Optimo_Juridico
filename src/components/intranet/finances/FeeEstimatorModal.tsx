@@ -55,31 +55,55 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
         .then((r) => setActiveCases(r.totalItems > 0 ? r.totalItems : 1))
         .catch(() => {})
 
+      const oneYearAgo = new Date()
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+      const filterDate = oneYearAgo.toISOString().replace('T', ' ')
+
       pb.collection('finances')
         .getFullList({
-          filter: "type='outflow' && (status='orçado' || status='estimado') && linked_lawsuit = ''",
+          filter: `type='outflow' && date >= '${filterDate}'`,
         })
         .then((r) => {
-          let total12Months = 0
-          const now = new Date()
-          const nextYear = new Date()
-          nextYear.setFullYear(now.getFullYear() + 1)
+          const fixedCategories = [
+            'P20.01.00001',
+            'P10.01.00001',
+            'P10.01.00002',
+            'P10.01.00003',
+            'P10.01.00004',
+            'P10.01.00007',
+            'P10.01.00008',
+            'P10.01.00009',
+            'P10.01.00011',
+            'P10.01.00012',
+            'P10.01.00013',
+            'P10.01.00014',
+            'P10.01.00015',
+            'P10.01.00016',
+            'P10.01.00017',
+            'P10.01.00018',
+            'P10.01.00019',
+            'P10.01.00020',
+            'P10.01.00021',
+            'P11.01.00001',
+            'P11.01.00002',
+            'P11.01.00003',
+            'P11.01.00004',
+            'P11.01.00005',
+            'P11.01.00006',
+            'P11.01.00008',
+            'P11.01.00009',
+            'P11.01.00011',
+            'P11.01.00013',
+            'P11.01.00014',
+          ]
 
+          let totalLast12Months = 0
           r.forEach((f) => {
-            const fDate = new Date(f.date)
-            if (f.frequency === 'única') {
-              if (fDate >= now && fDate <= nextYear) {
-                total12Months += f.amount
-              }
-            } else if (f.frequency === 'mensal') {
-              total12Months += f.amount * 12
-            } else if (f.frequency === 'quinzenal') {
-              total12Months += f.amount * 24
-            } else if (f.frequency === 'semanal') {
-              total12Months += f.amount * 52
+            if (f.category_code && fixedCategories.includes(f.category_code)) {
+              totalLast12Months += f.amount
             }
           })
-          setMonthlyFixedCosts(total12Months / 12)
+          setMonthlyFixedCosts(totalLast12Months / 12)
         })
         .catch(() => {})
     }

@@ -54,6 +54,8 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { useAuth } from '@/hooks/use-auth'
 import { TransactionFormModal } from './finances/TransactionFormModal'
 import { FeeEstimatorModal } from './finances/FeeEstimatorModal'
+import { ImportFinancesModal } from './finances/ImportFinancesModal'
+import { FileUp } from 'lucide-react'
 
 const chartConfig = {
   income: { label: 'Receitas', color: 'hsl(var(--primary))' },
@@ -67,6 +69,7 @@ export default function FinanceManager() {
   const [estimates, setEstimates] = useState<any[]>([])
   const [formOpen, setFormOpen] = useState(false)
   const [feeModalOpen, setFeeModalOpen] = useState(false)
+  const [importModalOpen, setImportModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
   const [lawsuitFilter, setLawsuitFilter] = useState('all')
   const [deleteTarget, setDeleteTarget] = useState<any>(null)
@@ -173,6 +176,53 @@ export default function FinanceManager() {
     (a: any, b: any) => b.realized - a.realized,
   )
 
+  const activeCasesCount = cases.filter((c) => c.lifecycle_status === 'Ativo').length || 1
+  const fixedCategories = [
+    'P20.01.00001',
+    'P10.01.00001',
+    'P10.01.00002',
+    'P10.01.00003',
+    'P10.01.00004',
+    'P10.01.00007',
+    'P10.01.00008',
+    'P10.01.00009',
+    'P10.01.00011',
+    'P10.01.00012',
+    'P10.01.00013',
+    'P10.01.00014',
+    'P10.01.00015',
+    'P10.01.00016',
+    'P10.01.00017',
+    'P10.01.00018',
+    'P10.01.00019',
+    'P10.01.00020',
+    'P10.01.00021',
+    'P11.01.00001',
+    'P11.01.00002',
+    'P11.01.00003',
+    'P11.01.00004',
+    'P11.01.00005',
+    'P11.01.00006',
+    'P11.01.00008',
+    'P11.01.00009',
+    'P11.01.00011',
+    'P11.01.00013',
+    'P11.01.00014',
+  ]
+  const oneYearAgo = new Date()
+  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+  const totalFixedExpensesLast12m = transactions
+    .filter(
+      (t) =>
+        t.type === 'outflow' &&
+        new Date(t.date) >= oneYearAgo &&
+        fixedCategories.includes(t.category_code),
+    )
+    .reduce((sum, t) => sum + t.amount, 0)
+
+  const monthlyFixedCostAvg = totalFixedExpensesLast12m / 12
+  const fixedCostPerProcess = monthlyFixedCostAvg / activeCasesCount
+
   return (
     <div className="space-y-8 pb-12">
       <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 border-b border-slate-200 pb-6">
@@ -183,6 +233,13 @@ export default function FinanceManager() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => setImportModalOpen(true)}
+            className="shadow-sm bg-white"
+          >
+            <FileUp className="w-4 h-4 mr-2" /> Importar CSV
+          </Button>
           <Button
             variant="outline"
             onClick={() => setFeeModalOpen(true)}
@@ -219,21 +276,51 @@ export default function FinanceManager() {
         </TabsList>
 
         <TabsContent value="overview" className="mt-8 space-y-8 outline-none">
-          <div className="flex flex-col md:flex-row gap-4 mb-4 items-center">
-            <Select value={lawsuitFilter} onValueChange={setLawsuitFilter}>
-              <SelectTrigger className="w-full md:w-[300px] bg-white">
-                <Filter className="w-4 h-4 mr-2 text-slate-400" />
-                <SelectValue placeholder="Filtrar por Processo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os Processos / Registros</SelectItem>
-                {cases.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.case_number || c.parties}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <Card className="md:col-span-1 border-primary/20 bg-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-bold text-primary flex items-center gap-2">
+                  <Calculator className="w-4 h-4" /> Custo Fixo Mensal / Processo
+                </CardTitle>
+                <CardDescription className="text-xs text-slate-600">
+                  Rateio de custos fixos dos últimos 12 meses
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-black text-primary">
+                  R$ {fixedCostPerProcess.toFixed(2)}
+                </div>
+                <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+                  <strong>Total / Mês:</strong> R$ {monthlyFixedCostAvg.toFixed(2)}
+                </p>
+                <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                  <strong>Ativos:</strong> {activeCasesCount} processos
+                </p>
+              </CardContent>
+            </Card>
+
+            <div className="md:col-span-2 flex flex-col md:flex-row gap-4 items-center bg-slate-50 p-4 rounded-xl border border-slate-100">
+              <div className="flex-1">
+                <h4 className="text-sm font-bold text-slate-700 mb-1">Filtrar Movimentações</h4>
+                <p className="text-xs text-slate-500">
+                  Selecione um processo específico para ver os lançamentos vinculados.
+                </p>
+              </div>
+              <Select value={lawsuitFilter} onValueChange={setLawsuitFilter}>
+                <SelectTrigger className="w-full md:w-[300px] bg-white">
+                  <Filter className="w-4 h-4 mr-2 text-slate-400" />
+                  <SelectValue placeholder="Filtrar por Processo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Processos / Registros</SelectItem>
+                  {cases.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.case_number || c.parties}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -325,6 +412,9 @@ export default function FinanceManager() {
                             R$ {t.amount.toFixed(2)}
                             <span className="text-[10px] text-slate-500 block mt-0.5">
                               {new Date(t.date).toLocaleDateString('pt-BR')}
+                              {t.category_code && (
+                                <span className="ml-1 text-slate-400">({t.category_code})</span>
+                              )}
                             </span>
                           </TableCell>
                           <TableCell>
@@ -435,6 +525,11 @@ export default function FinanceManager() {
         open={feeModalOpen}
         onOpenChange={setFeeModalOpen}
         cases={cases}
+        onSuccess={loadData}
+      />
+      <ImportFinancesModal
+        open={importModalOpen}
+        onOpenChange={setImportModalOpen}
         onSuccess={loadData}
       />
 
