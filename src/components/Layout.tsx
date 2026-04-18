@@ -20,7 +20,6 @@ import {
   Library,
   Wallet,
   ShieldCheck,
-  MessageSquare,
 } from 'lucide-react'
 import WhatsAppFAB from './WhatsAppFAB'
 import { Toaster } from '@/components/ui/toaster'
@@ -128,7 +127,6 @@ export default function Layout() {
         label: 'Jurídico',
         items: [
           { title: 'Processos', url: '/intranet/processos', icon: Scale },
-          { title: 'Comunicações', url: '/intranet/comunicacoes', icon: MessageSquare },
           { title: 'CRM', url: '/intranet/crm', icon: Briefcase },
           { title: 'Agenda', url: '/intranet/agenda', icon: Calendar },
           { title: 'Diários Oficiais', url: '/intranet/busca-dou', icon: BookOpen },
