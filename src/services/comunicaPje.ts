@@ -17,7 +17,7 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
   const query = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {
     if (value) {
-      let formattedValue = String(value)
+      let formattedValue = String(value).trim()
 
       if (key === 'dataDisponibilizacaoInicio' || key === 'dataDisponibilizacaoFim') {
         if (value instanceof Date) {
@@ -28,6 +28,14 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
         } else if (typeof value === 'string' && value.includes('T')) {
           formattedValue = value.split('T')[0]
         }
+      }
+
+      if (key === 'numeroProcesso') {
+        formattedValue = formattedValue.replace(/[^\d.-]/g, '')
+      }
+
+      if (key === 'cpfCnpj') {
+        formattedValue = formattedValue.replace(/[^\d]/g, '')
       }
 
       query.append(key, formattedValue)

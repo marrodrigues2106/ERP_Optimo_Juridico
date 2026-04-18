@@ -82,46 +82,85 @@ routerAdd(
 
     let searchRecord
     try {
-      const searchesCol = $app.findCollectionByNameOrId('searches')
-      searchRecord = new Record(searchesCol)
-      searchRecord.set('term', JSON.stringify(query))
-      searchRecord.set('search_type', 'PJe Comunica')
-      searchRecord.set('status', status)
-      searchRecord.set('business_status', status)
-      searchRecord.set('results_count', resultsCount)
-      searchRecord.set('message', message)
-      searchRecord.set('start_date', query.dataDisponibilizacaoInicio || '')
-      searchRecord.set('end_date', query.dataDisponibilizacaoFim || '')
+      const historyCol = $app.findCollectionByNameOrId('pje_search_history')
+      searchRecord = new Record(historyCol)
+      searchRecord.set('consulta', query)
+      searchRecord.set('termo', JSON.stringify(query))
+      searchRecord.set('tipo_busca', 'PJe Comunica')
+
+      let mappedStatus = 'sucesso'
+      if (status === 'no_results') mappedStatus = 'sem_resultados'
+      else if (status === 'bad_request') mappedStatus = 'erro_validacao'
+      else if (status === 'error') mappedStatus = 'erro'
+      else if (status === 'geoblocked') mappedStatus = 'bloqueio_geografico'
+      else if (status === 'rate_limit') mappedStatus = 'erro_rede'
+
+      searchRecord.set('business_status', mappedStatus)
+      searchRecord.set('status', mappedStatus)
+      searchRecord.set('quantidade_resultados', resultsCount)
+      searchRecord.set('mensagem', message)
+      searchRecord.set('data_inicio', query.dataDisponibilizacaoInicio || '')
+      searchRecord.set('data_fim', query.dataDisponibilizacaoFim || '')
+
+      if (e.auth) {
+        searchRecord.set('organization', e.auth.getString('active_organization'))
+      }
+
       $app.save(searchRecord)
     } catch (err) {
-      console.log('Error saving search record: ', err)
+      console.log('Error saving pje_search_history record: ', err)
     }
 
+    const enhancedItems = []
+
     if (searchRecord && items.length > 0) {
-      const resultsCol = $app.findCollectionByNameOrId('results')
+      const resultsCol = $app.findCollectionByNameOrId('pje_search_results')
       const limit = Math.min(items.length, 50)
       for (let i = 0; i < limit; i++) {
         const item = items[i]
         try {
           const r = new Record(resultsCol)
-          r.set('search_id', searchRecord.id)
+          r.set('search_history', searchRecord.id)
           r.set('sigla_tribunal', item.siglaTribunal || '')
           r.set('tipo_comunicacao', item.tipoComunicacao || '')
           r.set('nome_orgao', item.nomeOrgao || '')
           r.set('texto', item.texto || '')
-          r.set('numero_processo', item.numeroProcesso || '')
+          r.set('numero_processo', item.numeroProcesso || item.numero_processo || '')
           r.set('meio', item.meio || '')
           r.set('tipo_documento', item.tipoDocumento || '')
           r.set('nome_classe', item.nomeClasse || '')
           r.set('data_disponibilizacao', item.dataDisponibilizacao || '')
-          r.set('numero_comunicacao', item.numeroComunicacao || '')
+          r.set('numero_comunicacao', item.numeroComunicacao || item.numero_comunicacao || '')
           r.set('link', item.link || '')
-          r.set('hash_comunicacao', item.hash || '')
+          r.set(
+            'hash_comunicacao',
+            item.hash || item.hashComunicacao || item.hash_comunicacao || '',
+          )
+          r.set('status_comunicacao', item.statusComunicacao || item.status_comunicacao || '')
+
+          if (item.destinatarios && item.destinatarios.length > 0) {
+            r.set('advogado_nome', item.destinatarios[0].nome || '')
+            r.set('advogado_numero_oab', item.destinatarios[0].numeroOab || '')
+            r.set('advogado_uf_oab', item.destinatarios[0].ufOab || '')
+          }
+
           r.set('raw_json', item)
+
+          if (e.auth) {
+            r.set('organization', e.auth.getString('active_organization'))
+          }
+
           $app.save(r)
+
+          enhancedItems.push(Object.assign({}, item, { _db_id: r.id }))
         } catch (err) {
-          console.log('Error saving result record: ', err)
+          console.log('Error saving pje_search_results record: ', err)
+          enhancedItems.push(item)
         }
+      }
+    } else {
+      for (let i = 0; i < items.length; i++) {
+        enhancedItems.push(items[i])
       }
     }
 
@@ -129,7 +168,8 @@ routerAdd(
       return e.json(res.statusCode, { message: message, details: res.json })
     }
 
-    return e.json(200, res.json)
+    const responsePayload = Object.assign({}, res.json, { items: enhancedItems })
+    return e.json(200, responsePayload)
   },
   $apis.requireAuth(),
 )
