@@ -37,7 +37,9 @@ export const ComunicaProvider = ({ children }: { children: ReactNode }) => {
     if (saved) {
       try {
         setSearchHistory(JSON.parse(saved))
-      } catch (e) {}
+      } catch (e) {
+        console.error('Failed to parse comunica-history', e)
+      }
     }
   }, [])
 
