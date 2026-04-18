@@ -2,7 +2,26 @@ import { useEffect, useState } from 'react'
 import { Outlet, useLocation, Link, useNavigate } from 'react-router-dom'
 import Header from './Header'
 import Footer from './Footer'
-import { Search, Bell, Activity, AlertTriangle, Menu, LogOut } from 'lucide-react'
+import {
+  Search,
+  Bell,
+  Activity,
+  AlertTriangle,
+  Menu,
+  LogOut,
+  LayoutDashboard,
+  Scale,
+  Users,
+  Calendar,
+  BookOpen,
+  Briefcase,
+  UserCog,
+  FileText,
+  Library,
+  Wallet,
+  ShieldCheck,
+  MessageSquare,
+} from 'lucide-react'
 import WhatsAppFAB from './WhatsAppFAB'
 import { Toaster } from '@/components/ui/toaster'
 import pb from '@/lib/pocketbase/client'
@@ -103,36 +122,37 @@ export default function Layout() {
     const navCategories = [
       {
         label: 'Principal',
-        items: [{ title: 'Dashboard', url: '/intranet/dashboard' }],
+        items: [{ title: 'Dashboard', url: '/intranet/dashboard', icon: LayoutDashboard }],
       },
       {
         label: 'Jurídico',
         items: [
-          { title: 'Processos', url: '/intranet/processos' },
-          { title: 'CRM', url: '/intranet/crm' },
-          { title: 'Agenda', url: '/intranet/agenda' },
-          { title: 'Diários Oficiais', url: '/intranet/busca-dou' },
+          { title: 'Processos', url: '/intranet/processos', icon: Scale },
+          { title: 'Comunicações', url: '/intranet/comunicacoes', icon: MessageSquare },
+          { title: 'CRM', url: '/intranet/crm', icon: Briefcase },
+          { title: 'Agenda', url: '/intranet/agenda', icon: Calendar },
+          { title: 'Diários Oficiais', url: '/intranet/busca-dou', icon: BookOpen },
         ],
       },
       {
         label: 'Gestão',
         items: [
-          { title: 'Equipe', url: '/intranet/team' },
-          { title: 'Usuários', url: '/intranet/users', adminOnly: true },
+          { title: 'Equipe', url: '/intranet/team', icon: Users },
+          { title: 'Usuários', url: '/intranet/users', adminOnly: true, icon: UserCog },
         ],
       },
       {
         label: 'Institucional',
         items: [
-          { title: 'Blog', url: '/intranet/blog' },
-          { title: 'Biblioteca', url: '/intranet/library' },
+          { title: 'Blog', url: '/intranet/blog', icon: FileText },
+          { title: 'Biblioteca', url: '/intranet/library', icon: Library },
         ],
       },
       {
         label: 'Administração',
         items: [
-          { title: 'Financeiro', url: '/intranet/finance' },
-          { title: 'Auditoria', url: '/intranet/audit', adminOnly: true },
+          { title: 'Financeiro', url: '/intranet/finance', icon: Wallet },
+          { title: 'Auditoria', url: '/intranet/audit', adminOnly: true, icon: ShieldCheck },
         ],
       },
     ]
@@ -180,20 +200,24 @@ export default function Layout() {
                           <div className="px-6 py-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">
                             {cat.label}
                           </div>
-                          {visibleItems.map((item) => (
-                            <Link
-                              key={item.url}
-                              to={item.url}
-                              className={cn(
-                                'block px-6 py-2 text-sm font-medium transition-colors',
-                                pathname.startsWith(item.url)
-                                  ? 'text-primary bg-secondary/50 border-r-2 border-primary'
-                                  : 'text-foreground hover:bg-slate-50 hover:text-primary',
-                              )}
-                            >
-                              {item.title}
-                            </Link>
-                          ))}
+                          {visibleItems.map((item) => {
+                            const Icon = item.icon
+                            return (
+                              <Link
+                                key={item.url}
+                                to={item.url}
+                                className={cn(
+                                  'flex items-center gap-3 px-6 py-2 text-sm font-medium transition-colors',
+                                  pathname.startsWith(item.url)
+                                    ? 'text-primary bg-secondary/50 border-r-2 border-primary'
+                                    : 'text-foreground hover:bg-slate-50 hover:text-primary',
+                                )}
+                              >
+                                {Icon && <Icon className="w-4 h-4" />}
+                                {item.title}
+                              </Link>
+                            )
+                          })}
                         </div>
                       )
                     })}
