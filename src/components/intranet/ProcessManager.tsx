@@ -29,16 +29,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Search, Plus, Trash2, Edit2, Eye, RefreshCw, Star, RotateCcw } from 'lucide-react'
+import { Search, Plus, Trash2, Edit2, Eye, Star, RotateCcw } from 'lucide-react'
 import { getLegalCases, deleteLegalCase, updateLegalCase } from '@/services/legal_cases'
 import { getClients } from '@/services/clients'
 import { getCollaborators } from '@/services/collaborators'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
-import { categorizeError, runDatajudSync } from '@/lib/datajud/sync'
 import { CaseFormModal } from './cases/CaseFormModal'
-import { Progress } from '@/components/ui/progress'
-import pb from '@/lib/pocketbase/client'
 
 export default function ProcessManager() {
   const navigate = useNavigate()
@@ -59,10 +56,6 @@ export default function ProcessManager() {
   const [editingCase, setEditingCase] = useState<any>(null)
   const [deletingCase, setDeletingCase] = useState<any>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [syncingId, setSyncingId] = useState<string | null>(null)
-  const [isBatchSyncing, setIsBatchSyncing] = useState(false)
-  const [batchProgress, setBatchProgress] = useState(0)
-  const [batchTotal, setBatchTotal] = useState(0)
 
   const loadData = async () => {
     try {
@@ -124,52 +117,6 @@ export default function ProcessManager() {
     }
   }
 
-  const handleSyncDatajud = async (c: any) => {
-    setSyncingId(c.id)
-    try {
-      await runDatajudSync(c, () => {})
-      toast({ title: 'Sincronização V2 processada.' })
-    } catch (error: any) {
-      const { category, message } = categorizeError(error)
-      let finalMessage = message
-      if (String(error?.message || message || '').includes('403'))
-        finalMessage = `A chave do DataJud não possui permissão de leitura para o tribunal selecionado.`
-      await updateLegalCase(c.id, { datajud_sync_status: 'Error' }).catch(() => null)
-      toast({
-        title: `Erro de Sincronização (${category})`,
-        description: finalMessage,
-        variant: 'destructive',
-      })
-    } finally {
-      setSyncingId(null)
-    }
-  }
-
-  const handleBatchSync = async () => {
-    const activeCases = cases.filter((c) => c.lifecycle_status === 'Ativo' && c.type === 'Processo')
-    if (activeCases.length === 0) return
-    setIsBatchSyncing(true)
-    setBatchTotal(activeCases.length)
-    setBatchProgress(0)
-    let success = 0
-    let failed = 0
-    for (const c of activeCases) {
-      try {
-        await pb.send(`/backend/v1/datajud/background-sync/${c.id}`, { method: 'POST' })
-        success++
-      } catch (err) {
-        failed++
-      }
-      setBatchProgress((prev) => prev + 1)
-    }
-    toast({
-      title: 'Sincronização em Lote Concluída',
-      description: `${success} atualizados, ${failed} falharam.`,
-    })
-    setIsBatchSyncing(false)
-    loadData()
-  }
-
   const filteredCases = cases.filter((c) => {
     const term = searchTerm.toLowerCase()
     const matchSearch =
@@ -214,15 +161,6 @@ export default function ProcessManager() {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button
-            variant="outline"
-            onClick={handleBatchSync}
-            disabled={isBatchSyncing}
-            className="shadow-sm"
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isBatchSyncing ? 'animate-spin' : ''}`} />
-            {isBatchSyncing ? 'Sincronizando...' : 'Sincronizar DataJud'}
-          </Button>
           <Button onClick={() => handleOpenForm()} className="shadow-sm">
             <Plus className="w-4 h-4 mr-2" /> Novo Registro
           </Button>
@@ -302,23 +240,6 @@ export default function ProcessManager() {
         </Card>
 
         <div className="flex-1 w-full space-y-4">
-          {isBatchSyncing && (
-            <Card className="bg-primary/5 border-primary/20">
-              <CardContent className="py-4">
-                <div className="flex justify-between text-sm font-medium mb-2 text-primary">
-                  <span>Sincronizando processos ativos no DataJud...</span>
-                  <span>
-                    {batchProgress} de {batchTotal}
-                  </span>
-                </div>
-                <Progress
-                  value={batchTotal > 0 ? (batchProgress / batchTotal) * 100 : 0}
-                  className="h-2"
-                />
-              </CardContent>
-            </Card>
-          )}
-
           <Card className="overflow-hidden border-slate-200/60 shadow-sm">
             <CardHeader className="flex flex-col md:flex-row justify-between md:items-center gap-4 bg-white border-b border-slate-100 py-5">
               <CardTitle className="text-xl font-serif">Portfólio Ativo</CardTitle>
@@ -445,19 +366,6 @@ export default function ProcessManager() {
                             </>
                           ) : (
                             <>
-                              {c.type === 'Processo' && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleSyncDatajud(c)}
-                                  disabled={syncingId === c.id}
-                                  title="Sincronizar (V2)"
-                                >
-                                  <RefreshCw
-                                    className={`w-4 h-4 text-blue-500 ${syncingId === c.id ? 'animate-spin' : ''}`}
-                                  />
-                                </Button>
-                              )}
                               <Button
                                 variant="ghost"
                                 size="icon"

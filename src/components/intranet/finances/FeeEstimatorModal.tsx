@@ -40,7 +40,7 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
       getFinancesByLawsuit(caseId)
         .then((finances) => {
           const total = finances
-            .filter((f: any) => f.type === 'outflow' && !['estimado', 'orçado'].includes(f.status))
+            .filter((f: any) => f.type === 'outflow' && ['estimado', 'orçado'].includes(f.status))
             .reduce((acc: number, f: any) => acc + f.amount, 0)
           setExpenses(total)
         })
@@ -56,15 +56,30 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
         .catch(() => {})
 
       pb.collection('finances')
-        .getFullList({ filter: "type='outflow'" })
+        .getFullList({
+          filter: "type='outflow' && (status='orçado' || status='estimado') && linked_lawsuit = ''",
+        })
         .then((r) => {
-          let total = 0
+          let total12Months = 0
+          const now = new Date()
+          const nextYear = new Date()
+          nextYear.setFullYear(now.getFullYear() + 1)
+
           r.forEach((f) => {
-            if (f.frequency === 'mensal') total += f.amount
-            if (f.frequency === 'semanal') total += f.amount * 4.33
-            if (f.frequency === 'quinzenal') total += f.amount * 2.16
+            const fDate = new Date(f.date)
+            if (f.frequency === 'única') {
+              if (fDate >= now && fDate <= nextYear) {
+                total12Months += f.amount
+              }
+            } else if (f.frequency === 'mensal') {
+              total12Months += f.amount * 12
+            } else if (f.frequency === 'quinzenal') {
+              total12Months += f.amount * 24
+            } else if (f.frequency === 'semanal') {
+              total12Months += f.amount * 52
+            }
           })
-          setMonthlyFixedCosts(total)
+          setMonthlyFixedCosts(total12Months / 12)
         })
         .catch(() => {})
     }
@@ -131,7 +146,7 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
           </DialogTitle>
           <DialogDescription>
             Calcula os honorários sugeridos aplicando uma margem de lucro sobre as despesas
-            variáveis do caso mais o rateio de custos fixos do escritório.
+            variáveis estimadas do caso mais o rateio de custos fixos orçados do escritório.
           </DialogDescription>
         </DialogHeader>
 
@@ -160,14 +175,16 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
               </p>
             </div>
             <div className="p-3 bg-slate-50 border rounded-lg">
-              <Label className="text-slate-500 text-xs uppercase">Despesas Variáveis Atuais</Label>
+              <Label className="text-slate-500 text-xs uppercase">
+                Despesas Variáveis Estimadas
+              </Label>
               <p className="text-lg font-bold text-red-600 mt-1">R$ {expenses.toFixed(2)}</p>
             </div>
           </div>
 
           <div className="text-xs text-slate-600 bg-slate-50 p-3 rounded-lg border border-dashed space-y-1.5">
             <p className="font-bold text-slate-700 mb-1">
-              Cálculo de Custos Fixos Ponderados (Overhead)
+              Cálculo de Custos Fixos Ponderados (Overhead Orçado)
             </p>
             <p className="flex justify-between">
               <span>Custos Fixos Mensais do Escritório:</span>

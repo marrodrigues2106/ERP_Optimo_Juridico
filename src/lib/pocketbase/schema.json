@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-18T23:25:18.966Z",
+  "generatedAt": "2026-04-18T23:37:13.529Z",
   "collections": [
     {
       "name": "users",
@@ -1257,8 +1257,8 @@
       "name": "legal_cases",
       "type": "base",
       "apiRules": {
-        "list": "(@request.auth.id != '') && organization = @request.auth.active_organization && (@request.auth.role = 'admin' || @request.auth.isAdmin = true || responsible_collaborator.user = @request.auth.id || responsible_collaborator = '')",
-        "view": "(@request.auth.id != '') && organization = @request.auth.active_organization && (@request.auth.role = 'admin' || @request.auth.isAdmin = true || responsible_collaborator.user = @request.auth.id || responsible_collaborator = '')",
+        "list": "(@request.auth.role = 'admin' || @request.auth.isAdmin = true) || (responsible_collaborator.user = @request.auth.id)",
+        "view": "(@request.auth.role = 'admin' || @request.auth.isAdmin = true) || (responsible_collaborator.user = @request.auth.id)",
         "create": "(@request.auth.id != '') && organization = @request.auth.active_organization",
         "update": "(@request.auth.id != '') && organization = @request.auth.active_organization",
         "delete": "(@request.auth.id != '') && organization = @request.auth.active_organization && lifecycle_status = 'Arquivado'"
