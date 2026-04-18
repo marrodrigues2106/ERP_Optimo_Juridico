@@ -26,6 +26,7 @@ import ProfileManager from '@/components/intranet/ProfileManager'
 import AgendaManager from '@/components/intranet/AgendaManager'
 import AuditLogs from '@/components/intranet/AuditLogs'
 import DouSearch from '@/components/intranet/DouSearch'
+import GlobalSearch from '@/components/intranet/GlobalSearch'
 import ComunicaPjeSearch from '@/components/intranet/comunica-pje/ComunicaPjeSearch'
 import CentralAtualizacoes from '@/components/intranet/CentralAtualizacoes'
 import ComunicaPjeDetail from '@/components/intranet/comunica-pje/ComunicaPjeDetail'
@@ -66,6 +67,7 @@ function App() {
                 <Route path="busca-dou" element={<DouSearch />} />
                 <Route path="comunicacoes" element={<ComunicaPjeSearch />} />
                 <Route path="comunicacoes/:id" element={<ComunicaPjeDetail />} />
+                <Route path="search" element={<GlobalSearch />} />
                 <Route path="processos" element={<ProcessManager />} />
                 <Route path="processos/:id" element={<ProcessDetail />} />
                 <Route path="clientes/:id" element={<ClientDetail />} />

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-18T23:18:01.297Z",
+  "generatedAt": "2026-04-18T23:25:18.966Z",
   "collections": [
     {
       "name": "users",
@@ -508,7 +508,13 @@
           "selectValues": ["Fixo", "Celular", "WhatsApp"]
         }
       ],
-      "indexes": ["CREATE INDEX `idx_clients_classification` ON `clients` (classification)"]
+      "indexes": [
+        "CREATE INDEX `idx_clients_classification` ON `clients` (classification)",
+        "CREATE INDEX `idx_clients_name_search` ON `clients` (name)",
+        "CREATE INDEX `idx_clients_fullName_search` ON `clients` (fullName)",
+        "CREATE INDEX `idx_clients_email_search` ON `clients` (email)",
+        "CREATE INDEX `idx_clients_cpf_search` ON `clients` (cpf)"
+      ]
     },
     {
       "name": "collaborators",
@@ -636,7 +642,9 @@
         }
       ],
       "indexes": [
-        "CREATE UNIQUE INDEX `idx_collaborators_user_unique` ON `collaborators` (user) WHERE user != ''"
+        "CREATE UNIQUE INDEX `idx_collaborators_user_unique` ON `collaborators` (user) WHERE user != ''",
+        "CREATE INDEX `idx_collaborators_name_search` ON `collaborators` (name)",
+        "CREATE INDEX `idx_collaborators_email_search` ON `collaborators` (email)"
       ]
     },
     {
@@ -837,7 +845,10 @@
           "system": false
         }
       ],
-      "indexes": []
+      "indexes": [
+        "CREATE INDEX `idx_agenda_events_title_search` ON `agenda_events` (title)",
+        "CREATE INDEX `idx_agenda_events_description_search` ON `agenda_events` (description)"
+      ]
     },
     {
       "name": "tasks",
@@ -931,7 +942,10 @@
           "collectionRef": "clients"
         }
       ],
-      "indexes": []
+      "indexes": [
+        "CREATE INDEX `idx_tasks_title_search` ON `tasks` (title)",
+        "CREATE INDEX `idx_tasks_description_search` ON `tasks` (description)"
+      ]
     },
     {
       "name": "monitoring_configs",
@@ -1442,7 +1456,10 @@
       ],
       "indexes": [
         "CREATE INDEX idx_legal_cases_number ON legal_cases (case_number)",
-        "CREATE INDEX `idx_legal_cases_lifecycle` ON `legal_cases` (lifecycle_status)"
+        "CREATE INDEX `idx_legal_cases_lifecycle` ON `legal_cases` (lifecycle_status)",
+        "CREATE INDEX `idx_legal_cases_parties_search` ON `legal_cases` (parties)",
+        "CREATE INDEX `idx_legal_cases_court_search` ON `legal_cases` (court)",
+        "CREATE INDEX `idx_legal_cases_description_search` ON `legal_cases` (description)"
       ]
     },
     {
