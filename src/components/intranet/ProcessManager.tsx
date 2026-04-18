@@ -206,7 +206,7 @@ export default function ProcessManager() {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-6">
         <div>
-          <h2 className="text-3xl font-serif font-bold text-primary tracking-tight">
+          <h2 className="text-2xl font-bold tracking-tight text-primary">
             Gestão de Casos e Serviços
           </h2>
           <p className="text-sm text-slate-500 mt-1">

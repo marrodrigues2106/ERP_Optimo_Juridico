@@ -266,10 +266,10 @@ export default function AgendaManager() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-            <CalendarIcon className="w-8 h-8 text-primary" /> Agenda Integrada
+          <h2 className="text-2xl font-bold tracking-tight text-primary flex items-center gap-2">
+            <CalendarIcon className="w-6 h-6 text-primary" /> Agenda Integrada
           </h2>
-          <p className="text-sm text-muted-foreground mt-1">Gerencie compromissos e prazos.</p>
+          <p className="text-sm text-slate-500 mt-1">Gerencie compromissos e prazos.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={copyGoogleCalendarLink}>

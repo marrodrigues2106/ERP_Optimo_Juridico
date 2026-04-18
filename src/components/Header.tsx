@@ -59,25 +59,21 @@ export default function Header() {
           setSearchResults([])
           return
         }
-        const [casesRes, clientsRes, collabsRes, resultsRes] = await Promise.allSettled([
+        const [casesRes, clientsRes, tasksRes] = await Promise.allSettled([
           pb.collection('legal_cases').getList(1, 5, {
             filter: `deleted_at="" && (case_number ~ "${safeQuery}" || parties ~ "${safeQuery}")`,
           }),
           pb.collection('clients').getList(1, 5, {
-            filter: `deleted_at="" && (name ~ "${safeQuery}" || fullName ~ "${safeQuery}")`,
+            filter: `deleted_at="" && (name ~ "${safeQuery}" || fullName ~ "${safeQuery}" || cpf ~ "${safeQuery}")`,
           }),
-          pb.collection('collaborators').getList(1, 5, {
-            filter: `deleted_at="" && name ~ "${safeQuery}"`,
-          }),
-          pb.collection('results').getList(1, 5, {
-            filter: `numero_processo ~ "${safeQuery}"`,
+          pb.collection('tasks').getList(1, 5, {
+            filter: `deleted_at="" && title ~ "${safeQuery}"`,
           }),
         ])
 
         const cases = casesRes.status === 'fulfilled' ? casesRes.value.items : []
         const clients = clientsRes.status === 'fulfilled' ? clientsRes.value.items : []
-        const collabs = collabsRes.status === 'fulfilled' ? collabsRes.value.items : []
-        const resItems = resultsRes.status === 'fulfilled' ? resultsRes.value.items : []
+        const tasks = tasksRes.status === 'fulfilled' ? tasksRes.value.items : []
 
         setSearchResults([
           ...cases.map((c: any) => ({
@@ -92,17 +88,11 @@ export default function Header() {
             type: 'Cliente',
             url: `/intranet/clientes/${c.id}`,
           })),
-          ...collabs.map((c: any) => ({
-            id: c.id,
-            title: c.name,
-            type: 'Equipe',
-            url: `/intranet/equipe/${c.id}`,
-          })),
-          ...resItems.map((c: any) => ({
-            id: c.id,
-            title: `PJe: ${c.numero_processo}`,
-            type: 'Comunicação',
-            url: `/intranet/comunicacoes/${c.id}`,
+          ...tasks.map((t: any) => ({
+            id: t.id,
+            title: t.title,
+            type: 'Tarefa',
+            url: `/intranet/dashboard`,
           })),
         ])
       } catch (e) {

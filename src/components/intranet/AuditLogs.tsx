@@ -16,8 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useRealtime } from '@/hooks/use-realtime'
-import { Activity, ShieldAlert, Search } from 'lucide-react'
+import { ShieldAlert, Search } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { useAuth } from '@/hooks/use-auth'
 
@@ -56,12 +57,12 @@ export default function AuditLogs() {
       if (pFilters.length > 0) procFilter = pFilters.join(' && ')
 
       const [auditRes, processRes] = await Promise.all([
-        pb.collection('audit_logs').getList(1, 50, {
+        pb.collection('audit_logs').getList(1, 100, {
           sort: '-created',
           expand: 'user',
           filter: auditFilter,
         }),
-        pb.collection('logs_processamento').getList(1, 50, {
+        pb.collection('logs_processamento').getList(1, 100, {
           sort: '-created',
           filter: procFilter,
         }),
@@ -77,15 +78,24 @@ export default function AuditLogs() {
           description: `Collection: ${a.collection_name}`,
           type: a.action === 'delete' ? 'Warning' : 'Info',
         })),
-        ...processRes.items.map((p) => ({
-          id: p.id,
-          date: p.created,
-          source: 'Processamento de Monitoramento',
-          user: 'Motor Automático',
-          action: p.etapa,
-          description: p.mensagem,
-          type: p.status === 'Erro' ? 'Error' : p.status === 'Aviso' ? 'Warning' : 'Info',
-        })),
+        ...processRes.items.map((p) => {
+          let sourceLabel = 'Sistema'
+          const etapa = (p.etapa || '').toLowerCase()
+          if (etapa.includes('dou')) sourceLabel = 'Busca DOU'
+          else if (etapa.includes('pje') || etapa.includes('comunica')) sourceLabel = 'Comunica PJe'
+          else if (etapa.includes('monitoramento') || etapa.includes('termo'))
+            sourceLabel = 'Monitoramento'
+
+          return {
+            id: p.id,
+            date: p.created,
+            source: sourceLabel,
+            user: 'Processo Automático',
+            action: p.etapa,
+            description: p.mensagem,
+            type: p.status === 'Erro' ? 'Error' : p.status === 'Aviso' ? 'Warning' : 'Info',
+          }
+        }),
       ]
 
       combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -128,108 +138,120 @@ export default function AuditLogs() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-          <Activity className="w-8 h-8 text-primary" /> Central de Logs
-        </h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Visão unificada de auditoria, segurança e processamento do sistema.
+        <h2 className="text-2xl font-bold tracking-tight text-primary">Configurações</h2>
+        <p className="text-sm text-slate-500 mt-1">
+          Acesse os logs do sistema e configurações de conta.
         </p>
       </div>
 
-      <Card className="border-border shadow-sm">
-        <CardHeader className="bg-slate-50 border-b flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4">
-          <CardTitle className="text-xl">Histórico de Atividades</CardTitle>
-          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-            <div className="relative w-full sm:w-auto">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input
-                type="date"
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="pl-8 h-9 text-sm w-full sm:w-40 bg-white"
-              />
-            </div>
-            <Select value={sourceFilter} onValueChange={setSourceFilter}>
-              <SelectTrigger className="h-9 w-[200px] bg-white">
-                <SelectValue placeholder="Fonte" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as Fontes</SelectItem>
-                <SelectItem value="Auditoria">Auditoria</SelectItem>
-                <SelectItem value="Processamento de Monitoramento">
-                  Processamento de Monitoramento
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="h-9 w-[160px] bg-white">
-                <SelectValue placeholder="Tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os Tipos</SelectItem>
-                <SelectItem value="Info">Informação</SelectItem>
-                <SelectItem value="Warning">Aviso</SelectItem>
-                <SelectItem value="Error">Erro</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-slate-50">
-                <TableHead className="pl-6 w-[180px]">Data e Hora</TableHead>
-                <TableHead className="w-[200px]">Fonte</TableHead>
-                <TableHead>Usuário/Motor</TableHead>
-                <TableHead>Ação/Etapa</TableHead>
-                <TableHead>Detalhes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {logs.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
-                    Nenhum log encontrado para os filtros selecionados.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                logs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="pl-6 whitespace-nowrap text-sm text-slate-600">
-                      {new Date(log.date).toLocaleString('pt-BR')}
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs font-bold bg-slate-100 px-2 py-1 rounded text-slate-700">
-                        {log.source}
-                      </span>
-                    </TableCell>
-                    <TableCell className="font-medium text-sm text-slate-800">{log.user}</TableCell>
-                    <TableCell>
-                      <span
-                        className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${
-                          log.type === 'Error'
-                            ? 'bg-red-100 text-red-700'
-                            : log.type === 'Warning'
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-blue-100 text-blue-700'
-                        }`}
-                      >
-                        {log.action}
-                      </span>
-                    </TableCell>
-                    <TableCell
-                      className="text-sm text-slate-600 max-w-xs truncate"
-                      title={log.description}
-                    >
-                      {log.description}
-                    </TableCell>
+      <Tabs defaultValue="logs" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="logs">Logs do Sistema</TabsTrigger>
+          <TabsTrigger value="profile" disabled>
+            Perfil (Em breve)
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="logs" className="space-y-6">
+          <Card className="border-border shadow-sm">
+            <CardHeader className="bg-slate-50 border-b flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-4">
+              <CardTitle className="text-xl">Histórico de Atividades</CardTitle>
+              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                <div className="relative w-full sm:w-auto">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input
+                    type="date"
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    className="pl-8 h-9 text-sm w-full sm:w-40 bg-white"
+                  />
+                </div>
+                <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                  <SelectTrigger className="h-9 w-[200px] bg-white">
+                    <SelectValue placeholder="Fonte" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as Fontes</SelectItem>
+                    <SelectItem value="Auditoria">Auditoria</SelectItem>
+                    <SelectItem value="Sistema">Sistema</SelectItem>
+                    <SelectItem value="Monitoramento">Monitoramento</SelectItem>
+                    <SelectItem value="Busca DOU">Busca DOU</SelectItem>
+                    <SelectItem value="Comunica PJe">Comunica PJe</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger className="h-9 w-[160px] bg-white">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os Tipos</SelectItem>
+                    <SelectItem value="Info">Informação</SelectItem>
+                    <SelectItem value="Warning">Aviso</SelectItem>
+                    <SelectItem value="Error">Erro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50">
+                    <TableHead className="pl-6 w-[180px]">Data e Hora</TableHead>
+                    <TableHead className="w-[200px]">Fonte</TableHead>
+                    <TableHead>Usuário/Motor</TableHead>
+                    <TableHead>Ação/Etapa</TableHead>
+                    <TableHead>Detalhes</TableHead>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {logs.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                        Nenhum log encontrado para os filtros selecionados.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    logs.map((log) => (
+                      <TableRow key={log.id}>
+                        <TableCell className="pl-6 whitespace-nowrap text-sm text-slate-600">
+                          {new Date(log.date).toLocaleString('pt-BR')}
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-xs font-bold bg-slate-100 px-2 py-1 rounded text-slate-700">
+                            {log.source}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-medium text-sm text-slate-800">
+                          {log.user}
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${
+                              log.type === 'Error'
+                                ? 'bg-red-100 text-red-700'
+                                : log.type === 'Warning'
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : 'bg-blue-100 text-blue-700'
+                            }`}
+                          >
+                            {log.action}
+                          </span>
+                        </TableCell>
+                        <TableCell
+                          className="text-sm text-slate-600 max-w-xs truncate"
+                          title={log.description}
+                        >
+                          {log.description}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

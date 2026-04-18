@@ -178,10 +178,8 @@ export default function ComunicaPjeSearch() {
   return (
     <div className="space-y-8 animate-fade-in-up max-w-6xl mx-auto pb-12">
       <div className="flex flex-col gap-2 border-b border-slate-200 pb-6">
-        <h1 className="text-3xl md:text-4xl font-serif font-bold tracking-tight text-primary">
-          Comunicações PJe
-        </h1>
-        <p className="text-base text-slate-500 mt-1">
+        <h2 className="text-2xl font-bold tracking-tight text-primary">Comunicações PJe</h2>
+        <p className="text-sm text-slate-500 mt-1">
           Consulta e gerenciamento do Diário de Justiça Eletrônico Nacional.
         </p>
       </div>

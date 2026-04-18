@@ -177,9 +177,7 @@ export default function FinanceManager() {
     <div className="space-y-8 pb-12">
       <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 border-b border-slate-200 pb-6">
         <div>
-          <h2 className="text-3xl font-serif font-bold text-primary tracking-tight">
-            Gestão Financeira
-          </h2>
+          <h2 className="text-2xl font-bold tracking-tight text-primary">Gestão Financeira</h2>
           <p className="text-sm text-slate-500 mt-1">
             Acompanhe fluxo de caixa, rentabilidade e custos dos processos.
           </p>

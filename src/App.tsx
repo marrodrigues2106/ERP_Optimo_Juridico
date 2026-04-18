@@ -77,7 +77,8 @@ function App() {
                 <Route path="blog" element={<BlogManager />} />
                 <Route path="team" element={<TeamManager />} />
                 <Route path="users" element={<UsersManager />} />
-                <Route path="audit" element={<AuditLogs />} />
+                <Route path="audit" element={<Navigate to="/intranet/settings/logs" replace />} />
+                <Route path="settings/logs" element={<AuditLogs />} />
                 <Route path="profile" element={<ProfileManager />} />
               </Route>
 

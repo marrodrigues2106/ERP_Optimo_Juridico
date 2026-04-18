@@ -165,7 +165,12 @@ export default function Layout() {
         label: 'Administração',
         items: [
           { title: 'Financeiro', url: '/intranet/finance', icon: Wallet },
-          { title: 'Auditoria', url: '/intranet/audit', adminOnly: true, icon: ShieldCheck },
+          {
+            title: 'Logs do Sistema',
+            url: '/intranet/settings/logs',
+            adminOnly: true,
+            icon: ShieldCheck,
+          },
         ],
       },
     ]

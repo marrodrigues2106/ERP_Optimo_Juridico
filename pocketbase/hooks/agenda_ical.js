@@ -29,6 +29,8 @@ routerAdd(
     let ics = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//MRA//Agenda//PT\r\n'
     ics += 'X-WR-CALNAME:Agenda MRA\r\n'
     ics += 'X-WR-TIMEZONE:America/Sao_Paulo\r\n'
+    ics += 'CALSCALE:GREGORIAN\r\n'
+    ics += 'METHOD:PUBLISH\r\n'
 
     const fmt = (dStr) => {
       if (!dStr) return ''

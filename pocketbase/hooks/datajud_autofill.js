@@ -66,21 +66,6 @@ routerAdd(
       }
     } catch (_) {}
 
-    let isTribunalActive = false
-
-    if (configuredTribunals.length > 0 && configuredTribunals.includes(targetAlias)) {
-      isTribunalActive = true
-    } else {
-      try {
-        const safeAlias = targetAlias.replace(/'/g, "''")
-        const t = $app.findFirstRecordByFilter(
-          'tribunals',
-          `alias = '${safeAlias}' && active = true`,
-        )
-        if (t) isTribunalActive = true
-      } catch (_) {}
-    }
-
     const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${targetAlias}/_search`
 
     try {
