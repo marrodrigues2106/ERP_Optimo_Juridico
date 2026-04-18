@@ -40,11 +40,13 @@ export function SearchTab() {
         })
       }
     } catch (error: any) {
-      console.error(error)
+      console.error('Search error:', error)
 
       let customMessage = getErrorMessage(error)
       if (error?.response?.message) {
         customMessage = error.response.message
+      } else if (error instanceof Error) {
+        customMessage = error.message
       }
 
       toast({
