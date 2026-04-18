@@ -65,7 +65,9 @@ export function HistoryList() {
               let termObj: Record<string, any> = {}
               try {
                 termObj = JSON.parse(item.term || '{}')
-              } catch (e) {}
+              } catch (e) {
+                // ignore
+              }
 
               const filtersStr = Object.entries(termObj)
                 .filter(([_, v]) => Boolean(v))

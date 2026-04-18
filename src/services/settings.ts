@@ -10,14 +10,10 @@ export const getSettingByKey = async (key: string) => {
 }
 
 export const setSettingByKey = async (key: string, value: string) => {
-  try {
-    const existing = await getSettingByKey(key)
-    if (existing) {
-      return await pb.collection('settings').update(existing.id, { value })
-    } else {
-      return await pb.collection('settings').create({ key, value })
-    }
-  } catch (err) {
-    throw err
+  const existing = await getSettingByKey(key)
+  if (existing) {
+    return await pb.collection('settings').update(existing.id, { value })
+  } else {
+    return await pb.collection('settings').create({ key, value })
   }
 }
