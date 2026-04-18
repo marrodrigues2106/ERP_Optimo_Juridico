@@ -189,12 +189,12 @@ export default function Header() {
         <div className="hidden lg:flex items-center gap-8">
           {isIntranet && (
             <div className="hidden md:flex relative z-50">
-              <button 
+              <button
                 type="button"
                 onClick={() => {
                   if (searchQuery.trim().length >= 2) {
-                    navigate(`/intranet/search?q=${encodeURIComponent(searchQuery.trim())}`);
-                    setSearchQuery('');
+                    navigate(`/intranet/search?q=${encodeURIComponent(searchQuery.trim())}`)
+                    setSearchQuery('')
                   }
                 }}
                 className="absolute left-2.5 top-1/2 -translate-y-1/2 cursor-pointer z-10"
@@ -207,8 +207,8 @@ export default function Header() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && searchQuery.trim().length >= 2) {
-                    navigate(`/intranet/search?q=${encodeURIComponent(searchQuery.trim())}`);
-                    setSearchQuery('');
+                    navigate(`/intranet/search?q=${encodeURIComponent(searchQuery.trim())}`)
+                    setSearchQuery('')
                   }
                 }}
                 placeholder="Pesquisar no sistema..."
@@ -219,26 +219,28 @@ export default function Header() {
                   {isSearching ? (
                     <div className="px-4 py-2 text-sm text-slate-500">Buscando...</div>
                   ) : searchResults.length > 0 ? (
-                    searchResults.map((res) => (
+                    <>
+                      {searchResults.map((res) => (
+                        <Link
+                          key={res.id + res.type}
+                          to={res.url}
+                          onClick={() => setSearchQuery('')}
+                          className="flex flex-col px-4 py-2 hover:bg-slate-50 border-b last:border-0"
+                        >
+                          <span className="text-sm font-medium text-slate-800 truncate">
+                            {res.title}
+                          </span>
+                          <span className="text-xs text-slate-500">{res.type}</span>
+                        </Link>
+                      ))}
                       <Link
-                        key={res.id + res.type}
-                        to={res.url}
+                        to={`/intranet/search?q=${encodeURIComponent(searchQuery.trim())}`}
                         onClick={() => setSearchQuery('')}
-                        className="flex flex-col px-4 py-2 hover:bg-slate-50 border-b last:border-0"
+                        className="block w-full text-center px-4 py-3 text-sm font-medium text-primary hover:bg-slate-50 border-t mt-1"
                       >
-                        <span className="text-sm font-medium text-slate-800 truncate">
-                          {res.title}
-                        </span>
-                        <span className="text-xs text-slate-500">{res.type}</span>
+                        Ver todos os resultados
                       </Link>
-                    ))
-                    <Link
-                      to={`/intranet/search?q=${encodeURIComponent(searchQuery.trim())}`}
-                      onClick={() => setSearchQuery('')}
-                      className="block w-full text-center px-4 py-3 text-sm font-medium text-primary hover:bg-slate-50 border-t mt-1"
-                    >
-                      Ver todos os resultados
-                    </Link>
+                    </>
                   ) : (
                     <div className="px-4 py-2 text-sm text-slate-500">
                       Nenhum resultado encontrado.
@@ -509,8 +511,10 @@ export default function Header() {
                     className="pl-8 h-10 w-full bg-slate-50 border-slate-200"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && e.currentTarget.value.trim().length >= 2) {
-                        navigate(`/intranet/search?q=${encodeURIComponent(e.currentTarget.value.trim())}`);
-                        closeMenu();
+                        navigate(
+                          `/intranet/search?q=${encodeURIComponent(e.currentTarget.value.trim())}`,
+                        )
+                        closeMenu()
                       }
                     }}
                   />
