@@ -21,7 +21,10 @@ export default function ConsultaTable({
         </thead>
         <tbody className="divide-y">
           {data.map((item, i) => (
-            <tr key={i} className="hover:bg-muted/50 transition-colors">
+            <tr
+              key={item.id || item.hash_comunicacao || i}
+              className="hover:bg-muted/50 transition-colors"
+            >
               <td className="px-4 py-3 whitespace-nowrap">
                 {item.dataDisponibilizacao
                   ? format(new Date(item.dataDisponibilizacao), 'dd/MM/yyyy')

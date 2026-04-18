@@ -73,7 +73,10 @@ export default function ConsultaDetails({ item, onClose }: { item: any; onClose:
                     <h4 className="font-semibold mb-3 text-foreground">Destinatários</h4>
                     <ul className="space-y-2">
                       {item.destinatarios.map((d: any, i: number) => (
-                        <li key={i} className="bg-muted/50 p-2 rounded border text-xs">
+                        <li
+                          key={d.id || d.nome || i}
+                          className="bg-muted/50 p-2 rounded border text-xs"
+                        >
                           <span className="font-medium">{d.nome}</span>
                           {d.polo && (
                             <span className="text-muted-foreground block mt-1">Polo: {d.polo}</span>
@@ -90,7 +93,7 @@ export default function ConsultaDetails({ item, onClose }: { item: any; onClose:
           <TabsContent value="texto" className="flex-1 overflow-hidden mt-4">
             <ScrollArea className="h-full rounded-md border bg-card p-4">
               <div
-                className="text-sm leading-relaxed prose prose-sm max-w-none dark:prose-invert"
+                className="text-sm leading-relaxed prose prose-sm max-w-none dark:prose-invert break-words"
                 dangerouslySetInnerHTML={{ __html: item.texto || 'Nenhum texto disponível.' }}
               />
             </ScrollArea>
