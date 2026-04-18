@@ -28,9 +28,7 @@ import AuditLogs from '@/components/intranet/AuditLogs'
 import PublicacoesManager from '@/components/intranet/PublicacoesManager'
 import GazetteManager from '@/components/intranet/GazetteManager'
 import DouSearch from '@/components/intranet/DouSearch'
-import ComunicaPjeLayout from '@/components/intranet/comunica-pje/ComunicaPjeLayout'
 import ComunicaPjeSearch from '@/components/intranet/comunica-pje/ComunicaPjeSearch'
-import ComunicaPjeSettings from '@/components/intranet/comunica-pje/ComunicaPjeSettings'
 import CentralAtualizacoes from '@/components/intranet/CentralAtualizacoes'
 import { ComunicaProvider } from '@/hooks/use-comunica-store'
 
@@ -68,10 +66,7 @@ function App() {
                   element={<Navigate to="/intranet/busca-dou" replace />}
                 />
                 <Route path="busca-dou" element={<DouSearch />} />
-                <Route path="comunicacoes" element={<ComunicaPjeLayout />}>
-                  <Route index element={<ComunicaPjeSearch />} />
-                  <Route path="configuracoes" element={<ComunicaPjeSettings />} />
-                </Route>
+                <Route path="comunicacoes" element={<ComunicaPjeSearch />} />
                 <Route path="processos" element={<ProcessManager />} />
                 <Route path="processos/:id" element={<ProcessDetail />} />
                 <Route path="clientes/:id" element={<ClientDetail />} />

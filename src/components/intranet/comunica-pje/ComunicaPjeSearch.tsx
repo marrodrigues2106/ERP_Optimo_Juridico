@@ -95,10 +95,19 @@ export default function ComunicaPjeSearch() {
   }
 
   return (
-    <div className="space-y-8 animate-fade-in-up">
+    <div className="space-y-8 animate-fade-in-up max-w-6xl mx-auto pb-12">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">
+          Comunicações PJe
+        </h1>
+        <p className="text-lg text-slate-500">
+          Consulta e gerenciamento do Diário de Justiça Eletrônico Nacional.
+        </p>
+      </div>
+
       <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
         <h2 className="text-2xl font-bold tracking-tight text-slate-900 mb-6">
-          Busca Comunica PJe
+          Busca de Publicações
         </h2>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">

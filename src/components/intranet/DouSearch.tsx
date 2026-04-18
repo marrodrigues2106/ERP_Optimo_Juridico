@@ -190,7 +190,7 @@ export default function DouSearch() {
       if (diffDays > 60) {
         toast({
           title: 'Período muito longo',
-          description: 'O intervalo de datas não pode ser superior a 60 dias',
+          description: 'O período máximo de busca por data é de 60 dias',
           variant: 'destructive',
         })
         return

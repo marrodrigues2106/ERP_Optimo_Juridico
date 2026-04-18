@@ -130,21 +130,19 @@ export default function Layout() {
         label: 'Jurídico',
         items: [
           { title: 'Processos', url: '/intranet/processos', icon: Scale },
-          { title: 'CRM', url: '/intranet/crm', icon: Briefcase },
+          { title: 'Clientes', url: '/intranet/crm', icon: Briefcase },
           { title: 'Agenda', url: '/intranet/agenda', icon: Calendar },
-          { title: 'Diários Oficiais', url: '/intranet/busca-dou', icon: BookOpen },
         ],
       },
       {
-        label: 'Comunicações PJe',
+        label: 'Comunicações',
         items: [
-          { title: 'Consultar', url: '/intranet/comunicacoes', exact: true, icon: MessageSquare },
-          { title: 'Histórico', url: '/intranet/comunicacoes/historico', icon: History },
+          { title: 'Busca DOU', url: '/intranet/busca-dou', icon: BookOpen },
           {
-            title: 'Configurações',
-            url: '/intranet/comunicacoes/configuracoes',
-            adminOnly: true,
-            icon: Settings,
+            title: 'Comunica PJe',
+            url: '/intranet/comunicacoes',
+            exact: true,
+            icon: MessageSquare,
           },
         ],
       },
