@@ -66,11 +66,10 @@ export default function CentralAtualizacoes() {
     <div className="space-y-8 max-w-6xl mx-auto animate-fade-in-up pb-12">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900 flex items-center gap-3">
-          <Activity className="w-8 h-8 text-primary" /> Central de Atualizações
+          <Activity className="w-8 h-8 text-primary" /> Central de Atualizações (Publicações)
         </h1>
         <p className="text-lg text-slate-500">
-          Acompanhe as movimentações recentes de todos os processos monitorados (DOU, DataJud e
-          PJe).
+          Dashboard unificado com publicações do Diário Oficial (DOU) e Comunicações do PJe.
         </p>
       </div>
 
@@ -106,18 +105,20 @@ export default function CentralAtualizacoes() {
               <div className="space-y-3">
                 {n.type === 'pje' ? (
                   <>
-                    <p className="text-2xl font-bold text-primary font-mono">{n.numero_processo}</p>
-                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                    <p className="text-2xl font-bold text-primary font-mono mb-2">
+                      {n.numero_processo}
+                    </p>
+                    <div className="bg-slate-50 p-5 rounded-xl border border-slate-100">
                       <p
-                        className="text-lg text-slate-700 line-clamp-3 leading-relaxed"
+                        className="text-lg text-slate-700 line-clamp-4 leading-relaxed"
                         dangerouslySetInnerHTML={{ __html: n.texto || '' }}
                       ></p>
                     </div>
-                    <div className="flex flex-wrap gap-4 text-sm text-slate-600 font-medium">
-                      <span className="bg-slate-100 px-3 py-1 rounded">
+                    <div className="flex flex-wrap gap-4 text-base text-slate-600 font-medium mt-3">
+                      <span className="bg-slate-100 px-3 py-1 rounded-md">
                         Tribunal: {n.sigla_tribunal}
                       </span>
-                      <span className="bg-slate-100 px-3 py-1 rounded">
+                      <span className="bg-slate-100 px-3 py-1 rounded-md">
                         Disp:{' '}
                         {n.data_disponibilizacao
                           ? format(new Date(n.data_disponibilizacao), 'dd/MM/yyyy')
@@ -127,23 +128,23 @@ export default function CentralAtualizacoes() {
                   </>
                 ) : (
                   <>
-                    <p className="text-2xl font-bold text-amber-700">
+                    <p className="text-2xl font-bold text-amber-700 mb-2">
                       {n.orgao || 'Órgão Desconhecido'}
                     </p>
-                    <div className="bg-amber-50/50 p-4 rounded-lg border border-amber-100/50">
-                      <p className="text-lg text-slate-700 line-clamp-3 leading-relaxed">
+                    <div className="bg-amber-50/50 p-5 rounded-xl border border-amber-100/50">
+                      <p className="text-lg text-slate-800 line-clamp-4 leading-relaxed">
                         {n.texto_normalizado || 'Publicação DOU encontrada'}
                       </p>
                     </div>
-                    <div className="flex flex-wrap gap-4 text-sm text-slate-600 font-medium">
-                      <span className="bg-slate-100 px-3 py-1 rounded">
+                    <div className="flex flex-wrap gap-4 text-base text-slate-600 font-medium mt-3">
+                      <span className="bg-slate-100 px-3 py-1 rounded-md">
                         Pub:{' '}
                         {n.data_publicacao
                           ? format(new Date(n.data_publicacao), 'dd/MM/yyyy')
                           : '-'}
                       </span>
                       {n.matched_term && (
-                        <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded font-bold">
+                        <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-md font-bold">
                           Termo: {n.matched_term}
                         </span>
                       )}

@@ -235,7 +235,7 @@ export default function ProfileManager() {
             Perfil
           </TabsTrigger>
           <TabsTrigger value="monitoramento-geral" className="text-base px-4 py-2 font-medium">
-            Monitoramento Geral
+            Configurações Gerais de Monitoramento
           </TabsTrigger>
           <TabsTrigger value="monitoramento-dou" className="text-base px-4 py-2 font-medium">
             Monitoramento DOU
@@ -315,16 +315,18 @@ export default function ProfileManager() {
         </TabsContent>
 
         <TabsContent value="monitoramento-geral">
-          <Card className="max-w-3xl border-slate-200 shadow-sm">
+          <Card className="max-w-4xl border-slate-200 shadow-sm">
             <CardHeader>
-              <CardTitle className="text-2xl">Frequência de Sincronização</CardTitle>
+              <CardTitle className="text-2xl">Configurações Gerais de Monitoramento</CardTitle>
               <CardDescription className="text-base">
-                Frequência global de monitoramento para o Datajud, PJe e DOU.
+                Frequência global de monitoramento e termos de busca do Diário Oficial.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-3">
-                <Label className="text-base font-medium">Frequência</Label>
+            <CardContent className="space-y-8">
+              <div className="space-y-3 max-w-sm">
+                <Label className="text-base font-medium">
+                  Frequência de Sincronização (DOU e PJe)
+                </Label>
                 <select
                   value={configForm.frequency}
                   onChange={(e) => setConfigForm({ ...configForm, frequency: e.target.value })}
@@ -335,17 +337,70 @@ export default function ProfileManager() {
                   <option value="Weekly">Semanalmente</option>
                 </select>
               </div>
+
+              <div className="pt-6 border-t border-slate-100">
+                <h3 className="text-xl font-bold mb-4">Gerenciamento de Termos (DOU)</h3>
+                <div className="flex gap-2 mb-6">
+                  <Input
+                    placeholder="Novo termo de busca..."
+                    value={novoTermo}
+                    onChange={(e) => setNovoTermo(e.target.value)}
+                    className="text-base"
+                  />
+                  <Button onClick={handleAddTermo} className="px-6 font-bold">
+                    <Plus className="w-5 h-5 mr-2" /> Adicionar
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  {termos.map((t) => (
+                    <div
+                      key={t.id}
+                      className="flex items-center justify-between bg-slate-50 p-4 rounded-lg border border-slate-200 shadow-sm"
+                    >
+                      <div>
+                        <span className="font-bold text-slate-800 text-lg">{t.termo}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={t.ativo}
+                            onCheckedChange={() => toggleTermo(t.id, t.ativo)}
+                          />
+                          <span className="text-sm font-medium text-slate-600">
+                            {t.ativo ? 'Ativo' : 'Inativo'}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteTermo(t.id)}
+                          className="hover:bg-red-50"
+                        >
+                          <X className="w-5 h-5 text-red-500" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  {termos.length === 0 && (
+                    <p className="text-slate-500 text-center py-4 bg-slate-50 rounded-lg border border-dashed">
+                      Nenhum termo configurado.
+                    </p>
+                  )}
+                </div>
+              </div>
+
               <Button
                 onClick={handleSaveConfig}
                 disabled={saving}
-                className="py-6 px-8 text-base font-bold"
+                className="py-6 px-8 text-base font-bold mt-4"
               >
                 {saving ? (
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                 ) : (
                   <Save className="w-5 h-5 mr-2" />
                 )}
-                Salvar Configurações
+                Salvar Configurações Gerais
               </Button>
             </CardContent>
           </Card>
@@ -383,58 +438,6 @@ export default function ProfileManager() {
                     className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-4 py-3 text-base font-mono shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     placeholder='{"user": "...", "pass": "..."}'
                   />
-                </div>
-
-                <div className="pt-6 border-t border-slate-100">
-                  <h3 className="text-xl font-bold mb-4">Gerenciamento de Termos (DOU)</h3>
-                  <div className="flex gap-2 mb-6">
-                    <Input
-                      placeholder="Novo termo de busca..."
-                      value={novoTermo}
-                      onChange={(e) => setNovoTermo(e.target.value)}
-                      className="text-base"
-                    />
-                    <Button onClick={handleAddTermo} className="px-6 font-bold">
-                      <Plus className="w-5 h-5 mr-2" /> Adicionar
-                    </Button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {termos.map((t) => (
-                      <div
-                        key={t.id}
-                        className="flex items-center justify-between bg-slate-50 p-4 rounded-lg border border-slate-200 shadow-sm"
-                      >
-                        <div>
-                          <span className="font-bold text-slate-800 text-lg">{t.termo}</span>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-2">
-                            <Switch
-                              checked={t.ativo}
-                              onCheckedChange={() => toggleTermo(t.id, t.ativo)}
-                            />
-                            <span className="text-sm font-medium text-slate-600">
-                              {t.ativo ? 'Ativo' : 'Inativo'}
-                            </span>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => deleteTermo(t.id)}
-                            className="hover:bg-red-50"
-                          >
-                            <X className="w-5 h-5 text-red-500" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                    {termos.length === 0 && (
-                      <p className="text-slate-500 text-center py-4 bg-slate-50 rounded-lg border border-dashed">
-                        Nenhum termo configurado.
-                      </p>
-                    )}
-                  </div>
                 </div>
 
                 <Button

@@ -48,21 +48,104 @@ export default function ComunicaPjeSearch() {
   const { baseUrl, apiKey, addHistory, init } = useComunicaStore()
   const [results, setResults] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
-  const [tribunals, setTribunals] = useState<any[]>([])
+  const [tribunals, setTribunals] = useState<string[]>([])
 
   useEffect(() => {
     init()
-    pb.collection('tribunals')
-      .getFullList({ filter: 'active = true', sort: 'alias' })
-      .then((records) => {
-        const unique = new Map()
-        records.forEach((r) => {
-          const alias = r.alias.toUpperCase()
-          if (!unique.has(alias)) unique.set(alias, { ...r, alias })
-        })
-        setTribunals(Array.from(unique.values()).sort((a, b) => a.alias.localeCompare(b.alias)))
-      })
-      .catch(() => {})
+    const PJE_TRIBUNALS = [
+      'STF',
+      'STJ',
+      'TSE',
+      'TST',
+      'CJF',
+      'CSJT',
+      'STM',
+      'TJAC',
+      'TJAL',
+      'TJAM',
+      'TJAP',
+      'TJBA',
+      'TJCE',
+      'TJDF',
+      'TJES',
+      'TJGO',
+      'TJMA',
+      'TJMG',
+      'TJMS',
+      'TJMT',
+      'TJPA',
+      'TJPB',
+      'TJPE',
+      'TJPI',
+      'TJPR',
+      'TJRJ',
+      'TJRN',
+      'TJRO',
+      'TJRR',
+      'TJRS',
+      'TJSC',
+      'TJSE',
+      'TJSP',
+      'TJTO',
+      'TRF1',
+      'TRF2',
+      'TRF3',
+      'TRF4',
+      'TRF5',
+      'TRF6',
+      'TRT1',
+      'TRT2',
+      'TRT3',
+      'TRT4',
+      'TRT5',
+      'TRT6',
+      'TRT7',
+      'TRT8',
+      'TRT9',
+      'TRT10',
+      'TRT11',
+      'TRT12',
+      'TRT13',
+      'TRT14',
+      'TRT15',
+      'TRT16',
+      'TRT17',
+      'TRT18',
+      'TRT19',
+      'TRT20',
+      'TRT21',
+      'TRT22',
+      'TRT23',
+      'TRT24',
+      'TRE-AC',
+      'TRE-AL',
+      'TRE-AM',
+      'TRE-AP',
+      'TRE-BA',
+      'TRE-CE',
+      'TRE-DF',
+      'TRE-ES',
+      'TRE-GO',
+      'TRE-MA',
+      'TRE-MG',
+      'TRE-MS',
+      'TRE-MT',
+      'TRE-PA',
+      'TRE-PB',
+      'TRE-PE',
+      'TRE-PI',
+      'TRE-PR',
+      'TRE-RJ',
+      'TRE-RN',
+      'TRE-RO',
+      'TRE-RR',
+      'TRE-RS',
+      'TRE-SC',
+      'TRE-SE',
+      'TRE-SP',
+      'TRE-TO',
+    ]
+    setTribunals(PJE_TRIBUNALS)
   }, [init])
 
   const form = useForm<z.infer<typeof searchSchema>>({
@@ -189,23 +272,23 @@ export default function ComunicaPjeSearch() {
                               field.value?.length === tribunals.length && tribunals.length > 0
                             }
                             onCheckedChange={(c) =>
-                              c ? field.onChange(tribunals.map((t) => t.alias)) : field.onChange([])
+                              c ? field.onChange(tribunals) : field.onChange([])
                             }
                           />
                           <span className="font-bold text-lg text-slate-800">Selecionar Todos</span>
                         </div>
                         <div className="space-y-3">
                           {tribunals.map((t) => (
-                            <div key={t.id} className="flex items-center gap-3">
+                            <div key={t} className="flex items-center gap-3">
                               <Checkbox
-                                checked={field.value?.includes(t.alias)}
+                                checked={field.value?.includes(t)}
                                 onCheckedChange={(c) => {
                                   const current = field.value || []
-                                  if (c) field.onChange([...current, t.alias])
-                                  else field.onChange(current.filter((x) => x !== t.alias))
+                                  if (c) field.onChange([...current, t])
+                                  else field.onChange(current.filter((x) => x !== t))
                                 }}
                               />
-                              <span className="text-lg font-medium text-slate-600">{t.alias}</span>
+                              <span className="text-lg font-medium text-slate-600">{t}</span>
                             </div>
                           ))}
                         </div>

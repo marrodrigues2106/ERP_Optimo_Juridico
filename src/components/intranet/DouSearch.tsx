@@ -357,6 +357,7 @@ export default function DouSearch() {
                     <Button
                       id="date"
                       variant={'outline'}
+                      type="button"
                       disabled={periodMode !== 'custom'}
                       className={cn(
                         'w-full md:w-[260px] justify-start text-left font-normal text-lg py-6 h-auto',
