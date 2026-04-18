@@ -103,10 +103,15 @@ export function SearchTab() {
       }
     } catch (error: any) {
       console.error(error)
-      const errorMessage = getErrorMessage(error)
+
+      let customMessage = getErrorMessage(error)
+      if (error?.response?.message) {
+        customMessage = error.response.message
+      }
+
       toast({
         title: 'Erro na busca',
-        description: errorMessage || 'Erro ao processar sua requisição.',
+        description: customMessage || 'Erro ao processar sua requisição.',
         variant: 'destructive',
       })
     } finally {

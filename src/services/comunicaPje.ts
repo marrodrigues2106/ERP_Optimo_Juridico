@@ -16,7 +16,22 @@ export interface PjeSearchParams {
 export const searchPjeComunica = async (params: PjeSearchParams) => {
   const query = new URLSearchParams()
   Object.entries(params).forEach(([key, value]) => {
-    if (value) query.append(key, String(value))
+    if (value) {
+      let formattedValue = String(value)
+
+      if (key === 'dataDisponibilizacaoInicio' || key === 'dataDisponibilizacaoFim') {
+        if (value instanceof Date) {
+          const year = value.getFullYear()
+          const month = String(value.getMonth() + 1).padStart(2, '0')
+          const day = String(value.getDate()).padStart(2, '0')
+          formattedValue = `${year}-${month}-${day}`
+        } else if (typeof value === 'string' && value.includes('T')) {
+          formattedValue = value.split('T')[0]
+        }
+      }
+
+      query.append(key, formattedValue)
+    }
   })
 
   return pb.send(`/backend/v1/pje-comunica?${query.toString()}`, {

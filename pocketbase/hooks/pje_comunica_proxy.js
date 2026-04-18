@@ -19,7 +19,15 @@ routerAdd(
     ]
 
     allowedParams.forEach((p) => {
-      if (query[p]) params.append(p, query[p])
+      let val = query[p]
+      if (val) {
+        if (p === 'dataDisponibilizacaoInicio' || p === 'dataDisponibilizacaoFim') {
+          if (val.indexOf('T') !== -1) {
+            val = val.split('T')[0]
+          }
+        }
+        params.append(p, val)
+      }
     })
 
     const apiKey = $secrets.get('COMUNICA_PJE_KEY')
@@ -57,6 +65,9 @@ routerAdd(
       items = data.items || []
       resultsCount = items.length
       if (resultsCount === 0) status = 'no_results'
+    } else if (res.statusCode === 400) {
+      status = 'bad_request'
+      message = res.json && res.json.message ? res.json.message : 'Parâmetros de busca inválidos'
     } else if (res.statusCode === 403) {
       status = 'geoblocked'
       message = 'Bloqueio Geográfico ou Acesso Negado'
@@ -65,7 +76,8 @@ routerAdd(
       message = 'Limite de requisições excedido'
     } else {
       status = 'error'
-      message = 'Erro na API externa: ' + res.statusCode
+      message =
+        res.json && res.json.message ? res.json.message : 'Erro na API externa: ' + res.statusCode
     }
 
     let searchRecord
