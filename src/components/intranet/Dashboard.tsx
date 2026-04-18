@@ -395,11 +395,20 @@ export default function Dashboard() {
       </div>
 
       <div className="flex-1 p-8 md:p-12 overflow-auto bg-white flex flex-col">
-        <div className="flex items-center justify-between mb-6 border-b pb-4">
-          <div className="flex items-center gap-3 text-slate-800 font-semibold text-lg border-l-4 border-primary pl-3">
-            <Bell className="w-5 h-5 text-primary" /> Central de Atualizações
+        <div className="flex items-center justify-between mb-6 border-b border-slate-200 pb-4">
+          <div className="flex flex-col">
+            <h2 className="text-3xl font-serif font-bold text-primary tracking-tight">
+              Visão Geral
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">
+              Resumo do seu dia e atualizações recentes.
+            </p>
           </div>
-          <Button onClick={() => setCaseModalOpen(true)} size="sm" className="hidden sm:flex">
+          <Button
+            onClick={() => setCaseModalOpen(true)}
+            size="sm"
+            className="hidden sm:flex shadow-sm"
+          >
             <Plus className="w-4 h-4 mr-2" /> Adicionar Processo ou Serviço
           </Button>
         </div>
