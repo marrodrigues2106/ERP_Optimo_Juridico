@@ -25,8 +25,8 @@ export default function CentralAtualizacoes() {
     setLoading(true)
     try {
       const [pjeRes, douRes] = await Promise.all([
-        pb.collection('results').getList(1, 50, { sort: '-created' }),
-        pb.collection('gazette_publications').getList(1, 50, { sort: '-created' }),
+        pb.collection('results').getList(currentPage, 10, { sort: '-created' }),
+        pb.collection('gazette_publications').getList(currentPage, 10, { sort: '-created' }),
       ])
 
       const merged = [
@@ -42,14 +42,8 @@ export default function CentralAtualizacoes() {
         })),
       ].sort((a, b) => b.unified_date - a.unified_date)
 
-      const itemsPerPage = 15
-      const totalItems = merged.length
-      setTotalPages(Math.ceil(totalItems / itemsPerPage) || 1)
-
-      const start = (currentPage - 1) * itemsPerPage
-      const end = start + itemsPerPage
-
-      setNotifications(merged.slice(start, end))
+      setTotalPages(Math.max(pjeRes.totalPages, douRes.totalPages) || 1)
+      setNotifications(merged)
     } catch (err) {
       console.error(err)
     } finally {
