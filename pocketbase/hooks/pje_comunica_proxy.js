@@ -1,8 +1,9 @@
 routerAdd(
-  'GET',
-  '/backend/v1/pje-comunica',
+  'POST',
+  '/backend/v1/pje_comunica_proxy',
   (e) => {
     const query = e.requestInfo().query || {}
+    const body = e.requestInfo().body || {}
 
     const params = new URLSearchParams()
     const allowedParams = [
@@ -30,18 +31,20 @@ routerAdd(
       }
     })
 
-    const apiKey = $secrets.get('COMUNICA_PJE_KEY')
+    const apiKey = body.apiKey || $secrets.get('COMUNICA_PJE_KEY')
     if (!apiKey) {
       return e.internalServerError('COMUNICA_PJE_KEY not configured')
     }
 
-    let baseUrl = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao'
-    try {
-      const setting = $app.findFirstRecordByData('settings', 'key', 'pje_comunica_base_url')
-      if (setting && setting.getString('value')) {
-        baseUrl = setting.getString('value')
-      }
-    } catch (_) {}
+    let baseUrl = body.baseUrl || 'https://comunicaapi.pje.jus.br/api/v1/comunicacao'
+    if (!body.baseUrl) {
+      try {
+        const setting = $app.findFirstRecordByData('settings', 'key', 'pje_comunica_base_url')
+        if (setting && setting.getString('value')) {
+          baseUrl = setting.getString('value')
+        }
+      } catch (_) {}
+    }
 
     const url = `${baseUrl}?${params.toString()}`
 

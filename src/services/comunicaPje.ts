@@ -64,7 +64,6 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
     responseData = await pb.send(proxyUrl, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
