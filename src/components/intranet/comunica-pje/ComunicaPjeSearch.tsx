@@ -24,10 +24,7 @@ import { searchComunicaPJe } from '@/services/comunica-pje'
 import { useComunicaStore } from '@/hooks/use-comunica-store'
 import { Loader2, Search } from 'lucide-react'
 import ConsultaTable from './ConsultaTable'
-import ConsultaDetails from './ConsultaDetails'
 import pb from '@/lib/pocketbase/client'
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
-import { Checkbox } from '@/components/ui/checkbox'
 import { useNavigate } from 'react-router-dom'
 
 const searchSchema = z.object({
@@ -36,7 +33,7 @@ const searchSchema = z.object({
   nomeAdvogado: z.string().optional(),
   oab: z.string().optional(),
   ufOab: z.string().optional(),
-  siglaTribunal: z.array(z.string()).optional(),
+  siglaTribunal: z.string().optional(),
   meio: z.string().optional(),
   dataDisponibilizacaoInicio: z.string().optional(),
   dataDisponibilizacaoFim: z.string().optional(),
@@ -156,7 +153,7 @@ export default function ComunicaPjeSearch() {
       nomeAdvogado: '',
       oab: '',
       ufOab: '',
-      siglaTribunal: [],
+      siglaTribunal: 'ALL',
       meio: 'ALL',
       dataDisponibilizacaoInicio: '',
       dataDisponibilizacaoFim: '',
@@ -167,7 +164,7 @@ export default function ComunicaPjeSearch() {
     setLoading(true)
     setResults([])
     try {
-      const payload = { ...values, siglaTribunal: values.siglaTribunal?.join(',') || '' }
+      const payload = { ...values }
       const data = await searchComunicaPJe(payload, baseUrl, apiKey, addHistory)
       setResults(data)
       toast({ title: 'Busca concluída', description: `Encontrados ${data.length} resultados.` })
@@ -254,46 +251,30 @@ export default function ComunicaPjeSearch() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-lg font-bold">Tribunal</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start text-left font-normal bg-white text-lg py-5 h-auto"
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="text-lg py-5 h-auto bg-white">
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="max-h-80">
+                        <SelectItem
+                          value="ALL"
+                          className="text-lg font-bold text-slate-800 border-b border-slate-100 mb-1"
                         >
-                          {field.value?.length
-                            ? `${field.value.length} selecionados`
-                            : 'Selecione Tribunais'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-72 p-4 h-80 overflow-y-auto">
-                        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
-                          <Checkbox
-                            checked={
-                              field.value?.length === tribunals.length && tribunals.length > 0
-                            }
-                            onCheckedChange={(c) =>
-                              c ? field.onChange(tribunals) : field.onChange([])
-                            }
-                          />
-                          <span className="font-bold text-lg text-slate-800">Selecionar Todos</span>
-                        </div>
-                        <div className="space-y-3">
-                          {tribunals.map((t) => (
-                            <div key={t} className="flex items-center gap-3">
-                              <Checkbox
-                                checked={field.value?.includes(t)}
-                                onCheckedChange={(c) => {
-                                  const current = field.value || []
-                                  if (c) field.onChange([...current, t])
-                                  else field.onChange(current.filter((x) => x !== t))
-                                }}
-                              />
-                              <span className="text-lg font-medium text-slate-600">{t}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
+                          Todos
+                        </SelectItem>
+                        {tribunals.map((t) => (
+                          <SelectItem
+                            key={t}
+                            value={t}
+                            className="text-lg font-medium text-slate-600"
+                          >
+                            {t}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
