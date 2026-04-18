@@ -12,6 +12,7 @@ import { AuthProvider } from './hooks/use-auth'
 import { Toaster } from '@/components/ui/toaster'
 
 import Dashboard from '@/components/intranet/Dashboard'
+import { ComunicacoesManager } from '@/components/intranet/ComunicacoesManager'
 import BlogManager from '@/components/intranet/BlogManager'
 import ProcessManager from '@/components/intranet/ProcessManager'
 import ProcessDetail from '@/components/intranet/ProcessDetail'
@@ -56,6 +57,7 @@ function App() {
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="publicacoes" element={<PublicacoesManager />} />
+              <Route path="comunicacoes" element={<ComunicacoesManager />} />
               <Route
                 path="diarios-oficiais"
                 element={<Navigate to="/intranet/busca-dou" replace />}

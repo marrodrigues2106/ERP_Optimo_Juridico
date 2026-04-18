@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-15T22:42:33.729Z",
+  "generatedAt": "2026-04-18T04:54:46.831Z",
   "collections": [
     {
       "name": "users",
@@ -1117,6 +1117,42 @@
         },
         {
           "name": "territory_id",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "default_cpf_cnpj",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "default_numero_processo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "pje_waf_bypass_active",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "pje_last_block",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "pje_api_key",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "pje_base_url",
           "type": "text",
           "required": false,
           "system": false
@@ -2601,6 +2637,498 @@
           "type": "json",
           "required": false,
           "system": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "pje_search_history",
+      "type": "base",
+      "apiRules": {
+        "list": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "view": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "create": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "update": null,
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "consulta",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "business_status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": [
+            "sucesso",
+            "sem_resultados",
+            "erro",
+            "erro_validacao",
+            "erro_rede",
+            "bloqueio_geografico",
+            "acesso_proibido"
+          ]
+        },
+        {
+          "name": "debug_url",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "response_data",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "organization",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "organizations"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "termo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tipo_busca",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "quantidade_resultados",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "mensagem",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_inicio",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_fim",
+          "type": "text",
+          "required": false,
+          "system": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "pje_search_results",
+      "type": "base",
+      "apiRules": {
+        "list": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "view": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "create": null,
+        "update": null,
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "search_history",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "pje_search_history"
+        },
+        {
+          "name": "sigla_tribunal",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tipo_comunicacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nome_orgao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "texto",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "numero_processo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "meio",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tipo_documento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nome_classe",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_disponibilizacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "numero_comunicacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "link",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "hash_comunicacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status_comunicacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "advogado_nome",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "advogado_numero_oab",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "advogado_uf_oab",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "raw_json",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "organization",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "organizations"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_pje_results_history ON pje_search_results (search_history)",
+        "CREATE INDEX idx_pje_results_processo ON pje_search_results (numero_processo)"
+      ]
+    },
+    {
+      "name": "settings",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "key",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "value",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": ["CREATE UNIQUE INDEX idx_settings_key ON settings (key)"]
+    },
+    {
+      "name": "searches",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "term",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "search_type",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "business_status",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "results_count",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "message",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "start_date",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "end_date",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "results",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != ''",
+        "update": "@request.auth.id != ''",
+        "delete": "@request.auth.id != ''"
+      },
+      "fields": [
+        {
+          "name": "search_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "searches"
+        },
+        {
+          "name": "sigla_tribunal",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tipo_comunicacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nome_orgao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "texto",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "numero_processo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "meio",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tipo_documento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nome_classe",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_disponibilizacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "numero_comunicacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "link",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "hash_comunicacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status_comunicacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "raw_json",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
       "indexes": []
