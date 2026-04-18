@@ -43,7 +43,9 @@ export default function ComunicaPjeDetail() {
     return (
       <div className="p-8 text-center text-lg text-slate-500">
         <p>Comunicação não encontrada.</p>
-        <Button variant="link" onClick={() => navigate('/intranet/comunicacoes')}>Voltar</Button>
+        <Button variant="link" onClick={() => navigate('/intranet/comunicacoes')}>
+          Voltar
+        </Button>
       </div>
     )
   }
@@ -65,25 +67,36 @@ export default function ComunicaPjeDetail() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-lg">
             <div>
               <span className="font-bold text-slate-500 block mb-1">Tribunal:</span>
-              <span className="text-slate-900 font-medium">{item.siglaTribunal || item.sigla_tribunal}</span>
+              <span className="text-slate-900 font-medium">
+                {item.siglaTribunal || item.sigla_tribunal}
+              </span>
             </div>
             <div>
               <span className="font-bold text-slate-500 block mb-1">Órgão:</span>
-              <span className="text-slate-900 font-medium">{item.nomeOrgao || item.nome_orgao}</span>
+              <span className="text-slate-900 font-medium">
+                {item.nomeOrgao || item.nome_orgao}
+              </span>
             </div>
             <div>
               <span className="font-bold text-slate-500 block mb-1">Classe:</span>
-              <span className="text-slate-900 font-medium">{item.nomeClasse || item.nome_classe}</span>
+              <span className="text-slate-900 font-medium">
+                {item.nomeClasse || item.nome_classe}
+              </span>
             </div>
             <div>
               <span className="font-bold text-slate-500 block mb-1">Tipo de Documento:</span>
-              <span className="text-slate-900 font-medium">{item.tipoDocumento || item.tipo_documento}</span>
+              <span className="text-slate-900 font-medium">
+                {item.tipoDocumento || item.tipo_documento}
+              </span>
             </div>
             <div>
               <span className="font-bold text-slate-500 block mb-1">Data de Disponibilização:</span>
               <span className="text-slate-900 font-medium">
                 {item.dataDisponibilizacao || item.data_disponibilizacao
-                  ? format(new Date(item.dataDisponibilizacao || item.data_disponibilizacao), 'dd/MM/yyyy HH:mm')
+                  ? format(
+                      new Date(item.dataDisponibilizacao || item.data_disponibilizacao),
+                      'dd/MM/yyyy HH:mm',
+                    )
                   : '-'}
               </span>
             </div>
@@ -91,7 +104,12 @@ export default function ComunicaPjeDetail() {
               <span className="font-bold text-slate-500 block mb-1">Link:</span>
               <span>
                 {item.link ? (
-                  <a href={item.link} target="_blank" rel="noreferrer" className="text-primary hover:underline font-medium">
+                  <a
+                    href={item.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary hover:underline font-medium"
+                  >
                     Acessar Documento Original
                   </a>
                 ) : (
@@ -104,9 +122,9 @@ export default function ComunicaPjeDetail() {
           <div className="pt-6 border-t border-slate-200">
             <h3 className="text-2xl font-bold mb-4 text-slate-800">Texto da Comunicação</h3>
             <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
-              <div 
-                className="text-lg text-slate-700 leading-relaxed whitespace-pre-wrap break-words" 
-                dangerouslySetInnerHTML={{ __html: item.texto || 'Nenhum texto disponível.' }} 
+              <div
+                className="text-lg text-slate-700 leading-relaxed whitespace-pre-wrap break-words"
+                dangerouslySetInnerHTML={{ __html: item.texto || 'Nenhum texto disponível.' }}
               />
             </div>
           </div>
@@ -116,7 +134,10 @@ export default function ComunicaPjeDetail() {
               <h3 className="text-2xl font-bold mb-4 text-slate-800">Destinatários</h3>
               <div className="space-y-3">
                 {item.destinatarios.map((d: any, i: number) => (
-                  <div key={i} className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                  <div
+                    key={i}
+                    className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm"
+                  >
                     <div className="font-bold text-lg text-slate-900">{d.nome}</div>
                     {d.polo && <div className="text-slate-500 mt-1">Polo: {d.polo}</div>}
                   </div>
@@ -128,3 +149,4 @@ export default function ComunicaPjeDetail() {
       </Card>
     </div>
   )
+}
