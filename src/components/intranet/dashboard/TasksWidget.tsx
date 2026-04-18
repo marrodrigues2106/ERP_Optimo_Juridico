@@ -36,7 +36,9 @@ export function TasksWidget() {
     try {
       setTasks(await getTasks())
       setCases(await getLegalCases())
-    } catch (e) {}
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   useEffect(() => {

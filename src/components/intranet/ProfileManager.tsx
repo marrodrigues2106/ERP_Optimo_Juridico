@@ -38,14 +38,18 @@ export default function ProfileManager() {
     pb.collection('monitoring_configs')
       .getFirstListItem('')
       .then(setConfig)
-      .catch(() => {})
+      .catch((e) => {
+        console.error(e)
+      })
   }, [])
 
   const loadSearches = async () => {
     try {
       const res = await pb.collection('searches').getList(1, 20, { sort: '-created' })
       setSearches(res.items)
-    } catch (err) {}
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   const handleProfileSubmit = async (e: React.FormEvent) => {

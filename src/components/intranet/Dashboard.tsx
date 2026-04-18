@@ -97,7 +97,9 @@ export default function Dashboard() {
     try {
       const records = await pb.collection('legal_cases').getList(1, 1, { filter })
       setCaseCount(records.totalItems)
-    } catch (e) {}
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   const loadFeed = async () => {
