@@ -219,8 +219,8 @@ export default function MonitoringManager() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-800">Monitoramento Unificado</h1>
-        <p className="text-muted-foreground mt-1">
+        <h1 className="text-3xl font-bold tracking-tight text-primary">Monitoramento Unificado</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           Gerencie termos e filtros para buscas no Diário Oficial e andamentos do DataJud em uma
           única interface.
         </p>

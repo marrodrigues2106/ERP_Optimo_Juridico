@@ -55,6 +55,27 @@ export default function AgendaManager() {
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<any>(null)
 
+  const generateICalLink = () => {
+    const token = pb.authStore.record?.ical_token
+    if (!token) return ''
+    const baseUrl = import.meta.env.VITE_POCKETBASE_URL || window.location.origin
+    return `${baseUrl}/backend/v1/agenda/ical/${token}`
+  }
+
+  const copyGoogleCalendarLink = () => {
+    const link = generateICalLink()
+    if (!link) return toast({ title: 'Token não encontrado', variant: 'destructive' })
+    const gcalLink = `https://www.google.com/calendar/render?cid=${encodeURIComponent(link)}`
+    navigator.clipboard.writeText(gcalLink)
+    toast({ title: 'Link copiado para o Google Calendar!' })
+  }
+
+  const downloadICS = () => {
+    const link = generateICalLink()
+    if (!link) return toast({ title: 'Token não encontrado', variant: 'destructive' })
+    window.open(link, '_blank')
+  }
+
   const loadData = async () => {
     try {
       const orgId = pb.authStore.record?.active_organization
@@ -235,10 +256,19 @@ export default function AgendaManager() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-serif font-bold text-primary flex items-center gap-2">
-          <CalendarIcon className="w-6 h-6 text-primary" /> Agenda Integrada da Equipe
-        </h2>
-        <div className="flex items-center gap-2">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
+            <CalendarIcon className="w-8 h-8 text-primary" /> Agenda Integrada
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">Gerencie compromissos e prazos.</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={copyGoogleCalendarLink}>
+            Copiar Link GCal
+          </Button>
+          <Button variant="outline" size="sm" onClick={downloadICS}>
+            Baixar .ics
+          </Button>
           <Button
             onClick={() => {
               setEditingEvent(null)

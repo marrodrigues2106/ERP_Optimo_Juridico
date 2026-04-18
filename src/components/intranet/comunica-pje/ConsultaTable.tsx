@@ -1,4 +1,5 @@
 import { format } from 'date-fns'
+import { useNavigate } from 'react-router-dom'
 
 export default function ConsultaTable({
   data,
@@ -7,6 +8,7 @@ export default function ConsultaTable({
   data: any[]
   onViewDetails: (item: any) => void
 }) {
+  const navigate = useNavigate()
   return (
     <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-sm">
       <table className="w-full text-base text-left">
@@ -47,7 +49,10 @@ export default function ConsultaTable({
                     />
                     <div className="flex items-center gap-4 mt-2">
                       <button
-                        onClick={() => onViewDetails(item)}
+                        onClick={() => {
+                          onViewDetails(item)
+                          navigate(`/intranet/comunicacoes/${item.id}`)
+                        }}
                         className="text-primary hover:underline text-sm font-bold"
                       >
                         Página Completa

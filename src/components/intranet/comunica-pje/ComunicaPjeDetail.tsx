@@ -59,7 +59,7 @@ export default function ComunicaPjeDetail() {
 
       <Card className="border-slate-200 shadow-sm">
         <CardHeader className="border-b border-slate-100 pb-6">
-          <CardTitle className="text-3xl font-serif font-bold text-primary">
+          <CardTitle className="text-3xl font-bold tracking-tight text-primary">
             Detalhes da Comunicação PJe
           </CardTitle>
           <div className="text-lg font-mono mt-3 text-slate-600 bg-slate-50 inline-block px-3 py-1 rounded-md border border-slate-200">

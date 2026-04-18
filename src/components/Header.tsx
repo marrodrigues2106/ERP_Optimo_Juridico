@@ -59,7 +59,7 @@ export default function Header() {
           setSearchResults([])
           return
         }
-        const [casesRes, clientsRes, collabsRes] = await Promise.allSettled([
+        const [casesRes, clientsRes, collabsRes, resultsRes] = await Promise.allSettled([
           pb.collection('legal_cases').getList(1, 5, {
             filter: `deleted_at="" && (case_number ~ "${safeQuery}" || parties ~ "${safeQuery}")`,
           }),
@@ -69,11 +69,15 @@ export default function Header() {
           pb.collection('collaborators').getList(1, 5, {
             filter: `deleted_at="" && name ~ "${safeQuery}"`,
           }),
+          pb.collection('results').getList(1, 5, {
+            filter: `numero_processo ~ "${safeQuery}"`,
+          }),
         ])
 
         const cases = casesRes.status === 'fulfilled' ? casesRes.value.items : []
         const clients = clientsRes.status === 'fulfilled' ? clientsRes.value.items : []
         const collabs = collabsRes.status === 'fulfilled' ? collabsRes.value.items : []
+        const resItems = resultsRes.status === 'fulfilled' ? resultsRes.value.items : []
 
         setSearchResults([
           ...cases.map((c: any) => ({
@@ -93,6 +97,12 @@ export default function Header() {
             title: c.name,
             type: 'Equipe',
             url: `/intranet/equipe/${c.id}`,
+          })),
+          ...resItems.map((c: any) => ({
+            id: c.id,
+            title: `PJe: ${c.numero_processo}`,
+            type: 'Comunicação',
+            url: `/intranet/comunicacoes/${c.id}`,
           })),
         ])
       } catch (e) {

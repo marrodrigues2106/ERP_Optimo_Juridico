@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -231,19 +231,16 @@ export default function DouSearch() {
     type ? type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) : ''
 
   const totalPages = Math.ceil(results.length / itemsPerPage)
-  const paginatedResults = results.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage,
-  )
+  const paginatedResults = useMemo(() => {
+    return results.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+  }, [results, currentPage])
 
   return (
     <div className="flex flex-col gap-8 max-w-6xl mx-auto pb-12 animate-fade-in-up">
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl md:text-4xl font-serif font-bold tracking-tight text-primary">
-            Busca DOU
-          </h1>
-          <p className="text-base text-slate-500 mt-1">
+          <h1 className="text-3xl font-bold tracking-tight text-primary">Busca DOU</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Pesquisa ativa diretamente no Diário Oficial da União (DOU).
           </p>
         </div>

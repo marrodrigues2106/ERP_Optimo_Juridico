@@ -31,8 +31,8 @@ import { useToast } from '@/hooks/use-toast'
 
 type UnifiedItem = {
   id: string
-  collection: 'results' | 'gazette_publications' | 'ocorrencias_dou' | 'legal_cases'
-  type: 'PJe' | 'DOU' | 'Processo'
+  collection: 'results' | 'gazette_publications' | 'ocorrencias_dou'
+  type: 'PJe' | 'DOU' | 'Processo Novo' | 'Ocorrência'
   title: string
   description: string
   date: string
@@ -56,43 +56,63 @@ export default function CentralAtualizacoes() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [pjeRes, douPub, douOcc, cases] = await Promise.all([
+      const [pjeRes, douPub, douOcc, casesRes] = await Promise.all([
         pb.collection('results').getList(1, 100, { sort: '-created' }),
         pb.collection('gazette_publications').getList(1, 100, { sort: '-created' }),
         pb.collection('ocorrencias_dou').getList(1, 100, { sort: '-created' }),
-        pb
-          .collection('legal_cases')
-          .getList(1, 50, { filter: 'type="Processo"', sort: '-created' }),
+        pb.collection('legal_cases').getFullList({ fields: 'case_number' }),
       ])
 
-      const mappedPje: UnifiedItem[] = pjeRes.items.map((i) => ({
-        id: i.id,
-        collection: 'results',
-        type: 'PJe',
-        title: `Processo: ${i.numero_processo || 'N/A'} - ${i.sigla_tribunal || ''}`,
-        description: i.texto || '',
-        date: i.data_disponibilizacao || i.created,
-        isRead: !!i.is_read,
-        isArchived: !!i.is_archived,
-        raw: i,
-      }))
+      const existingCaseNumbers = new Set(
+        casesRes.map((c) => c.case_number?.replace(/\D/g, '')).filter(Boolean),
+      )
 
-      const mappedDouPub: UnifiedItem[] = douPub.items.map((i) => ({
-        id: i.id,
-        collection: 'gazette_publications',
-        type: 'DOU',
-        title: `Publicação DOU: ${i.orgao || 'Órgão Desconhecido'}`,
-        description: i.texto_normalizado || '',
-        date: i.data_publicacao || i.created,
-        isRead: !!i.is_read,
-        isArchived: !!i.is_archived,
-        raw: i,
-      }))
+      const cleanProcessNumber = (num: string) => (num ? num.replace(/\D/g, '') : '')
+
+      const checkIsNewCase = (num: string | any) => {
+        if (!num) return false
+        let numbersToCheck: string[] = []
+        if (typeof num === 'string') numbersToCheck.push(cleanProcessNumber(num))
+        else if (Array.isArray(num)) numbersToCheck.push(...num.map(cleanProcessNumber))
+
+        if (numbersToCheck.length === 0) return false
+        return !numbersToCheck.some((n) => existingCaseNumbers.has(n))
+      }
+
+      const mappedPje: UnifiedItem[] = pjeRes.items.map((i) => {
+        const isNew = checkIsNewCase(i.numero_processo)
+        return {
+          id: i.id,
+          collection: 'results',
+          type: isNew ? 'Processo Novo' : 'PJe',
+          title: `Processo: ${i.numero_processo || 'N/A'} - ${i.sigla_tribunal || ''}`,
+          description: i.texto || '',
+          date: i.data_disponibilizacao || i.created,
+          isRead: !!i.is_read,
+          isArchived: !!i.is_archived,
+          raw: i,
+        }
+      })
+
+      const mappedDouPub: UnifiedItem[] = douPub.items.map((i) => {
+        const isNew = checkIsNewCase(i.numero_processo)
+        return {
+          id: i.id,
+          collection: 'gazette_publications',
+          type: isNew ? 'Processo Novo' : 'DOU',
+          title: `Publicação DOU: ${i.orgao || 'Órgão Desconhecido'}`,
+          description: i.texto_normalizado || '',
+          date: i.data_publicacao || i.created,
+          isRead: !!i.is_read,
+          isArchived: !!i.is_archived,
+          raw: i,
+        }
+      })
 
       const mappedDouOcc: UnifiedItem[] = douOcc.items.map((i) => ({
         id: i.id,
         collection: 'ocorrencias_dou',
-        type: 'DOU',
+        type: 'Ocorrência',
         title: `Ocorrência DOU - Termo encontrado`,
         description: i.trecho_encontrado || '',
         date: i.data_deteccao || i.created,
@@ -101,19 +121,7 @@ export default function CentralAtualizacoes() {
         raw: i,
       }))
 
-      const mappedCases: UnifiedItem[] = cases.items.map((i) => ({
-        id: i.id,
-        collection: 'legal_cases',
-        type: 'Processo',
-        title: `${i.parties} - ${i.case_number || 'Sem número'}`,
-        description: `Novo processo cadastrado. Status: ${i.lifecycle_status}`,
-        date: i.created,
-        isRead: true,
-        isArchived: i.lifecycle_status === 'Arquivado',
-        raw: i,
-      }))
-
-      const all = [...mappedPje, ...mappedDouPub, ...mappedDouOcc, ...mappedCases]
+      const all = [...mappedPje, ...mappedDouPub, ...mappedDouOcc]
       all.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
       setItems(all)
@@ -196,10 +204,11 @@ export default function CentralAtualizacoes() {
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
-      if (activeTab === 'inbox') return !item.isRead && !item.isArchived && item.type !== 'Processo'
+      if (activeTab === 'inbox')
+        return !item.isRead && !item.isArchived && item.type !== 'Processo Novo'
       if (activeTab === 'pje') return item.isRead && !item.isArchived && item.type === 'PJe'
       if (activeTab === 'dou') return item.isRead && !item.isArchived && item.type === 'DOU'
-      if (activeTab === 'novos') return item.type === 'Processo' && !item.isArchived
+      if (activeTab === 'novos') return item.type === 'Processo Novo' && !item.isArchived
       if (activeTab === 'arquivados') return item.isArchived
       return true
     })
@@ -218,7 +227,8 @@ export default function CentralAtualizacoes() {
           <div className="flex items-center gap-2 text-sm font-bold tracking-wider uppercase text-slate-500">
             {item.type === 'DOU' && <Landmark className="w-4 h-4 text-emerald-500" />}
             {item.type === 'PJe' && <Activity className="w-4 h-4 text-blue-500" />}
-            {item.type === 'Processo' && <FileText className="w-4 h-4 text-primary" />}
+            {item.type === 'Processo Novo' && <FileText className="w-4 h-4 text-primary" />}
+            {item.type === 'Ocorrência' && <Activity className="w-4 h-4 text-amber-500" />}
             {item.type}
           </div>
           <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
@@ -245,7 +255,7 @@ export default function CentralAtualizacoes() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 mt-2 pt-4 border-t border-slate-100">
-          {!item.isRead && item.type !== 'Processo' && (
+          {!item.isRead && item.type !== 'Processo Novo' && (
             <Button
               size="sm"
               variant="default"
@@ -278,23 +288,13 @@ export default function CentralAtualizacoes() {
             <CalendarIcon className="w-4 h-4 mr-2 text-slate-500" /> Evento
           </Button>
 
-          {item.type === 'PJe' && (
+          {(item.collection === 'results' || item.collection === 'gazette_publications') && (
             <Button
               size="sm"
               variant="secondary"
               onClick={() => navigate(`/intranet/comunicacoes/${item.id}`)}
             >
               <Eye className="w-4 h-4 mr-2" /> Ver Detalhes
-            </Button>
-          )}
-
-          {item.type === 'Processo' && (
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => navigate(`/intranet/processos/${item.id}`)}
-            >
-              <Eye className="w-4 h-4 mr-2" /> Acessar Processo
             </Button>
           )}
 
@@ -316,11 +316,10 @@ export default function CentralAtualizacoes() {
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-fade-in-up pb-12">
       <div className="flex flex-col gap-2 border-b border-slate-200 pb-6">
-        <h1 className="text-3xl md:text-4xl font-serif font-bold tracking-tight text-primary">
-          Central de Atualizações
-        </h1>
-        <p className="text-base text-slate-500 mt-1">
-          Inbox inteligente para gerenciar intimações do PJe, publicações do DOU e novos processos.
+        <h1 className="text-3xl font-bold tracking-tight text-primary">Central de Atualizações</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Inbox inteligente para gerenciar intimações do PJe, publicações do DOU e novos processos
+          identificados.
         </p>
       </div>
 
@@ -340,7 +339,10 @@ export default function CentralAtualizacoes() {
                 <BookOpen className="w-4 h-4 mr-3 text-slate-400 data-[state=active]:text-primary" />
                 Caixa de Entrada
                 <span className="ml-auto bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full font-bold">
-                  {items.filter((i) => !i.isRead && !i.isArchived && i.type !== 'Processo').length}
+                  {
+                    items.filter((i) => !i.isRead && !i.isArchived && i.type !== 'Processo Novo')
+                      .length
+                  }
                 </span>
               </TabsTrigger>
               <TabsTrigger
@@ -363,6 +365,9 @@ export default function CentralAtualizacoes() {
               >
                 <FileText className="w-4 h-4 mr-3 text-primary" />
                 Novos Processos
+                <span className="ml-auto bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full font-bold">
+                  {items.filter((i) => i.type === 'Processo Novo' && !i.isArchived).length}
+                </span>
               </TabsTrigger>
               <TabsTrigger
                 value="arquivados"
@@ -381,7 +386,7 @@ export default function CentralAtualizacoes() {
               {activeTab === 'inbox'
                 ? 'Caixa de Entrada (Não Lidos)'
                 : activeTab === 'novos'
-                  ? 'Novos Processos'
+                  ? 'Novos Processos Encontrados'
                   : activeTab}
             </h2>
             <span className="text-sm text-slate-500 font-medium">{filteredItems.length} itens</span>
