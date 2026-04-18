@@ -1,33 +1,25 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { searchDou, checkDouHealth, clearDouLogs, DouSearchResult } from '@/services/dou'
+import { searchDou, checkDouHealth, DouSearchResult } from '@/services/dou'
 import {
   Search,
   Loader2,
   ExternalLink,
-  Database,
   Globe,
   AlertTriangle,
-  Zap,
-  Activity,
   CheckCircle2,
   XCircle,
   CalendarIcon,
-  Trash2,
 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useAuth } from '@/hooks/use-auth'
 import { useToast } from '@/hooks/use-toast'
-import { useRealtime } from '@/hooks/use-realtime'
 import { cn } from '@/lib/utils'
-import pb from '@/lib/pocketbase/client'
 import {
   Pagination,
   PaginationContent,
@@ -60,14 +52,6 @@ function getLastBusinessDay() {
   if (dayOfWeek === 0) date.setDate(date.getDate() - 2)
   else if (dayOfWeek === 6) date.setDate(date.getDate() - 1)
   return getLocalDateStr(date)
-}
-
-interface LogEntry {
-  id: string
-  etapa: string
-  status: string
-  mensagem: string
-  data_hora: string
 }
 
 export default function DouSearch() {
@@ -110,9 +94,6 @@ export default function DouSearch() {
   const [message, setMessage] = useState(() => sessionStorage.getItem('dou_message') || '')
 
   const [douHealth, setDouHealth] = useState<'checking' | 'up' | 'down' | 'blocked'>('checking')
-  const [liveLogs, setLiveLogs] = useState<LogEntry[]>([])
-  const logsEndRef = useRef<HTMLDivElement>(null)
-
   const [currentPage, setCurrentPage] = useState(() => {
     const saved = sessionStorage.getItem('dou_page')
     return saved ? parseInt(saved, 10) : 1
@@ -155,56 +136,10 @@ export default function DouSearch() {
   }, [searched, results, source, message, currentPage])
 
   useEffect(() => {
-    const checkHealth = async () => {
-      try {
-        const res = await checkDouHealth()
-        setDouHealth(res.status as 'up' | 'down' | 'blocked')
-      } catch (err) {
-        setDouHealth('down')
-      }
-    }
-    checkHealth()
+    checkDouHealth()
+      .then((res) => setDouHealth(res.status as 'up' | 'down' | 'blocked'))
+      .catch(() => setDouHealth('down'))
   }, [])
-
-  useEffect(() => {
-    const fetchInitialLogs = async () => {
-      try {
-        const records = await pb.collection('logs_processamento').getList(1, 50, {
-          sort: '-created',
-        })
-        const items = records.items
-          .map((r: any) => ({
-            id: r.id,
-            etapa: r.etapa,
-            status: r.status,
-            mensagem: r.mensagem,
-            data_hora: r.data_hora,
-          }))
-          .reverse()
-        setLiveLogs(items)
-      } catch (error) {
-        console.error('Failed to fetch initial logs', error)
-      }
-    }
-    fetchInitialLogs()
-  }, [])
-
-  useRealtime('logs_processamento', (e) => {
-    if (e.action === 'create') {
-      setLiveLogs((prev) => {
-        const next = [...prev, e.record as unknown as LogEntry]
-        return next.slice(-100)
-      })
-    } else if (e.action === 'delete') {
-      setLiveLogs((prev) => prev.filter((log) => log.id !== e.record.id))
-    }
-  })
-
-  useEffect(() => {
-    if (logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' })
-    }
-  }, [liveLogs])
 
   if (!user?.can_view_search_module && user?.role !== 'admin') {
     return (
@@ -212,11 +147,17 @@ export default function DouSearch() {
         <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" />
         <h2 className="text-2xl font-bold text-slate-900">Acesso Negado</h2>
         <p className="mt-2 text-slate-600 max-w-md">
-          Você não tem permissão para acessar o módulo de busca. Entre em contato com o
-          administrador do sistema.
+          Você não tem permissão para acessar o módulo de busca.
         </p>
       </div>
     )
+  }
+
+  const handleQuickPeriod = (days: number) => {
+    const end = new Date()
+    const start = new Date()
+    start.setDate(start.getDate() - days)
+    setDate({ from: start, to: end })
   }
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -244,6 +185,19 @@ export default function DouSearch() {
       return
     }
 
+    if (date?.from && date?.to) {
+      const diffTime = Math.abs(date.to.getTime() - date.from.getTime())
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      if (diffDays > 60) {
+        toast({
+          title: 'Período muito longo',
+          description: 'A busca suporta no máximo 60 dias de intervalo.',
+          variant: 'destructive',
+        })
+        return
+      }
+    }
+
     setLoading(true)
     setSearched(true)
     setCurrentPage(1)
@@ -266,7 +220,6 @@ export default function DouSearch() {
       setSource(res.source)
       setMessage(res.message || '')
     } catch (error) {
-      console.error(error)
       setResults([])
       setSource('ERRO')
       setMessage('Ocorreu um erro inesperado ao realizar a busca.')
@@ -275,32 +228,8 @@ export default function DouSearch() {
     }
   }
 
-  const handleClearLogs = async () => {
-    try {
-      await clearDouLogs()
-      setLiveLogs([])
-      toast({ title: 'Histórico de logs apagado com sucesso' })
-    } catch (error) {
-      toast({ title: 'Erro ao apagar histórico', variant: 'destructive' })
-    }
-  }
-
-  const getSourceIcon = () => {
-    if (source === 'CACHE') return <Zap className="w-4 h-4 text-yellow-500" />
-    if (source === 'LOCAL_DB') return <Database className="w-4 h-4 text-blue-500" />
-    if (source === 'DOU_SCRAPING') return <Globe className="w-4 h-4 text-emerald-500" />
-    if (source === 'QUERIDO_DIARIO') return <AlertTriangle className="w-4 h-4 text-amber-500" />
-    return null
-  }
-
-  const getSourceText = () => {
-    if (source === 'CACHE') return 'Cache Rápido'
-    if (source === 'LOCAL_DB') return 'Banco de Dados Local'
-    if (source === 'DOU_SCRAPING') return 'Ingestão Direta do DOU'
-    if (source === 'QUERIDO_DIARIO') return 'Fallback (Querido Diário)'
-    if (source === 'ERRO') return 'Falha na Busca'
-    return 'Nenhum resultado'
-  }
+  const formatArtType = (type: string) =>
+    type ? type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) : ''
 
   const totalPages = Math.ceil(results.length / itemsPerPage)
   const paginatedResults = results.slice(
@@ -308,43 +237,13 @@ export default function DouSearch() {
     currentPage * itemsPerPage,
   )
 
-  const formatArtType = (type: string) => {
-    if (!type) return ''
-    return type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
-  }
-
-  const hasBlockedError =
-    liveLogs.some(
-      (l) =>
-        l.mensagem.includes('403') || l.mensagem.includes('429') || l.mensagem.includes('Blocked'),
-    ) ||
-    message.includes('403') ||
-    message.includes('429') ||
-    message.includes('Blocked')
-
-  let currentStepText = 'Execução em Tempo Real'
-  if (loading) {
-    if (liveLogs.length > 0) {
-      const lastLog = liveLogs[liveLogs.length - 1]
-      if (lastLog.etapa.includes('Scraping') || lastLog.etapa.includes('Conexão'))
-        currentStepText = 'Conectando ao DOU...'
-      else if (lastLog.etapa.includes('Parse')) currentStepText = 'Lendo e decodificando dados...'
-      else if (lastLog.etapa.includes('Tratamento') || lastLog.etapa.includes('Normalizando'))
-        currentStepText = 'Extraindo e Normalizando dados...'
-      else currentStepText = lastLog.etapa
-    } else {
-      currentStepText = 'Iniciando Busca...'
-    }
-  }
-
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-10 animate-fade-in-up">
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Motor de Busca DOU</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Busca DOU</h1>
           <p className="text-slate-500">
-            Pesquisa ativa diretamente no Diário Oficial da União (DOU). O sistema realiza a busca
-            em tempo real na fonte oficial, garantindo dados sempre atualizados.
+            Pesquisa ativa diretamente no Diário Oficial da União (DOU).
           </p>
         </div>
         <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm text-sm font-medium">
@@ -364,13 +263,12 @@ export default function DouSearch() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="flex items-center text-amber-500 cursor-help">
-                    <AlertTriangle className="w-3.5 h-3.5 mr-1.5" /> Bloqueado/Segurança
+                    <AlertTriangle className="w-3.5 h-3.5 mr-1.5" /> Bloqueado
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
                   <p className="max-w-xs text-xs">
-                    O portal DOU está ativo, mas bloqueou nossa requisição temporariamente (Erro
-                    403/429). Tente novamente mais tarde.
+                    O portal bloqueou nossa requisição (Erro 403/429).
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -404,7 +302,6 @@ export default function DouSearch() {
                   required
                 />
               </div>
-
               <div className="space-y-2 w-full md:w-48">
                 <Label htmlFor="searchType">Modo de Busca</Label>
                 <Select value={searchType} onValueChange={setSearchType} required>
@@ -418,9 +315,8 @@ export default function DouSearch() {
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2 w-full md:w-auto flex flex-col">
-                <Label>Período: Data Inicial e Data Final (obrigatório)</Label>
+                <Label>Período (Máx: 60 dias)</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -460,12 +356,39 @@ export default function DouSearch() {
               </div>
             </div>
 
+            <div className="flex gap-2 -mt-1 mb-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => handleQuickPeriod(15)}
+              >
+                15 dias
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => handleQuickPeriod(30)}
+              >
+                30 dias
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => handleQuickPeriod(60)}
+              >
+                60 dias
+              </Button>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="numeroProcesso">Número do Processo</Label>
                 <Input
                   id="numeroProcesso"
-                  placeholder="Ex: 0000000-00.0000.0.00.0000"
+                  placeholder="Ex: 0000000-00.0000..."
                   value={numeroProcesso}
                   onChange={(e) => setNumeroProcesso(e.target.value)}
                 />
@@ -549,104 +472,14 @@ export default function DouSearch() {
         </CardContent>
       </Card>
 
-      {hasBlockedError && (
-        <Alert variant="destructive" className="animate-fade-in">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Conexão Bloqueada</AlertTitle>
-          <AlertDescription>
-            O portal do DOU bloqueou a nossa requisição de extração (Erro 403/429). Isso geralmente
-            ocorre devido a limites de segurança do governo contra acessos automatizados. Tente
-            refazer a busca em alguns minutos.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {(loading || liveLogs.length > 0) && (
-        <Card className="border-indigo-100/50 shadow-md animate-fade-in overflow-hidden">
-          <CardHeader className="py-3 px-4 bg-slate-50 border-b border-slate-100 flex flex-row items-center justify-between">
-            <div className="flex items-center gap-2">
-              {loading ? (
-                <Activity className="w-4 h-4 animate-pulse text-indigo-600" />
-              ) : (
-                <Database className="w-4 h-4 text-slate-500" />
-              )}
-              <CardTitle className="text-sm font-semibold text-slate-700">
-                {loading ? currentStepText : 'Console de Processamento'}
-              </CardTitle>
-            </div>
-            <div className="flex items-center gap-2">
-              {loading && (
-                <span className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full animate-pulse">
-                  Processando
-                </span>
-              )}
-              {!loading && liveLogs.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleClearLogs}
-                  className="h-7 text-xs text-slate-500 hover:text-red-600"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                  Limpar Histórico
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="p-0 bg-slate-950">
-            <ScrollArea className="h-48 p-4 font-mono text-[11px] leading-relaxed tracking-tight sm:text-xs">
-              {liveLogs.length === 0 ? (
-                <div className="flex items-center text-slate-400 h-full justify-center opacity-70">
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Aguardando eventos do servidor...
-                </div>
-              ) : (
-                <div className="flex flex-col">
-                  {liveLogs.map((log, i) => (
-                    <div
-                      key={log.id || i}
-                      className="mb-2 flex flex-col sm:flex-row sm:gap-2 text-slate-300"
-                    >
-                      <div className="flex gap-2 shrink-0">
-                        <span className="text-slate-500">
-                          [{log.data_hora ? new Date(log.data_hora).toLocaleTimeString() : ''}]
-                        </span>
-                        <span
-                          className={cn(
-                            'font-semibold',
-                            log.status?.toLowerCase().includes('erro') ||
-                              log.status?.toLowerCase().includes('fail') ||
-                              log.mensagem?.includes('403') ||
-                              log.mensagem?.includes('500')
-                              ? 'text-red-400'
-                              : log.status?.toLowerCase().includes('aviso')
-                                ? 'text-yellow-400'
-                                : 'text-emerald-400',
-                          )}
-                        >
-                          [{log.status || 'Info'}]
-                        </span>
-                        <span className="text-indigo-300">[{log.etapa}]</span>
-                      </div>
-                      <span className="break-words mt-0.5 sm:mt-0 opacity-90">{log.mensagem}</span>
-                    </div>
-                  ))}
-                  <div ref={logsEndRef} />
-                </div>
-              )}
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      )}
-
       {searched && (
         <div className="flex flex-col gap-4 animate-fade-in">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <h2 className="text-xl font-semibold">Resultados ({results.length})</h2>
             {source && (
               <div className="flex items-center gap-2 text-sm font-medium px-3 py-1.5 bg-slate-100 rounded-md border border-slate-200 shadow-sm">
-                {getSourceIcon()}
-                <span className="text-slate-700">Fonte: {getSourceText()}</span>
+                <Globe className="w-4 h-4 text-emerald-500" />
+                <span className="text-slate-700">Busca concluída</span>
               </div>
             )}
           </div>
@@ -660,14 +493,6 @@ export default function DouSearch() {
                 <p className="text-lg font-medium text-slate-900 mb-1">
                   Nenhuma publicação encontrada
                 </p>
-                <p className="text-slate-500 mb-4">
-                  Não encontramos resultados nas camadas de busca para os filtros informados.
-                </p>
-                {message && (
-                  <div className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-md text-xs text-slate-500 font-mono">
-                    Diagnóstico: {message}
-                  </div>
-                )}
               </CardContent>
             </Card>
           ) : (
@@ -703,13 +528,11 @@ export default function DouSearch() {
                         {item.urlTitle && (
                           <Button variant="outline" size="sm" asChild className="shrink-0 bg-white">
                             <a href={item.urlTitle} target="_blank" rel="noreferrer">
-                              <ExternalLink className="w-4 h-4 mr-2" />
-                              Ler Original
+                              <ExternalLink className="w-4 h-4 mr-2" /> Ler Original
                             </a>
                           </Button>
                         )}
                       </div>
-
                       {(item.hierarchyStr || item.editionNumber || item.orgao_principal) && (
                         <div className="text-xs text-slate-500 flex flex-col sm:flex-row flex-wrap gap-3 p-2 bg-slate-50 rounded-md border border-slate-100">
                           {item.orgao_principal && (
@@ -737,7 +560,6 @@ export default function DouSearch() {
                           )}
                         </div>
                       )}
-
                       <div className="relative mt-1">
                         <p className="text-sm text-slate-600 line-clamp-4 whitespace-pre-wrap leading-relaxed">
                           {item.content}
@@ -758,48 +580,19 @@ export default function DouSearch() {
                           onClick={(e) => {
                             e.preventDefault()
                             setCurrentPage((p) => Math.max(1, p - 1))
-                            window.scrollTo({ top: 0, behavior: 'smooth' })
                           }}
                           className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
                         />
                       </PaginationItem>
-
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        let pageNum = currentPage
-                        if (totalPages <= 5) {
-                          pageNum = i + 1
-                        } else if (currentPage <= 3) {
-                          pageNum = i + 1
-                        } else if (currentPage >= totalPages - 2) {
-                          pageNum = totalPages - 4 + i
-                        } else {
-                          pageNum = currentPage - 2 + i
-                        }
-
-                        return (
-                          <PaginationItem key={pageNum}>
-                            <PaginationLink
-                              href="#"
-                              isActive={currentPage === pageNum}
-                              onClick={(e) => {
-                                e.preventDefault()
-                                setCurrentPage(pageNum)
-                                window.scrollTo({ top: 0, behavior: 'smooth' })
-                              }}
-                            >
-                              {pageNum}
-                            </PaginationLink>
-                          </PaginationItem>
-                        )
-                      })}
-
+                      <span className="text-sm text-slate-500 mx-4 flex items-center font-medium">
+                        Página {currentPage} de {totalPages}
+                      </span>
                       <PaginationItem>
                         <PaginationNext
                           href="#"
                           onClick={(e) => {
                             e.preventDefault()
                             setCurrentPage((p) => Math.min(totalPages, p + 1))
-                            window.scrollTo({ top: 0, behavior: 'smooth' })
                           }}
                           className={
                             currentPage === totalPages ? 'pointer-events-none opacity-50' : ''

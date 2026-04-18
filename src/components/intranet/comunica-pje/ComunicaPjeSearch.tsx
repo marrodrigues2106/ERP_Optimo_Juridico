@@ -25,6 +25,9 @@ import { useComunicaStore } from '@/hooks/use-comunica-store'
 import { Loader2, Search } from 'lucide-react'
 import ConsultaTable from './ConsultaTable'
 import ConsultaDetails from './ConsultaDetails'
+import pb from '@/lib/pocketbase/client'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import { Checkbox } from '@/components/ui/checkbox'
 
 const searchSchema = z.object({
   numeroProcesso: z.string().optional(),
@@ -32,7 +35,7 @@ const searchSchema = z.object({
   nomeAdvogado: z.string().optional(),
   oab: z.string().optional(),
   ufOab: z.string().optional(),
-  siglaTribunal: z.string().optional(),
+  siglaTribunal: z.array(z.string()).optional(),
   meio: z.string().optional(),
   dataDisponibilizacaoInicio: z.string().optional(),
   dataDisponibilizacaoFim: z.string().optional(),
@@ -44,9 +47,14 @@ export default function ComunicaPjeSearch() {
   const [results, setResults] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedItem, setSelectedItem] = useState<any>(null)
+  const [tribunals, setTribunals] = useState<any[]>([])
 
   useEffect(() => {
     init()
+    pb.collection('tribunals')
+      .getFullList({ filter: 'active = true', sort: 'alias' })
+      .then(setTribunals)
+      .catch(() => {})
   }, [init])
 
   const form = useForm<z.infer<typeof searchSchema>>({
@@ -57,7 +65,7 @@ export default function ComunicaPjeSearch() {
       nomeAdvogado: '',
       oab: '',
       ufOab: '',
-      siglaTribunal: '',
+      siglaTribunal: [],
       meio: 'ALL',
       dataDisponibilizacaoInicio: '',
       dataDisponibilizacaoFim: '',
@@ -68,7 +76,8 @@ export default function ComunicaPjeSearch() {
     setLoading(true)
     setResults([])
     try {
-      const data = await searchComunicaPJe(values, baseUrl, apiKey, addHistory)
+      const payload = { ...values, siglaTribunal: values.siglaTribunal?.join(',') || '' }
+      const data = await searchComunicaPJe(payload, baseUrl, apiKey, addHistory)
       setResults(data)
       toast({ title: 'Busca concluída', description: `Encontrados ${data.length} resultados.` })
     } catch (error: any) {
@@ -138,67 +147,50 @@ export default function ComunicaPjeSearch() {
               />
               <FormField
                 control={form.control}
-                name="ufOab"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>UF OAB</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="UF" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {[
-                          'SP',
-                          'RJ',
-                          'MG',
-                          'ES',
-                          'RS',
-                          'SC',
-                          'PR',
-                          'DF',
-                          'GO',
-                          'BA',
-                          'PE',
-                          'CE',
-                          'MS',
-                          'MT',
-                          'MT',
-                          'PA',
-                          'TO',
-                          'AM',
-                          'RO',
-                          'RR',
-                          'AC',
-                          'AP',
-                          'MA',
-                          'PI',
-                          'PB',
-                          'RN',
-                          'RN',
-                          'AL',
-                          'SE',
-                        ].map((uf) => (
-                          <SelectItem key={uf} value={uf}>
-                            {uf}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
                 name="siglaTribunal"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tribunal</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ex: TJSP, TRF1" {...field} />
-                    </FormControl>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left font-normal bg-white"
+                        >
+                          {field.value?.length
+                            ? `${field.value.length} selecionados`
+                            : 'Selecione Tribunais'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-3 h-64 overflow-y-auto">
+                        <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100">
+                          <Checkbox
+                            checked={
+                              field.value?.length === tribunals.length && tribunals.length > 0
+                            }
+                            onCheckedChange={(c) =>
+                              c ? field.onChange(tribunals.map((t) => t.alias)) : field.onChange([])
+                            }
+                          />
+                          <span className="font-semibold text-sm">Selecionar Todos</span>
+                        </div>
+                        <div className="space-y-2">
+                          {tribunals.map((t) => (
+                            <div key={t.id} className="flex items-center gap-2">
+                              <Checkbox
+                                checked={field.value?.includes(t.alias)}
+                                onCheckedChange={(c) => {
+                                  const current = field.value || []
+                                  if (c) field.onChange([...current, t.alias])
+                                  else field.onChange(current.filter((x) => x !== t.alias))
+                                }}
+                              />
+                              <span className="text-sm">{t.alias}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                     <FormMessage />
                   </FormItem>
                 )}

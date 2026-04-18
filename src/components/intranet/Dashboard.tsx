@@ -57,6 +57,8 @@ export default function Dashboard() {
   const [eventModalOpen, setEventModalOpen] = useState(false)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [caseModalOpen, setCaseModalOpen] = useState(false)
+  const [editingTask, setEditingTask] = useState<any>(null)
+
   const [feedItems, setFeedItems] = useState<FeedItem[]>([])
   const [clients, setClients] = useState<any[]>([])
   const [collaborators, setCollaborators] = useState<any[]>([])
@@ -81,10 +83,9 @@ export default function Dashboard() {
     if (selectedCollaboratorId) {
       filter += ` && (collaborator = "${selectedCollaboratorId}" || participants ~ "${selectedCollaboratorId}")`
     }
-    const fetchedEvents = await pb.collection('agenda_events').getFullList({
-      filter,
-      sort: 'start_date',
-    })
+    const fetchedEvents = await pb
+      .collection('agenda_events')
+      .getFullList({ filter, sort: 'start_date' })
     setEvents(fetchedEvents)
   }
 
@@ -96,9 +97,7 @@ export default function Dashboard() {
     try {
       const records = await pb.collection('legal_cases').getList(1, 1, { filter })
       setCaseCount(records.totalItems)
-    } catch (e) {
-      console.error(e)
-    }
+    } catch (e) {}
   }
 
   const loadFeed = async () => {
@@ -115,16 +114,20 @@ export default function Dashboard() {
       pb
         .collection('ocorrencias_dou')
         .getList(1, 20, { filter: 'status_alerta != "pendente"', sort: '-updated' }),
-      pb.collection('case_movements').getFullList({
-        filter: 'notified_client = false && deleted_at = ""',
-        sort: '-event_date',
-        expand: 'case',
-      }),
-      pb.collection('case_movements').getList(1, 20, {
-        filter: 'notified_client = true && deleted_at = ""',
-        sort: '-event_date',
-        expand: 'case',
-      }),
+      pb
+        .collection('case_movements')
+        .getFullList({
+          filter: 'notified_client = false && deleted_at = ""',
+          sort: '-event_date',
+          expand: 'case',
+        }),
+      pb
+        .collection('case_movements')
+        .getList(1, 20, {
+          filter: 'notified_client = true && deleted_at = ""',
+          sort: '-event_date',
+          expand: 'case',
+        }),
     ])
 
     const mapItems = (items: any[], source: any, isRead: boolean): FeedItem[] =>
@@ -157,7 +160,6 @@ export default function Dashboard() {
     setFeedItems(all)
   }
 
-  // Optimize and debounce initial fetches
   useEffect(() => {
     Promise.allSettled([loadTasks(), loadEvents(), loadFeed(), loadCaseCount()]).catch(
       console.error,
@@ -225,6 +227,26 @@ export default function Dashboard() {
         description: getErrorMessage(error),
         variant: 'destructive',
       })
+    }
+  }
+
+  const handleEditTaskSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!editingTask) return
+    const fd = new FormData(e.currentTarget)
+    try {
+      await pb.collection('tasks').update(editingTask.id, {
+        title: fd.get('title'),
+        priority: fd.get('priority'),
+        status: fd.get('status'),
+        due_date: fd.get('due_date')
+          ? new Date(`${fd.get('due_date')}T12:00:00Z`).toISOString()
+          : null,
+      })
+      setEditingTask(null)
+      toast({ title: 'Tarefa atualizada' })
+    } catch (err) {
+      toast({ title: 'Erro ao editar', variant: 'destructive' })
     }
   }
 
@@ -377,12 +399,10 @@ export default function Dashboard() {
       <div className="flex-1 p-8 md:p-12 overflow-auto bg-white flex flex-col">
         <div className="flex items-center justify-between mb-6 border-b pb-4">
           <div className="flex items-center gap-3 text-slate-800 font-semibold text-lg border-l-4 border-primary pl-3">
-            <Bell className="w-5 h-5 text-primary" />
-            Central de Atualizações
+            <Bell className="w-5 h-5 text-primary" /> Central de Atualizações
           </div>
           <Button onClick={() => setCaseModalOpen(true)} size="sm" className="hidden sm:flex">
-            <Plus className="w-4 h-4 mr-2" />
-            Adicionar Processo ou Serviço
+            <Plus className="w-4 h-4 mr-2" /> Adicionar Processo ou Serviço
           </Button>
         </div>
 
@@ -454,7 +474,6 @@ export default function Dashboard() {
               <div className="text-center py-16 text-slate-400 border border-dashed rounded-xl bg-slate-50/50">
                 <Archive className="w-10 h-10 mx-auto mb-4 opacity-50 text-slate-300" />
                 <p className="text-sm font-medium">Nenhum item nesta lista.</p>
-                <p className="text-xs mt-1">Sua caixa de entrada está limpa.</p>
               </div>
             ) : (
               visibleFeed.map((item) => (
@@ -600,7 +619,7 @@ export default function Dashboard() {
               className="h-6 px-2 text-[10px]"
               onClick={() => navigate('/intranet/agenda')}
             >
-              Ver Agenda Completa
+              Ver Agenda
             </Button>
           </div>
           {events.length === 0 ? (
@@ -634,8 +653,7 @@ export default function Dashboard() {
         <div className="flex-1 flex flex-col">
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
             <div className="flex items-center gap-2 text-slate-700 font-bold">
-              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-              Tarefas ({tasks.length})
+              <CheckCircle2 className="w-5 h-5 text-emerald-500" /> Tarefas ({tasks.length})
             </div>
             <button
               onClick={() => setTaskModalOpen(true)}
@@ -654,12 +672,14 @@ export default function Dashboard() {
                 return (
                   <div
                     key={task.id}
-                    className="flex items-start gap-3 group bg-white p-3 rounded-lg border shadow-sm"
+                    className="flex items-start gap-3 group bg-white p-3 rounded-lg border shadow-sm cursor-pointer hover:border-primary/40 transition-colors"
+                    onClick={() => setEditingTask(task)}
                   >
                     <Checkbox
                       className="mt-0.5 border-slate-300"
                       checked={task.status === 'completed'}
                       onCheckedChange={() => toggleTask(task.id, task.status)}
+                      onClick={(e) => e.stopPropagation()}
                     />
                     <div className="flex-1 min-w-0">
                       <p
@@ -699,7 +719,10 @@ export default function Dashboard() {
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-opacity"
-                            onClick={() => handleDeleteTask(task.id)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteTask(task.id)
+                            }}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
@@ -731,7 +754,7 @@ export default function Dashboard() {
       <Dialog open={taskModalOpen} onOpenChange={setTaskModalOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nova Tarefa Rápida</DialogTitle>
+            <DialogTitle>Nova Tarefa</DialogTitle>
           </DialogHeader>
           <form
             className="space-y-4"
@@ -782,6 +805,61 @@ export default function Dashboard() {
               Criar Tarefa
             </Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Task Dialog */}
+      <Dialog open={!!editingTask} onOpenChange={(o) => !o && setEditingTask(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Tarefa</DialogTitle>
+          </DialogHeader>
+          {editingTask && (
+            <form className="space-y-4" onSubmit={handleEditTaskSubmit}>
+              <div>
+                <Label>Título</Label>
+                <Input name="title" defaultValue={editingTask.title} required />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Data de Vencimento</Label>
+                  <Input
+                    name="due_date"
+                    type="date"
+                    defaultValue={editingTask.due_date ? editingTask.due_date.slice(0, 10) : ''}
+                  />
+                </div>
+                <div>
+                  <Label>Prioridade</Label>
+                  <Select name="priority" defaultValue={editingTask.priority || 'medium'}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Baixa</SelectItem>
+                      <SelectItem value="medium">Média</SelectItem>
+                      <SelectItem value="high">Alta</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select name="status" defaultValue={editingTask.status || 'todo'}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todo">Pendente</SelectItem>
+                    <SelectItem value="completed">Concluída</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button type="submit" className="w-full">
+                Salvar Alterações
+              </Button>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>

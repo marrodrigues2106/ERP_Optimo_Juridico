@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getLegalCase } from '@/services/legal_cases'
+import { getPaginatedCaseMovements } from '@/services/case_movements'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -14,6 +15,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination'
 import {
   ArrowLeft,
   RefreshCw,
@@ -33,30 +41,30 @@ export default function ProcessDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { toast } = useToast()
+
   const [legalCase, setLegalCase] = useState<any>(null)
   const [movements, setMovements] = useState<any[]>([])
+  const [movementsPage, setMovementsPage] = useState(1)
+  const [movementsTotalPages, setMovementsTotalPages] = useState(1)
+
   const [tasks, setTasks] = useState<any[]>([])
   const [events, setEvents] = useState<any[]>([])
   const [finances, setFinances] = useState<any[]>([])
   const [isSyncing, setIsSyncing] = useState(false)
-
   const [newMovement, setNewMovement] = useState('')
   const [activeTab, setActiveTab] = useState('andamento')
 
   useEffect(() => {
     if (id) {
       loadData()
+      loadMovements(1)
     }
-  }, [id, toast])
+  }, [id])
 
   const loadData = async () => {
     try {
       const c = await getLegalCase(id!)
       setLegalCase(c)
-      const movs = await pb
-        .collection('case_movements')
-        .getFullList({ filter: `case = "${id}"`, sort: '-event_date' })
-      setMovements(movs)
       const tks = await pb
         .collection('tasks')
         .getFullList({ filter: `linked_lawsuit = "${id}" && deleted_at = ""`, sort: '-created' })
@@ -70,8 +78,18 @@ export default function ProcessDetail() {
         .getFullList({ filter: `linked_lawsuit = "${id}" && deleted_at = ""`, sort: '-created' })
       setFinances(fins)
     } catch (err) {
-      console.error(err)
       toast({ title: 'Erro ao carregar processo', variant: 'destructive' })
+    }
+  }
+
+  const loadMovements = async (page: number) => {
+    try {
+      const res = await getPaginatedCaseMovements(id!, page, 10)
+      setMovements(res.items)
+      setMovementsTotalPages(res.totalPages)
+      setMovementsPage(page)
+    } catch (err) {
+      toast({ title: 'Erro ao carregar andamentos', variant: 'destructive' })
     }
   }
 
@@ -81,6 +99,7 @@ export default function ProcessDetail() {
       await runDatajudSync(legalCase, () => {})
       toast({ title: 'Sincronização concluída' })
       loadData()
+      loadMovements(1)
     } catch (err: any) {
       toast({ title: 'Erro na Sincronização', description: err.message, variant: 'destructive' })
     } finally {
@@ -101,7 +120,7 @@ export default function ProcessDetail() {
       })
       setNewMovement('')
       toast({ title: 'Ocorrência processual registrada.' })
-      loadData()
+      loadMovements(1)
       setActiveTab('andamento')
     } catch (err: any) {
       toast({ title: 'Erro ao registrar', variant: 'destructive' })
@@ -153,28 +172,6 @@ export default function ProcessDetail() {
     }
   }
 
-  const handleAddInteraction = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const fd = new FormData(e.currentTarget)
-    try {
-      await pb.collection('crm_interactions').create({
-        description: fd.get('description'),
-        type: fd.get('type'),
-        date: new Date().toISOString(),
-        status: 'Completed',
-        client: legalCase?.client,
-        linked_case: id,
-        organization: pb.authStore.record?.active_organization,
-      })
-      toast({ title: 'Interação registrada' })
-      loadData()
-      ;(e.target as HTMLFormElement).reset()
-      setActiveTab('andamento')
-    } catch (err: any) {
-      toast({ title: 'Erro ao registrar interação', variant: 'destructive' })
-    }
-  }
-
   if (!legalCase)
     return <div className="p-8 text-center text-slate-500">Carregando processo...</div>
 
@@ -204,7 +201,7 @@ export default function ProcessDetail() {
                       {legalCase.case_number || 'Sem número'}
                     </Badge>
                     <Badge variant="outline" className="text-slate-500">
-                      TJRJ
+                      {legalCase.court || 'Tribunal não informado'}
                     </Badge>
                   </div>
                 </div>
@@ -219,12 +216,11 @@ export default function ProcessDetail() {
                   disabled={isSyncing}
                   className="shadow-sm"
                 >
-                  <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />{' '}
                   Sincronizar
                 </Button>
               </div>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-slate-100">
               <div className="flex items-center gap-2 text-sm text-slate-600">
                 <User className="w-4 h-4 text-slate-400" />
@@ -280,14 +276,7 @@ export default function ProcessDetail() {
                   >
                     Novo Compromisso
                   </TabsTrigger>
-                  <TabsTrigger
-                    value="interacao"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent py-3"
-                  >
-                    Nova Interação
-                  </TabsTrigger>
                 </TabsList>
-
                 <TabsContent value="andamento" className="p-6 pt-6">
                   <form onSubmit={handleAddMovement} className="flex gap-4">
                     <Input
@@ -301,7 +290,6 @@ export default function ProcessDetail() {
                     </Button>
                   </form>
                 </TabsContent>
-
                 <TabsContent value="tarefa" className="p-6 pt-6">
                   <form onSubmit={handleAddTask} className="space-y-4">
                     <div>
@@ -330,7 +318,6 @@ export default function ProcessDetail() {
                     <Button type="submit">Criar Tarefa</Button>
                   </form>
                 </TabsContent>
-
                 <TabsContent value="compromisso" className="p-6 pt-6">
                   <form onSubmit={handleAddEvent} className="space-y-4">
                     <div>
@@ -359,34 +346,6 @@ export default function ProcessDetail() {
                     <Button type="submit">Criar Compromisso</Button>
                   </form>
                 </TabsContent>
-
-                <TabsContent value="interacao" className="p-6 pt-6">
-                  <form onSubmit={handleAddInteraction} className="space-y-4">
-                    <div>
-                      <Label>Tipo de Contato</Label>
-                      <Select name="type" defaultValue="WhatsApp">
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                          <SelectItem value="Email">E-mail</SelectItem>
-                          <SelectItem value="Call">Ligação Telefônica</SelectItem>
-                          <SelectItem value="Meeting">Reunião Presencial</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Descrição da Interação</Label>
-                      <Input
-                        name="description"
-                        placeholder="Resumo do que foi conversado com o cliente..."
-                        required
-                      />
-                    </div>
-                    <Button type="submit">Registrar Interação</Button>
-                  </form>
-                </TabsContent>
               </Tabs>
             </Card>
 
@@ -394,15 +353,6 @@ export default function ProcessDetail() {
               <CardHeader className="flex flex-row items-center justify-between py-5 px-6 border-b border-slate-100">
                 <div className="flex items-center gap-3">
                   <h3 className="font-bold text-slate-800 text-lg">Histórico de Andamentos</h3>
-                  <Badge variant="secondary" className="rounded-full bg-slate-200 text-slate-700">
-                    {movements.length}
-                  </Badge>
-                </div>
-                <div className="text-sm text-slate-500 flex items-center gap-2">
-                  Itens por página:{' '}
-                  <span className="border rounded px-2 py-1 bg-white shadow-sm cursor-pointer">
-                    20 ▾
-                  </span>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -429,6 +379,39 @@ export default function ProcessDetail() {
                     ))}
                   </div>
                 )}
+                {movementsTotalPages > 1 && (
+                  <div className="p-4 border-t border-slate-100 flex justify-center">
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            onClick={() => loadMovements(Math.max(1, movementsPage - 1))}
+                            className={
+                              movementsPage === 1
+                                ? 'pointer-events-none opacity-50'
+                                : 'cursor-pointer'
+                            }
+                          />
+                        </PaginationItem>
+                        <span className="text-sm text-slate-500 mx-4 flex items-center font-medium">
+                          Página {movementsPage} de {movementsTotalPages}
+                        </span>
+                        <PaginationItem>
+                          <PaginationNext
+                            onClick={() =>
+                              loadMovements(Math.min(movementsTotalPages, movementsPage + 1))
+                            }
+                            className={
+                              movementsPage === movementsTotalPages
+                                ? 'pointer-events-none opacity-50'
+                                : 'cursor-pointer'
+                            }
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -437,35 +420,7 @@ export default function ProcessDetail() {
             <Card className="border-none shadow-sm">
               <CardHeader className="py-4 px-5 border-b border-slate-100">
                 <div className="flex items-center gap-2 font-bold text-slate-800">
-                  <LinkIcon className="w-4 h-4 text-slate-400" />
-                  Vinculados ({legalCase.expand?.related_cases?.length || 0})
-                </div>
-              </CardHeader>
-              <CardContent className="p-5">
-                <div className="text-center py-6 text-sm text-slate-500">
-                  Nenhum processo vinculado.
-                </div>
-                <div className="mt-2 space-y-3">
-                  <div className="bg-slate-50 p-2 rounded flex justify-between items-center cursor-pointer text-slate-600 text-sm border border-slate-200">
-                    <span>Vincular processo...</span>
-                    <span>▾</span>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    className="w-full bg-slate-200 hover:bg-slate-300 text-slate-700"
-                    disabled
-                  >
-                    <Plus className="w-4 h-4 mr-2" /> Vincular
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-none shadow-sm">
-              <CardHeader className="py-4 px-5 border-b border-slate-100">
-                <div className="flex items-center gap-2 font-bold text-slate-800">
-                  <CheckSquare className="w-4 h-4 text-slate-400" />
-                  Tarefas ({tasks.length})
+                  <CheckSquare className="w-4 h-4 text-slate-400" /> Tarefas ({tasks.length})
                 </div>
               </CardHeader>
               <CardContent className="p-5">
@@ -494,8 +449,7 @@ export default function ProcessDetail() {
             <Card className="border-none shadow-sm">
               <CardHeader className="py-4 px-5 border-b border-slate-100 flex flex-row items-center justify-between">
                 <div className="flex items-center gap-2 font-bold text-slate-800">
-                  <Calendar className="w-4 h-4 text-slate-400" />
-                  Compromissos ({events.length})
+                  <Calendar className="w-4 h-4 text-slate-400" /> Compromissos ({events.length})
                 </div>
               </CardHeader>
               <CardContent className="p-5">
