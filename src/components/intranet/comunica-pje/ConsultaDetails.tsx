@@ -93,7 +93,7 @@ export default function ConsultaDetails({ item, onClose }: { item: any; onClose:
           <TabsContent value="texto" className="flex-1 overflow-hidden mt-4">
             <ScrollArea className="h-full rounded-md border bg-card p-4">
               <div
-                className="text-sm leading-relaxed prose prose-sm max-w-none dark:prose-invert break-words"
+                className="text-sm leading-relaxed prose prose-sm max-w-none dark:prose-invert break-words whitespace-pre-wrap"
                 dangerouslySetInnerHTML={{ __html: item.texto || 'Nenhum texto disponível.' }}
               />
             </ScrollArea>

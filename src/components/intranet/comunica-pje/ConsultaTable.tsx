@@ -22,7 +22,12 @@ export default function ConsultaTable({
         <tbody className="divide-y">
           {data.map((item, i) => (
             <tr
-              key={item.id || item.hash_comunicacao || i}
+              key={
+                item.id ||
+                item.hash_comunicacao ||
+                item.hash ||
+                `${item.numeroProcesso || 'proc'}-${i}`
+              }
               className="hover:bg-muted/50 transition-colors"
             >
               <td className="px-4 py-3 whitespace-nowrap">
