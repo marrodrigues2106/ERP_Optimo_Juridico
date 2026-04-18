@@ -28,6 +28,7 @@ import AuditLogs from '@/components/intranet/AuditLogs'
 import DouSearch from '@/components/intranet/DouSearch'
 import ComunicaPjeSearch from '@/components/intranet/comunica-pje/ComunicaPjeSearch'
 import CentralAtualizacoes from '@/components/intranet/CentralAtualizacoes'
+import ComunicaPjeDetail from '@/components/intranet/comunica-pje/ComunicaPjeDetail'
 import { ComunicaProvider } from '@/hooks/use-comunica-store'
 
 function App() {
@@ -64,6 +65,7 @@ function App() {
                 />
                 <Route path="busca-dou" element={<DouSearch />} />
                 <Route path="comunicacoes" element={<ComunicaPjeSearch />} />
+                <Route path="comunicacoes/:id" element={<ComunicaPjeDetail />} />
                 <Route path="processos" element={<ProcessManager />} />
                 <Route path="processos/:id" element={<ProcessDetail />} />
                 <Route path="clientes/:id" element={<ClientDetail />} />

@@ -28,6 +28,7 @@ import ConsultaDetails from './ConsultaDetails'
 import pb from '@/lib/pocketbase/client'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Checkbox } from '@/components/ui/checkbox'
+import { useNavigate } from 'react-router-dom'
 
 const searchSchema = z.object({
   numeroProcesso: z.string().optional(),
@@ -43,10 +44,10 @@ const searchSchema = z.object({
 
 export default function ComunicaPjeSearch() {
   const { toast } = useToast()
+  const navigate = useNavigate()
   const { baseUrl, apiKey, addHistory, init } = useComunicaStore()
   const [results, setResults] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
-  const [selectedItem, setSelectedItem] = useState<any>(null)
   const [tribunals, setTribunals] = useState<any[]>([])
 
   useEffect(() => {
@@ -117,13 +118,9 @@ export default function ComunicaPjeSearch() {
                 name="numeroProcesso"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-base font-medium">Número do Processo</FormLabel>
+                    <FormLabel className="text-lg font-bold">Número do Processo</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="0000000-00.0000..."
-                        {...field}
-                        className="text-base py-5"
-                      />
+                      <Input placeholder="0000000-00.0000..." {...field} className="text-lg py-5" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -134,9 +131,9 @@ export default function ComunicaPjeSearch() {
                 name="nomeParte"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-base font-medium">Nome da Parte</FormLabel>
+                    <FormLabel className="text-lg font-bold">Nome da Parte</FormLabel>
                     <FormControl>
-                      <Input placeholder="Nome completo" {...field} className="text-base py-5" />
+                      <Input placeholder="Nome completo" {...field} className="text-lg py-5" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -147,9 +144,9 @@ export default function ComunicaPjeSearch() {
                 name="nomeAdvogado"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-base font-medium">Nome do Advogado</FormLabel>
+                    <FormLabel className="text-lg font-bold">Nome do Advogado</FormLabel>
                     <FormControl>
-                      <Input placeholder="Nome do advogado" {...field} className="text-base py-5" />
+                      <Input placeholder="Nome do advogado" {...field} className="text-lg py-5" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -160,9 +157,9 @@ export default function ComunicaPjeSearch() {
                 name="oab"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-base font-medium">OAB</FormLabel>
+                    <FormLabel className="text-lg font-bold">OAB</FormLabel>
                     <FormControl>
-                      <Input placeholder="Número OAB" {...field} className="text-base py-5" />
+                      <Input placeholder="Número OAB" {...field} className="text-lg py-5" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -173,12 +170,12 @@ export default function ComunicaPjeSearch() {
                 name="siglaTribunal"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-base font-medium">Tribunal</FormLabel>
+                    <FormLabel className="text-lg font-bold">Tribunal</FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
-                          className="w-full justify-start text-left font-normal bg-white text-base py-5 h-auto"
+                          className="w-full justify-start text-left font-normal bg-white text-lg py-5 h-auto"
                         >
                           {field.value?.length
                             ? `${field.value.length} selecionados`
@@ -195,9 +192,7 @@ export default function ComunicaPjeSearch() {
                               c ? field.onChange(tribunals.map((t) => t.alias)) : field.onChange([])
                             }
                           />
-                          <span className="font-bold text-base text-slate-800">
-                            Selecionar Todos
-                          </span>
+                          <span className="font-bold text-lg text-slate-800">Selecionar Todos</span>
                         </div>
                         <div className="space-y-3">
                           {tribunals.map((t) => (
@@ -210,9 +205,7 @@ export default function ComunicaPjeSearch() {
                                   else field.onChange(current.filter((x) => x !== t.alias))
                                 }}
                               />
-                              <span className="text-base font-medium text-slate-600">
-                                {t.alias}
-                              </span>
+                              <span className="text-lg font-medium text-slate-600">{t.alias}</span>
                             </div>
                           ))}
                         </div>
@@ -227,21 +220,21 @@ export default function ComunicaPjeSearch() {
                 name="meio"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-base font-medium">Meio</FormLabel>
+                    <FormLabel className="text-lg font-bold">Meio</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
-                        <SelectTrigger className="text-base py-5 h-auto">
+                        <SelectTrigger className="text-lg py-5 h-auto">
                           <SelectValue placeholder="Selecione" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="ALL" className="text-base">
+                        <SelectItem value="ALL" className="text-lg">
                           Todos
                         </SelectItem>
-                        <SelectItem value="E" className="text-base">
+                        <SelectItem value="E" className="text-lg">
                           Eletrônico
                         </SelectItem>
-                        <SelectItem value="D" className="text-base">
+                        <SelectItem value="D" className="text-lg">
                           Diário Físico
                         </SelectItem>
                       </SelectContent>
@@ -255,9 +248,9 @@ export default function ComunicaPjeSearch() {
                 name="dataDisponibilizacaoInicio"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-base font-medium">Data Início</FormLabel>
+                    <FormLabel className="text-lg font-bold">Data Início</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} className="text-base py-5" />
+                      <Input type="date" {...field} className="text-lg py-5" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -268,9 +261,9 @@ export default function ComunicaPjeSearch() {
                 name="dataDisponibilizacaoFim"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-base font-medium">Data Fim</FormLabel>
+                    <FormLabel className="text-lg font-bold">Data Fim</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} className="text-base py-5" />
+                      <Input type="date" {...field} className="text-lg py-5" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -297,12 +290,18 @@ export default function ComunicaPjeSearch() {
 
       {results.length > 0 && (
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-          <ConsultaTable data={results} onViewDetails={setSelectedItem} />
+          <ConsultaTable
+            data={results}
+            onViewDetails={(item) => {
+              if (item.id) {
+                navigate(`/intranet/comunicacoes/${item.id}`)
+              } else {
+                sessionStorage.setItem('comunica_temp_detail', JSON.stringify(item))
+                navigate(`/intranet/comunicacoes/temp`)
+              }
+            }}
+          />
         </div>
-      )}
-
-      {selectedItem && (
-        <ConsultaDetails item={selectedItem} onClose={() => setSelectedItem(null)} />
       )}
     </div>
   )

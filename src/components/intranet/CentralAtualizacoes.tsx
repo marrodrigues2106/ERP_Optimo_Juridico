@@ -24,12 +24,32 @@ export default function CentralAtualizacoes() {
   const loadNotifications = async (currentPage: number) => {
     setLoading(true)
     try {
-      const res = await pb.collection('lawsuit_notifications').getList(currentPage, 15, {
-        sort: '-created',
-        expand: 'lawsuit',
-      })
-      setNotifications(res.items)
-      setTotalPages(res.totalPages)
+      const [pjeRes, douRes] = await Promise.all([
+        pb.collection('results').getList(1, 50, { sort: '-created' }),
+        pb.collection('gazette_publications').getList(1, 50, { sort: '-created' }),
+      ])
+
+      const merged = [
+        ...pjeRes.items.map((item) => ({
+          ...item,
+          type: 'pje',
+          unified_date: new Date(item.created).getTime(),
+        })),
+        ...douRes.items.map((item) => ({
+          ...item,
+          type: 'dou',
+          unified_date: new Date(item.created).getTime(),
+        })),
+      ].sort((a, b) => b.unified_date - a.unified_date)
+
+      const itemsPerPage = 15
+      const totalItems = merged.length
+      setTotalPages(Math.ceil(totalItems / itemsPerPage) || 1)
+
+      const start = (currentPage - 1) * itemsPerPage
+      const end = start + itemsPerPage
+
+      setNotifications(merged.slice(start, end))
     } catch (err) {
       console.error(err)
     } finally {
@@ -41,8 +61,10 @@ export default function CentralAtualizacoes() {
     loadNotifications(page)
   }, [page])
 
-  const handleMarkRead = async (id: string, current: boolean) => {
-    await pb.collection('lawsuit_notifications').update(id, { is_read: !current })
+  const handleMarkRead = async (id: string, current: boolean, type: string) => {
+    if (type === 'dou') {
+      await pb.collection('gazette_publications').update(id, { is_read: !current })
+    }
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: !current } : n)))
   }
 
@@ -76,65 +98,61 @@ export default function CentralAtualizacoes() {
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-3">
-                    {n.type === 'gazette' ? (
+                    {n.type === 'dou' ? (
                       <BookOpen className="w-5 h-5 text-amber-500" />
-                    ) : n.type === 'discovery' ? (
-                      <Bell className="w-5 h-5 text-blue-500" />
                     ) : (
                       <Landmark className="w-5 h-5 text-indigo-500" />
                     )}
                     <span className="text-sm font-bold uppercase tracking-wider text-slate-500">
-                      {n.type === 'gazette'
-                        ? 'Diário Oficial'
-                        : n.type === 'court'
-                          ? 'DataJud/PJe'
-                          : 'Atualização'}
+                      {n.type === 'dou' ? 'Diário Oficial da União' : 'Comunicação PJe'}
                     </span>
                     <span className="text-sm font-medium text-slate-400 ml-auto">
                       {format(new Date(n.created), "dd 'de' MMM, yyyy HH:mm", { locale: ptBR })}
                     </span>
                   </div>
 
-                  <p
-                    className={cn(
-                      'text-lg mb-3 leading-relaxed',
-                      !n.is_read ? 'font-bold text-slate-900' : 'text-slate-700',
-                    )}
-                  >
-                    {n.update_content}
-                  </p>
-
-                  {n.type === 'gazette' && n.discovered_data && (
-                    <div className="space-y-3 mb-4 mt-4">
-                      {n.discovered_data.excerpt && (
-                        <div className="bg-amber-50/60 border-l-4 border-amber-400 p-4 rounded-r-lg">
-                          <p className="text-base text-slate-700 italic line-clamp-4">
-                            "{n.discovered_data.excerpt}"
-                          </p>
+                  <div className="mb-4">
+                    {n.type === 'pje' ? (
+                      <div className="space-y-2">
+                        <p className="text-xl font-bold text-primary">{n.numero_processo}</p>
+                        <p
+                          className="text-lg text-slate-700 line-clamp-3"
+                          dangerouslySetInnerHTML={{ __html: n.texto || '' }}
+                        ></p>
+                        <div className="flex gap-4 text-sm text-slate-500 mt-2">
+                          <span>Tribunal: {n.sigla_tribunal}</span>
+                          <span>
+                            Data Disp:{' '}
+                            {n.data_disponibilizacao
+                              ? format(new Date(n.data_disponibilizacao), 'dd/MM/yyyy')
+                              : '-'}
+                          </span>
                         </div>
-                      )}
-                      <div className="flex flex-wrap gap-x-6 gap-y-2 text-base text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                        {n.discovered_data.source && (
-                          <span>
-                            <strong className="font-semibold text-slate-800">Órgão:</strong>{' '}
-                            {n.discovered_data.source}
-                          </span>
-                        )}
-                        {n.discovered_data.date && (
-                          <span>
-                            <strong className="font-semibold text-slate-800">Data:</strong>{' '}
-                            {new Date(n.discovered_data.date).toLocaleDateString()}
-                          </span>
-                        )}
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-xl font-bold text-amber-700">DOU - {n.orgao}</p>
+                        <p className="text-lg text-slate-700 line-clamp-3">
+                          {n.texto_normalizado || 'Publicação DOU encontrada'}
+                        </p>
+                        <div className="flex gap-4 text-sm text-slate-500 mt-2">
+                          <span>
+                            Data Pub:{' '}
+                            {n.data_publicacao
+                              ? format(new Date(n.data_publicacao), 'dd/MM/yyyy')
+                              : '-'}
+                          </span>
+                          {n.matched_term && <span>Termo: {n.matched_term}</span>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   <div className="flex flex-wrap items-center gap-3 mt-4">
                     <Button
                       variant="ghost"
                       className="h-10 text-base font-medium px-4"
-                      onClick={() => handleMarkRead(n.id, n.is_read)}
+                      onClick={() => handleMarkRead(n.id, n.is_read, n.type)}
                     >
                       <CheckCircle2
                         className={cn(
@@ -144,20 +162,14 @@ export default function CentralAtualizacoes() {
                       />
                       {n.is_read ? 'Marcar como não lido' : 'Marcar como lido'}
                     </Button>
-                    {n.lawsuit && (
+
+                    {n.type === 'pje' && (
                       <Button
                         variant="secondary"
                         className="h-10 text-base font-medium px-4"
                         asChild
                       >
-                        <Link to={`/intranet/processos/${n.lawsuit}`}>Ver Processo</Link>
-                      </Button>
-                    )}
-                    {n.type === 'gazette' && n.discovered_data?.url && (
-                      <Button variant="outline" className="h-10 text-base font-medium px-4" asChild>
-                        <a href={n.discovered_data.url} target="_blank" rel="noreferrer">
-                          <BookOpen className="w-4 h-4 mr-2" /> Original
-                        </a>
+                        <Link to={`/intranet/comunicacoes/${n.id}`}>Ver Detalhes</Link>
                       </Button>
                     )}
                   </div>

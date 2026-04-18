@@ -302,7 +302,7 @@ export default function DouSearch() {
           <form onSubmit={handleSearch} className="flex flex-col gap-6">
             <div className="flex flex-col md:flex-row gap-6 md:items-end">
               <div className="flex-1 space-y-3 w-full">
-                <Label htmlFor="q" className="text-base font-medium">
+                <Label htmlFor="q" className="text-lg font-bold">
                   Termo de Busca (obrigatório)
                 </Label>
                 <Input
@@ -311,47 +311,47 @@ export default function DouSearch() {
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   required
-                  className="text-base py-6"
+                  className="text-lg py-6"
                 />
               </div>
               <div className="space-y-3 w-full md:w-56">
-                <Label htmlFor="searchType" className="text-base font-medium">
+                <Label htmlFor="searchType" className="text-lg font-bold">
                   Modo de Busca
                 </Label>
                 <Select value={searchType} onValueChange={setSearchType} required>
-                  <SelectTrigger id="searchType" className="text-base py-6 h-auto">
+                  <SelectTrigger id="searchType" className="text-lg py-6 h-auto">
                     <SelectValue placeholder="Selecione o modo" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="palavras_chave" className="text-base">
+                    <SelectItem value="palavras_chave" className="text-lg">
                       Palavras-chave
                     </SelectItem>
-                    <SelectItem value="frase_exata" className="text-base">
+                    <SelectItem value="frase_exata" className="text-lg">
                       Frase Exata
                     </SelectItem>
-                    <SelectItem value="regex" className="text-base">
+                    <SelectItem value="regex" className="text-lg">
                       Regex Avançado
                     </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-3 w-full md:w-48 flex flex-col">
-                <Label className="text-base font-medium">Período</Label>
+                <Label className="text-lg font-bold">Período</Label>
                 <Select value={periodMode} onValueChange={setPeriodMode} required>
-                  <SelectTrigger className="text-base py-6 h-auto">
+                  <SelectTrigger className="text-lg py-6 h-auto">
                     <SelectValue placeholder="Período" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="15" className="text-base">
+                    <SelectItem value="15" className="text-lg">
                       Últimos 15 dias
                     </SelectItem>
-                    <SelectItem value="30" className="text-base">
+                    <SelectItem value="30" className="text-lg">
                       Últimos 30 dias
                     </SelectItem>
-                    <SelectItem value="60" className="text-base">
+                    <SelectItem value="60" className="text-lg">
                       Últimos 60 dias
                     </SelectItem>
-                    <SelectItem value="custom" className="text-base">
+                    <SelectItem value="custom" className="text-lg">
                       Personalizado
                     </SelectItem>
                   </SelectContent>
@@ -359,7 +359,7 @@ export default function DouSearch() {
               </div>
 
               <div className="space-y-3 w-full md:w-auto flex flex-col">
-                <Label className="text-base font-medium">Data (Personalizado)</Label>
+                <Label className="text-lg font-bold">Data (Personalizado)</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -367,7 +367,7 @@ export default function DouSearch() {
                       variant={'outline'}
                       disabled={periodMode !== 'custom'}
                       className={cn(
-                        'w-full md:w-[260px] justify-start text-left font-normal text-base py-6 h-auto',
+                        'w-full md:w-[260px] justify-start text-left font-normal text-lg py-6 h-auto',
                         !date && 'text-slate-500',
                         periodMode !== 'custom' && 'opacity-50 cursor-not-allowed',
                       )}
@@ -392,7 +392,22 @@ export default function DouSearch() {
                       mode="range"
                       defaultMonth={date?.from}
                       selected={date}
-                      onSelect={setDate}
+                      onSelect={(newDate) => {
+                        if (newDate?.from && newDate?.to) {
+                          const diffTime = Math.abs(newDate.to.getTime() - newDate.from.getTime())
+                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+                          if (diffDays > 60) {
+                            toast({
+                              title: 'Período muito longo',
+                              description: 'O período máximo de busca por data é de 60 dias.',
+                              variant: 'destructive',
+                            })
+                            setDate({ from: newDate.from, to: undefined })
+                            return
+                          }
+                        }
+                        setDate(newDate)
+                      }}
                       numberOfMonths={2}
                       locale={ptBR}
                     />
@@ -403,7 +418,7 @@ export default function DouSearch() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="space-y-3">
-                <Label htmlFor="numeroProcesso" className="text-base">
+                <Label htmlFor="numeroProcesso" className="text-lg font-bold">
                   Número do Processo
                 </Label>
                 <Input
@@ -411,11 +426,11 @@ export default function DouSearch() {
                   placeholder="Ex: 0000000-00.0000..."
                   value={numeroProcesso}
                   onChange={(e) => setNumeroProcesso(e.target.value)}
-                  className="text-base py-5"
+                  className="text-lg py-5"
                 />
               </div>
               <div className="space-y-3">
-                <Label htmlFor="numeroOab" className="text-base">
+                <Label htmlFor="numeroOab" className="text-lg font-bold">
                   Número da OAB
                 </Label>
                 <Input
@@ -423,11 +438,11 @@ export default function DouSearch() {
                   placeholder="Ex: 123456/SP"
                   value={numeroOab}
                   onChange={(e) => setNumeroOab(e.target.value)}
-                  className="text-base py-5"
+                  className="text-lg py-5"
                 />
               </div>
               <div className="space-y-3">
-                <Label htmlFor="cpfCnpj" className="text-base">
+                <Label htmlFor="cpfCnpj" className="text-lg font-bold">
                   CPF / CNPJ
                 </Label>
                 <Input
@@ -435,11 +450,11 @@ export default function DouSearch() {
                   placeholder="Ex: 000.000.000-00"
                   value={cpfCnpj}
                   onChange={(e) => setCpfCnpj(e.target.value)}
-                  className="text-base py-5"
+                  className="text-lg py-5"
                 />
               </div>
               <div className="space-y-3">
-                <Label htmlFor="orgPrin" className="text-base">
+                <Label htmlFor="orgPrin" className="text-lg font-bold">
                   Órgão / Tribunal
                 </Label>
                 <Input
@@ -447,38 +462,38 @@ export default function DouSearch() {
                   placeholder="Ex: Ministério da Fazenda"
                   value={orgPrin}
                   onChange={(e) => setOrgPrin(e.target.value)}
-                  className="text-base py-5"
+                  className="text-lg py-5"
                 />
               </div>
               <div className="space-y-3">
-                <Label htmlFor="secaoDou" className="text-base">
+                <Label htmlFor="secaoDou" className="text-lg font-bold">
                   Seção DOU
                 </Label>
                 <Select value={secaoDou} onValueChange={setSecaoDou}>
-                  <SelectTrigger id="secaoDou" className="text-base py-5 h-auto">
+                  <SelectTrigger id="secaoDou" className="text-lg py-5 h-auto">
                     <SelectValue placeholder="Todas as seções" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all" className="text-base">
+                    <SelectItem value="all" className="text-lg">
                       Todas as seções
                     </SelectItem>
-                    <SelectItem value="do1" className="text-base">
+                    <SelectItem value="do1" className="text-lg">
                       Seção 1
                     </SelectItem>
-                    <SelectItem value="do2" className="text-base">
+                    <SelectItem value="do2" className="text-lg">
                       Seção 2
                     </SelectItem>
-                    <SelectItem value="do3" className="text-base">
+                    <SelectItem value="do3" className="text-lg">
                       Seção 3
                     </SelectItem>
-                    <SelectItem value="doextra" className="text-base">
+                    <SelectItem value="doextra" className="text-lg">
                       Edição Extra
                     </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-3">
-                <Label htmlFor="fonteColeta" className="text-base">
+                <Label htmlFor="fonteColeta" className="text-lg font-bold">
                   Fonte de Coleta
                 </Label>
                 <Input
@@ -486,11 +501,11 @@ export default function DouSearch() {
                   placeholder="Ex: Diário Oficial da União"
                   value={fonteColeta}
                   onChange={(e) => setFonteColeta(e.target.value)}
-                  className="text-base py-5"
+                  className="text-lg py-5"
                 />
               </div>
               <div className="space-y-3">
-                <Label htmlFor="artType" className="text-base">
+                <Label htmlFor="artType" className="text-lg font-bold">
                   Tipo de Ato
                 </Label>
                 <Input
@@ -498,7 +513,7 @@ export default function DouSearch() {
                   placeholder="Ex: Portaria, Resolução"
                   value={artType}
                   onChange={(e) => setArtType(e.target.value)}
-                  className="text-base py-5"
+                  className="text-lg py-5"
                 />
               </div>
               <div className="flex items-end">
