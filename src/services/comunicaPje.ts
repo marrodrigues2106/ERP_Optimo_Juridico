@@ -48,7 +48,11 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
     throw new Error('Chave de API não configurada. Por favor, preencha as configurações do módulo.')
   }
 
-  const baseUrl = config.pje_base_url || 'https://comunicaapi.pje.jus.br/api/v1/comunicacao'
+  let baseUrl = config.pje_base_url || 'https://comunicaapi.pje.jus.br/api/v1/comunicacao'
+  if (!baseUrl.includes('/comunicacao')) {
+    baseUrl = baseUrl.endsWith('/') ? `${baseUrl}comunicacao` : `${baseUrl}/comunicacao`
+  }
+
   const apiKey = config.pje_api_key
   const proxyUrl = `/backend/v1/pje_comunica_proxy?${query.toString()}`
 
@@ -84,7 +88,14 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
     } else {
       businessStatus = 'erro_rede'
     }
-    customErrorMessage = error?.response?.message || error.message || 'Erro na requisição'
+
+    if (error?.status === 403) {
+      customErrorMessage =
+        error?.response?.message ||
+        'Bloqueio Geográfico ou Acesso Negado (403). Verifique suas credenciais ou tente novamente.'
+    } else {
+      customErrorMessage = error?.response?.message || error.message || 'Erro na requisição'
+    }
   }
 
   let historyId = ''
