@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Slot } from '@radix-ui/react-slot'
-import { PanelLeft } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 
@@ -182,7 +182,7 @@ export const SidebarTrigger = React.forwardRef<HTMLButtonElement, React.Componen
         }}
         {...props}
       >
-        <PanelLeft className="h-4 w-4" />
+        <Menu className="h-5 w-5" />
         <span className="sr-only">Toggle Sidebar</span>
       </button>
     )

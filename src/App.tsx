@@ -30,8 +30,8 @@ import GazetteManager from '@/components/intranet/GazetteManager'
 import DouSearch from '@/components/intranet/DouSearch'
 import ComunicaPjeLayout from '@/components/intranet/comunica-pje/ComunicaPjeLayout'
 import ComunicaPjeSearch from '@/components/intranet/comunica-pje/ComunicaPjeSearch'
-import ComunicaPjeHistory from '@/components/intranet/comunica-pje/ComunicaPjeHistory'
 import ComunicaPjeSettings from '@/components/intranet/comunica-pje/ComunicaPjeSettings'
+import CentralAtualizacoes from '@/components/intranet/CentralAtualizacoes'
 import { ComunicaProvider } from '@/hooks/use-comunica-store'
 
 function App() {
@@ -61,6 +61,7 @@ function App() {
               >
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<Dashboard />} />
+                <Route path="atualizacoes" element={<CentralAtualizacoes />} />
                 <Route path="publicacoes" element={<PublicacoesManager />} />
                 <Route
                   path="diarios-oficiais"
@@ -69,7 +70,6 @@ function App() {
                 <Route path="busca-dou" element={<DouSearch />} />
                 <Route path="comunicacoes" element={<ComunicaPjeLayout />}>
                   <Route index element={<ComunicaPjeSearch />} />
-                  <Route path="historico" element={<ComunicaPjeHistory />} />
                   <Route path="configuracoes" element={<ComunicaPjeSettings />} />
                 </Route>
                 <Route path="processos" element={<ProcessManager />} />
