@@ -104,6 +104,11 @@ export default function DouSearch() {
   })
   const itemsPerPage = 10
 
+  const totalPages = Math.ceil(results.length / itemsPerPage)
+  const paginatedResults = useMemo(() => {
+    return results.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+  }, [results, currentPage])
+
   useEffect(() => {
     sessionStorage.setItem('dou_q', q)
     sessionStorage.setItem('dou_searchType', searchType)
@@ -229,11 +234,6 @@ export default function DouSearch() {
 
   const formatArtType = (type: string) =>
     type ? type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) : ''
-
-  const totalPages = Math.ceil(results.length / itemsPerPage)
-  const paginatedResults = useMemo(() => {
-    return results.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-  }, [results, currentPage])
 
   return (
     <div className="flex flex-col gap-8 max-w-6xl mx-auto pb-12 animate-fade-in-up">
