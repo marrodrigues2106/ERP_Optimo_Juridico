@@ -32,7 +32,7 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
       }
 
       if (key === 'numeroProcesso') {
-        formattedValue = formattedValue.replace(/[^\d.-]/g, '')
+        formattedValue = formattedValue.replace(/[^\d]/g, '')
       }
 
       if (key === 'cpfCnpj') {
@@ -63,13 +63,10 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
   try {
     responseData = await pb.send(proxyUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+      body: {
         baseUrl,
         apiKey,
-      }),
+      },
     })
 
     const items = responseData?.items || []
@@ -80,6 +77,8 @@ export const searchPjeComunica = async (params: PjeSearchParams) => {
     requestError = error
     if (error?.status === 400) {
       businessStatus = 'erro_validacao'
+    } else if (error?.status === 401) {
+      businessStatus = 'erro_rede'
     } else if (error?.status === 403) {
       businessStatus = 'acesso_proibido'
     } else {

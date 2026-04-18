@@ -5,7 +5,6 @@ routerAdd(
     const query = e.requestInfo().query || {}
     const body = e.requestInfo().body || {}
 
-    const params = new URLSearchParams()
     const allowedParams = [
       'numeroOab',
       'ufOab',
@@ -19,6 +18,7 @@ routerAdd(
       'cpfCnpj',
     ]
 
+    const queryParams = []
     allowedParams.forEach((p) => {
       let val = query[p]
       if (val) {
@@ -27,7 +27,7 @@ routerAdd(
             val = val.split('T')[0]
           }
         }
-        params.append(p, val)
+        queryParams.push(encodeURIComponent(p) + '=' + encodeURIComponent(val))
       }
     })
 
@@ -46,7 +46,9 @@ routerAdd(
       } catch (_) {}
     }
 
-    const url = `${baseUrl}?${params.toString()}`
+    const queryString = queryParams.join('&')
+    const sep = baseUrl.indexOf('?') !== -1 ? '&' : '?'
+    const url = queryString ? `${baseUrl}${sep}${queryString}` : baseUrl
 
     const res = $http.send({
       url: url,
@@ -71,12 +73,15 @@ routerAdd(
     } else if (res.statusCode === 400) {
       status = 'bad_request'
       message = res.json && res.json.message ? res.json.message : 'Parâmetros de busca inválidos'
+    } else if (res.statusCode === 401) {
+      status = 'error'
+      message = 'Token de acesso inválido ou expirado (401)'
     } else if (res.statusCode === 403) {
       status = 'geoblocked'
-      message = 'Bloqueio Geográfico ou Acesso Negado'
+      message = 'Bloqueio Geográfico ou Acesso Negado (403)'
     } else if (res.statusCode === 429) {
       status = 'rate_limit'
-      message = 'Limite de requisições excedido'
+      message = 'Limite de requisições excedido (429)'
     } else {
       status = 'error'
       message =
