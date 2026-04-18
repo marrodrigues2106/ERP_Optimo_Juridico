@@ -171,4 +171,8 @@ routerAdd(
       return e.json(res.statusCode, { message: message, details: res.json })
     }
 
-    const responsePayload =
+    const responsePayload = Object.assign({}, res.json, { items: enhancedItems })
+    return e.json(200, responsePayload)
+  },
+  $apis.requireAuth(),
+)
