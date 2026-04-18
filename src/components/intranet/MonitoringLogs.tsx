@@ -70,7 +70,7 @@ export function MonitoringLogs() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Logs do Sistema Ro-DOU</CardTitle>
+          <CardTitle className="text-lg">Logs do Sistema de Monitoramento</CardTitle>
           <CardDescription>Atividade do motor de busca em tempo real.</CardDescription>
         </CardHeader>
         <CardContent>

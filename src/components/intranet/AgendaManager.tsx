@@ -59,21 +59,30 @@ export default function AgendaManager() {
     const token = pb.authStore.record?.ical_token
     if (!token) return ''
     const baseUrl = import.meta.env.VITE_POCKETBASE_URL || window.location.origin
-    return `${baseUrl}/backend/v1/agenda/ical/${token}`
+    return `${baseUrl}/backend/v1/agenda/ical/${token}?format=ics`
   }
 
   const copyGoogleCalendarLink = () => {
     const link = generateICalLink()
     if (!link) return toast({ title: 'Token não encontrado', variant: 'destructive' })
-    const gcalLink = `https://www.google.com/calendar/render?cid=${encodeURIComponent(link)}`
+
+    const webcalLink = link.replace(/^https?:\/\//, 'webcal://')
+    const gcalLink = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcalLink)}`
+
     navigator.clipboard.writeText(gcalLink)
-    toast({ title: 'Link copiado para o Google Calendar!' })
+    toast({ title: 'Link do Google Calendar copiado para a área de transferência!' })
   }
 
   const downloadICS = () => {
     const link = generateICalLink()
     if (!link) return toast({ title: 'Token não encontrado', variant: 'destructive' })
-    window.open(link, '_blank')
+
+    const a = document.createElement('a')
+    a.href = link
+    a.download = 'agenda.ics'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
   }
 
   const loadData = async () => {

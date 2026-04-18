@@ -169,6 +169,7 @@ export default function CentralAtualizacoes() {
     try {
       await pb.collection('tasks').create({
         title: fd.get('title'),
+        description: fd.get('description'),
         priority: fd.get('priority'),
         due_date: fd.get('due_date')
           ? new Date(`${fd.get('due_date')}T12:00:00Z`).toISOString()
@@ -189,6 +190,7 @@ export default function CentralAtualizacoes() {
     try {
       await pb.collection('agenda_events').create({
         title: fd.get('title'),
+        description: fd.get('description'),
         type: fd.get('type'),
         start_date: fd.get('start_date')
           ? new Date(`${fd.get('start_date')}T12:00:00Z`).toISOString()
@@ -292,7 +294,12 @@ export default function CentralAtualizacoes() {
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => navigate(`/intranet/comunicacoes/${item.id}`)}
+              onClick={async () => {
+                if (!item.isRead) {
+                  await handleMarkAsRead(item)
+                }
+                navigate(`/intranet/comunicacoes/${item.id}`)
+              }}
             >
               <Eye className="w-4 h-4 mr-2" /> Ver Detalhes
             </Button>
@@ -418,6 +425,14 @@ export default function CentralAtualizacoes() {
               <Label>Título da Tarefa</Label>
               <Input name="title" defaultValue={`Acompanhar: ${selectedItem?.title}`} required />
             </div>
+            <div>
+              <Label>Descrição / Contexto</Label>
+              <textarea
+                name="description"
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[80px]"
+                defaultValue={selectedItem?.description?.replace(/<[^>]*>?/gm, '').trim()}
+              />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Data de Vencimento</Label>
@@ -456,6 +471,14 @@ export default function CentralAtualizacoes() {
                 name="title"
                 defaultValue={`Prazo/Audiência: ${selectedItem?.title}`}
                 required
+              />
+            </div>
+            <div>
+              <Label>Descrição / Contexto</Label>
+              <textarea
+                name="description"
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[80px]"
+                defaultValue={selectedItem?.description?.replace(/<[^>]*>?/gm, '').trim()}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">

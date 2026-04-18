@@ -81,13 +81,6 @@ routerAdd(
       } catch (_) {}
     }
 
-    if (configuredTribunals.length > 0 && !isTribunalActive) {
-      return e.json(400, {
-        success: false,
-        error: `O tribunal '${targetAlias}' não está habilitado no Monitoramento. Acesse a aba Configurações de Monitoramento e ative-o para poder usar a busca do DataJud.`,
-      })
-    }
-
     const url = `https://api-publica.datajud.cnj.jus.br/api_publica_${targetAlias}/_search`
 
     try {

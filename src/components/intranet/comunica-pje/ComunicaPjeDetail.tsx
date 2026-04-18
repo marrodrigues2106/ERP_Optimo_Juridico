@@ -52,14 +52,14 @@ export default function ComunicaPjeDetail() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-fade-in-up pb-12">
+    <div className="w-full space-y-6 animate-fade-in-up pb-12">
       <Button variant="ghost" className="mb-2 text-base font-semibold" onClick={() => navigate(-1)}>
         <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
       </Button>
 
-      <Card className="border-slate-200 shadow-sm">
+      <Card className="border-slate-200 shadow-sm w-full">
         <CardHeader className="border-b border-slate-100 pb-6">
-          <CardTitle className="text-3xl font-bold tracking-tight text-primary">
+          <CardTitle className="text-2xl font-bold tracking-tight text-primary">
             Detalhes da Comunicação PJe
           </CardTitle>
           <div className="text-lg font-mono mt-3 text-slate-600 bg-slate-50 inline-block px-3 py-1 rounded-md border border-slate-200">
@@ -138,12 +138,12 @@ export default function ComunicaPjeDetail() {
             <h3 className="text-xl font-bold mb-4 text-slate-800 border-b border-slate-100 pb-2">
               Texto da Comunicação
             </h3>
-            <ScrollArea className="h-[400px] w-full rounded-xl border border-slate-200 bg-white p-6 shadow-inner">
+            <div className="w-full rounded-xl border border-slate-200 bg-white p-6 shadow-inner min-h-[400px]">
               <div
                 className="text-base text-slate-700 leading-relaxed whitespace-pre-wrap break-words font-serif"
                 dangerouslySetInnerHTML={{ __html: item.texto || 'Nenhum texto disponível.' }}
               />
-            </ScrollArea>
+            </div>
           </div>
 
           {item.destinatarios && item.destinatarios.length > 0 && (

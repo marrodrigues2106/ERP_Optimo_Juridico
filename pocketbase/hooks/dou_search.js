@@ -830,14 +830,14 @@ routerAdd(
 
         if (hasMore) {
           let start = new Date().getTime()
-          while (new Date().getTime() - start < 2000) {}
+          while (new Date().getTime() - start < 300) {}
         }
       }
 
       if (dateChunks.length > 1 && chunk !== dateChunks[dateChunks.length - 1]) {
         logProcess('partitioning', 'Info', `Aplicando pausa (backoff) entre blocos temporais...`)
         let start = new Date().getTime()
-        while (new Date().getTime() - start < 3000) {}
+        while (new Date().getTime() - start < 500) {}
       }
     } // End of date chunk loop
 
