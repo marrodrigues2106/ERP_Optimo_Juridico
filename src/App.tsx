@@ -28,59 +28,71 @@ import AuditLogs from '@/components/intranet/AuditLogs'
 import PublicacoesManager from '@/components/intranet/PublicacoesManager'
 import GazetteManager from '@/components/intranet/GazetteManager'
 import DouSearch from '@/components/intranet/DouSearch'
+import ComunicaPjeLayout from '@/components/intranet/comunica-pje/ComunicaPjeLayout'
+import ComunicaPjeSearch from '@/components/intranet/comunica-pje/ComunicaPjeSearch'
+import ComunicaPjeHistory from '@/components/intranet/comunica-pje/ComunicaPjeHistory'
+import ComunicaPjeSettings from '@/components/intranet/comunica-pje/ComunicaPjeSettings'
+import { ComunicaProvider } from '@/hooks/use-comunica-store'
 
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Index />} />
-            <Route path="especialidade/:id" element={<Specialty />} />
-            <Route path="artigos" element={<Articles />} />
-            <Route path="login" element={<Login />} />
-            <Route path="reset-password" element={<ResetPassword />} />
-            <Route
-              path="diarios-oficiais"
-              element={<Navigate to="/intranet/busca-dou" replace />}
-            />
-
-            <Route
-              path="intranet"
-              element={
-                <ProtectedRoute>
-                  <Intranet />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="publicacoes" element={<PublicacoesManager />} />
+      <ComunicaProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Index />} />
+              <Route path="especialidade/:id" element={<Specialty />} />
+              <Route path="artigos" element={<Articles />} />
+              <Route path="login" element={<Login />} />
+              <Route path="reset-password" element={<ResetPassword />} />
               <Route
                 path="diarios-oficiais"
                 element={<Navigate to="/intranet/busca-dou" replace />}
               />
-              <Route path="busca-dou" element={<DouSearch />} />
-              <Route path="processos" element={<ProcessManager />} />
-              <Route path="processos/:id" element={<ProcessDetail />} />
-              <Route path="clientes/:id" element={<ClientDetail />} />
-              <Route path="equipe/:id" element={<CollaboratorDetail />} />
-              <Route path="crm" element={<CrmManager />} />
-              <Route path="agenda" element={<AgendaManager />} />
-              <Route path="finance" element={<FinanceManager />} />
-              <Route path="library" element={<LibraryManager />} />
-              <Route path="blog" element={<BlogManager />} />
-              <Route path="team" element={<TeamManager />} />
-              <Route path="users" element={<UsersManager />} />
-              <Route path="audit" element={<AuditLogs />} />
-              <Route path="profile" element={<ProfileManager />} />
-            </Route>
 
-            <Route path="*" element={<NotFound />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-      <Toaster />
+              <Route
+                path="intranet"
+                element={
+                  <ProtectedRoute>
+                    <Intranet />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="publicacoes" element={<PublicacoesManager />} />
+                <Route
+                  path="diarios-oficiais"
+                  element={<Navigate to="/intranet/busca-dou" replace />}
+                />
+                <Route path="busca-dou" element={<DouSearch />} />
+                <Route path="comunicacoes" element={<ComunicaPjeLayout />}>
+                  <Route index element={<ComunicaPjeSearch />} />
+                  <Route path="historico" element={<ComunicaPjeHistory />} />
+                  <Route path="configuracoes" element={<ComunicaPjeSettings />} />
+                </Route>
+                <Route path="processos" element={<ProcessManager />} />
+                <Route path="processos/:id" element={<ProcessDetail />} />
+                <Route path="clientes/:id" element={<ClientDetail />} />
+                <Route path="equipe/:id" element={<CollaboratorDetail />} />
+                <Route path="crm" element={<CrmManager />} />
+                <Route path="agenda" element={<AgendaManager />} />
+                <Route path="finance" element={<FinanceManager />} />
+                <Route path="library" element={<LibraryManager />} />
+                <Route path="blog" element={<BlogManager />} />
+                <Route path="team" element={<TeamManager />} />
+                <Route path="users" element={<UsersManager />} />
+                <Route path="audit" element={<AuditLogs />} />
+                <Route path="profile" element={<ProfileManager />} />
+              </Route>
+
+              <Route path="*" element={<NotFound />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+        <Toaster />
+      </ComunicaProvider>
     </AuthProvider>
   )
 }
