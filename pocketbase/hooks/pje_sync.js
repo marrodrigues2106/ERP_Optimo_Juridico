@@ -10,93 +10,14 @@ routerAdd(
       throw new NotFoundError('Case not found')
     }
 
-    const num = record.getString('case_number')
-    if (!num) throw new BadRequestError('No case number')
-
-    const cleanNum = String(num).replace(/\D/g, '')
-    if (cleanNum.length !== 20) throw new BadRequestError('Invalid case number')
-
-    try {
-      const url = 'https://comunica.pje.jus.br/api/v1/comunicacao?numeroProcesso=' + cleanNum
-      const res = $http.send({
-        url: url,
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-        timeout: 60,
-      })
-
-      let data = null
-      try {
-        data = res.json
-      } catch (err) {}
-
-      if (res.statusCode === 200 && data && data.items) {
-        const items = data.items
-        const movementsCol = $app.findCollectionByNameOrId('case_movements')
-        const orgId = record.getString('organization')
-        let added = 0
-
-        items.forEach((item) => {
-          try {
-            const uniqueStr = record.id + '_' + item.hash
-            const extId = item.hash || $security.md5(uniqueStr)
-
-            try {
-              $app.findFirstRecordByFilter('case_movements', `external_id = '${extId}'`)
-            } catch (notfound) {
-              const mov = new Record(movementsCol)
-              mov.set('case', record.id)
-              mov.set('event_date', item.dataDisponibilizacao || new Date().toISOString())
-              mov.set('description', item.tipoComunicacao || 'Comunicação PJe')
-              mov.set('details', item.texto || '')
-              mov.set('source', 'PJe')
-              mov.set('external_id', extId)
-              if (orgId) mov.set('organization', orgId)
-              $app.saveNoValidate(mov)
-              added++
-            }
-          } catch (err) {}
-        })
-
-        record.set('datajud_sync_status', 'Success')
-        record.set('datajud_last_sync', new Date().toISOString())
-        $app.saveNoValidate(record)
-
-        return e.json(200, { success: true, added })
-      } else {
-        record.set('datajud_sync_status', 'Error')
-        $app.saveNoValidate(record)
-
-        if (res.statusCode === 504 || res.statusCode === 503) {
-          return e.json(504, {
-            message:
-              'O sistema PJe está lento ou indisponível no momento. Por favor, tente novamente em alguns minutos.',
-            code: 'PJE_TIMEOUT',
-          })
-        }
-
-        throw new InternalServerError('PJe API Error')
-      }
-    } catch (err) {
-      record.set('datajud_sync_status', 'Error')
-      $app.saveNoValidate(record)
-
-      const msg = (err.message || '').toLowerCase()
-      if (
-        msg.includes('context deadline exceeded') ||
-        msg.includes('timeout') ||
-        msg.includes('network') ||
-        msg.includes('gateway')
-      ) {
-        return e.json(504, {
-          message:
-            'O sistema PJe está lento ou indisponível no momento. Por favor, tente novamente em alguns minutos.',
-          code: 'PJE_TIMEOUT',
-        })
-      }
-
-      throw new InternalServerError(err.message)
+    if (record.getString('pje_sync_status') === 'syncing') {
+      return e.json(200, { success: true, message: 'Processo já está em sincronização.' })
     }
+
+    record.set('pje_sync_status', 'pending')
+    $app.saveNoValidate(record)
+
+    return e.json(200, { success: true, message: 'Sincronização agendada com sucesso.' })
   },
   $apis.requireAuth(),
 )

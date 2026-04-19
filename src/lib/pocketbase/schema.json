@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-19T02:19:05.178Z",
+  "generatedAt": "2026-04-19T02:23:36.316Z",
   "collections": [
     {
       "name": "users",
@@ -1464,6 +1464,19 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "pje_last_sync",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "pje_sync_status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["idle", "pending", "syncing", "error"]
         }
       ],
       "indexes": [
@@ -1471,7 +1484,9 @@
         "CREATE INDEX `idx_legal_cases_lifecycle` ON `legal_cases` (lifecycle_status)",
         "CREATE INDEX `idx_legal_cases_parties_search` ON `legal_cases` (parties)",
         "CREATE INDEX `idx_legal_cases_court_search` ON `legal_cases` (court)",
-        "CREATE INDEX `idx_legal_cases_description_search` ON `legal_cases` (description)"
+        "CREATE INDEX `idx_legal_cases_description_search` ON `legal_cases` (description)",
+        "CREATE INDEX `idx_legal_cases_pje_status` ON `legal_cases` (pje_sync_status)",
+        "CREATE INDEX `idx_legal_cases_pje_last_sync` ON `legal_cases` (pje_last_sync)"
       ]
     },
     {
@@ -2901,6 +2916,67 @@
           "type": "bool",
           "required": false,
           "system": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "pje_sync_logs",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && organization = @request.auth.active_organization",
+        "view": "@request.auth.id != '' && organization = @request.auth.active_organization",
+        "create": null,
+        "update": null,
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "case",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "legal_cases"
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["success", "failed"]
+        },
+        {
+          "name": "message",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "duration",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "organization",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "organizations"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
       "indexes": []

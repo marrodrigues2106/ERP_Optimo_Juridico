@@ -85,8 +85,10 @@ export default function Dashboard() {
     setIsSyncingAll(true)
     try {
       await pb.send('/backend/v1/processos-sync-pje-all', { method: 'POST' })
-      toast({ title: 'Sincronização com PJe concluída.' })
-      debouncedLoadFeed()
+      toast({
+        title: 'Sincronização agendada',
+        description: 'Os processos ativos serão atualizados em background.',
+      })
     } catch (err: any) {
       toast({ title: 'Erro na Sincronização', description: err.message, variant: 'destructive' })
     } finally {

@@ -35,6 +35,8 @@ import {
 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { Badge } from '@/components/ui/badge'
+import { useRealtime } from '@/hooks/use-realtime'
+import { cn } from '@/lib/utils'
 
 export default function ProcessDetail() {
   const { id } = useParams<{ id: string }>()
@@ -49,7 +51,6 @@ export default function ProcessDetail() {
   const [tasks, setTasks] = useState<any[]>([])
   const [events, setEvents] = useState<any[]>([])
   const [finances, setFinances] = useState<any[]>([])
-  const [isSyncing, setIsSyncing] = useState(false)
   const [newMovement, setNewMovement] = useState('')
   const [activeTab, setActiveTab] = useState('andamento')
 
@@ -59,6 +60,20 @@ export default function ProcessDetail() {
       loadMovements(1)
     }
   }, [id])
+
+  useRealtime('legal_cases', (e) => {
+    if (e.record.id === id) {
+      setLegalCase((prev: any) => {
+        if (!prev) return prev
+        const wasSyncing = prev.pje_sync_status === 'syncing'
+        const isIdleNow = e.record.pje_sync_status === 'idle'
+        if (wasSyncing && isIdleNow) {
+          loadMovements(1)
+        }
+        return { ...prev, ...e.record }
+      })
+    }
+  })
 
   const loadData = async () => {
     try {
@@ -93,35 +108,19 @@ export default function ProcessDetail() {
   }
 
   const handleSync = async () => {
-    setIsSyncing(true)
     try {
       await pb.send(`/backend/v1/processos/${id}/sync-pje`, { method: 'POST' })
-      toast({ title: 'Sincronização com PJe concluída' })
-      loadData()
-      loadMovements(1)
-    } catch (error: any) {
-      let errorMessage = error?.message || 'Erro desconhecido ao tentar sincronizar.'
-
-      if (
-        error?.status === 504 ||
-        error?.status === 502 ||
-        error?.status === 503 ||
-        error?.status === 0 ||
-        error?.response?.code === 'PJE_TIMEOUT'
-      ) {
-        errorMessage =
-          'O sistema PJe está lento ou indisponível no momento. Por favor, tente novamente em alguns minutos.'
-      } else if (error?.response?.message) {
-        errorMessage = error.response.message
-      }
-
       toast({
-        title: 'Erro na Sincronização',
-        description: errorMessage,
+        title: 'Sincronização agendada',
+        description: 'O processo será atualizado em background.',
+      })
+      setLegalCase((prev: any) => ({ ...prev, pje_sync_status: 'pending' }))
+    } catch (error: any) {
+      toast({
+        title: 'Erro na Solicitação',
+        description: error?.response?.message || error?.message || 'Erro desconhecido.',
         variant: 'destructive',
       })
-    } finally {
-      setIsSyncing(false)
     }
   }
 
@@ -221,6 +220,11 @@ export default function ProcessDetail() {
                     <Badge variant="outline" className="text-slate-500">
                       {legalCase.court || 'Tribunal não informado'}
                     </Badge>
+                    {legalCase.pje_last_sync && (
+                      <Badge variant="outline" className="text-slate-500 font-normal">
+                        Última sync: {new Date(legalCase.pje_last_sync).toLocaleString('pt-BR')}
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </div>
@@ -231,11 +235,31 @@ export default function ProcessDetail() {
                 <Button
                   variant="outline"
                   onClick={handleSync}
-                  disabled={isSyncing}
-                  className="shadow-sm"
+                  disabled={
+                    legalCase?.pje_sync_status === 'pending' ||
+                    legalCase?.pje_sync_status === 'syncing'
+                  }
+                  className={cn(
+                    'shadow-sm',
+                    legalCase?.pje_sync_status === 'error' &&
+                      'border-red-300 text-red-600 bg-red-50 hover:bg-red-100 hover:text-red-700',
+                  )}
+                  title={
+                    legalCase?.pje_sync_status === 'error' ? 'Falha na última sincronização' : ''
+                  }
                 >
-                  <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />{' '}
-                  Sincronizar com PJe
+                  <RefreshCw
+                    className={cn(
+                      'w-4 h-4 mr-2',
+                      (legalCase?.pje_sync_status === 'pending' ||
+                        legalCase?.pje_sync_status === 'syncing') &&
+                        'animate-spin',
+                    )}
+                  />
+                  {legalCase?.pje_sync_status === 'pending' ||
+                  legalCase?.pje_sync_status === 'syncing'
+                    ? 'Sincronizando em 2º plano...'
+                    : 'Solicitar Atualização PJe'}
                 </Button>
               </div>
             </div>
