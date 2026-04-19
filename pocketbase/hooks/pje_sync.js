@@ -22,7 +22,7 @@ routerAdd(
         url: url,
         method: 'GET',
         headers: { Accept: 'application/json' },
-        timeout: 15,
+        timeout: 60,
       })
 
       let data = null

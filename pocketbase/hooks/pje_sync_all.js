@@ -9,8 +9,8 @@ routerAdd(
     const cases = $app.findRecordsByFilter(
       'legal_cases',
       `lifecycle_status = 'Ativo' && deleted_at = "" && organization = '${orgId}'`,
-      '-created',
-      100,
+      '+datajud_last_sync',
+      15,
       0,
     )
 
@@ -26,7 +26,7 @@ routerAdd(
           url: url,
           method: 'GET',
           headers: { Accept: 'application/json' },
-          timeout: 15,
+          timeout: 45,
         })
 
         let data = null
