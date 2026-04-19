@@ -99,21 +99,27 @@ export default function ProcessDetail() {
       toast({ title: 'Sincronização com PJe concluída' })
       loadData()
       loadMovements(1)
-    } catch (err: any) {
-      let errorMessage = err.message
+    } catch (error: any) {
+      let errorMessage = error?.message || 'Erro desconhecido ao tentar sincronizar.'
+
       if (
-        err.status === 504 ||
-        err.status === 502 ||
-        err.status === 503 ||
-        err.status === 0 ||
-        err.response?.code === 'PJE_TIMEOUT'
+        error?.status === 504 ||
+        error?.status === 502 ||
+        error?.status === 503 ||
+        error?.status === 0 ||
+        error?.response?.code === 'PJE_TIMEOUT'
       ) {
         errorMessage =
           'O sistema PJe está lento ou indisponível no momento. Por favor, tente novamente em alguns minutos.'
-      } else if (err.response?.message) {
-        errorMessage = err.response.message
+      } else if (error?.response?.message) {
+        errorMessage = error.response.message
       }
-      toast({ title: 'Erro na Sincronização', description: errorMessage, variant: 'destructive' })
+
+      toast({
+        title: 'Erro na Sincronização',
+        description: errorMessage,
+        variant: 'destructive',
+      })
     } finally {
       setIsSyncing(false)
     }
