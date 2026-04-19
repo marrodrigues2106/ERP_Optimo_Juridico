@@ -113,7 +113,8 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
   const unit = selectedCaseInfo?.duration_unit || 'meses'
   const durationInMonths = unit === 'semanas' ? duration / 4 : duration
 
-  const fixedCostMonthly = monthlyFixedCosts / activeCases
+  const allocated = selectedCaseInfo?.allocated_fixed_cost || 0
+  const fixedCostMonthly = monthlyFixedCosts / activeCases + allocated
   const totalFixedCost = fixedCostMonthly * durationInMonths
   const totalCost = expenses + totalFixedCost
   const estimatedValue = totalCost * (1 + margin / 100)
@@ -184,7 +185,7 @@ export function FeeEstimatorModal({ open, onOpenChange, cases, defaultCaseId, on
               <SelectContent>
                 {cases.map((c: any) => (
                   <SelectItem key={c.id} value={c.id}>
-                    {c.case_number || c.parties}
+                    {c.parties || c.description || c.case_number}
                   </SelectItem>
                 ))}
               </SelectContent>

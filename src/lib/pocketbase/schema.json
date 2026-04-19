@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-18T23:50:00.570Z",
+  "generatedAt": "2026-04-19T00:33:53.506Z",
   "collections": [
     {
       "name": "users",
@@ -1509,7 +1509,7 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["DataJud", "Tribunal", "Diário", "Manual"]
+          "selectValues": ["DataJud", "Tribunal", "Diário", "Manual", "PJe"]
         },
         {
           "name": "external_id",
