@@ -100,7 +100,14 @@ export default function ProcessDetail() {
       loadData()
       loadMovements(1)
     } catch (err: any) {
-      toast({ title: 'Erro na Sincronização', description: err.message, variant: 'destructive' })
+      let errorMessage = err.message
+      if (err.status === 504 || err.response?.code === 'PJE_TIMEOUT') {
+        errorMessage =
+          'O sistema PJe está lento ou indisponível no momento. Por favor, tente novamente em alguns minutos.'
+      } else if (err.response?.message) {
+        errorMessage = err.response.message
+      }
+      toast({ title: 'Erro na Sincronização', description: errorMessage, variant: 'destructive' })
     } finally {
       setIsSyncing(false)
     }
