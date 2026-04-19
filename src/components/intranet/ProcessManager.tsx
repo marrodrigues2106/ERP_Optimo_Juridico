@@ -29,7 +29,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Search, Plus, Trash2, Edit2, Eye, Star, RotateCcw } from 'lucide-react'
+import { Search, Plus, Trash2, Edit2, Eye, Star, RotateCcw, RefreshCw } from 'lucide-react'
+import pb from '@/lib/pocketbase/client'
 import { getLegalCases, deleteLegalCase, updateLegalCase } from '@/services/legal_cases'
 import { getClients } from '@/services/clients'
 import { getCollaborators } from '@/services/collaborators'
@@ -56,6 +57,20 @@ export default function ProcessManager() {
   const [editingCase, setEditingCase] = useState<any>(null)
   const [deletingCase, setDeletingCase] = useState<any>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isSyncingAll, setIsSyncingAll] = useState(false)
+
+  const handleSyncAll = async () => {
+    setIsSyncingAll(true)
+    try {
+      await pb.send('/backend/v1/sync-pje-all', { method: 'POST' })
+      toast({ title: 'Sincronização com PJe concluída.' })
+      loadData()
+    } catch (err: any) {
+      toast({ title: 'Erro na Sincronização', description: err.message, variant: 'destructive' })
+    } finally {
+      setIsSyncingAll(false)
+    }
+  }
 
   const loadData = async () => {
     try {
@@ -161,6 +176,15 @@ export default function ProcessManager() {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
+          <Button
+            onClick={handleSyncAll}
+            disabled={isSyncingAll}
+            variant="outline"
+            className="shadow-sm"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${isSyncingAll ? 'animate-spin' : ''}`} />{' '}
+            Sincronizar com PJe
+          </Button>
           <Button onClick={() => handleOpenForm()} className="shadow-sm">
             <Plus className="w-4 h-4 mr-2" /> Novo Registro
           </Button>
@@ -274,7 +298,7 @@ export default function ProcessManager() {
                     <TableHead className="pl-6 w-10"></TableHead>
                     <TableHead>Identificação & Partes</TableHead>
                     <TableHead>Fase / Prazo</TableHead>
-                    <TableHead>Integração V2</TableHead>
+                    <TableHead>Integração PJe</TableHead>
                     <TableHead className="text-right pr-6">Ações</TableHead>
                   </TableRow>
                 </TableHeader>

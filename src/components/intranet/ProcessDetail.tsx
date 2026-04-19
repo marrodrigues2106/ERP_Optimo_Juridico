@@ -34,7 +34,6 @@ import {
   Plus,
 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
-import { runDatajudSync } from '@/lib/datajud/sync'
 import { Badge } from '@/components/ui/badge'
 
 export default function ProcessDetail() {
@@ -96,8 +95,8 @@ export default function ProcessDetail() {
   const handleSync = async () => {
     setIsSyncing(true)
     try {
-      await runDatajudSync(legalCase, () => {})
-      toast({ title: 'Sincronização concluída' })
+      await pb.send('/backend/v1/sync-pje/' + id, { method: 'POST' })
+      toast({ title: 'Sincronização com PJe concluída' })
       loadData()
       loadMovements(1)
     } catch (err: any) {
@@ -217,7 +216,7 @@ export default function ProcessDetail() {
                   className="shadow-sm"
                 >
                   <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />{' '}
-                  Sincronizar
+                  Sincronizar com PJe
                 </Button>
               </div>
             </div>

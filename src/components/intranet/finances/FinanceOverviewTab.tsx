@@ -245,6 +245,7 @@ export function FinanceOverviewTab({ transactions, cases, user, onEdit, onDelete
                               <span className="text-[10px] text-slate-500 truncate">
                                 Ref:{' '}
                                 {t.expand.linked_lawsuit.parties ||
+                                  t.expand.linked_lawsuit.description ||
                                   t.expand.linked_lawsuit.case_number}
                               </span>
                               {canSeeAlerts && isOver && t.type === 'outflow' && (

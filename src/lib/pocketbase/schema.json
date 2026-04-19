@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-19T00:33:53.506Z",
+  "generatedAt": "2026-04-19T00:50:14.694Z",
   "collections": [
     {
       "name": "users",
@@ -1269,8 +1269,8 @@
       "name": "legal_cases",
       "type": "base",
       "apiRules": {
-        "list": "(@request.auth.role = 'admin' || @request.auth.isAdmin = true) || (responsible_collaborator.user = @request.auth.id)",
-        "view": "(@request.auth.role = 'admin' || @request.auth.isAdmin = true) || (responsible_collaborator.user = @request.auth.id)",
+        "list": "(@request.auth.id != '') && organization = @request.auth.active_organization && (@request.auth.role = 'admin' || @request.auth.isAdmin = true || responsible_collaborator.user = @request.auth.id)",
+        "view": "(@request.auth.id != '') && organization = @request.auth.active_organization && (@request.auth.role = 'admin' || @request.auth.isAdmin = true || responsible_collaborator.user = @request.auth.id)",
         "create": "(@request.auth.id != '') && organization = @request.auth.active_organization",
         "update": "(@request.auth.id != '') && organization = @request.auth.active_organization",
         "delete": "(@request.auth.id != '') && organization = @request.auth.active_organization && lifecycle_status = 'Arquivado'"
@@ -1478,8 +1478,8 @@
       "name": "case_movements",
       "type": "base",
       "apiRules": {
-        "list": "(@request.auth.id != '') && organization = @request.auth.active_organization",
-        "view": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "list": "(@request.auth.id != '') && organization = @request.auth.active_organization && (@request.auth.role = 'admin' || @request.auth.isAdmin = true || case.responsible_collaborator.user = @request.auth.id)",
+        "view": "(@request.auth.id != '') && organization = @request.auth.active_organization && (@request.auth.role = 'admin' || @request.auth.isAdmin = true || case.responsible_collaborator.user = @request.auth.id)",
         "create": "(@request.auth.id != '') && organization = @request.auth.active_organization",
         "update": "(@request.auth.id != '') && organization = @request.auth.active_organization",
         "delete": "(@request.auth.id != '') && organization = @request.auth.active_organization"

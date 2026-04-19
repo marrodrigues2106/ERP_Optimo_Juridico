@@ -1,6 +1,6 @@
 onRecordAfterCreateSuccess((e) => {
   const record = e.record
-  const num = record.get('case_number')
+  const num = record.getString('case_number')
   if (!num) return e.next()
 
   const cleanNum = String(num).replace(/\D/g, '')
@@ -18,7 +18,7 @@ onRecordAfterCreateSuccess((e) => {
     if (res.statusCode === 200 && res.json && res.json.items) {
       const items = res.json.items
       const movementsCol = $app.findCollectionByNameOrId('case_movements')
-      const orgId = record.get('organization')
+      const orgId = record.getString('organization')
 
       items.forEach((item) => {
         try {
@@ -42,6 +42,10 @@ onRecordAfterCreateSuccess((e) => {
           console.log('Error saving mov', err)
         }
       })
+
+      e.record.set('datajud_sync_status', 'Success')
+      e.record.set('datajud_last_sync', new Date().toISOString())
+      $app.saveNoValidate(e.record)
     }
   } catch (err) {
     console.log('Error syncing Comunica PJe', err)

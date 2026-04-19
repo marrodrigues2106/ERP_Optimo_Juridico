@@ -15,6 +15,7 @@ import {
   Archive,
   Check,
   Trash2,
+  RefreshCw,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import pb from '@/lib/pocketbase/client'
@@ -68,6 +69,20 @@ export default function Dashboard() {
   const [selectedFeedItems, setSelectedFeedItems] = useState<string[]>([])
   const [selectedCollaboratorId, setSelectedCollaboratorId] = useState<string | null>(null)
   const [caseCount, setCaseCount] = useState(0)
+  const [isSyncingAll, setIsSyncingAll] = useState(false)
+
+  const handleSyncAll = async () => {
+    setIsSyncingAll(true)
+    try {
+      await pb.send('/backend/v1/sync-pje-all', { method: 'POST' })
+      toast({ title: 'Sincronização com PJe concluída.' })
+      debouncedLoadFeed()
+    } catch (err: any) {
+      toast({ title: 'Erro na Sincronização', description: err.message, variant: 'destructive' })
+    } finally {
+      setIsSyncingAll(false)
+    }
+  }
 
   const loadTasks = async () => {
     let filter = 'status = "todo" && deleted_at = ""'
@@ -402,13 +417,25 @@ export default function Dashboard() {
               Resumo do seu dia e atualizações recentes.
             </p>
           </div>
-          <Button
-            onClick={() => setCaseModalOpen(true)}
-            size="sm"
-            className="hidden sm:flex shadow-sm"
-          >
-            <Plus className="w-4 h-4 mr-2" /> Adicionar Processo ou Serviço
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSyncAll}
+              disabled={isSyncingAll}
+              className="hidden sm:flex shadow-sm bg-white"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isSyncingAll ? 'animate-spin' : ''}`} />
+              Sincronizar com PJe
+            </Button>
+            <Button
+              onClick={() => setCaseModalOpen(true)}
+              size="sm"
+              className="hidden sm:flex shadow-sm"
+            >
+              <Plus className="w-4 h-4 mr-2" /> Adicionar Processo ou Serviço
+            </Button>
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-4xl mx-auto">

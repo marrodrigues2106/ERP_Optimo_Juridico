@@ -22,7 +22,7 @@ import {
 export function FinanceHistoryTab({ transactions, cases, onEdit, onDelete }: any) {
   const [filterMonth, setFilterMonth] = useState('')
   const [page, setPage] = useState(1)
-  const perPage = 15
+  const perPage = 10
 
   const filtered = transactions.filter((t: any) => {
     if (!filterMonth) return true
@@ -87,6 +87,7 @@ export function FinanceHistoryTab({ transactions, cases, onEdit, onDelete }: any
                 </TableCell>
                 <TableCell className="text-xs text-slate-500">
                   {t.expand?.linked_lawsuit?.parties ||
+                    t.expand?.linked_lawsuit?.description ||
                     t.expand?.linked_lawsuit?.case_number ||
                     '-'}
                 </TableCell>
