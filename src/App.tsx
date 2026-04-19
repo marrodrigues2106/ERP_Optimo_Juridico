@@ -45,7 +45,7 @@ function App() {
               <Route path="artigos" element={<Articles />} />
               <Route path="login" element={<Login />} />
               <Route path="reset-password" element={<ResetPassword />} />
-              <Route path="public/agenda/:orgId" element={<PublicAgenda />} />
+              <Route path="public/agenda/:token" element={<PublicAgenda />} />
               <Route
                 path="diarios-oficiais"
                 element={<Navigate to="/intranet/busca-dou" replace />}

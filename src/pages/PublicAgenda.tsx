@@ -14,14 +14,14 @@ interface PublicEvent {
 }
 
 export default function PublicAgenda() {
-  const { orgId } = useParams()
+  const { token } = useParams()
   const [events, setEvents] = useState<PublicEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
   useEffect(() => {
-    if (!orgId) return
-    pb.send(`/backend/v1/public/agenda/${orgId}`, { method: 'GET' })
+    if (!token) return
+    pb.send(`/backend/v1/public/agenda/${token}`, { method: 'GET' })
       .then((data) => {
         const today = startOfDay(new Date())
         const upcoming = (data as PublicEvent[]).filter((e) => new Date(e.start_date) >= today)
@@ -36,7 +36,7 @@ export default function PublicAgenda() {
         setError(true)
       })
       .finally(() => setLoading(false))
-  }, [orgId])
+  }, [])
 
   if (loading) {
     return (

@@ -74,9 +74,9 @@ export default function AgendaManager() {
   }
 
   const copyPublicLink = () => {
-    const orgId = pb.authStore.record?.active_organization
-    if (!orgId) return toast({ title: 'Organização não encontrada', variant: 'destructive' })
-    const link = `${window.location.origin}/public/agenda/${orgId}`
+    const token = pb.authStore.record?.active_organization
+    if (!token) return toast({ title: 'Token não encontrado', variant: 'destructive' })
+    const link = `${window.location.origin}/public/agenda/${token}`
     navigator.clipboard.writeText(link)
     toast({ title: 'Link público copiado para a área de transferência!' })
   }

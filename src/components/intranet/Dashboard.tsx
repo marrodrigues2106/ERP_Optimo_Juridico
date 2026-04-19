@@ -1,6 +1,14 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from '@/components/ui/chart'
 import {
   Bell,
   UserPlus,
@@ -22,7 +30,7 @@ import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useAuth } from '@/hooks/use-auth'
 import { usePermissions } from '@/hooks/use-permissions'
-import { format, isBefore, startOfDay, addDays } from 'date-fns'
+import { format, isBefore, startOfDay, addDays, startOfMonth, endOfMonth, addWeeks } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { EventFormModal } from './cases/EventFormModal'
 import { CaseFormModal } from './cases/CaseFormModal'
@@ -76,6 +84,11 @@ export default function Dashboard() {
   const [myCollaboratorId, setMyCollaboratorId] = useState<string | null>(null)
   const [caseCount, setCaseCount] = useState(0)
   const [isSyncingAll, setIsSyncingAll] = useState(false)
+  const [finances, setFinances] = useState<any[]>([])
+  const [startDate, setStartDate] = useState<string>(
+    format(startOfMonth(addWeeks(new Date(), -12)), 'yyyy-MM-dd'),
+  )
+  const [endDate, setEndDate] = useState<string>(format(endOfMonth(new Date()), 'yyyy-MM-dd'))
 
   const canFilterOthers =
     isAdmin || user?.role === 'manager' || user?.role === 'admin' || user?.isAdmin
@@ -124,6 +137,62 @@ export default function Dashboard() {
     } catch (e) {
       console.error(e)
     }
+  }
+
+  const loadFinances = async () => {
+    try {
+      const records = await pb.collection('finances').getFullList({
+        filter: `type = "inflow" && deleted_at = "" && date >= "${startDate} 00:00:00" && date <= "${endDate} 23:59:59"`,
+      })
+      setFinances(records)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'rentabilidade') {
+      loadFinances()
+    }
+  }, [activeTab, startDate, endDate])
+
+  const chartData = useMemo(() => {
+    const grouped: Record<
+      string,
+      { month: string; estimated: number; realized: number; sortKey: number }
+    > = {}
+
+    finances.forEach((f) => {
+      const date = new Date(f.date)
+      const monthKey = format(date, 'MMM yyyy', { locale: ptBR })
+      if (!grouped[monthKey]) {
+        grouped[monthKey] = {
+          month: monthKey,
+          estimated: 0,
+          realized: 0,
+          sortKey: startOfMonth(date).getTime(),
+        }
+      }
+
+      const isEstimated = ['orçado', 'estimado', 'previsto'].includes(f.status)
+      const isRealized = ['realizada', 'recebida', 'realizado', 'pago'].includes(f.status)
+
+      if (isEstimated) grouped[monthKey].estimated += f.amount || 0
+      if (isRealized) grouped[monthKey].realized += f.amount || 0
+    })
+
+    return Object.values(grouped).sort((a, b) => a.sortKey - b.sortKey)
+  }, [finances])
+
+  const chartConfig = {
+    estimated: {
+      label: 'Margem Estimada',
+      color: '#94a3b8',
+    },
+    realized: {
+      label: 'Margem Realizada',
+      color: '#0f172a',
+    },
   }
 
   const loadFeed = async () => {
@@ -488,148 +557,227 @@ export default function Dashboard() {
             >
               Arquivados
             </TabsTrigger>
+            <TabsTrigger
+              value="rentabilidade"
+              className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-4 py-2"
+            >
+              Rentabilidade
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value={activeTab} className="outline-none space-y-4">
-            <div className="flex items-center justify-between bg-slate-50/50 p-3 rounded-lg border border-slate-200">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="select-all-feed"
-                  checked={
-                    visibleFeed.length > 0 && selectedFeedItems.length === visibleFeed.length
-                  }
-                  onCheckedChange={handleSelectAll}
-                  disabled={visibleFeed.length === 0}
-                />
-                <Label
-                  htmlFor="select-all-feed"
-                  className="text-sm cursor-pointer text-slate-700 font-medium"
-                >
-                  Selecionar Todos
-                </Label>
-              </div>
-              {selectedFeedItems.length > 0 && (
-                <div className="flex items-center gap-2 animate-in fade-in duration-200">
-                  <span className="text-xs text-muted-foreground mr-2 font-medium">
-                    {selectedFeedItems.length} selecionados
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs bg-white"
-                    onClick={() => handleBulkAction(true)}
-                  >
-                    Marcar como Lido
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs bg-white"
-                    onClick={() => handleBulkAction(false)}
-                  >
-                    Marcar como Não Lido
-                  </Button>
+          <TabsContent value="rentabilidade" className="outline-none space-y-4">
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                <h3 className="text-lg font-bold text-slate-800">
+                  Rentabilidade: Estimado vs Realizado
+                </h3>
+                <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-md border">
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-auto h-8 text-xs bg-white"
+                  />
+                  <span className="text-slate-400 text-xs px-1">até</span>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-auto h-8 text-xs bg-white"
+                  />
                 </div>
-              )}
-            </div>
+              </div>
 
-            {visibleFeed.length === 0 ? (
-              <div className="text-center py-16 text-slate-400 border border-dashed rounded-xl bg-slate-50/50">
-                <Archive className="w-10 h-10 mx-auto mb-4 opacity-50 text-slate-300" />
-                <p className="text-sm font-medium">Nenhum item nesta lista.</p>
-              </div>
-            ) : (
-              visibleFeed.map((item) => (
-                <div
-                  key={item.id}
-                  className={cn(
-                    'p-5 border rounded-xl flex gap-4 transition-all hover:shadow-md group',
-                    item.isRead ? 'bg-slate-50/50 border-slate-100' : 'bg-white border-blue-100',
-                    selectedFeedItems.includes(item.id) && 'border-primary/40 bg-primary/5',
-                  )}
-                >
-                  <div className="pt-1 flex flex-col items-center gap-3">
-                    <Checkbox
-                      checked={selectedFeedItems.includes(item.id)}
-                      onCheckedChange={(c) => handleSelect(item.id, !!c)}
-                    />
-                    {item.source === 'gazette' ? (
-                      <BookOpen
-                        className={cn('w-5 h-5', item.isRead ? 'text-slate-400' : 'text-amber-500')}
-                      />
-                    ) : item.source === 'dou' ? (
-                      <Landmark
-                        className={cn(
-                          'w-5 h-5',
-                          item.isRead ? 'text-slate-400' : 'text-emerald-500',
-                        )}
-                      />
-                    ) : (
-                      <Activity
-                        className={cn('w-5 h-5', item.isRead ? 'text-slate-400' : 'text-blue-500')}
-                      />
-                    )}
+              <div className="h-[400px] w-full">
+                {chartData.length === 0 ? (
+                  <div className="w-full h-full flex items-center justify-center text-slate-400 border border-dashed rounded-lg">
+                    Nenhum dado financeiro encontrado no período.
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <h4
-                        className={cn(
-                          'font-bold text-sm',
-                          item.isRead ? 'text-slate-600' : 'text-slate-900',
-                        )}
-                      >
-                        {item.lawsuitId ? (
-                          <Link
-                            to={`/intranet/processos/${item.lawsuitId}`}
-                            className="text-primary hover:underline"
-                          >
-                            {item.title}
-                          </Link>
-                        ) : (
-                          item.title
-                        )}
-                      </h4>
-                      <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                        {new Date(item.date).toLocaleDateString('pt-BR')}
-                      </span>
-                    </div>
-                    <p
-                      className={cn(
-                        'text-sm leading-relaxed mb-3 line-clamp-3',
-                        item.isRead ? 'text-slate-500' : 'text-slate-700',
-                      )}
+                ) : (
+                  <ChartContainer config={chartConfig} className="h-full w-full">
+                    <BarChart
+                      data={chartData}
+                      margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
                     >
-                      {item.description}
-                    </p>
-                    <div className="flex items-center gap-2 mt-auto">
-                      {item.tags.map((t, idx) => (
-                        <span
-                          key={idx}
-                          className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 px-2 py-1 rounded"
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis
+                        dataKey="month"
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fontSize: 12, fill: '#64748b' }}
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fontSize: 12, fill: '#64748b' }}
+                        tickFormatter={(value) => `R$ ${value}`}
+                      />
+                      <ChartTooltip
+                        cursor={false}
+                        content={<ChartTooltipContent indicator="dashed" />}
+                      />
+                      <ChartLegend content={<ChartLegendContent />} />
+                      <Bar
+                        dataKey="estimated"
+                        fill="var(--color-estimated)"
+                        radius={[4, 4, 0, 0]}
+                      />
+                      <Bar dataKey="realized" fill="var(--color-realized)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ChartContainer>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
+          {['unread', 'read'].includes(activeTab) && (
+            <TabsContent value={activeTab} className="outline-none space-y-4">
+              <div className="flex items-center justify-between bg-slate-50/50 p-3 rounded-lg border border-slate-200">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="select-all-feed"
+                    checked={
+                      visibleFeed.length > 0 && selectedFeedItems.length === visibleFeed.length
+                    }
+                    onCheckedChange={handleSelectAll}
+                    disabled={visibleFeed.length === 0}
+                  />
+                  <Label
+                    htmlFor="select-all-feed"
+                    className="text-sm cursor-pointer text-slate-700 font-medium"
+                  >
+                    Selecionar Todos
+                  </Label>
+                </div>
+                {selectedFeedItems.length > 0 && (
+                  <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                    <span className="text-xs text-muted-foreground mr-2 font-medium">
+                      {selectedFeedItems.length} selecionados
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs bg-white"
+                      onClick={() => handleBulkAction(true)}
+                    >
+                      Marcar como Lido
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs bg-white"
+                      onClick={() => handleBulkAction(false)}
+                    >
+                      Marcar como Não Lido
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {visibleFeed.length === 0 ? (
+                <div className="text-center py-16 text-slate-400 border border-dashed rounded-xl bg-slate-50/50">
+                  <Archive className="w-10 h-10 mx-auto mb-4 opacity-50 text-slate-300" />
+                  <p className="text-sm font-medium">Nenhum item nesta lista.</p>
+                </div>
+              ) : (
+                visibleFeed.map((item) => (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      'p-5 border rounded-xl flex gap-4 transition-all hover:shadow-md group',
+                      item.isRead ? 'bg-slate-50/50 border-slate-100' : 'bg-white border-blue-100',
+                      selectedFeedItems.includes(item.id) && 'border-primary/40 bg-primary/5',
+                    )}
+                  >
+                    <div className="pt-1 flex flex-col items-center gap-3">
+                      <Checkbox
+                        checked={selectedFeedItems.includes(item.id)}
+                        onCheckedChange={(c) => handleSelect(item.id, !!c)}
+                      />
+                      {item.source === 'gazette' ? (
+                        <BookOpen
+                          className={cn(
+                            'w-5 h-5',
+                            item.isRead ? 'text-slate-400' : 'text-amber-500',
+                          )}
+                        />
+                      ) : item.source === 'dou' ? (
+                        <Landmark
+                          className={cn(
+                            'w-5 h-5',
+                            item.isRead ? 'text-slate-400' : 'text-emerald-500',
+                          )}
+                        />
+                      ) : (
+                        <Activity
+                          className={cn(
+                            'w-5 h-5',
+                            item.isRead ? 'text-slate-400' : 'text-blue-500',
+                          )}
+                        />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <h4
+                          className={cn(
+                            'font-bold text-sm',
+                            item.isRead ? 'text-slate-600' : 'text-slate-900',
+                          )}
                         >
-                          {t}
+                          {item.lawsuitId ? (
+                            <Link
+                              to={`/intranet/processos/${item.lawsuitId}`}
+                              className="text-primary hover:underline"
+                            >
+                              {item.title}
+                            </Link>
+                          ) : (
+                            item.title
+                          )}
+                        </h4>
+                        <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                          {new Date(item.date).toLocaleDateString('pt-BR')}
                         </span>
-                      ))}
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      </div>
+                      <p
                         className={cn(
-                          'ml-auto h-8 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity',
-                          item.isRead
-                            ? 'text-slate-500 hover:text-slate-700'
-                            : 'text-primary hover:text-primary/80',
+                          'text-sm leading-relaxed mb-3 line-clamp-3',
+                          item.isRead ? 'text-slate-500' : 'text-slate-700',
                         )}
-                        onClick={() => toggleRead(item)}
                       >
-                        <Check className="w-3.5 h-3.5 mr-1" />
-                        {item.isRead ? 'Mover para Não Lidos' : 'Marcar como Lido'}
-                      </Button>
+                        {item.description}
+                      </p>
+                      <div className="flex items-center gap-2 mt-auto">
+                        {item.tags.map((t, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 px-2 py-1 rounded"
+                          >
+                            {t}
+                          </span>
+                        ))}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            'ml-auto h-8 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity',
+                            item.isRead
+                              ? 'text-slate-500 hover:text-slate-700'
+                              : 'text-primary hover:text-primary/80',
+                          )}
+                          onClick={() => toggleRead(item)}
+                        >
+                          <Check className="w-3.5 h-3.5 mr-1" />
+                          {item.isRead ? 'Mover para Não Lidos' : 'Marcar como Lido'}
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
-            )}
-          </TabsContent>
+                ))
+              )}
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 

@@ -48,6 +48,8 @@ export default function CentralAtualizacoes() {
   const [items, setItems] = useState<UnifiedItem[]>([])
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('inbox')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
 
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   const [eventDialogOpen, setEventDialogOpen] = useState(false)
@@ -57,9 +59,9 @@ export default function CentralAtualizacoes() {
     setLoading(true)
     try {
       const [pjeRes, douPub, douOcc, casesRes] = await Promise.all([
-        pb.collection('results').getList(1, 100, { sort: '-created' }),
-        pb.collection('gazette_publications').getList(1, 100, { sort: '-created' }),
-        pb.collection('ocorrencias_dou').getList(1, 100, { sort: '-created' }),
+        pb.collection('results').getList(1, 500, { sort: '-created' }),
+        pb.collection('gazette_publications').getList(1, 500, { sort: '-created' }),
+        pb.collection('ocorrencias_dou').getList(1, 500, { sort: '-created' }),
         pb.collection('legal_cases').getFullList({ fields: 'case_number' }),
       ])
 
@@ -163,6 +165,34 @@ export default function CentralAtualizacoes() {
     }
   }
 
+  const handleMarkAllAsRead = async () => {
+    try {
+      setLoading(true)
+      const unreadItems = filteredItems.filter((i) => !i.isRead)
+      await Promise.all(
+        unreadItems.map((item) => {
+          if (item.collection === 'results') {
+            return pb.collection('results').update(item.id, { is_read: true })
+          } else if (item.collection === 'gazette_publications') {
+            return pb.collection('gazette_publications').update(item.id, { is_read: true })
+          } else if (item.collection === 'ocorrencias_dou') {
+            return pb
+              .collection('ocorrencias_dou')
+              .update(item.id, { status_alerta: 'visualizado' })
+          }
+        }),
+      )
+      setItems((prev) =>
+        prev.map((i) => (unreadItems.find((u) => u.id === i.id) ? { ...i, isRead: true } : i)),
+      )
+      toast({ title: 'Todos os itens marcados como lidos' })
+    } catch (error) {
+      toast({ title: 'Erro ao atualizar itens', variant: 'destructive' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleCreateTaskSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
@@ -204,6 +234,10 @@ export default function CentralAtualizacoes() {
     }
   }
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [activeTab, itemsPerPage])
+
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       if (activeTab === 'inbox')
@@ -215,6 +249,11 @@ export default function CentralAtualizacoes() {
       return true
     })
   }, [items, activeTab])
+
+  const paginatedItems = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage
+    return filteredItems.slice(start, start + itemsPerPage)
+  }, [filteredItems, currentPage, itemsPerPage])
 
   const renderItemCard = (item: UnifiedItem) => (
     <Card
@@ -388,7 +427,7 @@ export default function CentralAtualizacoes() {
         </div>
 
         <div className="flex-1 w-full min-w-0">
-          <div className="bg-slate-50/50 rounded-xl p-1 border border-slate-200 mb-6 flex justify-between items-center px-4 py-3">
+          <div className="bg-slate-50/50 rounded-xl p-1 border border-slate-200 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center px-4 py-3 gap-4">
             <h2 className="text-lg font-bold text-slate-800 capitalize">
               {activeTab === 'inbox'
                 ? 'Caixa de Entrada (Não Lidos)'
@@ -396,7 +435,16 @@ export default function CentralAtualizacoes() {
                   ? 'Novos Processos Encontrados'
                   : activeTab}
             </h2>
-            <span className="text-sm text-slate-500 font-medium">{filteredItems.length} itens</span>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-slate-500 font-medium">
+                {filteredItems.length} itens
+              </span>
+              {activeTab === 'inbox' && filteredItems.length > 0 && (
+                <Button size="sm" variant="outline" onClick={handleMarkAllAsRead}>
+                  <CheckCircle2 className="w-4 h-4 mr-2" /> Marcar todos como lidos
+                </Button>
+              )}
+            </div>
           </div>
 
           {loading ? (
@@ -410,7 +458,59 @@ export default function CentralAtualizacoes() {
               </p>
             </div>
           ) : (
-            <div className="grid gap-4">{filteredItems.map(renderItemCard)}</div>
+            <div className="grid gap-4">
+              {paginatedItems.map(renderItemCard)}
+
+              {filteredItems.length > 0 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between bg-white p-4 border rounded-xl mt-4 gap-4">
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <span>Mostrar</span>
+                    <Select
+                      value={itemsPerPage.toString()}
+                      onValueChange={(v) => setItemsPerPage(Number(v))}
+                    >
+                      <SelectTrigger className="w-20 h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span>por página</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Anterior
+                    </Button>
+                    <span className="text-sm text-slate-600 font-medium px-2">
+                      Página {currentPage} de {Math.ceil(filteredItems.length / itemsPerPage) || 1}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setCurrentPage((p) =>
+                          Math.min(Math.ceil(filteredItems.length / itemsPerPage), p + 1),
+                        )
+                      }
+                      disabled={
+                        currentPage === Math.ceil(filteredItems.length / itemsPerPage) ||
+                        filteredItems.length === 0
+                      }
+                    >
+                      Próxima
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

@@ -54,6 +54,7 @@ export default function Layout() {
   const { user, isAuthenticated, signOut } = useAuth()
   const [orgLogo, setOrgLogo] = useState<string | null>(null)
   const [orgName, setOrgName] = useState<string>('')
+  const [userAvatar, setUserAvatar] = useState<string | null>(null)
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -106,6 +107,19 @@ export default function Layout() {
               setOrgLogo(null)
             }
             setOrgName(org.name)
+          }
+        })
+        .catch(() => {})
+    }
+
+    if (user?.avatar) {
+      setUserAvatar(pb.files.getURL(user, user.avatar))
+    } else if (user?.id) {
+      pb.collection('collaborators')
+        .getFirstListItem(`user="${user.id}"`)
+        .then((collab) => {
+          if (mounted && collab?.avatar) {
+            setUserAvatar(pb.files.getURL(collab, collab.avatar))
           }
         })
         .catch(() => {})
@@ -265,16 +279,6 @@ export default function Layout() {
               </Link>
             </div>
 
-            <div className="flex-1 hidden md:flex items-center justify-end max-w-md mx-auto ml-8">
-              <div className="relative w-full max-w-sm">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Pesquisar no sistema..."
-                  className="pl-9 bg-slate-50 border-slate-200 focus-visible:ring-1 h-9"
-                />
-              </div>
-            </div>
-
             <div className="ml-auto flex items-center gap-2 sm:gap-4">
               <Link
                 to="/"
@@ -317,8 +321,18 @@ export default function Layout() {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shrink-0 shadow-sm hover:opacity-90 outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all">
-                    {user?.name ? user.name.substring(0, 2).toUpperCase() : 'MR'}
+                  <button className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shrink-0 shadow-sm hover:opacity-90 outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-all overflow-hidden">
+                    {userAvatar ? (
+                      <img
+                        src={userAvatar}
+                        alt={user?.name || ''}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : user?.name ? (
+                      user.name.substring(0, 2).toUpperCase()
+                    ) : (
+                      'MR'
+                    )}
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48 bg-white">
