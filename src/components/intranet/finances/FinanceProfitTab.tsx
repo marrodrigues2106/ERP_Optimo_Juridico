@@ -71,18 +71,26 @@ export function FinanceProfitTab({ transactions = [], user }: any) {
       }
     > = {}
 
-    const diffDays = differenceInDays(new Date(endDate), new Date(startDate))
+    const ed = new Date(endDate)
+    const sd = new Date(startDate)
+
+    if (isNaN(ed.getTime()) || isNaN(sd.getTime())) return []
+
+    const diffDays = differenceInDays(ed, sd)
     const groupByDay = diffDays <= 31
 
     const filteredFinances = transactions.filter((f: any) => {
       if (f.deleted_at) return false
-      const d = f.date?.substring(0, 10)
+      if (!f.date) return false
+      const d = f.date.substring(0, 10)
       return d >= startDate && d <= endDate
     })
 
     filteredFinances.forEach((f: any) => {
       if (!f.date) return
       const date = new Date(f.date + 'T12:00:00')
+      if (isNaN(date.getTime())) return
+
       const key = groupByDay ? format(date, 'dd/MM') : format(date, 'MMM yyyy', { locale: ptBR })
       const sortKey = groupByDay ? date.getTime() : startOfMonth(date).getTime()
 
