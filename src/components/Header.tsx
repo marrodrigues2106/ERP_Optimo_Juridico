@@ -14,7 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import logoImg from '../assets/logo-mr-advocacia-mk39e5yk0rfrezeo-007ff.png'
+import pb from '@/lib/pocketbase/client'
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -24,11 +24,6 @@ import {
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from '@/components/ui/navigation-menu'
-import { Search } from 'lucide-react'
-import pb from '@/lib/pocketbase/client'
-import { Input } from '@/components/ui/input'
-import { getClients } from '@/services/clients'
-import { getCollaborators } from '@/services/collaborators'
 
 export default function Header() {
   const [isScrolled, setIsScrolled] = useState(false)
@@ -38,81 +33,11 @@ export default function Header() {
   const navigate = useNavigate()
 
   const [logoutDialogOpen, setLogoutDialogOpen] = useState(false)
-  const [clients, setClients] = useState<any[]>([])
-  const [collaborators, setCollaborators] = useState<any[]>([])
   const [orgLogo, setOrgLogo] = useState<string | null>(null)
   const [orgName, setOrgName] = useState<string>('')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<any[]>([])
-  const [isSearching, setIsSearching] = useState(false)
-
-  useEffect(() => {
-    if (searchQuery.length < 2) {
-      setSearchResults([])
-      return
-    }
-    setIsSearching(true)
-    const timer = setTimeout(async () => {
-      try {
-        const safeQuery = searchQuery.replace(/"/g, '').trim()
-        if (!safeQuery) {
-          setSearchResults([])
-          return
-        }
-        const [casesRes, clientsRes, tasksRes] = await Promise.allSettled([
-          pb.collection('legal_cases').getList(1, 5, {
-            filter: `deleted_at="" && (case_number ~ "${safeQuery}" || parties ~ "${safeQuery}")`,
-          }),
-          pb.collection('clients').getList(1, 5, {
-            filter: `deleted_at="" && (name ~ "${safeQuery}" || fullName ~ "${safeQuery}" || cpf ~ "${safeQuery}")`,
-          }),
-          pb.collection('tasks').getList(1, 5, {
-            filter: `deleted_at="" && title ~ "${safeQuery}"`,
-          }),
-        ])
-
-        const cases = casesRes.status === 'fulfilled' ? casesRes.value.items : []
-        const clients = clientsRes.status === 'fulfilled' ? clientsRes.value.items : []
-        const tasks = tasksRes.status === 'fulfilled' ? tasksRes.value.items : []
-
-        setSearchResults([
-          ...cases.map((c: any) => ({
-            id: c.id,
-            title: c.parties || c.case_number,
-            type: 'Processo',
-            url: `/intranet/processos/${c.id}`,
-          })),
-          ...clients.map((c: any) => ({
-            id: c.id,
-            title: c.name || c.fullName,
-            type: 'Cliente',
-            url: `/intranet/clientes/${c.id}`,
-          })),
-          ...tasks.map((t: any) => ({
-            id: t.id,
-            title: t.title,
-            type: 'Tarefa',
-            url: `/intranet/dashboard`,
-          })),
-        ])
-      } catch (e) {
-        console.error('Search error', e)
-      } finally {
-        setIsSearching(false)
-      }
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [searchQuery])
 
   useEffect(() => {
     if (isAuthenticated) {
-      getClients()
-        .then(setClients)
-        .catch((e) => console.error(e))
-      getCollaborators()
-        .then(setCollaborators)
-        .catch((e) => console.error(e))
-
       if (user?.active_organization) {
         pb.collection('organizations')
           .getOne(user.active_organization)
@@ -187,69 +112,6 @@ export default function Header() {
 
         {/* Desktop Nav */}
         <div className="hidden lg:flex items-center gap-8">
-          {isIntranet && (
-            <div className="hidden md:flex relative z-50">
-              <button
-                type="button"
-                onClick={() => {
-                  if (searchQuery.trim().length >= 2) {
-                    navigate(`/intranet/search?q=${encodeURIComponent(searchQuery.trim())}`)
-                    setSearchQuery('')
-                  }
-                }}
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 cursor-pointer z-10"
-              >
-                <Search className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
-              </button>
-              <Input
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && searchQuery.trim().length >= 2) {
-                    navigate(`/intranet/search?q=${encodeURIComponent(searchQuery.trim())}`)
-                    setSearchQuery('')
-                  }
-                }}
-                placeholder="Pesquisar no sistema..."
-                className="pl-8 h-9 w-80 bg-slate-50 border-slate-200 focus-visible:ring-1 rounded-full"
-              />
-              {searchQuery.length >= 2 && (
-                <div className="absolute top-full mt-2 w-full bg-white border rounded-md shadow-lg overflow-hidden py-2">
-                  {isSearching ? (
-                    <div className="px-4 py-2 text-sm text-slate-500">Buscando...</div>
-                  ) : searchResults.length > 0 ? (
-                    <>
-                      {searchResults.map((res) => (
-                        <Link
-                          key={res.id + res.type}
-                          to={res.url}
-                          onClick={() => setSearchQuery('')}
-                          className="flex flex-col px-4 py-2 hover:bg-slate-50 border-b last:border-0"
-                        >
-                          <span className="text-sm font-medium text-slate-800 truncate">
-                            {res.title}
-                          </span>
-                          <span className="text-xs text-slate-500">{res.type}</span>
-                        </Link>
-                      ))}
-                      <Link
-                        to={`/intranet/search?q=${encodeURIComponent(searchQuery.trim())}`}
-                        onClick={() => setSearchQuery('')}
-                        className="block w-full text-center px-4 py-3 text-sm font-medium text-primary hover:bg-slate-50 border-t mt-1"
-                      >
-                        Ver todos os resultados
-                      </Link>
-                    </>
-                  ) : (
-                    <div className="px-4 py-2 text-sm text-slate-500">
-                      Nenhum resultado encontrado.
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
           {!isIntranet ? (
             <NavigationMenu>
               <NavigationMenuList>
@@ -502,24 +364,6 @@ export default function Header() {
             </>
           ) : (
             <>
-              <div className="py-2 border-b">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="search"
-                    placeholder="Buscar no sistema..."
-                    className="pl-8 h-10 w-full bg-slate-50 border-slate-200"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && e.currentTarget.value.trim().length >= 2) {
-                        navigate(
-                          `/intranet/search?q=${encodeURIComponent(e.currentTarget.value.trim())}`,
-                        )
-                        closeMenu()
-                      }
-                    }}
-                  />
-                </div>
-              </div>
               <a
                 href="https://www.moraesrodriguesadvocacia.com.br"
                 target="_blank"

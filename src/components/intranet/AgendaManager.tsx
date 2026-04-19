@@ -73,6 +73,14 @@ export default function AgendaManager() {
     toast({ title: 'Link do Google Calendar copiado para a área de transferência!' })
   }
 
+  const copyPublicLink = () => {
+    const orgId = pb.authStore.record?.active_organization
+    if (!orgId) return toast({ title: 'Organização não encontrada', variant: 'destructive' })
+    const link = `${window.location.origin}/public/agenda/${orgId}`
+    navigator.clipboard.writeText(link)
+    toast({ title: 'Link público copiado para a área de transferência!' })
+  }
+
   const downloadICS = () => {
     const link = generateICalLink()
     if (!link) return toast({ title: 'Token não encontrado', variant: 'destructive' })
@@ -272,6 +280,9 @@ export default function AgendaManager() {
           <p className="text-sm text-slate-500 mt-1">Gerencie compromissos e prazos.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={copyPublicLink}>
+            Link Público
+          </Button>
           <Button variant="outline" size="sm" onClick={copyGoogleCalendarLink}>
             Copiar Link GCal
           </Button>

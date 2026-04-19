@@ -31,6 +31,7 @@ import ComunicaPjeSearch from '@/components/intranet/comunica-pje/ComunicaPjeSea
 import CentralAtualizacoes from '@/components/intranet/CentralAtualizacoes'
 import ComunicaPjeDetail from '@/components/intranet/comunica-pje/ComunicaPjeDetail'
 import { ComunicaProvider } from '@/hooks/use-comunica-store'
+import PublicAgenda from '@/pages/PublicAgenda'
 
 function App() {
   return (
@@ -44,6 +45,7 @@ function App() {
               <Route path="artigos" element={<Articles />} />
               <Route path="login" element={<Login />} />
               <Route path="reset-password" element={<ResetPassword />} />
+              <Route path="public/agenda/:orgId" element={<PublicAgenda />} />
               <Route
                 path="diarios-oficiais"
                 element={<Navigate to="/intranet/busca-dou" replace />}

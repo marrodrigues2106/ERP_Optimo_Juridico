@@ -20,6 +20,8 @@ import {
 import { cn } from '@/lib/utils'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
+import { useAuth } from '@/hooks/use-auth'
+import { usePermissions } from '@/hooks/use-permissions'
 import { format, isBefore, startOfDay, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { EventFormModal } from './cases/EventFormModal'
@@ -54,6 +56,9 @@ type FeedItem = {
 export default function Dashboard() {
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { user } = useAuth()
+  const { isAdmin } = usePermissions()
+
   const [tasks, setTasks] = useState<any[]>([])
   const [eventModalOpen, setEventModalOpen] = useState(false)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
@@ -68,8 +73,12 @@ export default function Dashboard() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedFeedItems, setSelectedFeedItems] = useState<string[]>([])
   const [selectedCollaboratorId, setSelectedCollaboratorId] = useState<string | null>(null)
+  const [myCollaboratorId, setMyCollaboratorId] = useState<string | null>(null)
   const [caseCount, setCaseCount] = useState(0)
   const [isSyncingAll, setIsSyncingAll] = useState(false)
+
+  const canFilterOthers =
+    isAdmin || user?.role === 'manager' || user?.role === 'admin' || user?.isAdmin
 
   const handleSyncAll = async () => {
     setIsSyncingAll(true)
@@ -182,9 +191,23 @@ export default function Dashboard() {
   useEffect(() => {
     Promise.allSettled([
       pb.collection('clients').getFullList().then(setClients),
-      pb.collection('collaborators').getFullList().then(setCollaborators),
+      pb
+        .collection('collaborators')
+        .getFullList()
+        .then((collabs) => {
+          setCollaborators(collabs)
+          if (user?.id) {
+            const mine = collabs.find((c) => c.user === user.id)
+            if (mine) {
+              setMyCollaboratorId(mine.id)
+              if (!canFilterOthers) {
+                setSelectedCollaboratorId(mine.id)
+              }
+            }
+          }
+        }),
     ]).catch(console.error)
-  }, [])
+  }, [user, canFilterOthers])
 
   const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({})
   const createDebouncedLoader = useCallback(
@@ -345,39 +368,47 @@ export default function Dashboard() {
                 <UserPlus className="w-4 h-4 mr-2" /> Por colaborador
               </div>
               <ul className="space-y-3 pl-6 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                <li
-                  className={cn(
-                    'text-sm flex items-center gap-2 cursor-pointer transition-colors',
-                    selectedCollaboratorId === null
-                      ? 'font-semibold text-slate-900'
-                      : 'text-slate-600 hover:text-slate-900',
-                  )}
-                  onClick={() => setSelectedCollaboratorId(null)}
-                >
-                  {selectedCollaboratorId === null && (
-                    <CheckCircle2 className="w-4 h-4 text-primary" />
-                  )}
-                  <span className={selectedCollaboratorId === null ? '' : 'ml-6'}>
-                    Todos do escritório
-                  </span>
-                </li>
-                {collaborators.map((c) => (
+                {canFilterOthers && (
                   <li
-                    key={c.id}
                     className={cn(
                       'text-sm flex items-center gap-2 cursor-pointer transition-colors',
-                      selectedCollaboratorId === c.id
+                      selectedCollaboratorId === null
                         ? 'font-semibold text-slate-900'
                         : 'text-slate-600 hover:text-slate-900',
                     )}
-                    onClick={() => setSelectedCollaboratorId(c.id)}
+                    onClick={() => setSelectedCollaboratorId(null)}
                   >
-                    {selectedCollaboratorId === c.id && (
+                    {selectedCollaboratorId === null && (
                       <CheckCircle2 className="w-4 h-4 text-primary" />
                     )}
-                    <span className={selectedCollaboratorId === c.id ? '' : 'ml-6'}>{c.name}</span>
+                    <span className={selectedCollaboratorId === null ? '' : 'ml-6'}>
+                      Todos do escritório
+                    </span>
                   </li>
-                ))}
+                )}
+                {collaborators
+                  .filter((c) => canFilterOthers || c.id === myCollaboratorId)
+                  .map((c) => (
+                    <li
+                      key={c.id}
+                      className={cn(
+                        'text-sm flex items-center gap-2 cursor-pointer transition-colors',
+                        selectedCollaboratorId === c.id
+                          ? 'font-semibold text-slate-900'
+                          : 'text-slate-600 hover:text-slate-900',
+                      )}
+                      onClick={() => {
+                        if (canFilterOthers) setSelectedCollaboratorId(c.id)
+                      }}
+                    >
+                      {selectedCollaboratorId === c.id && (
+                        <CheckCircle2 className="w-4 h-4 text-primary" />
+                      )}
+                      <span className={selectedCollaboratorId === c.id ? '' : 'ml-6'}>
+                        {c.name}
+                      </span>
+                    </li>
+                  ))}
               </ul>
             </div>
           </div>
