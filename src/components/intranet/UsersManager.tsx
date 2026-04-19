@@ -214,16 +214,20 @@ export default function UsersManager() {
     }
   }
 
+  const isAdminUser = currentUser?.isAdmin || currentUser?.role === 'admin'
+
   return (
     <Card>
       <CardHeader className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
         <CardTitle>Gerenciamento de Usuários</CardTitle>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleOpenNew}>
-              <Plus className="w-4 h-4 mr-2" /> Novo Usuário
-            </Button>
-          </DialogTrigger>
+          {isAdminUser && (
+            <DialogTrigger asChild>
+              <Button onClick={handleOpenNew}>
+                <Plus className="w-4 h-4 mr-2" /> Novo Usuário
+              </Button>
+            </DialogTrigger>
+          )}
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>{editingId ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle>
@@ -316,17 +320,21 @@ export default function UsersManager() {
                   <RoleBadge r={u.role || (u.isAdmin ? 'admin' : 'admin_user')} />
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" onClick={() => handleEdit(u)}>
-                    <Edit2 className="w-4 h-4 text-slate-500" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(u.id)}
-                    disabled={u.id === currentUser.id}
-                  >
-                    <Trash2 className="w-4 h-4 text-destructive" />
-                  </Button>
+                  {isAdminUser && (
+                    <>
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(u)}>
+                        <Edit2 className="w-4 h-4 text-slate-500" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(u.id)}
+                        disabled={u.id === currentUser.id}
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

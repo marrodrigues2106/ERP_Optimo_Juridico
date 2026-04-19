@@ -23,13 +23,33 @@ onRecordAfterUpdateSuccess((e) => {
       dateStr = `${dStr.substring(8, 10)}/${dStr.substring(5, 7)}/${dStr.substring(0, 4)} às ${dStr.substring(11, 16)}`
     }
 
+    let templateMsg = `Atualização: {{name}}, seu(sua) ${type === 'Hearing' ? 'Audiência' : 'Reunião'} agora está agendado(a) para {{date}}. Assunto: {{title}}.`
+    try {
+      const tmpl = $app.findFirstRecordByFilter(
+        'communication_templates',
+        `type = 'WhatsApp' && (name = 'Atualização de Evento' || name = 'Event Update')`,
+      )
+      if (tmpl && tmpl.getString('body_html')) {
+        templateMsg = tmpl
+          .getString('body_html')
+          .replace(/<[^>]*>?/gm, '')
+          .replace(/&nbsp;/g, ' ')
+          .trim()
+      }
+    } catch (_) {}
+
+    const msg = templateMsg
+      .replace(/\{\{name\}\}/gi, client.getString('name') || client.getString('fullName') || '')
+      .replace(/\{\{date\}\}/gi, dateStr)
+      .replace(/\{\{title\}\}/gi, e.record.getString('title') || '')
+
     $http.send({
       url: url,
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
       body: JSON.stringify({
         to: client.getString('phone'),
-        message: `Atualização: ${client.getString('name')}, seu(sua) ${type === 'Hearing' ? 'Audiência' : 'Reunião'} agora está agendado(a) para ${dateStr}. Assunto: ${e.record.getString('title')}.`,
+        message: msg,
       }),
       timeout: 10,
     })

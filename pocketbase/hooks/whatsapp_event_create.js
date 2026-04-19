@@ -17,12 +17,31 @@ onRecordAfterCreateSuccess((e) => {
     let dateStr = date
     if (date) {
       const d = new Date(date)
-      // Adjusting timezone manually to avoid VM limitations on Intls
       const offsetMs = d.getTimezoneOffset() * 60 * 1000
       const localD = new Date(d.getTime() - offsetMs)
       const dStr = localD.toISOString()
       dateStr = `${dStr.substring(8, 10)}/${dStr.substring(5, 7)}/${dStr.substring(0, 4)} às ${dStr.substring(11, 16)}`
     }
+
+    let templateMsg = `Olá {{name}}, você tem um(a) ${type === 'Hearing' ? 'Audiência' : 'Reunião'} agendado(a) para {{date}}. Assunto: {{title}}.`
+    try {
+      const tmpl = $app.findFirstRecordByFilter(
+        'communication_templates',
+        `type = 'WhatsApp' && (name = 'Novo Evento' || name = 'Event Create' || name = 'Lembrete')`,
+      )
+      if (tmpl && tmpl.getString('body_html')) {
+        templateMsg = tmpl
+          .getString('body_html')
+          .replace(/<[^>]*>?/gm, '')
+          .replace(/&nbsp;/g, ' ')
+          .trim()
+      }
+    } catch (_) {}
+
+    const msg = templateMsg
+      .replace(/\{\{name\}\}/gi, client.getString('name') || client.getString('fullName') || '')
+      .replace(/\{\{date\}\}/gi, dateStr)
+      .replace(/\{\{title\}\}/gi, e.record.getString('title') || '')
 
     $http.send({
       url: url,
@@ -30,7 +49,7 @@ onRecordAfterCreateSuccess((e) => {
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
       body: JSON.stringify({
         to: client.getString('phone'),
-        message: `Olá ${client.getString('name')}, você tem um(a) ${type === 'Hearing' ? 'Audiência' : 'Reunião'} agendado(a) para ${dateStr}. Assunto: ${e.record.getString('title')}.`,
+        message: msg,
       }),
       timeout: 10,
     })

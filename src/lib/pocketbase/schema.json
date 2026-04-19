@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-19T01:42:37.149Z",
+  "generatedAt": "2026-04-19T02:03:16.020Z",
   "collections": [
     {
       "name": "users",
@@ -7,7 +7,7 @@
       "apiRules": {
         "list": "id = @request.auth.id || @request.auth.isAdmin = true",
         "view": "id = @request.auth.id || @request.auth.isAdmin = true",
-        "create": "",
+        "create": "@request.auth.role = 'admin' || @request.auth.isAdmin = true",
         "update": "id = @request.auth.id || @request.auth.isAdmin = true",
         "delete": "@request.auth.isAdmin = true"
       },
@@ -215,8 +215,8 @@
       "name": "finances",
       "type": "base",
       "apiRules": {
-        "list": "(@request.auth.id != '') && organization = @request.auth.active_organization",
-        "view": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "list": "(@request.auth.id != '') && organization = @request.auth.active_organization && (@request.auth.role = 'admin' || @request.auth.role = 'financial_user' || @request.auth.isAdmin = true || linked_lawsuit.responsible_collaborator.user = @request.auth.id)",
+        "view": "(@request.auth.id != '') && organization = @request.auth.active_organization && (@request.auth.role = 'admin' || @request.auth.role = 'financial_user' || @request.auth.isAdmin = true || linked_lawsuit.responsible_collaborator.user = @request.auth.id)",
         "create": "(@request.auth.id != '') && organization = @request.auth.active_organization",
         "update": "(@request.auth.id != '') && organization = @request.auth.active_organization",
         "delete": "(@request.auth.id != '') && organization = @request.auth.active_organization"

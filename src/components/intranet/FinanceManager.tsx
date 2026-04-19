@@ -130,7 +130,12 @@ export default function FinanceManager() {
           />
         </TabsContent>
         <TabsContent value="profit" className="mt-6">
-          <FinanceProfitTab transactions={transactions} cases={cases} estimates={estimates} />
+          <FinanceProfitTab
+            transactions={transactions}
+            cases={cases}
+            estimates={estimates}
+            user={user}
+          />
         </TabsContent>
       </Tabs>
 

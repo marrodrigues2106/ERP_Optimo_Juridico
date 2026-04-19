@@ -1,14 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-} from '@/components/ui/chart'
+
 import {
   Bell,
   UserPlus,
@@ -84,11 +77,6 @@ export default function Dashboard() {
   const [myCollaboratorId, setMyCollaboratorId] = useState<string | null>(null)
   const [caseCount, setCaseCount] = useState(0)
   const [isSyncingAll, setIsSyncingAll] = useState(false)
-  const [finances, setFinances] = useState<any[]>([])
-  const [startDate, setStartDate] = useState<string>(
-    format(startOfMonth(addWeeks(new Date(), -12)), 'yyyy-MM-dd'),
-  )
-  const [endDate, setEndDate] = useState<string>(format(endOfMonth(new Date()), 'yyyy-MM-dd'))
 
   const canFilterOthers =
     isAdmin || user?.role === 'manager' || user?.role === 'admin' || user?.isAdmin
@@ -137,62 +125,6 @@ export default function Dashboard() {
     } catch (e) {
       console.error(e)
     }
-  }
-
-  const loadFinances = async () => {
-    try {
-      const records = await pb.collection('finances').getFullList({
-        filter: `type = "inflow" && deleted_at = "" && date >= "${startDate} 00:00:00" && date <= "${endDate} 23:59:59"`,
-      })
-      setFinances(records)
-    } catch (e) {
-      console.error(e)
-    }
-  }
-
-  useEffect(() => {
-    if (activeTab === 'rentabilidade') {
-      loadFinances()
-    }
-  }, [activeTab, startDate, endDate])
-
-  const chartData = useMemo(() => {
-    const grouped: Record<
-      string,
-      { month: string; estimated: number; realized: number; sortKey: number }
-    > = {}
-
-    finances.forEach((f) => {
-      const date = new Date(f.date)
-      const monthKey = format(date, 'MMM yyyy', { locale: ptBR })
-      if (!grouped[monthKey]) {
-        grouped[monthKey] = {
-          month: monthKey,
-          estimated: 0,
-          realized: 0,
-          sortKey: startOfMonth(date).getTime(),
-        }
-      }
-
-      const isEstimated = ['orçado', 'estimado', 'previsto'].includes(f.status)
-      const isRealized = ['realizada', 'recebida', 'realizado', 'pago'].includes(f.status)
-
-      if (isEstimated) grouped[monthKey].estimated += f.amount || 0
-      if (isRealized) grouped[monthKey].realized += f.amount || 0
-    })
-
-    return Object.values(grouped).sort((a, b) => a.sortKey - b.sortKey)
-  }, [finances])
-
-  const chartConfig = {
-    estimated: {
-      label: 'Margem Estimada',
-      color: '#94a3b8',
-    },
-    realized: {
-      label: 'Margem Realizada',
-      color: '#0f172a',
-    },
   }
 
   const loadFeed = async () => {
@@ -557,78 +489,7 @@ export default function Dashboard() {
             >
               Arquivados
             </TabsTrigger>
-            <TabsTrigger
-              value="rentabilidade"
-              className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-4 py-2"
-            >
-              Rentabilidade
-            </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="rentabilidade" className="outline-none space-y-4">
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                <h3 className="text-lg font-bold text-slate-800">
-                  Rentabilidade: Estimado vs Realizado
-                </h3>
-                <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-md border">
-                  <Input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-auto h-8 text-xs bg-white"
-                  />
-                  <span className="text-slate-400 text-xs px-1">até</span>
-                  <Input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-auto h-8 text-xs bg-white"
-                  />
-                </div>
-              </div>
-
-              <div className="h-[400px] w-full">
-                {chartData.length === 0 ? (
-                  <div className="w-full h-full flex items-center justify-center text-slate-400 border border-dashed rounded-lg">
-                    Nenhum dado financeiro encontrado no período.
-                  </div>
-                ) : (
-                  <ChartContainer config={chartConfig} className="h-full w-full">
-                    <BarChart
-                      data={chartData}
-                      margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis
-                        dataKey="month"
-                        tickLine={false}
-                        axisLine={false}
-                        tick={{ fontSize: 12, fill: '#64748b' }}
-                      />
-                      <YAxis
-                        tickLine={false}
-                        axisLine={false}
-                        tick={{ fontSize: 12, fill: '#64748b' }}
-                        tickFormatter={(value) => `R$ ${value}`}
-                      />
-                      <ChartTooltip
-                        cursor={false}
-                        content={<ChartTooltipContent indicator="dashed" />}
-                      />
-                      <ChartLegend content={<ChartLegendContent />} />
-                      <Bar
-                        dataKey="estimated"
-                        fill="var(--color-estimated)"
-                        radius={[4, 4, 0, 0]}
-                      />
-                      <Bar dataKey="realized" fill="var(--color-realized)" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ChartContainer>
-                )}
-              </div>
-            </div>
-          </TabsContent>
 
           {['unread', 'read'].includes(activeTab) && (
             <TabsContent value={activeTab} className="outline-none space-y-4">
