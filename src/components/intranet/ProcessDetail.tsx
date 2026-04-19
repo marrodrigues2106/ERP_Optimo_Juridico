@@ -517,11 +517,4 @@ export default function ProcessDetail() {
                     Ver detalhes
                   </button>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
+       
