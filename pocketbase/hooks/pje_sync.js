@@ -22,7 +22,7 @@ routerAdd(
         url: url,
         method: 'GET',
         headers: { Accept: 'application/json' },
-        timeout: 30,
+        timeout: 15,
       })
 
       let data = null
@@ -82,7 +82,12 @@ routerAdd(
       $app.saveNoValidate(record)
 
       const msg = (err.message || '').toLowerCase()
-      if (msg.includes('context deadline exceeded') || msg.includes('timeout')) {
+      if (
+        msg.includes('context deadline exceeded') ||
+        msg.includes('timeout') ||
+        msg.includes('network') ||
+        msg.includes('gateway')
+      ) {
         return e.json(504, {
           message:
             'O sistema PJe está lento ou indisponível no momento. Por favor, tente novamente em alguns minutos.',

@@ -101,7 +101,13 @@ export default function ProcessDetail() {
       loadMovements(1)
     } catch (err: any) {
       let errorMessage = err.message
-      if (err.status === 504 || err.response?.code === 'PJE_TIMEOUT') {
+      if (
+        err.status === 504 ||
+        err.status === 502 ||
+        err.status === 503 ||
+        err.status === 0 ||
+        err.response?.code === 'PJE_TIMEOUT'
+      ) {
         errorMessage =
           'O sistema PJe está lento ou indisponível no momento. Por favor, tente novamente em alguns minutos.'
       } else if (err.response?.message) {
