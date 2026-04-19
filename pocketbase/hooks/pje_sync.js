@@ -1,15 +1,20 @@
 routerAdd(
   'POST',
-  '/backend/v1/sync-pje/{caseId}',
+  '/backend/v1/processos/{caseId}/sync-pje',
   (e) => {
     const caseId = e.request.pathValue('caseId')
-    const record = $app.findRecordById('legal_cases', caseId)
+    let record
+    try {
+      record = $app.findRecordById('legal_cases', caseId)
+    } catch (err) {
+      throw new NotFoundError('Case not found')
+    }
 
     const num = record.getString('case_number')
-    if (!num) return e.badRequestError('No case number')
+    if (!num) throw new BadRequestError('No case number')
 
     const cleanNum = String(num).replace(/\D/g, '')
-    if (cleanNum.length !== 20) return e.badRequestError('Invalid case number')
+    if (cleanNum.length !== 20) throw new BadRequestError('Invalid case number')
 
     try {
       const url = 'https://comunica.pje.jus.br/api/v1/comunicacao?numeroProcesso=' + cleanNum
@@ -20,8 +25,13 @@ routerAdd(
         timeout: 30,
       })
 
-      if (res.statusCode === 200 && res.json && res.json.items) {
-        const items = res.json.items
+      let data = null
+      try {
+        data = res.json
+      } catch (err) {}
+
+      if (res.statusCode === 200 && data && data.items) {
+        const items = data.items
         const movementsCol = $app.findCollectionByNameOrId('case_movements')
         const orgId = record.getString('organization')
         let added = 0
@@ -56,12 +66,12 @@ routerAdd(
       } else {
         record.set('datajud_sync_status', 'Error')
         $app.saveNoValidate(record)
-        return e.internalServerError('PJe API Error')
+        throw new InternalServerError('PJe API Error')
       }
     } catch (err) {
       record.set('datajud_sync_status', 'Error')
       $app.saveNoValidate(record)
-      return e.internalServerError(err.message)
+      throw new InternalServerError(err.message)
     }
   },
   $apis.requireAuth(),

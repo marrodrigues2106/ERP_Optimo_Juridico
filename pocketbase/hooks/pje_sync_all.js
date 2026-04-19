@@ -1,9 +1,9 @@
 routerAdd(
   'POST',
-  '/backend/v1/sync-pje-all',
+  '/backend/v1/processos-sync-pje-all',
   (e) => {
     const auth = e.auth
-    if (!auth) return e.unauthorizedError('Auth required')
+    if (!auth) throw new UnauthorizedError('Auth required')
     const orgId = auth.getString('active_organization')
 
     const cases = $app.findRecordsByFilter(
@@ -28,8 +28,14 @@ routerAdd(
           headers: { Accept: 'application/json' },
           timeout: 15,
         })
-        if (res.statusCode === 200 && res.json && res.json.items) {
-          const items = res.json.items
+
+        let data = null
+        try {
+          data = res.json
+        } catch (err) {}
+
+        if (res.statusCode === 200 && data && data.items) {
+          const items = data.items
           const movementsCol = $app.findCollectionByNameOrId('case_movements')
           items.forEach((item) => {
             const uniqueStr = record.id + '_' + item.hash

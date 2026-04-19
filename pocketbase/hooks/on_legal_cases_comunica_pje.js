@@ -15,8 +15,13 @@ onRecordAfterCreateSuccess((e) => {
       timeout: 30,
     })
 
-    if (res.statusCode === 200 && res.json && res.json.items) {
-      const items = res.json.items
+    let data = null
+    try {
+      data = res.json
+    } catch (err) {}
+
+    if (res.statusCode === 200 && data && data.items) {
+      const items = data.items
       const movementsCol = $app.findCollectionByNameOrId('case_movements')
       const orgId = record.getString('organization')
 
@@ -43,9 +48,10 @@ onRecordAfterCreateSuccess((e) => {
         }
       })
 
-      e.record.set('datajud_sync_status', 'Success')
-      e.record.set('datajud_last_sync', new Date().toISOString())
-      $app.saveNoValidate(e.record)
+      const updatedRecord = $app.findRecordById('legal_cases', record.id)
+      updatedRecord.set('datajud_sync_status', 'Success')
+      updatedRecord.set('datajud_last_sync', new Date().toISOString())
+      $app.saveNoValidate(updatedRecord)
     }
   } catch (err) {
     console.log('Error syncing Comunica PJe', err)

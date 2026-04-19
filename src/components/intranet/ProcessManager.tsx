@@ -62,7 +62,7 @@ export default function ProcessManager() {
   const handleSyncAll = async () => {
     setIsSyncingAll(true)
     try {
-      await pb.send('/backend/v1/sync-pje-all', { method: 'POST' })
+      await pb.send('/backend/v1/processos-sync-pje-all', { method: 'POST' })
       toast({ title: 'Sincronização com PJe concluída.' })
       loadData()
     } catch (err: any) {

@@ -95,7 +95,7 @@ export default function ProcessDetail() {
   const handleSync = async () => {
     setIsSyncing(true)
     try {
-      await pb.send('/backend/v1/sync-pje/' + id, { method: 'POST' })
+      await pb.send(`/backend/v1/processos/${id}/sync-pje`, { method: 'POST' })
       toast({ title: 'Sincronização com PJe concluída' })
       loadData()
       loadMovements(1)
