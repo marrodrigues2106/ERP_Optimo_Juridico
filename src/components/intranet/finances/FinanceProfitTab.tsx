@@ -25,7 +25,14 @@ export function FinanceProfitTab({ transactions, cases, estimates, user }: any) 
   const chartData = useMemo(() => {
     const grouped: Record<
       string,
-      { month: string; estimated: number; realized: number; sortKey: number }
+      {
+        month: string
+        estimatedIn: number
+        estimatedOut: number
+        realizedIn: number
+        realizedOut: number
+        sortKey: number
+      }
     > = {}
 
     const filteredFinances = transactions.filter((f: any) => {
@@ -40,20 +47,40 @@ export function FinanceProfitTab({ transactions, cases, estimates, user }: any) 
       if (!grouped[monthKey]) {
         grouped[monthKey] = {
           month: monthKey,
-          estimated: 0,
-          realized: 0,
+          estimatedIn: 0,
+          estimatedOut: 0,
+          realizedIn: 0,
+          realizedOut: 0,
           sortKey: startOfMonth(date).getTime(),
         }
       }
 
-      const isEstimated = ['orçado', 'estimado', 'previsto'].includes(f.status)
-      const isRealized = ['realizada', 'recebida', 'realizado', 'pago'].includes(f.status)
+      const status = f.status?.toLowerCase() || ''
+      const isEstimated = ['orçado', 'estimado', 'previsto'].includes(status)
+      const isRealized = ['realizada', 'recebida', 'realizado', 'pago'].includes(status)
 
-      if (f.type === 'inflow' && isEstimated) grouped[monthKey].estimated += f.amount || 0
-      if (f.type === 'inflow' && isRealized) grouped[monthKey].realized += f.amount || 0
+      if (f.type === 'inflow' && isEstimated) grouped[monthKey].estimatedIn += f.amount || 0
+      if (f.type === 'outflow' && isEstimated) grouped[monthKey].estimatedOut += f.amount || 0
+
+      if (f.type === 'inflow' && isRealized) grouped[monthKey].realizedIn += f.amount || 0
+      if (f.type === 'outflow' && isRealized) grouped[monthKey].realizedOut += f.amount || 0
     })
 
-    return Object.values(grouped).sort((a, b) => a.sortKey - b.sortKey)
+    return Object.values(grouped)
+      .map((g) => {
+        const estimatedMargin =
+          g.estimatedIn === 0 ? 0 : ((g.estimatedIn - g.estimatedOut) / g.estimatedIn) * 100
+        const realizedMargin =
+          g.realizedIn === 0 ? 0 : ((g.realizedIn - g.realizedOut) / g.realizedIn) * 100
+
+        return {
+          month: g.month,
+          estimated: Number(estimatedMargin.toFixed(2)),
+          realized: Number(realizedMargin.toFixed(2)),
+          sortKey: g.sortKey,
+        }
+      })
+      .sort((a, b) => a.sortKey - b.sortKey)
   }, [transactions, startDate, endDate])
 
   const chartConfig = {
@@ -116,9 +143,17 @@ export function FinanceProfitTab({ transactions, cases, estimates, user }: any) 
                   tickLine={false}
                   axisLine={false}
                   tick={{ fontSize: 12, fill: '#64748b' }}
-                  tickFormatter={(value) => `R$ ${value}`}
+                  tickFormatter={(value) => `${value}%`}
                 />
-                <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dashed" />} />
+                <ChartTooltip
+                  cursor={false}
+                  content={
+                    <ChartTooltipContent
+                      indicator="dashed"
+                      formatter={(value: any) => `${value}%`}
+                    />
+                  }
+                />
                 <ChartLegend content={<ChartLegendContent />} />
                 <Bar dataKey="estimated" fill="var(--color-estimated)" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="realized" fill="var(--color-realized)" radius={[4, 4, 0, 0]} />
