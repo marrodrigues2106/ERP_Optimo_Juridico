@@ -107,26 +107,21 @@ export function FinanceProfitTab({ transactions = [], cases = [], estimates = []
         }
       }
 
-      const status = f.status?.toLowerCase() || ''
-      const isRealized = ['realizada', 'recebida', 'realizado', 'pago'].includes(status)
-
-      if (isRealized) {
-        if (f.type === 'inflow') {
-          grouped[key].realizedIn += f.amount || 0
-          totalIn += f.amount || 0
-        }
-        if (f.type === 'outflow') {
-          grouped[key].realizedOut += f.amount || 0
-          totalOut += f.amount || 0
-        }
-        if (f.linked_lawsuit) {
-          grouped[key].casesInvolved.add(f.linked_lawsuit)
-          casesInPeriod.add(f.linked_lawsuit)
-        }
+      if (f.type === 'inflow') {
+        grouped[key].realizedIn += f.amount || 0
+        totalIn += f.amount || 0
+      }
+      if (f.type === 'outflow') {
+        grouped[key].realizedOut += f.amount || 0
+        totalOut += f.amount || 0
+      }
+      if (f.linked_lawsuit) {
+        grouped[key].casesInvolved.add(f.linked_lawsuit)
+        casesInPeriod.add(f.linked_lawsuit)
       }
     })
 
-    // Calculate Margin = Estimated Fees - Actual Costs
+    // Calculate Margin = Estimated Fees - Costs
     let totalEstimatedFees = 0
     casesInPeriod.forEach((caseId) => {
       const estimate = estimates.find((e: any) => e.case === caseId)

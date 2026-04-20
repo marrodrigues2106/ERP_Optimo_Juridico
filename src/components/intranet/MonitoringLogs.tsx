@@ -27,20 +27,63 @@ export function MonitoringLogs() {
   const [filterLevel, setFilterLevel] = useState<string>('all')
   const [selectedLog, setSelectedLog] = useState<any>(null)
 
-  const loadData = () => {
-    const filters = []
+  const loadData = async () => {
+    const sysFilters = []
+    const pjeFilters = []
     if (user?.active_organization) {
-      filters.push(`(organization = "${user.active_organization}" || organization = "")`)
+      sysFilters.push(`(organization = "${user.active_organization}" || organization = "")`)
+      pjeFilters.push(`(organization = "${user.active_organization}" || organization = "")`)
     }
-    if (filterModule !== 'all') filters.push(`module = "${filterModule}"`)
-    if (filterLevel !== 'all') filters.push(`level = "${filterLevel}"`)
 
-    const filterStr = filters.join(' && ')
+    if (filterModule !== 'all' && filterModule !== 'PJe Sync') {
+      sysFilters.push(`module = "${filterModule}"`)
+      pjeFilters.push(`id = "none"`)
+    } else if (filterModule === 'PJe Sync') {
+      sysFilters.push(`module = "PJe Sync"`)
+    }
 
-    pb.collection('system_logs')
-      .getList(1, 100, { sort: '-created', filter: filterStr, expand: 'user' })
-      .then((res) => setLogs(res.items))
-      .catch(console.error)
+    if (filterLevel !== 'all') {
+      sysFilters.push(`level = "${filterLevel}"`)
+      if (filterLevel === 'error') pjeFilters.push(`status = "failed"`)
+      else if (filterLevel === 'info') pjeFilters.push(`status = "success"`)
+      else pjeFilters.push(`id = "none"`)
+    }
+
+    try {
+      const [sysRes, pjeRes] = await Promise.all([
+        pb
+          .collection('system_logs')
+          .getList(1, 100, { sort: '-created', filter: sysFilters.join(' && '), expand: 'user' }),
+        pb
+          .collection('pje_sync_logs')
+          .getList(1, 100, { sort: '-created', filter: pjeFilters.join(' && '), expand: 'case' }),
+      ])
+
+      const combined = [
+        ...sysRes.items.map((i) => ({ ...i, _type: 'system_log' })),
+        ...pjeRes.items.map((i) => ({
+          ...i,
+          _type: 'pje_sync_log',
+          module: 'PJe Sync',
+          level: i.status === 'failed' ? 'error' : 'info',
+          message: `Sincronização PJe: ${i.status === 'failed' ? 'Falha' : 'Sucesso'} ${i.message ? `- ${i.message}` : ''}`,
+          details: {
+            duration_ms: i.duration,
+            case_id: i.case,
+            case_number: i.expand?.case?.case_number,
+            message: i.message,
+            status: i.status,
+            raw_record: i,
+          },
+        })),
+      ]
+        .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime())
+        .slice(0, 100)
+
+      setLogs(combined)
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   useEffect(() => {
@@ -48,6 +91,9 @@ export function MonitoringLogs() {
   }, [user?.active_organization, filterModule, filterLevel])
 
   useRealtime('system_logs', () => {
+    loadData()
+  })
+  useRealtime('pje_sync_logs', () => {
     loadData()
   })
 
@@ -186,7 +232,7 @@ export function MonitoringLogs() {
                   <div className="text-xs text-muted-foreground font-semibold uppercase mb-1">
                     Detalhes Adicionais (JSON)
                   </div>
-                  <pre className="text-[11px] p-3 bg-slate-900 text-slate-50 rounded-md overflow-x-auto whitespace-pre-wrap break-all font-mono">
+                  <pre className="text-[11px] p-3 bg-slate-900 text-green-400 rounded-md overflow-x-auto whitespace-pre-wrap break-all font-mono border border-slate-800 shadow-inner">
                     {JSON.stringify(selectedLog.details, null, 2)}
                   </pre>
                 </div>
