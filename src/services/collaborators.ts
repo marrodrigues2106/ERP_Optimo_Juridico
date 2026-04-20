@@ -1,9 +1,12 @@
 import pb from '@/lib/pocketbase/client'
 
-export const getCollaborators = () =>
-  pb
-    .collection('collaborators')
-    .getFullList({ filter: 'deleted_at = "" && user != ""', sort: '-created' })
+export const getCollaborators = () => {
+  const orgId = pb.authStore.record?.active_organization
+  return pb.collection('collaborators').getFullList({
+    filter: `deleted_at = "" && user != ""${orgId ? ` && organization = "${orgId}"` : ''}`,
+    sort: '-created',
+  })
+}
 export const getCollaborator = (id: string) => pb.collection('collaborators').getOne(id)
 
 const sanitizeCollaborator = (data: any) => {

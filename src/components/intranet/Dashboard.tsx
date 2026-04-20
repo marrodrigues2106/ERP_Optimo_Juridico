@@ -194,7 +194,12 @@ export default function Dashboard() {
 
   useEffect(() => {
     Promise.allSettled([
-      pb.collection('clients').getFullList().then(setClients),
+      pb
+        .collection('clients')
+        .getFullList({
+          filter: `deleted_at = ""${pb.authStore.record?.active_organization ? ` && organization = "${pb.authStore.record.active_organization}"` : ''}`,
+        })
+        .then(setClients),
       pb
         .collection('collaborators')
         .getFullList({

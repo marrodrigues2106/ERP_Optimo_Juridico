@@ -195,7 +195,6 @@ routerAdd(
             let descBase = 'Movimento sem descrição'
             let codigo = ''
 
-            // Map tipoMovimento / nome to Description
             if (mov.tipo && mov.tipo.nacional) {
               descBase = mov.tipo.nacional.nome || mov.tipo.nacional.descricao || descBase
               codigo = String(mov.tipo.nacional.codigo || mov.tipo.nacional.id || '')
@@ -243,7 +242,6 @@ routerAdd(
               newMov.set('source', 'DataJud')
               newMov.set('external_id', extId)
 
-              // Explicitly capture 'texto' to meet AC criteria
               let teorText =
                 mov.texto || mov.teor || mov.textoIntegral || mov.decisao || mov.conteudo || null
 
@@ -265,7 +263,7 @@ routerAdd(
                 protocolo: mov.protocolo || null,
                 recibo: mov.recibo || null,
                 teor: teorText,
-                texto: teorText, // Duplicate for UI certainty
+                texto: teorText,
                 intimacoes: mov.intimacoes || [],
                 avisosPendentes: mov.avisosPendentes || null,
                 teorComunicacao: mov.teorComunicacao || null,
@@ -277,7 +275,6 @@ routerAdd(
               }
               newMov.set('movement_details', details)
 
-              // Save the full text into the details field as required
               if (teorText) {
                 newMov.set('details', teorText)
               } else if (mov.complementosTabelados && mov.complementosTabelados.length > 0) {

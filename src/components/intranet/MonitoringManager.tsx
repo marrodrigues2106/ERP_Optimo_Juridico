@@ -353,7 +353,7 @@ export default function MonitoringManager() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>Filtros Avançados (Diários)</CardTitle>
+              <CardTitle>Filtros DOU</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -408,7 +408,7 @@ export default function MonitoringManager() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Configurações DataJud</CardTitle>
+              <CardTitle>Filtros DataJud</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -497,41 +497,48 @@ export default function MonitoringManager() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Saúde dos Serviços</CardTitle>
+              <CardTitle>Saúde do PJe</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
+                <div className="overflow-hidden mr-2">
+                  <div className="font-semibold text-sm">Integração PJe</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    Status de Serviço PJe
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1 items-end shrink-0">
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                    Status de Monitoramento
+                  </span>
+                  <Badge
+                    variant={
+                      pjeConnectionStatus === 'connected' && pjeStatus === 'online'
+                        ? 'default'
+                        : pjeStatus === 'offline' || pjeConnectionStatus === 'disconnected'
+                          ? 'destructive'
+                          : 'secondary'
+                    }
+                    className={
+                      pjeConnectionStatus === 'connected' && pjeStatus === 'online'
+                        ? 'bg-emerald-500 hover:bg-emerald-600 shrink-0'
+                        : 'shrink-0'
+                    }
+                  >
+                    {pjeConnectionStatus === 'connected' ? 'Conectado' : 'Desconectado'} -{' '}
+                    {pjeStatus === 'online' ? 'Online' : 'Offline'}
+                  </Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Status de Integrações (DataJud e DOU)</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
-                  <div className="overflow-hidden mr-2">
-                    <div className="font-semibold text-sm">Integração PJe</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      Status de Serviço PJe
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-1 items-end shrink-0">
-                    <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                      Status de Monitoramento
-                    </span>
-                    <Badge
-                      variant={
-                        pjeConnectionStatus === 'connected' && pjeStatus === 'online'
-                          ? 'default'
-                          : pjeStatus === 'offline' || pjeConnectionStatus === 'disconnected'
-                            ? 'destructive'
-                            : 'secondary'
-                      }
-                      className={
-                        pjeConnectionStatus === 'connected' && pjeStatus === 'online'
-                          ? 'bg-emerald-500 hover:bg-emerald-600 shrink-0'
-                          : 'shrink-0'
-                      }
-                    >
-                      {pjeConnectionStatus === 'connected' ? 'Conectado' : 'Desconectado'} -{' '}
-                      {pjeStatus === 'online' ? 'Online' : 'Offline'}
-                    </Badge>
-                  </div>
-                </div>
-
                 <div className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
                   <div className="overflow-hidden mr-2">
                     <div className="font-semibold text-sm">Integração DataJud</div>
