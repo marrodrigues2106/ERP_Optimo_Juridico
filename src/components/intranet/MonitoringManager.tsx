@@ -538,7 +538,7 @@ export default function MonitoringManager() {
               </Button>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <div className="flex flex-col p-4 border rounded-lg bg-slate-50 relative overflow-hidden">
                   <div className="font-semibold text-sm mb-1">Portal PJe</div>
                   <div className="text-xs text-muted-foreground mb-3">
@@ -672,6 +672,71 @@ export default function MonitoringManager() {
                     >
                       {lastSyncLog?.status || 'Desconhecido'}
                     </Badge>
+                  </div>
+                </div>
+
+                <div className="flex flex-col p-4 border rounded-lg bg-slate-50 relative overflow-hidden">
+                  <div className="font-semibold text-sm mb-1">Portal IN.GOV (DOU)</div>
+                  <div className="text-xs text-muted-foreground mb-3">
+                    Última verificação:
+                    <br />
+                    {config?.updated ? new Date(config.updated).toLocaleString() : 'N/A'}
+                  </div>
+                  <div className="mt-auto flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex h-3 w-3">
+                          {config?.douStatus === 200 ? (
+                            <>
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                            </>
+                          ) : config?.douStatus === 403 || config?.douStatus === 429 ? (
+                            <>
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                            </>
+                          )}
+                        </div>
+                        <Badge
+                          variant={
+                            config?.douStatus === 200
+                              ? 'default'
+                              : config?.douStatus === 403 || config?.douStatus === 429
+                                ? 'secondary'
+                                : 'destructive'
+                          }
+                          className={
+                            config?.douStatus === 200
+                              ? 'bg-emerald-500 hover:bg-emerald-600'
+                              : config?.douStatus === 403 || config?.douStatus === 429
+                                ? 'bg-amber-500 hover:bg-amber-600'
+                                : ''
+                          }
+                        >
+                          {config?.douStatus === 200
+                            ? 'Online'
+                            : config?.douStatus === 403 || config?.douStatus === 429
+                              ? 'Bloqueado'
+                              : 'Offline'}
+                        </Badge>
+                      </div>
+                      {config?.douLatency !== undefined && (
+                        <span className="text-xs text-slate-500 font-medium">
+                          {config.douLatency}ms
+                        </span>
+                      )}
+                    </div>
+                    {config?.douError && (
+                      <div className="text-xs text-red-500 truncate" title={config.douError}>
+                        {config.douError}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -3,18 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { searchDou, checkDouHealth, DouSearchResult } from '@/services/dou'
-import {
-  Search,
-  Loader2,
-  ExternalLink,
-  Globe,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  CalendarIcon,
-} from 'lucide-react'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { searchDou, DouSearchResult } from '@/services/dou'
+import { Search, Loader2, ExternalLink, Globe, AlertTriangle, CalendarIcon } from 'lucide-react'
 import { format, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { useAuth } from '@/hooks/use-auth'
@@ -97,7 +87,6 @@ export default function DouSearch() {
   const [source, setSource] = useState(() => sessionStorage.getItem('dou_source') || '')
   const [message, setMessage] = useState(() => sessionStorage.getItem('dou_message') || '')
 
-  const [douHealth, setDouHealth] = useState<'checking' | 'up' | 'down' | 'blocked'>('checking')
   const [currentPage, setCurrentPage] = useState(() => {
     const saved = sessionStorage.getItem('dou_page')
     return saved ? parseInt(saved, 10) : 1
@@ -145,12 +134,6 @@ export default function DouSearch() {
       sessionStorage.setItem('dou_page', currentPage.toString())
     }
   }, [searched, results, source, message, currentPage])
-
-  useEffect(() => {
-    checkDouHealth()
-      .then((res) => setDouHealth(res.status as 'up' | 'down' | 'blocked'))
-      .catch(() => setDouHealth('down'))
-  }, [])
 
   if (!user?.can_view_search_module && user?.role !== 'admin') {
     return (
@@ -243,40 +226,6 @@ export default function DouSearch() {
           <p className="text-sm text-slate-500 mt-1">
             Pesquisa ativa diretamente no Diário Oficial da União (DOU).
           </p>
-        </div>
-        <div className="flex items-center gap-3 bg-white border border-slate-200 px-4 py-2.5 rounded-full shadow-sm text-base font-medium">
-          <span className="text-slate-500">Status IN.GOV:</span>
-          {douHealth === 'checking' && (
-            <span className="flex items-center text-amber-600 font-bold">
-              <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Verificando
-            </span>
-          )}
-          {douHealth === 'up' && (
-            <span className="flex items-center text-emerald-600 font-bold">
-              <CheckCircle2 className="w-5 h-5 mr-2" /> Online
-            </span>
-          )}
-          {douHealth === 'blocked' && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="flex items-center text-amber-600 font-bold cursor-help">
-                    <AlertTriangle className="w-5 h-5 mr-2" /> Bloqueado
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="max-w-xs text-sm">
-                    O portal bloqueou nossa requisição (Erro 403/429).
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-          {douHealth === 'down' && (
-            <span className="flex items-center text-red-600 font-bold">
-              <XCircle className="w-5 h-5 mr-2" /> Indisponível
-            </span>
-          )}
         </div>
       </div>
 

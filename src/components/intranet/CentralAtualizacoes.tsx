@@ -175,19 +175,25 @@ export default function CentralAtualizacoes() {
     try {
       setLoading(true)
       const unreadItems = filteredItems.filter((i) => !i.isRead)
-      await Promise.all(
-        unreadItems.map((item) => {
-          if (item.collection === 'results') {
-            return pb.collection('results').update(item.id, { is_read: true })
-          } else if (item.collection === 'gazette_publications') {
-            return pb.collection('gazette_publications').update(item.id, { is_read: true })
-          } else if (item.collection === 'ocorrencias_dou') {
-            return pb
-              .collection('ocorrencias_dou')
-              .update(item.id, { status_alerta: 'visualizado' })
-          }
-        }),
-      )
+
+      const chunkSize = 50
+      for (let i = 0; i < unreadItems.length; i += chunkSize) {
+        const chunk = unreadItems.slice(i, i + chunkSize)
+        await Promise.all(
+          chunk.map((item) => {
+            if (item.collection === 'results') {
+              return pb.collection('results').update(item.id, { is_read: true })
+            } else if (item.collection === 'gazette_publications') {
+              return pb.collection('gazette_publications').update(item.id, { is_read: true })
+            } else if (item.collection === 'ocorrencias_dou') {
+              return pb
+                .collection('ocorrencias_dou')
+                .update(item.id, { status_alerta: 'visualizado' })
+            }
+          }),
+        )
+      }
+
       setItems((prev) =>
         prev.map((i) => (unreadItems.find((u) => u.id === i.id) ? { ...i, isRead: true } : i)),
       )
