@@ -57,23 +57,6 @@ export default function ProcessManager() {
   const [editingCase, setEditingCase] = useState<any>(null)
   const [deletingCase, setDeletingCase] = useState<any>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [isSyncingAll, setIsSyncingAll] = useState(false)
-
-  const handleSyncAll = async () => {
-    setIsSyncingAll(true)
-    try {
-      await pb.send('/backend/v1/processos-sync-pje-all', { method: 'POST' })
-      toast({
-        title: 'Sincronização Agendada',
-        description: 'Os processos ativos serão atualizados em background.',
-      })
-      loadData()
-    } catch (err: any) {
-      toast({ title: 'Erro na Sincronização', description: err.message, variant: 'destructive' })
-    } finally {
-      setIsSyncingAll(false)
-    }
-  }
 
   const loadData = async () => {
     try {
@@ -179,15 +162,6 @@ export default function ProcessManager() {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button
-            onClick={handleSyncAll}
-            disabled={isSyncingAll}
-            variant="outline"
-            className="shadow-sm"
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isSyncingAll ? 'animate-spin' : ''}`} />{' '}
-            {isSyncingAll ? 'Sincronizando...' : 'Sincronizar com PJe'}
-          </Button>
           <Button onClick={() => handleOpenForm()} className="shadow-sm">
             <Plus className="w-4 h-4 mr-2" /> Novo Registro
           </Button>

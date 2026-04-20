@@ -76,25 +76,9 @@ export default function Dashboard() {
   const [selectedCollaboratorId, setSelectedCollaboratorId] = useState<string | null>(null)
   const [myCollaboratorId, setMyCollaboratorId] = useState<string | null>(null)
   const [caseCount, setCaseCount] = useState(0)
-  const [isSyncingAll, setIsSyncingAll] = useState(false)
 
   const canFilterOthers =
     isAdmin || user?.role === 'manager' || user?.role === 'admin' || user?.isAdmin
-
-  const handleSyncAll = async () => {
-    setIsSyncingAll(true)
-    try {
-      await pb.send('/backend/v1/processos-sync-pje-all', { method: 'POST' })
-      toast({
-        title: 'Sincronização Agendada',
-        description: 'Os processos ativos serão atualizados em background.',
-      })
-    } catch (err: any) {
-      toast({ title: 'Erro na Sincronização', description: err.message, variant: 'destructive' })
-    } finally {
-      setIsSyncingAll(false)
-    }
-  }
 
   const loadTasks = async () => {
     let filter = 'status = "todo" && deleted_at = ""'
@@ -477,16 +461,6 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSyncAll}
-              disabled={isSyncingAll}
-              className="hidden sm:flex shadow-sm bg-white"
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${isSyncingAll ? 'animate-spin' : ''}`} />
-              {isSyncingAll ? 'Sincronizando...' : 'Sincronizar com PJe'}
-            </Button>
             <Button
               onClick={() => setCaseModalOpen(true)}
               size="sm"

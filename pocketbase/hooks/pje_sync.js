@@ -205,6 +205,17 @@ routerAdd(
       $app.saveNoValidate(logRecord)
     } catch (e) {}
 
+    try {
+      const pjeLogsCol = $app.findCollectionByNameOrId('pje_sync_logs')
+      const pjeLogRecord = new Record(pjeLogsCol)
+      pjeLogRecord.set('case', record.id)
+      pjeLogRecord.set('status', syncStatus === 'success' ? 'success' : 'failed')
+      pjeLogRecord.set('message', syncMessage)
+      pjeLogRecord.set('duration', Date.now() - startTime)
+      if (orgId) pjeLogRecord.set('organization', orgId)
+      $app.saveNoValidate(pjeLogRecord)
+    } catch (e) {}
+
     if (syncStatus === 'success') {
       return e.json(200, { success: true, message: syncMessage })
     } else {
