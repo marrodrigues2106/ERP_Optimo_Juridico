@@ -838,7 +838,7 @@ export default function ProcessDetail() {
                     value="compromisso"
                     className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent py-3"
                   >
-                    Novo Compromisso
+                    Novo Registro
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="andamento" className="p-6 pt-6">
@@ -1061,8 +1061,8 @@ export default function ProcessDetail() {
                 <TabsContent value="compromisso" className="p-6 pt-6">
                   <form onSubmit={handleAddEvent} className="space-y-4">
                     <div>
-                      <Label>Título do Compromisso</Label>
-                      <Input name="title" placeholder="Ex: Audiência de Conciliação..." required />
+                      <Label>Título / Assunto</Label>
+                      <Input name="title" placeholder="Ex: Reunião com cliente..." required />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -1079,11 +1079,12 @@ export default function ProcessDetail() {
                             <SelectItem value="Hearing">Audiência</SelectItem>
                             <SelectItem value="Meeting">Reunião</SelectItem>
                             <SelectItem value="Call">Ligação</SelectItem>
+                            <SelectItem value="Email">Email</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
-                    <Button type="submit">Criar Compromisso</Button>
+                    <Button type="submit">Criar Registro</Button>
                   </form>
                 </TabsContent>
               </Tabs>

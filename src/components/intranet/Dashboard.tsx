@@ -94,7 +94,11 @@ export default function Dashboard() {
   }
 
   const loadEvents = async () => {
-    let filter = `start_date >= "${startOfDay(selectedDate).toISOString()}" && start_date <= "${new Date(startOfDay(selectedDate).getTime() + 24 * 60 * 60 * 1000 - 1).toISOString()}" && deleted_at = ""`
+    const startStr = startOfDay(selectedDate).toISOString().replace('T', ' ')
+    const endStr = new Date(startOfDay(selectedDate).getTime() + 24 * 60 * 60 * 1000 - 1)
+      .toISOString()
+      .replace('T', ' ')
+    let filter = `start_date >= "${startStr}" && start_date <= "${endStr}" && deleted_at = ""`
     if (selectedCollaboratorId) {
       filter += ` && (collaborator = "${selectedCollaboratorId}" || participants ~ "${selectedCollaboratorId}")`
     }
@@ -728,7 +732,7 @@ export default function Dashboard() {
                 className="h-8 text-xs font-semibold"
                 onClick={() => setEventModalOpen(true)}
               >
-                <Plus className="w-3.5 h-3.5 mr-1" /> Novo Registro
+                <Plus className="w-3.5 h-3.5 mr-1" /> Novo Compromisso
               </Button>
             </div>
           </div>
@@ -761,7 +765,7 @@ export default function Dashboard() {
               {events.length === 0 ? (
                 <div className="text-center py-6 rounded-lg text-slate-500 flex flex-col items-center">
                   <CalendarIcon className="w-8 h-8 mb-3 text-slate-300" />
-                  <p className="text-sm">Nenhum compromisso nesta data</p>
+                  <p className="text-sm">Nenhum evento para este dia</p>
                 </div>
               ) : (
                 events.map((e) => (

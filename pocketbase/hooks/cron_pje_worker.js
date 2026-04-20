@@ -149,7 +149,7 @@ cronAdd('pje_worker', '* * * * *', () => {
                 : 'PJe API Error: HTTP ' + res.statusCode
 
           if (res.statusCode === 504 || res.statusCode === 503 || res.statusCode === 502) {
-            record.set('pje_sync_status', 'pending')
+            record.set('pje_sync_status', 'error')
           } else {
             record.set('pje_sync_status', 'error')
             record.set('datajud_sync_status', 'Error')
@@ -164,7 +164,7 @@ cronAdd('pje_worker', '* * * * *', () => {
           msg.indexOf('gateway') !== -1
         ) {
           syncMessage = 'PJE_TIMEOUT: Sistema PJe indisponível.'
-          record.set('pje_sync_status', 'pending')
+          record.set('pje_sync_status', 'error')
         } else {
           syncMessage = err.message || 'Erro desconhecido'
           record.set('pje_sync_status', 'error')
