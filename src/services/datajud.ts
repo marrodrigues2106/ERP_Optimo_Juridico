@@ -21,3 +21,10 @@ export const syncDataJudCase = async (id: string) => {
 export const batchSyncDataJudCases = async (caseIds: string[]) => {
   return Promise.all(caseIds.map((id) => syncDataJudCase(id)))
 }
+
+export const fetchDocumentContent = async (documentoId: string, tribunal?: string) => {
+  const query = tribunal ? `?tribunal=${encodeURIComponent(tribunal)}` : ''
+  return await pb.send(`/backend/v1/datajud/document/${documentoId}${query}`, {
+    method: 'GET',
+  })
+}

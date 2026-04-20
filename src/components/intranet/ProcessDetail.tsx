@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getLegalCase } from '@/services/legal_cases'
 import { getPaginatedCaseMovements } from '@/services/case_movements'
+import { fetchDocumentContent } from '@/services/datajud'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -29,6 +30,13 @@ import {
   AccordionContent,
 } from '@/components/ui/accordion'
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet'
+import {
   ArrowLeft,
   RefreshCw,
   User,
@@ -45,15 +53,31 @@ import {
   FileStack,
   Bell,
   CheckCircle2,
+  Loader2,
 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { Badge } from '@/components/ui/badge'
 import { useRealtime } from '@/hooks/use-realtime'
 import { cn } from '@/lib/utils'
 
-const MovementItem = ({ mov, isNew, recordId }: { mov: any; isNew: boolean; recordId: string }) => {
+const MovementItem = ({
+  mov,
+  isNew,
+  recordId,
+  caseNumber,
+}: {
+  mov: any
+  isNew: boolean
+  recordId: string
+  caseNumber?: string
+}) => {
   const [isExpanded, setIsExpanded] = useState(false)
   const { toast } = useToast()
+
+  const [viewingDoc, setViewingDoc] = useState<any>(null)
+  const [docContent, setDocContent] = useState<{ tipo: string; conteudo: string } | null>(null)
+  const [loadingDoc, setLoadingDoc] = useState(false)
+  const [docError, setDocError] = useState('')
 
   const isDecision =
     /decisão|despacho|sentença|julgamento|acórdão|liminar/i.test(mov.description || '') ||
@@ -172,6 +196,34 @@ const MovementItem = ({ mov, isNew, recordId }: { mov: any; isNew: boolean; reco
         ))}
       </ul>
     )
+  }
+
+  const handleViewDoc = async (doc: any) => {
+    setViewingDoc(doc)
+    setLoadingDoc(true)
+    setDocError('')
+    setDocContent(null)
+
+    const docId = doc.idDocumento || doc.id || doc.hash
+    if (!docId) {
+      setDocError('ID do documento não encontrado.')
+      setLoadingDoc(false)
+      return
+    }
+
+    try {
+      const tribunal = mov.movement_details?.orgaoJulgador || ''
+      const res = await fetchDocumentContent(docId, tribunal)
+      if (res && res.success && res.data) {
+        setDocContent(res.data)
+      } else {
+        setDocError('Formato de resposta inválido ou documento não disponível no momento.')
+      }
+    } catch (err: any) {
+      setDocError('Documento não disponível no tribunal ou erro na busca.')
+    } finally {
+      setLoadingDoc(false)
+    }
   }
 
   return (
@@ -428,13 +480,7 @@ const MovementItem = ({ mov, isNew, recordId }: { mov: any; isNew: boolean; reco
                       variant="outline"
                       size="sm"
                       className="shrink-0 text-xs shadow-sm bg-white"
-                      onClick={() =>
-                        toast({
-                          title: 'Visualização de Documentos',
-                          description:
-                            'A funcionalidade de download/visualização do documento diretamente do tribunal estará disponível em breve.',
-                        })
-                      }
+                      onClick={() => handleViewDoc(doc)}
                     >
                       Visualizar
                     </Button>
@@ -484,6 +530,63 @@ const MovementItem = ({ mov, isNew, recordId }: { mov: any; isNew: boolean; reco
           )}
         </div>
       </Card>
+
+      <Sheet open={!!viewingDoc} onOpenChange={(open) => !open && setViewingDoc(null)}>
+        <SheetContent className="sm:max-w-xl md:max-w-2xl lg:max-w-4xl w-full h-full flex flex-col gap-0 p-0">
+          <SheetHeader className="p-6 border-b border-slate-100 shrink-0">
+            <SheetTitle className="flex items-center gap-2 text-slate-800">
+              <FileText className="w-5 h-5 text-primary" />
+              {viewingDoc?.nome || viewingDoc?.tipoDocumento || 'Visualizador de Documento'}
+            </SheetTitle>
+            <SheetDescription className="flex items-center gap-4 mt-1 font-mono text-xs">
+              <span>
+                ID: {viewingDoc?.idDocumento || viewingDoc?.id || viewingDoc?.hash || 'N/A'}
+              </span>
+              {caseNumber && <span>Processo: {caseNumber}</span>}
+              <span className="hidden sm:inline-block text-slate-400">Processo ID: {recordId}</span>
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-hidden relative bg-slate-50 p-6">
+            {loadingDoc && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-10 backdrop-blur-sm">
+                <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+                <p className="text-sm text-slate-500 font-medium">
+                  Buscando documento no tribunal...
+                </p>
+              </div>
+            )}
+
+            {docError && !loadingDoc && (
+              <div className="h-full flex flex-col items-center justify-center text-slate-500 bg-white border border-slate-200 rounded-lg shadow-sm">
+                <AlertTriangle className="w-10 h-10 text-red-400 mb-4" />
+                <p className="text-center max-w-md">{docError}</p>
+              </div>
+            )}
+
+            {docContent && !loadingDoc && (
+              <div className="h-full w-full rounded-lg overflow-hidden border border-slate-200 shadow-sm bg-white">
+                {docContent.tipo === 'pdf' || docContent.tipo === 'binary' ? (
+                  <iframe
+                    src={
+                      docContent.conteudo.startsWith('data:')
+                        ? docContent.conteudo
+                        : `data:application/pdf;base64,${docContent.conteudo}`
+                    }
+                    className="w-full h-full border-0"
+                    title="Documento PDF"
+                  />
+                ) : (
+                  <div
+                    className="w-full h-full overflow-auto prose prose-sm max-w-none text-slate-800 p-6 custom-scrollbar"
+                    dangerouslySetInnerHTML={{ __html: docContent.conteudo }}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
@@ -676,28 +779,6 @@ export default function ProcessDetail() {
     }
   }
 
-  const renderNestedObject = (obj: any): React.ReactNode => {
-    if (typeof obj !== 'object' || obj === null) return String(obj)
-    if (Array.isArray(obj)) {
-      return (
-        <ul className="list-disc pl-4 space-y-1">
-          {obj.map((item, idx) => (
-            <li key={idx}>{renderNestedObject(item)}</li>
-          ))}
-        </ul>
-      )
-    }
-    return (
-      <ul className="list-disc pl-4 space-y-1">
-        {Object.entries(obj).map(([k, v]) => (
-          <li key={k}>
-            <span className="font-semibold capitalize">{k}:</span> {renderNestedObject(v)}
-          </li>
-        ))}
-      </ul>
-    )
-  }
-
   if (!legalCase)
     return <div className="p-8 text-center text-slate-500">Carregando processo...</div>
 
@@ -835,7 +916,6 @@ export default function ProcessDetail() {
               </div>
             </div>
 
-            {/* Metadados (DataJud/MNI) relocated to header */}
             {legalCase.metadata && Object.keys(legalCase.metadata).length > 0 && (
               <div className="mt-6 pt-4 border-t border-slate-100">
                 <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2 mb-4">
@@ -933,7 +1013,15 @@ export default function ProcessDetail() {
                         const movDate = new Date(mov.created).getTime()
                         const isNew = movDate > Date.now() - 86400000 * 2
 
-                        return <MovementItem key={mov.id} mov={mov} isNew={isNew} recordId={id!} />
+                        return (
+                          <MovementItem
+                            key={mov.id}
+                            mov={mov}
+                            isNew={isNew}
+                            recordId={id!}
+                            caseNumber={legalCase.case_number}
+                          />
+                        )
                       })
                     )}
                   </div>
