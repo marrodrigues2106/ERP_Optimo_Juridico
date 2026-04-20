@@ -187,24 +187,27 @@ routerAdd(
         record.set('datajud_sync_status', 'Success')
         record.set('datajud_last_sync', new Date().toISOString())
       } else {
-        if (res.statusCode === 403)
+        if (res.statusCode === 403) {
           syncMessage = `PJE_FORBIDDEN: Acesso negado (403). Response: ${res.raw ? String(res.raw) : JSON.stringify(data || {})}`
-        else if (res.statusCode === 400)
+          record.set('pje_sync_status', 'error')
+        } else if (res.statusCode === 400) {
           syncMessage = `PJE_BAD_REQUEST: Requisição inválida (400). Response: ${JSON.stringify(data || {})}`
-        else if (res.statusCode === 401)
+          record.set('pje_sync_status', 'error')
+        } else if (res.statusCode === 401) {
           syncMessage = `PJE_UNAUTHORIZED: Token inválido/expirado (401). Response: ${JSON.stringify(data || {})}`
-        else if ([504, 503, 502].includes(res.statusCode))
+          record.set('pje_sync_status', 'error')
+        } else if ([504, 503, 502].includes(res.statusCode)) {
           syncMessage = 'PJE_TIMEOUT: Sistema PJe indisponível.'
-        else
+          record.set('pje_sync_status', 'pending')
+        } else {
           syncMessage =
             data && data.message
               ? `PJe API Error: ${data.message} (HTTP ${res.statusCode})`
               : `PJe API Error: HTTP ${res.statusCode}`
-
-        record.set('pje_sync_status', 'pending')
+          record.set('pje_sync_status', 'error')
+        }
       }
     } catch (err) {
-      record.set('pje_sync_status', 'pending')
       const msg = (err.message || '').toLowerCase()
       if (
         msg.includes('deadline') ||
@@ -214,8 +217,10 @@ routerAdd(
         msg.includes('no such host')
       ) {
         syncMessage = 'PJE_TIMEOUT: Sistema PJe indisponível ou falha de conectividade.'
+        record.set('pje_sync_status', 'pending')
       } else {
         syncMessage = err.message || 'Erro desconhecido ao tentar conectar.'
+        record.set('pje_sync_status', 'error')
       }
     }
 
@@ -229,11 +234,18 @@ routerAdd(
       logRecord.set('level', syncStatus === 'success' ? 'info' : 'error')
       logRecord.set('module', 'PJe Sync')
       logRecord.set('message', syncMessage)
-      logRecord.set('details', {
+
+      const detailsObj = {
         case: record.id,
         duration: Date.now() - startTime,
         status: syncStatus,
-      })
+      }
+
+      if (syncMessage.includes('PJE_FORBIDDEN')) {
+        detailsObj.raw_error = syncMessage
+      }
+
+      logRecord.set('details', detailsObj)
       if (orgId) logRecord.set('organization', orgId)
       $app.saveNoValidate(logRecord)
     } catch (e) {}

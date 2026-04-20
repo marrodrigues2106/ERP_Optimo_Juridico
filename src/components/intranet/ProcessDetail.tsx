@@ -149,9 +149,11 @@ export default function ProcessDetail() {
 
       const status = error?.status || error?.response?.status || 500
       const errorMsg = String(error?.response?.message || error?.message || '')
+      const isForbidden = status === 403 || errorMsg.includes('PJE_FORBIDDEN')
 
-      if (status === 403 || errorMsg.includes('PJE_FORBIDDEN')) {
-        userMessage = 'Acesso negado pelo tribunal. A sincronização continuará em segundo plano.'
+      if (isForbidden) {
+        userMessage =
+          'Acesso negado pelo tribunal. O servidor do PJe (CloudFront) está bloqueando a conexão. Por favor, tente novamente mais tarde ou verifique as configurações de rede.'
       } else if (status === 401 || errorMsg.includes('PJE_UNAUTHORIZED')) {
         userMessage = 'Não autorizado (401). A chave de API do tribunal pode estar expirada.'
       } else if (status === 400 || errorMsg.includes('PJE_BAD_REQUEST')) {
@@ -163,27 +165,29 @@ export default function ProcessDetail() {
         userMessage = errorMsg
       }
 
-      try {
-        const currentRecord = await getLegalCase(id!)
-        if (
-          currentRecord.pje_sync_status === 'pending' ||
-          currentRecord.pje_sync_status === 'syncing'
-        ) {
-          toast({
-            title: 'Sincronização em andamento',
-            description: 'A sincronização foi enviada para processamento em segundo plano.',
-          })
-          setLegalCase(currentRecord)
-          return
+      if (!isForbidden) {
+        try {
+          const currentRecord = await getLegalCase(id!)
+          if (
+            currentRecord.pje_sync_status === 'pending' ||
+            currentRecord.pje_sync_status === 'syncing'
+          ) {
+            toast({
+              title: 'Sincronização em andamento',
+              description: 'A sincronização foi enviada para processamento em segundo plano.',
+            })
+            setLegalCase(currentRecord)
+            return
+          }
+        } catch (err) {
+          /* ignore error */
         }
-      } catch (err) {
-        /* ignore error */
       }
 
       toast({
         title: 'Aviso de Sincronização',
         description: userMessage,
-        variant: status === 403 || status === 400 ? 'default' : 'destructive',
+        variant: 'destructive',
       })
 
       setLegalCase((prev: any) => {
