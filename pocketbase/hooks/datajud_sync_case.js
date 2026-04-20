@@ -162,6 +162,8 @@ routerAdd(
               newMov.set('source', 'DataJud')
               newMov.set('external_id', extId)
 
+              const teorText =
+                mov.texto || mov.teor || mov.textoIntegral || mov.decisao || mov.conteudo || null
               const details = {
                 codigo: codigo,
                 orgaoJulgador: caseData.orgaoJulgador?.nome || '',
@@ -170,17 +172,21 @@ routerAdd(
                 complementos: mov.complementosTabelados || mov.complementos || [],
                 protocolo: mov.protocolo || null,
                 recibo: mov.recibo || null,
-                teor: mov.teor || mov.textoIntegral || mov.decisao || mov.conteudo || null,
+                teor: teorText,
                 intimacoes: mov.intimacoes || [],
                 avisosPendentes: mov.avisosPendentes || null,
                 teorComunicacao: mov.teorComunicacao || null,
                 ciencia: mov.ciencia || null,
                 signatarios: mov.signatarios || [],
                 nivelSigilo: mov.nivelSigilo || null,
+                magistradoNome: mov.magistradoNome || mov.juiz || null,
+                magistradoCpf: mov.magistradoCpf || null,
               }
               newMov.set('movement_details', details)
 
-              if (mov.complementosTabelados && mov.complementosTabelados.length > 0) {
+              if (teorText) {
+                newMov.set('details', teorText)
+              } else if (mov.complementosTabelados && mov.complementosTabelados.length > 0) {
                 newMov.set('details', JSON.stringify(mov.complementosTabelados, null, 2))
               }
 
