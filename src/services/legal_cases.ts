@@ -61,3 +61,11 @@ export const toggleFavoriteLegalCase = async (id: string, is_favorite: boolean) 
   await logAudit('legal_cases', record.id, 'update', { is_favorite })
   return record
 }
+
+export const syncCaseDatajud = async (caseId: string) => {
+  return pb.send('/backend/v1/datajud/sync-case', {
+    method: 'POST',
+    body: JSON.stringify({ caseId }),
+    headers: { 'Content-Type': 'application/json' },
+  })
+}

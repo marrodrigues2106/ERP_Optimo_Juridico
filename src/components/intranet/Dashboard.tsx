@@ -197,7 +197,10 @@ export default function Dashboard() {
       pb.collection('clients').getFullList().then(setClients),
       pb
         .collection('collaborators')
-        .getFullList({ filter: 'deleted_at = "" && user != ""', expand: 'user' })
+        .getFullList({
+          filter: `deleted_at = "" && user != ""${pb.authStore.record?.active_organization ? ` && organization = "${pb.authStore.record.active_organization}"` : ''}`,
+          expand: 'user',
+        })
         .then((collabs) => {
           const activeCollabs = collabs.filter((c) => c.expand?.user)
           setCollaborators(activeCollabs)

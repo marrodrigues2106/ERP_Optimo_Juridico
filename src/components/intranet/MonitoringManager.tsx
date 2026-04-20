@@ -539,9 +539,9 @@ export default function MonitoringManager() {
                       }
                     >
                       {pjeStatus === 'online'
-                        ? 'Conectado / Online'
+                        ? 'Conectado - Online'
                         : pjeStatus === 'offline'
-                          ? 'Desconectado / Offline'
+                          ? 'Desconectado - Offline'
                           : 'Desconhecido'}
                     </Badge>
                   </div>
