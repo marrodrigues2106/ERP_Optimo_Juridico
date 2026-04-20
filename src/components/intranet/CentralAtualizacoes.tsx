@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import pb from '@/lib/pocketbase/client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Progress } from '@/components/ui/progress'
 import { format } from 'date-fns'
 import {
   Activity,
@@ -29,6 +31,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
+import { useRealtime } from '@/hooks/use-realtime'
 
 type UnifiedItem = {
   id: string
@@ -57,6 +60,26 @@ export default function CentralAtualizacoes() {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   const [eventDialogOpen, setEventDialogOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<UnifiedItem | null>(null)
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isProcessingBatch, setIsProcessingBatch] = useState(false)
+  const [batchProgress, setBatchProgress] = useState(0)
+  const [batchTotal, setBatchTotal] = useState(0)
+
+  const isProcessingBatchRef = useRef(isProcessingBatch)
+  useEffect(() => {
+    isProcessingBatchRef.current = isProcessingBatch
+  }, [isProcessingBatch])
+
+  useRealtime('results', () => {
+    if (!isProcessingBatchRef.current) loadData()
+  })
+  useRealtime('gazette_publications', () => {
+    if (!isProcessingBatchRef.current) loadData()
+  })
+  useRealtime('ocorrencias_dou', () => {
+    if (!isProcessingBatchRef.current) loadData()
+  })
 
   const loadData = async () => {
     setLoading(true)
@@ -145,63 +168,97 @@ export default function CentralAtualizacoes() {
     loadData()
   }, [])
 
-  const handleMarkAsRead = async (item: UnifiedItem) => {
-    try {
-      if (item.collection === 'results') {
-        await pb.collection('results').update(item.id, { is_read: true })
-      } else if (item.collection === 'gazette_publications') {
-        await pb.collection('gazette_publications').update(item.id, { is_read: true })
-      } else if (item.collection === 'ocorrencias_dou') {
-        await pb.collection('ocorrencias_dou').update(item.id, { status_alerta: 'visualizado' })
-      }
-      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, isRead: true } : i)))
-      toast({ title: 'Marcado como lido' })
-    } catch (error) {
-      toast({ title: 'Erro ao atualizar', variant: 'destructive' })
-    }
-  }
+  const processBatch = async (action: 'read' | 'archive', idsToProcess?: Set<string>) => {
+    const targetIds = idsToProcess || selectedIds
+    const itemsToProcess = items.filter((i) => targetIds.has(`${i.collection}-${i.id}`))
+    if (itemsToProcess.length === 0) return
 
-  const handleArchive = async (item: UnifiedItem) => {
-    try {
-      await pb.collection(item.collection).update(item.id, { is_archived: true })
-      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, isArchived: true } : i)))
-      toast({ title: 'Movido para Arquivados' })
-    } catch (error) {
-      toast({ title: 'Erro ao arquivar', variant: 'destructive' })
-    }
-  }
+    setIsProcessingBatch(true)
+    setBatchProgress(0)
+    setBatchTotal(itemsToProcess.length)
 
-  const handleMarkAllAsRead = async () => {
-    try {
-      setLoading(true)
-      const unreadItems = filteredItems.filter((i) => !i.isRead)
+    let successCount = 0
+    let hasError = false
 
-      const chunkSize = 50
-      for (let i = 0; i < unreadItems.length; i += chunkSize) {
-        const chunk = unreadItems.slice(i, i + chunkSize)
+    // Optimistic update
+    setItems((prev) =>
+      prev.map((item) => {
+        if (targetIds.has(`${item.collection}-${item.id}`)) {
+          return {
+            ...item,
+            isRead: action === 'read' ? true : item.isRead,
+            isArchived: action === 'archive' ? true : item.isArchived,
+          }
+        }
+        return item
+      }),
+    )
+
+    // Sequential batches of 10 to avoid SQLite locked errors
+    const chunkSize = 10
+    for (let i = 0; i < itemsToProcess.length; i += chunkSize) {
+      const chunk = itemsToProcess.slice(i, i + chunkSize)
+      try {
         await Promise.all(
-          chunk.map((item) => {
-            if (item.collection === 'results') {
-              return pb.collection('results').update(item.id, { is_read: true })
-            } else if (item.collection === 'gazette_publications') {
-              return pb.collection('gazette_publications').update(item.id, { is_read: true })
-            } else if (item.collection === 'ocorrencias_dou') {
-              return pb
-                .collection('ocorrencias_dou')
-                .update(item.id, { status_alerta: 'visualizado' })
+          chunk.map(async (item) => {
+            if (action === 'read') {
+              if (item.collection === 'results')
+                await pb.collection('results').update(item.id, { is_read: true })
+              else if (item.collection === 'gazette_publications')
+                await pb.collection('gazette_publications').update(item.id, { is_read: true })
+              else if (item.collection === 'ocorrencias_dou')
+                await pb
+                  .collection('ocorrencias_dou')
+                  .update(item.id, { status_alerta: 'visualizado' })
+            } else if (action === 'archive') {
+              await pb.collection(item.collection).update(item.id, { is_archived: true })
             }
           }),
         )
+        successCount += chunk.length
+        setBatchProgress(successCount)
+      } catch (err) {
+        console.error(err)
+        hasError = true
+        toast({
+          title: 'Erro ao processar lote',
+          description: `Operação interrompida após ${successCount} itens.`,
+          variant: 'destructive',
+        })
+        break
       }
+    }
 
-      setItems((prev) =>
-        prev.map((i) => (unreadItems.find((u) => u.id === i.id) ? { ...i, isRead: true } : i)),
-      )
-      toast({ title: 'Todos os itens marcados como lidos' })
-    } catch (error) {
-      toast({ title: 'Erro ao atualizar itens', variant: 'destructive' })
-    } finally {
-      setLoading(false)
+    if (!hasError && targetIds.size > 1) {
+      toast({ title: `Sucesso`, description: `${successCount} itens atualizados com sucesso.` })
+    } else if (!hasError && targetIds.size === 1) {
+      toast({ title: action === 'read' ? 'Marcado como lido' : 'Movido para Arquivados' })
+    }
+
+    if (!idsToProcess) {
+      setSelectedIds(new Set())
+    }
+
+    setTimeout(async () => {
+      setIsProcessingBatch(false)
+      await loadData()
+    }, 500)
+  }
+
+  const handleMarkAsRead = (item: UnifiedItem) => {
+    processBatch('read', new Set([`${item.collection}-${item.id}`]))
+  }
+
+  const handleArchive = (item: UnifiedItem) => {
+    processBatch('archive', new Set([`${item.collection}-${item.id}`]))
+  }
+
+  const handleMarkAllAsRead = () => {
+    const unreadIds = new Set(
+      filteredItems.filter((i) => !i.isRead).map((i) => `${i.collection}-${i.id}`),
+    )
+    if (unreadIds.size > 0) {
+      processBatch('read', unreadIds)
     }
   }
 
@@ -250,6 +307,7 @@ export default function CentralAtualizacoes() {
 
   useEffect(() => {
     setCurrentPage(1)
+    setSelectedIds(new Set())
   }, [activeTab, itemsPerPage])
 
   const filteredItems = useMemo(() => {
@@ -269,133 +327,150 @@ export default function CentralAtualizacoes() {
     return filteredItems.slice(start, start + itemsPerPage)
   }, [filteredItems, currentPage, itemsPerPage])
 
-  const renderItemCard = (item: UnifiedItem) => (
-    <Card
-      key={item.id}
-      className={cn(
-        'overflow-hidden border-slate-200 transition-all hover:shadow-md',
-        !item.isRead ? 'bg-blue-50/30 border-blue-100' : 'bg-white',
-      )}
-    >
-      <div className="p-5 flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm font-bold tracking-wider uppercase text-slate-500">
-            {item.type === 'DOU' && <Landmark className="w-4 h-4 text-emerald-500" />}
-            {item.type === 'PJe' && <Activity className="w-4 h-4 text-blue-500" />}
-            {item.type === 'Processo Novo' && <FileText className="w-4 h-4 text-primary" />}
-            {item.type === 'Ocorrência' && <Activity className="w-4 h-4 text-amber-500" />}
-            {item.type}
-          </div>
-          <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
-            {item.date ? format(new Date(item.date), 'dd/MM/yyyy HH:mm') : '-'}
-          </span>
-        </div>
+  const renderItemCard = (item: UnifiedItem) => {
+    const itemKey = `${item.collection}-${item.id}`
+    const isSelected = selectedIds.has(itemKey)
 
-        <div>
-          <h3
-            className={cn(
-              'text-lg font-bold mb-2 flex items-center flex-wrap gap-2',
-              item.isRead ? 'text-slate-800' : 'text-slate-900',
-            )}
-          >
-            {item.caseNumber && (
-              <Badge
-                variant="secondary"
+    return (
+      <Card
+        key={itemKey}
+        className={cn(
+          'overflow-hidden border-slate-200 transition-all hover:shadow-md relative',
+          !item.isRead ? 'bg-blue-50/30 border-blue-100' : 'bg-white',
+          isSelected && 'ring-2 ring-primary border-primary bg-primary/5',
+        )}
+      >
+        <div className="p-5 flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-bold tracking-wider uppercase text-slate-500">
+              {item.type === 'DOU' && <Landmark className="w-4 h-4 text-emerald-500" />}
+              {item.type === 'PJe' && <Activity className="w-4 h-4 text-blue-500" />}
+              {item.type === 'Processo Novo' && <FileText className="w-4 h-4 text-primary" />}
+              {item.type === 'Ocorrência' && <Activity className="w-4 h-4 text-amber-500" />}
+              {item.type}
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
+                {item.date ? format(new Date(item.date), 'dd/MM/yyyy HH:mm') : '-'}
+              </span>
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={(checked) => {
+                  const newSet = new Set(selectedIds)
+                  if (checked) newSet.add(itemKey)
+                  else newSet.delete(itemKey)
+                  setSelectedIds(newSet)
+                }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <h3
+              className={cn(
+                'text-lg font-bold mb-2 flex items-center flex-wrap gap-2',
+                item.isRead ? 'text-slate-800' : 'text-slate-900',
+              )}
+            >
+              {item.caseNumber && (
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    'text-primary bg-primary/10 border-primary/20 transition-colors',
+                    item.caseId && 'hover:bg-primary/20 cursor-pointer',
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (item.caseId) navigate(`/intranet/processos/${item.caseId}`)
+                  }}
+                >
+                  {item.caseNumber}
+                </Badge>
+              )}
+              <span
                 className={cn(
-                  'text-primary bg-primary/10 border-primary/20 transition-colors',
-                  item.caseId && 'hover:bg-primary/20 cursor-pointer',
+                  'leading-tight',
+                  item.caseId &&
+                    'cursor-pointer hover:text-primary transition-colors hover:underline',
                 )}
-                onClick={(e) => {
-                  e.stopPropagation()
+                onClick={() => {
                   if (item.caseId) navigate(`/intranet/processos/${item.caseId}`)
                 }}
               >
-                {item.caseNumber}
-              </Badge>
+                {item.title}
+              </span>
+            </h3>
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 max-h-32 overflow-hidden relative mt-2">
+              <p
+                className="text-sm text-slate-600 line-clamp-3 leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: item.description }}
+              ></p>
+              <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-slate-50 to-transparent pointer-events-none"></div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 mt-2 pt-4 border-t border-slate-100">
+            {!item.isRead && item.type !== 'Processo Novo' && (
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => handleMarkAsRead(item)}
+                className="bg-primary text-white"
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" /> Marcar como Lido
+              </Button>
             )}
-            <span
-              className={cn(
-                'leading-tight',
-                item.caseId &&
-                  'cursor-pointer hover:text-primary transition-colors hover:underline',
-              )}
+
+            <Button
+              size="sm"
+              variant="outline"
               onClick={() => {
-                if (item.caseId) navigate(`/intranet/processos/${item.caseId}`)
+                setSelectedItem(item)
+                setTaskDialogOpen(true)
               }}
             >
-              {item.title}
-            </span>
-          </h3>
-          <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 max-h-32 overflow-hidden relative mt-2">
-            <p
-              className="text-sm text-slate-600 line-clamp-3 leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: item.description }}
-            ></p>
-            <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-slate-50 to-transparent pointer-events-none"></div>
+              <CheckSquare className="w-4 h-4 mr-2 text-slate-500" /> Tarefa
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setSelectedItem(item)
+                setEventDialogOpen(true)
+              }}
+            >
+              <CalendarIcon className="w-4 h-4 mr-2 text-slate-500" /> Evento
+            </Button>
+
+            {(item.collection === 'results' || item.collection === 'gazette_publications') && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={async () => {
+                  if (!item.isRead) await handleMarkAsRead(item)
+                  navigate(`/intranet/comunicacoes/${item.id}`)
+                }}
+              >
+                <Eye className="w-4 h-4 mr-2" /> Ver Detalhes
+              </Button>
+            )}
+
+            {!item.isArchived && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="ml-auto text-slate-400 hover:text-slate-600"
+                onClick={() => handleArchive(item)}
+              >
+                <Archive className="w-4 h-4 mr-2" /> Arquivar
+              </Button>
+            )}
           </div>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2 mt-2 pt-4 border-t border-slate-100">
-          {!item.isRead && item.type !== 'Processo Novo' && (
-            <Button
-              size="sm"
-              variant="default"
-              onClick={() => handleMarkAsRead(item)}
-              className="bg-primary text-white"
-            >
-              <CheckCircle2 className="w-4 h-4 mr-2" /> Marcar como Lido
-            </Button>
-          )}
-
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setSelectedItem(item)
-              setTaskDialogOpen(true)
-            }}
-          >
-            <CheckSquare className="w-4 h-4 mr-2 text-slate-500" /> Tarefa
-          </Button>
-
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setSelectedItem(item)
-              setEventDialogOpen(true)
-            }}
-          >
-            <CalendarIcon className="w-4 h-4 mr-2 text-slate-500" /> Evento
-          </Button>
-
-          {(item.collection === 'results' || item.collection === 'gazette_publications') && (
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={async () => {
-                if (!item.isRead) await handleMarkAsRead(item)
-                navigate(`/intranet/comunicacoes/${item.id}`)
-              }}
-            >
-              <Eye className="w-4 h-4 mr-2" /> Ver Detalhes
-            </Button>
-          )}
-
-          {!item.isArchived && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="ml-auto text-slate-400 hover:text-slate-600"
-              onClick={() => handleArchive(item)}
-            >
-              <Archive className="w-4 h-4 mr-2" /> Arquivar
-            </Button>
-          )}
-        </div>
-      </div>
-    </Card>
-  )
+      </Card>
+    )
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-fade-in-up pb-12">
@@ -474,6 +549,32 @@ export default function CentralAtualizacoes() {
               <span className="text-sm text-slate-500 font-medium">
                 {filteredItems.length} itens
               </span>
+              {filteredItems.length > 0 && (
+                <div className="flex items-center gap-2 px-2">
+                  <Checkbox
+                    id="select-all"
+                    checked={
+                      paginatedItems.length > 0 &&
+                      paginatedItems.every((i) => selectedIds.has(`${i.collection}-${i.id}`))
+                    }
+                    onCheckedChange={(checked) => {
+                      const newSet = new Set(selectedIds)
+                      if (checked) {
+                        paginatedItems.forEach((i) => newSet.add(`${i.collection}-${i.id}`))
+                      } else {
+                        paginatedItems.forEach((i) => newSet.delete(`${i.collection}-${i.id}`))
+                      }
+                      setSelectedIds(newSet)
+                    }}
+                  />
+                  <Label
+                    htmlFor="select-all"
+                    className="text-sm font-medium cursor-pointer text-slate-600"
+                  >
+                    Selecionar Página
+                  </Label>
+                </div>
+              )}
               {activeTab === 'inbox' && filteredItems.length > 0 && (
                 <Button size="sm" variant="outline" onClick={handleMarkAllAsRead}>
                   <CheckCircle2 className="w-4 h-4 mr-2" /> Marcar todos como lidos
@@ -482,7 +583,7 @@ export default function CentralAtualizacoes() {
             </div>
           </div>
 
-          {loading ? (
+          {loading && items.length === 0 ? (
             <div className="text-center py-12 text-slate-500">Carregando atualizações...</div>
           ) : filteredItems.length === 0 ? (
             <div className="text-center py-16 bg-white border border-slate-200 rounded-xl shadow-sm">
@@ -643,6 +744,61 @@ export default function CentralAtualizacoes() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={isProcessingBatch} onOpenChange={() => {}}>
+        <DialogContent
+          className="sm:max-w-md [&>button]:hidden"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle>Processando Lote...</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-6">
+            <Progress
+              value={batchTotal > 0 ? (batchProgress / batchTotal) * 100 : 0}
+              className="w-full h-3"
+            />
+            <p className="text-sm text-center text-slate-500 font-medium">
+              Atualizando {batchProgress} de {batchTotal} itens. Por favor, aguarde.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white rounded-full shadow-xl border border-slate-200 px-6 py-3 flex items-center gap-4 z-50 animate-fade-in-up">
+          <span className="text-sm font-medium text-slate-700 whitespace-nowrap">
+            {selectedIds.size} {selectedIds.size === 1 ? 'item selecionado' : 'itens selecionados'}
+          </span>
+          <div className="h-6 w-px bg-slate-200 mx-2" />
+          <Button
+            size="sm"
+            variant="default"
+            onClick={() => processBatch('read')}
+            className="bg-primary text-white"
+            disabled={isProcessingBatch}
+          >
+            <CheckCircle2 className="w-4 h-4 mr-2" /> Marcar Lidos
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => processBatch('archive')}
+            disabled={isProcessingBatch}
+          >
+            <Archive className="w-4 h-4 mr-2" /> Arquivar
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setSelectedIds(new Set())}
+            disabled={isProcessingBatch}
+          >
+            Cancelar
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
