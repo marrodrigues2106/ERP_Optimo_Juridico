@@ -728,7 +728,7 @@ export default function Dashboard() {
                 className="h-8 text-xs font-semibold"
                 onClick={() => setEventModalOpen(true)}
               >
-                <Plus className="w-3.5 h-3.5 mr-1" /> Novo
+                <Plus className="w-3.5 h-3.5 mr-1" /> Novo Registro
               </Button>
             </div>
           </div>
