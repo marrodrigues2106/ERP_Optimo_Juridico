@@ -142,7 +142,16 @@ routerAdd(
                 codigo: codigo,
                 orgaoJulgador: caseData.orgaoJulgador?.nome || '',
                 classe: caseData.classe?.nome || '',
-                documentosVinculados: mov.documentosVinculados || [],
+                documentos: mov.documentosVinculados || mov.documentos || [],
+                complementos: mov.complementosTabelados || mov.complementos || [],
+                protocolo: mov.protocolo || null,
+                recibo: mov.recibo || null,
+                teor: mov.teor || mov.textoIntegral || null,
+                intimacoes: mov.intimacoes || [],
+                avisosPendentes: mov.avisosPendentes || null,
+                teorComunicacao: mov.teorComunicacao || null,
+                ciencia: mov.ciencia || null,
+                signatarios: mov.signatarios || [],
               }
               newMov.set('movement_details', details)
 
@@ -178,6 +187,7 @@ routerAdd(
       logRecord.set('module', 'datajud_sync')
       logRecord.set('message', syncMessage)
       logRecord.set('details', {
+        numero_processo: record.getString('case_number'),
         case_id: record.id,
         duration_ms: Date.now() - startTime,
         status: syncStatus,

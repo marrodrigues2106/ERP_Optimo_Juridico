@@ -765,6 +765,52 @@ export default function ProcessDetail() {
                                                 </ul>
                                               </div>
                                             )}
+                                          {mov.movement_details.intimacoes &&
+                                            mov.movement_details.intimacoes.length > 0 && (
+                                              <div className="col-span-1 lg:col-span-2 mt-2">
+                                                <span className="font-semibold text-slate-800 block mb-1">
+                                                  Intimações Vinculadas:
+                                                </span>
+                                                <div className="bg-white rounded border border-slate-200 overflow-hidden">
+                                                  <table className="min-w-full divide-y divide-slate-200">
+                                                    <thead className="bg-slate-50">
+                                                      <tr>
+                                                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                                                          Destinatário
+                                                        </th>
+                                                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                                                          Prazo
+                                                        </th>
+                                                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                                                          Status
+                                                        </th>
+                                                      </tr>
+                                                    </thead>
+                                                    <tbody className="bg-white divide-y divide-slate-200">
+                                                      {mov.movement_details.intimacoes.map(
+                                                        (int: any, i: number) => (
+                                                          <tr key={i}>
+                                                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
+                                                              {int.destinatario || 'Não informado'}
+                                                            </td>
+                                                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
+                                                              {int.dataPrazo
+                                                                ? new Date(
+                                                                    int.dataPrazo,
+                                                                  ).toLocaleDateString('pt-BR')
+                                                                : '-'}
+                                                            </td>
+                                                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
+                                                              {int.status || '-'}
+                                                            </td>
+                                                          </tr>
+                                                        ),
+                                                      )}
+                                                    </tbody>
+                                                  </table>
+                                                </div>
+                                              </div>
+                                            )}
                                           {mov.movement_details.documentos &&
                                             mov.movement_details.documentos.length > 0 && (
                                               <div className="col-span-1 lg:col-span-2">
@@ -776,7 +822,13 @@ export default function ProcessDetail() {
                                                     <thead className="bg-slate-50">
                                                       <tr>
                                                         <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                                                          Tipo
+                                                          Nome/Tipo
+                                                        </th>
+                                                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                                                          Data Juntada
+                                                        </th>
+                                                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                                                          Sigilo
                                                         </th>
                                                         <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
                                                           ID / Hash
@@ -788,10 +840,27 @@ export default function ProcessDetail() {
                                                         (doc: any, i: number) => (
                                                           <tr key={i}>
                                                             <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
-                                                              {doc.tipoDocumento || 'Documento'}
+                                                              {doc.nome ||
+                                                                doc.tipoDocumento ||
+                                                                'Documento'}
+                                                            </td>
+                                                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
+                                                              {doc.dataJuntada
+                                                                ? new Date(
+                                                                    doc.dataJuntada,
+                                                                  ).toLocaleDateString('pt-BR')
+                                                                : '-'}
+                                                            </td>
+                                                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
+                                                              {doc.nivelSigilo !== undefined
+                                                                ? doc.nivelSigilo
+                                                                : '-'}
                                                             </td>
                                                             <td className="px-3 py-1.5 whitespace-nowrap text-slate-500 font-mono">
-                                                              {doc.idDocumento || doc.hash}
+                                                              {doc.idDocumento ||
+                                                                doc.id ||
+                                                                doc.hash ||
+                                                                '-'}
                                                             </td>
                                                           </tr>
                                                         ),
