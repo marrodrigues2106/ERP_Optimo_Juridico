@@ -34,14 +34,17 @@ import {
   User,
   Briefcase,
   Info,
-  Link as LinkIcon,
   Calendar,
   CheckSquare,
-  Plus,
   Scale,
   FileText,
   Tags,
-  Hash,
+  AlertTriangle,
+  FileSignature,
+  Paperclip,
+  FileStack,
+  Bell,
+  CheckCircle2,
 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { Badge } from '@/components/ui/badge'
@@ -235,6 +238,28 @@ export default function ProcessDetail() {
     }
   }
 
+  const renderNestedObject = (obj: any): React.ReactNode => {
+    if (typeof obj !== 'object' || obj === null) return String(obj)
+    if (Array.isArray(obj)) {
+      return (
+        <ul className="list-disc pl-4 space-y-1">
+          {obj.map((item, idx) => (
+            <li key={idx}>{renderNestedObject(item)}</li>
+          ))}
+        </ul>
+      )
+    }
+    return (
+      <ul className="list-disc pl-4 space-y-1">
+        {Object.entries(obj).map(([k, v]) => (
+          <li key={k}>
+            <span className="font-semibold capitalize">{k}:</span> {renderNestedObject(v)}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
   if (!legalCase)
     return <div className="p-8 text-center text-slate-500">Carregando processo...</div>
 
@@ -379,6 +404,261 @@ export default function ProcessDetail() {
                       Salvar
                     </Button>
                   </form>
+
+                  {/* Movements Timeline */}
+                  <div className="relative border-l-2 border-slate-200 ml-4 space-y-8 mt-8 pb-6">
+                    {movements.length === 0 ? (
+                      <div className="p-8 ml-4 text-center text-slate-500 border border-dashed rounded-lg bg-slate-50/50">
+                        Nenhum andamento encontrado.
+                      </div>
+                    ) : (
+                      movements.map((mov) => {
+                        const movDate = new Date(mov.created).getTime()
+                        const isNew = movDate > Date.now() - 86400000 * 2
+
+                        return (
+                          <div key={mov.id} className="relative pl-6 md:pl-8 group">
+                            {/* Timeline Dot */}
+                            <div className="absolute w-4 h-4 bg-primary rounded-full -left-[9px] top-1.5 ring-4 ring-white shadow-sm" />
+
+                            <Card className="border-slate-200 shadow-sm overflow-hidden hover:border-primary/30 transition-colors">
+                              {/* Header */}
+                              <div className="bg-slate-50/80 px-4 py-3 border-b border-slate-100 flex flex-wrap gap-2 items-center justify-between">
+                                <span className="text-sm font-bold text-slate-700">
+                                  {new Date(mov.event_date).toLocaleString('pt-BR')}
+                                </span>
+                                <div className="flex gap-2 flex-wrap items-center">
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] bg-white text-slate-600"
+                                  >
+                                    {mov.source}
+                                  </Badge>
+                                  {isNew && (
+                                    <Badge className="bg-green-100 text-green-800 border-none text-[10px] px-2 uppercase tracking-wider">
+                                      Novo
+                                    </Badge>
+                                  )}
+                                  {mov.movement_details?.avisosPendentes && (
+                                    <Badge className="bg-amber-100 text-amber-800 border-none text-[10px] px-2 flex items-center gap-1 uppercase tracking-wider">
+                                      <AlertTriangle className="w-3 h-3" /> Aviso
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="p-4 space-y-4 bg-white">
+                                {/* Title */}
+                                <h4 className="text-base font-semibold text-slate-800 leading-snug">
+                                  {mov.description}
+                                </h4>
+
+                                {/* Interpretation / Complementos */}
+                                {mov.movement_details?.complementos &&
+                                  mov.movement_details.complementos.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                      {mov.movement_details.complementos.map(
+                                        (c: any, i: number) => (
+                                          <span
+                                            key={i}
+                                            className="text-xs bg-slate-50 text-slate-700 px-2.5 py-1.5 rounded-md border border-slate-200 shadow-sm flex items-center gap-1.5"
+                                          >
+                                            <span className="font-semibold text-slate-500">
+                                              {c.nome || c.descricao}:
+                                            </span>
+                                            {c.valor || c.descricaoValor || '-'}
+                                          </span>
+                                        ),
+                                      )}
+                                    </div>
+                                  )}
+
+                                {/* Protocol Info */}
+                                {(mov.movement_details?.protocolo ||
+                                  mov.movement_details?.recibo) && (
+                                  <div className="flex flex-wrap gap-4 text-xs text-slate-600 bg-slate-50/80 p-3 rounded-lg border border-slate-100">
+                                    {mov.movement_details?.protocolo && (
+                                      <div className="flex items-center gap-1.5">
+                                        <FileSignature className="w-4 h-4 text-slate-400" />
+                                        <span className="font-semibold">Protocolo:</span>{' '}
+                                        {mov.movement_details.protocolo}
+                                      </div>
+                                    )}
+                                    {mov.movement_details?.recibo && (
+                                      <div className="flex items-center gap-1.5">
+                                        <Paperclip className="w-4 h-4 text-slate-400" />
+                                        <span className="font-semibold">Recibo:</span>{' '}
+                                        {mov.movement_details.recibo}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Full Text / Decision Summary */}
+                                {mov.movement_details?.teor && (
+                                  <Accordion type="single" collapsible className="w-full">
+                                    <AccordionItem
+                                      value="teor"
+                                      className="border border-slate-200 rounded-lg overflow-hidden shadow-sm"
+                                    >
+                                      <AccordionTrigger className="py-3 px-4 text-sm font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 hover:no-underline transition-colors flex gap-2">
+                                        <div className="flex items-center gap-2">
+                                          <FileText className="w-4 h-4 text-primary" />
+                                          Teor do Documento / Decisão
+                                        </div>
+                                      </AccordionTrigger>
+                                      <AccordionContent className="p-4 bg-white border-t border-slate-100">
+                                        <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed max-h-[400px] overflow-y-auto custom-scrollbar bg-slate-50 p-4 rounded-md border border-slate-100">
+                                          {/<[a-z][\s\S]*>/i.test(mov.movement_details.teor) ? (
+                                            <div
+                                              dangerouslySetInnerHTML={{
+                                                __html: mov.movement_details.teor,
+                                              }}
+                                              className="prose prose-sm max-w-none text-slate-700"
+                                            />
+                                          ) : (
+                                            mov.movement_details.teor
+                                          )}
+                                        </div>
+                                      </AccordionContent>
+                                    </AccordionItem>
+                                  </Accordion>
+                                )}
+
+                                {/* Linked Documents */}
+                                {mov.movement_details?.documentos &&
+                                  mov.movement_details.documentos.length > 0 && (
+                                    <div className="pt-2">
+                                      <h5 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                        <FileStack className="w-4 h-4" /> Documentos Vinculados (
+                                        {mov.movement_details.documentos.length})
+                                      </h5>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {mov.movement_details.documentos.map(
+                                          (doc: any, i: number) => (
+                                            <div
+                                              key={i}
+                                              className="flex items-start gap-3 p-3 border border-slate-200 rounded-lg bg-white hover:border-primary/40 hover:shadow-sm transition-all group"
+                                            >
+                                              <FileText className="w-5 h-5 text-slate-400 mt-0.5 shrink-0 group-hover:text-primary transition-colors" />
+                                              <div className="min-w-0 flex-1">
+                                                <p
+                                                  className="text-xs font-semibold text-slate-800 truncate"
+                                                  title={
+                                                    doc.nome || doc.tipoDocumento || 'Documento'
+                                                  }
+                                                >
+                                                  {doc.nome || doc.tipoDocumento || 'Documento'}
+                                                </p>
+                                                <p className="text-[10px] text-slate-500 mt-1 truncate">
+                                                  ID:{' '}
+                                                  <span className="font-mono">
+                                                    {doc.idDocumento ||
+                                                      doc.id ||
+                                                      doc.hash ||
+                                                      'Sem ID'}
+                                                  </span>
+                                                  {doc.dataJuntada &&
+                                                    ` • Juntado em ${new Date(
+                                                      doc.dataJuntada,
+                                                    ).toLocaleDateString('pt-BR')}`}
+                                                </p>
+                                              </div>
+                                            </div>
+                                          ),
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                {/* Communication & Notices */}
+                                {(mov.movement_details?.avisosPendentes ||
+                                  mov.movement_details?.teorComunicacao ||
+                                  mov.movement_details?.ciencia) && (
+                                  <div className="mt-4 p-4 bg-amber-50/60 border border-amber-200/60 rounded-lg space-y-4">
+                                    {mov.movement_details.avisosPendentes && (
+                                      <div>
+                                        <span className="font-semibold text-amber-800 text-xs flex items-center gap-1.5 mb-2 uppercase tracking-wider">
+                                          <AlertTriangle className="w-4 h-4" /> Avisos Pendentes
+                                        </span>
+                                        <div className="text-xs text-amber-900 bg-white p-3 rounded-md border border-amber-100 shadow-sm">
+                                          {renderNestedObject(mov.movement_details.avisosPendentes)}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {mov.movement_details.teorComunicacao && (
+                                      <div>
+                                        <span className="font-semibold text-amber-800 text-xs flex items-center gap-1.5 mb-2 uppercase tracking-wider">
+                                          <Bell className="w-4 h-4" /> Teor da Comunicação
+                                        </span>
+                                        <div className="text-xs text-amber-900 bg-white p-3 rounded-md border border-amber-100 shadow-sm whitespace-pre-wrap leading-relaxed">
+                                          {mov.movement_details.teorComunicacao}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {mov.movement_details.ciencia && (
+                                      <div>
+                                        <span className="font-semibold text-amber-800 text-xs flex items-center gap-1.5 mb-2 uppercase tracking-wider">
+                                          <CheckCircle2 className="w-4 h-4" /> Status de Ciência
+                                        </span>
+                                        <div className="text-xs text-amber-900 bg-white p-3 rounded-md border border-amber-100 shadow-sm">
+                                          {renderNestedObject(mov.movement_details.ciencia)}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Fallback raw details */}
+                                {mov.details &&
+                                  !mov.movement_details?.complementos &&
+                                  !mov.movement_details?.teor &&
+                                  !mov.movement_details?.documentos && (
+                                    <div className="mt-3 p-3 bg-slate-50 border border-slate-100 rounded-md text-xs text-slate-600 whitespace-pre-wrap font-mono leading-relaxed overflow-x-auto max-h-[200px]">
+                                      {mov.details}
+                                    </div>
+                                  )}
+                              </div>
+                            </Card>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+
+                  {movementsTotalPages > 1 && (
+                    <div className="pt-6 border-t border-slate-100 flex justify-center">
+                      <Pagination>
+                        <PaginationContent>
+                          <PaginationItem>
+                            <PaginationPrevious
+                              onClick={() => loadMovements(Math.max(1, movementsPage - 1))}
+                              className={
+                                movementsPage === 1
+                                  ? 'pointer-events-none opacity-50'
+                                  : 'cursor-pointer'
+                              }
+                            />
+                          </PaginationItem>
+                          <span className="text-sm text-slate-500 mx-4 flex items-center font-medium">
+                            Página {movementsPage} de {movementsTotalPages}
+                          </span>
+                          <PaginationItem>
+                            <PaginationNext
+                              onClick={() =>
+                                loadMovements(Math.min(movementsTotalPages, movementsPage + 1))
+                              }
+                              className={
+                                movementsPage === movementsTotalPages
+                                  ? 'pointer-events-none opacity-50'
+                                  : 'cursor-pointer'
+                              }
+                            />
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
+                    </div>
+                  )}
                 </TabsContent>
                 <TabsContent value="detalhes" className="p-6 pt-6">
                   <div className="space-y-6">
@@ -563,367 +843,6 @@ export default function ProcessDetail() {
                   </form>
                 </TabsContent>
               </Tabs>
-            </Card>
-
-            <Card className="border-none shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between py-5 px-6 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <h3 className="font-bold text-slate-800 text-lg">Histórico de Andamentos</h3>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                {movements.length === 0 ? (
-                  <div className="p-12 text-center text-slate-500 border border-dashed m-6 rounded-lg bg-slate-50/50">
-                    Nenhum andamento encontrado.
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-100">
-                    {movements.map((mov) => {
-                      const movDate = new Date(mov.created).getTime()
-                      const isNew = movDate > Date.now() - 86400000 * 2
-                      const isUpdated = new Date(mov.updated).getTime() - movDate > 2000
-
-                      return (
-                        <div key={mov.id} className="p-6 hover:bg-slate-50 transition-colors">
-                          <div className="flex items-center gap-3 mb-2 flex-wrap">
-                            <span className="text-sm font-semibold text-slate-700">
-                              {new Date(mov.event_date).toLocaleString('pt-BR')}
-                            </span>
-                            <Badge variant="outline" className="text-xs text-slate-500 bg-white">
-                              {mov.source}
-                            </Badge>
-                            {isNew && (
-                              <Badge className="bg-green-100 text-green-800 hover:bg-green-200 border-none text-[10px] px-2 py-0">
-                                Novo
-                              </Badge>
-                            )}
-                            {isUpdated && !isNew && (
-                              <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200 border-none text-[10px] px-2 py-0">
-                                Atualizado
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="text-slate-800 text-sm whitespace-pre-wrap leading-relaxed break-words overflow-hidden w-full">
-                            {mov.description}
-                          </div>
-
-                          {(mov.details ||
-                            (mov.movement_details &&
-                              Object.keys(mov.movement_details).length > 0)) && (
-                            <div className="mt-4">
-                              <Accordion type="single" collapsible className="w-full">
-                                <AccordionItem
-                                  value="details"
-                                  className="border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm"
-                                >
-                                  <AccordionTrigger className="py-2.5 px-4 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-50 hover:no-underline transition-colors">
-                                    Detalhes e Metadados Técnicos (MNI)
-                                  </AccordionTrigger>
-                                  <AccordionContent className="p-4 pt-2 border-t border-slate-100 bg-slate-50/50">
-                                    {mov.movement_details &&
-                                      Object.keys(mov.movement_details).length > 0 && (
-                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-3 text-xs text-slate-600 mb-3">
-                                          {mov.movement_details.orgaoJulgador && (
-                                            <div>
-                                              <span className="font-semibold text-slate-800">
-                                                Órgão Julgador:
-                                              </span>{' '}
-                                              {mov.movement_details.orgaoJulgador}
-                                            </div>
-                                          )}
-                                          {mov.movement_details.hash && (
-                                            <div className="break-all flex gap-1">
-                                              <Hash className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" />
-                                              <span className="font-semibold text-slate-800">
-                                                Hash:
-                                              </span>{' '}
-                                              {mov.movement_details.hash}
-                                            </div>
-                                          )}
-                                          {mov.movement_details.protocolo && (
-                                            <div>
-                                              <span className="font-semibold text-slate-800">
-                                                Protocolo:
-                                              </span>{' '}
-                                              {mov.movement_details.protocolo}
-                                            </div>
-                                          )}
-                                          {mov.movement_details.recibo && (
-                                            <div>
-                                              <span className="font-semibold text-slate-800">
-                                                Recibo:
-                                              </span>{' '}
-                                              {mov.movement_details.recibo}
-                                            </div>
-                                          )}
-                                          {mov.movement_details.ciencia && (
-                                            <div className="col-span-1 lg:col-span-2">
-                                              <span className="font-semibold text-slate-800 block mb-1">
-                                                Status de Ciência (Awareness):
-                                              </span>
-                                              <div className="bg-white p-3 rounded border border-slate-200 text-xs overflow-x-auto">
-                                                {typeof mov.movement_details.ciencia ===
-                                                'object' ? (
-                                                  <ul className="space-y-1">
-                                                    {Object.entries(
-                                                      mov.movement_details.ciencia,
-                                                    ).map(([k, v]) => (
-                                                      <li key={k}>
-                                                        <span className="font-semibold">{k}:</span>{' '}
-                                                        {String(v)}
-                                                      </li>
-                                                    ))}
-                                                  </ul>
-                                                ) : (
-                                                  <span>
-                                                    {String(mov.movement_details.ciencia)}
-                                                  </span>
-                                                )}
-                                              </div>
-                                            </div>
-                                          )}
-                                          {mov.movement_details.avisosPendentes && (
-                                            <div className="col-span-1 lg:col-span-2">
-                                              <span className="font-semibold text-amber-700 block mb-1 flex items-center gap-1">
-                                                Avisos Pendentes:
-                                              </span>
-                                              <div className="bg-amber-50 p-3 rounded border border-amber-200 text-xs overflow-x-auto">
-                                                {typeof mov.movement_details.avisosPendentes ===
-                                                'object' ? (
-                                                  <pre className="text-[10px]">
-                                                    {JSON.stringify(
-                                                      mov.movement_details.avisosPendentes,
-                                                      null,
-                                                      2,
-                                                    )}
-                                                  </pre>
-                                                ) : (
-                                                  <span>
-                                                    {String(mov.movement_details.avisosPendentes)}
-                                                  </span>
-                                                )}
-                                              </div>
-                                            </div>
-                                          )}
-                                          {mov.movement_details.teorComunicacao && (
-                                            <div className="col-span-1 lg:col-span-2">
-                                              <span className="font-semibold text-slate-800 block mb-1">
-                                                Teor da Comunicação / Intimação:
-                                              </span>
-                                              <div className="bg-white p-3 rounded border border-slate-200 text-xs whitespace-pre-wrap leading-relaxed">
-                                                {mov.movement_details.teorComunicacao}
-                                              </div>
-                                            </div>
-                                          )}
-                                          {mov.movement_details.tipoDocumento && (
-                                            <div>
-                                              <span className="font-semibold text-slate-800">
-                                                Tipo Documento:
-                                              </span>{' '}
-                                              {mov.movement_details.tipoDocumento}
-                                            </div>
-                                          )}
-                                          {mov.movement_details.teor && (
-                                            <div className="col-span-1 lg:col-span-2">
-                                              <span className="font-semibold text-slate-800 block mb-1">
-                                                Texto Integral (Teor):
-                                              </span>
-                                              <div className="bg-white p-3 rounded border border-slate-200 text-xs whitespace-pre-wrap leading-relaxed">
-                                                {mov.movement_details.teor}
-                                              </div>
-                                            </div>
-                                          )}
-                                          {mov.movement_details.link && (
-                                            <div>
-                                              <span className="font-semibold text-slate-800">
-                                                Link Documento:
-                                              </span>{' '}
-                                              <a
-                                                href={mov.movement_details.link}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="text-primary hover:underline font-medium"
-                                              >
-                                                Acessar Anexo ↗
-                                              </a>
-                                            </div>
-                                          )}
-                                          {mov.movement_details.destinatarios &&
-                                            mov.movement_details.destinatarios.length > 0 && (
-                                              <div className="col-span-1 lg:col-span-2">
-                                                <span className="font-semibold text-slate-800 block mb-1">
-                                                  Destinatários da Comunicação:
-                                                </span>
-                                                <ul className="list-disc pl-4 space-y-0.5">
-                                                  {mov.movement_details.destinatarios.map(
-                                                    (d: any, i: number) => (
-                                                      <li key={i}>
-                                                        {d.nome || 'Não identificado'}
-                                                      </li>
-                                                    ),
-                                                  )}
-                                                </ul>
-                                              </div>
-                                            )}
-                                          {mov.movement_details.intimacoes &&
-                                            mov.movement_details.intimacoes.length > 0 && (
-                                              <div className="col-span-1 lg:col-span-2 mt-2">
-                                                <span className="font-semibold text-slate-800 block mb-1">
-                                                  Intimações Vinculadas:
-                                                </span>
-                                                <div className="bg-white rounded border border-slate-200 overflow-hidden">
-                                                  <table className="min-w-full divide-y divide-slate-200">
-                                                    <thead className="bg-slate-50">
-                                                      <tr>
-                                                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                                                          Destinatário
-                                                        </th>
-                                                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                                                          Prazo
-                                                        </th>
-                                                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                                                          Status
-                                                        </th>
-                                                      </tr>
-                                                    </thead>
-                                                    <tbody className="bg-white divide-y divide-slate-200">
-                                                      {mov.movement_details.intimacoes.map(
-                                                        (int: any, i: number) => (
-                                                          <tr key={i}>
-                                                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
-                                                              {int.destinatario || 'Não informado'}
-                                                            </td>
-                                                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
-                                                              {int.dataPrazo
-                                                                ? new Date(
-                                                                    int.dataPrazo,
-                                                                  ).toLocaleDateString('pt-BR')
-                                                                : '-'}
-                                                            </td>
-                                                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
-                                                              {int.status || '-'}
-                                                            </td>
-                                                          </tr>
-                                                        ),
-                                                      )}
-                                                    </tbody>
-                                                  </table>
-                                                </div>
-                                              </div>
-                                            )}
-                                          {mov.movement_details.documentos &&
-                                            mov.movement_details.documentos.length > 0 && (
-                                              <div className="col-span-1 lg:col-span-2">
-                                                <span className="font-semibold text-slate-800 block mb-1">
-                                                  Documentos Vinculados (MNI):
-                                                </span>
-                                                <div className="bg-white rounded border border-slate-200 overflow-hidden">
-                                                  <table className="min-w-full divide-y divide-slate-200">
-                                                    <thead className="bg-slate-50">
-                                                      <tr>
-                                                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                                                          Nome/Tipo
-                                                        </th>
-                                                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                                                          Data Juntada
-                                                        </th>
-                                                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                                                          Sigilo
-                                                        </th>
-                                                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                                                          ID / Hash
-                                                        </th>
-                                                      </tr>
-                                                    </thead>
-                                                    <tbody className="bg-white divide-y divide-slate-200">
-                                                      {mov.movement_details.documentos.map(
-                                                        (doc: any, i: number) => (
-                                                          <tr key={i}>
-                                                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
-                                                              {doc.nome ||
-                                                                doc.tipoDocumento ||
-                                                                'Documento'}
-                                                            </td>
-                                                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
-                                                              {doc.dataJuntada
-                                                                ? new Date(
-                                                                    doc.dataJuntada,
-                                                                  ).toLocaleDateString('pt-BR')
-                                                                : '-'}
-                                                            </td>
-                                                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
-                                                              {doc.nivelSigilo !== undefined
-                                                                ? doc.nivelSigilo
-                                                                : '-'}
-                                                            </td>
-                                                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-500 font-mono">
-                                                              {doc.idDocumento ||
-                                                                doc.id ||
-                                                                doc.hash ||
-                                                                '-'}
-                                                            </td>
-                                                          </tr>
-                                                        ),
-                                                      )}
-                                                    </tbody>
-                                                  </table>
-                                                </div>
-                                              </div>
-                                            )}
-                                        </div>
-                                      )}
-                                    {mov.details && (
-                                      <div className="mt-2 p-3 bg-white rounded-md text-xs text-slate-700 whitespace-pre-wrap border border-slate-200 shadow-sm font-mono leading-relaxed">
-                                        <span className="font-semibold text-slate-800 block mb-1 font-sans">
-                                          Teor / Complementos:
-                                        </span>
-                                        {mov.details}
-                                      </div>
-                                    )}
-                                  </AccordionContent>
-                                </AccordionItem>
-                              </Accordion>
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-                {movementsTotalPages > 1 && (
-                  <div className="p-4 border-t border-slate-100 flex justify-center">
-                    <Pagination>
-                      <PaginationContent>
-                        <PaginationItem>
-                          <PaginationPrevious
-                            onClick={() => loadMovements(Math.max(1, movementsPage - 1))}
-                            className={
-                              movementsPage === 1
-                                ? 'pointer-events-none opacity-50'
-                                : 'cursor-pointer'
-                            }
-                          />
-                        </PaginationItem>
-                        <span className="text-sm text-slate-500 mx-4 flex items-center font-medium">
-                          Página {movementsPage} de {movementsTotalPages}
-                        </span>
-                        <PaginationItem>
-                          <PaginationNext
-                            onClick={() =>
-                              loadMovements(Math.min(movementsTotalPages, movementsPage + 1))
-                            }
-                            className={
-                              movementsPage === movementsTotalPages
-                                ? 'pointer-events-none opacity-50'
-                                : 'cursor-pointer'
-                            }
-                          />
-                        </PaginationItem>
-                      </PaginationContent>
-                    </Pagination>
-                  </div>
-                )}
-              </CardContent>
             </Card>
           </div>
 

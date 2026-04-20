@@ -146,7 +146,7 @@ routerAdd(
                 complementos: mov.complementosTabelados || mov.complementos || [],
                 protocolo: mov.protocolo || null,
                 recibo: mov.recibo || null,
-                teor: mov.teor || mov.textoIntegral || null,
+                teor: mov.teor || mov.textoIntegral || mov.decisao || mov.conteudo || null,
                 intimacoes: mov.intimacoes || [],
                 avisosPendentes: mov.avisosPendentes || null,
                 teorComunicacao: mov.teorComunicacao || null,

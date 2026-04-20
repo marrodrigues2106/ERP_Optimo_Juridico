@@ -149,32 +149,43 @@ export default function Dashboard() {
     ])
 
     const mapItems = (items: any[], source: any, isRead: boolean): FeedItem[] =>
-      items.map((i) => ({
-        id: i.id,
-        source,
-        title:
-          source === 'gazette'
-            ? 'Diário Oficial'
-            : source === 'dou'
-              ? 'Ocorrência DOU'
-              : source === 'comunica'
-                ? `Comunicação DataJud: ${i.numero_processo || 'Processo'}`
-                : `Movimentação: ${i.expand?.case?.case_number || 'Processo'}`,
-        description:
-          source === 'comunica'
-            ? i.texto
-            : i.texto_normalizado || i.trecho_encontrado || i.description || '',
-        date:
-          i.data_publicacao ||
-          i.data_deteccao ||
-          i.event_date ||
-          i.data_disponibilizacao ||
-          i.created,
-        isRead,
-        tags: [i.orgao || i.sigla_tribunal || i.source || 'Tribunal'],
-        raw: i,
-        lawsuitId: source === 'movement' ? i.case : undefined,
-      }))
+      items.map((i) => {
+        const tags = [i.orgao || i.sigla_tribunal || i.source || 'Tribunal']
+        if (source === 'movement') {
+          if (i.movement_details?.avisosPendentes) tags.push('Aviso Pendente')
+          if (i.movement_details?.teorComunicacao || i.movement_details?.ciencia)
+            tags.push('Comunicação')
+        } else if (source === 'comunica') {
+          tags.push('Nova Comunicação')
+        }
+
+        return {
+          id: i.id,
+          source,
+          title:
+            source === 'gazette'
+              ? 'Diário Oficial'
+              : source === 'dou'
+                ? 'Ocorrência DOU'
+                : source === 'comunica'
+                  ? `Comunicação DataJud: ${i.numero_processo || 'Processo'}`
+                  : `Movimentação: ${i.expand?.case?.case_number || 'Processo'}`,
+          description:
+            source === 'comunica'
+              ? i.texto
+              : i.texto_normalizado || i.trecho_encontrado || i.description || '',
+          date:
+            i.data_publicacao ||
+            i.data_deteccao ||
+            i.event_date ||
+            i.data_disponibilizacao ||
+            i.created,
+          isRead,
+          tags,
+          raw: i,
+          lawsuitId: source === 'movement' ? i.case : undefined,
+        }
+      })
 
     const all = [
       ...mapItems(gUnread, 'gazette', false),
