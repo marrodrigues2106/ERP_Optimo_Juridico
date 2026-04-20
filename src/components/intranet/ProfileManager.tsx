@@ -61,7 +61,9 @@ export default function ProfileManager() {
       const keySetting = settings.find((s) => s.key === 'comunica_pje_key')
       if (urlSetting) setComunicaUrl(urlSetting.value)
       if (keySetting) setComunicaKey(keySetting.value)
-    } catch (e) {}
+    } catch (e) {
+      console.error('Failed to load settings', e)
+    }
   }
 
   const loadTermos = async () => {

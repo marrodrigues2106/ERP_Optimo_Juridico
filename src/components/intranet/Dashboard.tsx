@@ -99,7 +99,9 @@ export default function Dashboard() {
       const records = await pb.collection('legal_cases').getList(1, 5, { filter, sort: '-created' })
       setCaseCount(records.totalItems)
       setRecentCases(records.items)
-    } catch (e) {}
+    } catch (e) {
+      console.error('Failed to load case count', e)
+    }
   }
 
   const loadFeed = async () => {
