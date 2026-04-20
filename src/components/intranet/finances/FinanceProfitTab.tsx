@@ -67,6 +67,8 @@ export function FinanceProfitTab({ transactions = [], user }: any) {
         estimatedOut: number
         realizedIn: number
         realizedOut: number
+        marginSum: number
+        marginCount: number
         sortKey: number
       }
     > = {}
@@ -101,6 +103,8 @@ export function FinanceProfitTab({ transactions = [], user }: any) {
           estimatedOut: 0,
           realizedIn: 0,
           realizedOut: 0,
+          marginSum: 0,
+          marginCount: 0,
           sortKey,
         }
       }
@@ -114,21 +118,26 @@ export function FinanceProfitTab({ transactions = [], user }: any) {
 
       if (f.type === 'inflow' && isRealized) grouped[key].realizedIn += f.amount || 0
       if (f.type === 'outflow' && isRealized) grouped[key].realizedOut += f.amount || 0
+
+      if (isRealized && f.margin_applied !== undefined && f.margin_applied !== null) {
+        grouped[key].marginSum += Number(f.margin_applied)
+        grouped[key].marginCount += 1
+      }
     })
 
     return Object.values(grouped)
       .map((g) => {
-        const estimatedMargin =
-          g.estimatedIn === 0 ? 0 : ((g.estimatedIn - g.estimatedOut) / g.estimatedIn) * 100
-        const realizedMargin =
+        const calculatedMargin =
           g.realizedIn === 0 ? 0 : ((g.realizedIn - g.realizedOut) / g.realizedIn) * 100
+        const finalMargin = g.marginCount > 0 ? g.marginSum / g.marginCount : calculatedMargin
         const netResult = g.realizedIn - g.realizedOut
 
         return {
           period: g.period,
-          estimated: Number(estimatedMargin.toFixed(2)),
-          realized: Number(realizedMargin.toFixed(2)),
+          margin: Number(finalMargin.toFixed(2)),
           netResult: Number(netResult.toFixed(2)),
+          inflow: Number(g.realizedIn.toFixed(2)),
+          outflow: Number(g.realizedOut.toFixed(2)),
           sortKey: g.sortKey,
         }
       })
@@ -136,18 +145,10 @@ export function FinanceProfitTab({ transactions = [], user }: any) {
   }, [transactions, startDate, endDate])
 
   const chartConfig = {
-    estimated: {
-      label: 'Margem Estimada (%)',
-      color: '#94a3b8',
-    },
-    realized: {
-      label: 'Margem Realizada (%)',
-      color: '#0f172a',
-    },
-    netResult: {
-      label: 'Resultado do Período (R$)',
-      color: '#10b981',
-    },
+    inflow: { label: 'Inflow (Receitas)', color: '#10b981' },
+    outflow: { label: 'Outflow (Despesas)', color: '#ef4444' },
+    netResult: { label: 'Resultado (Líquido)', color: '#3b82f6' },
+    margin: { label: 'Margem (%)', color: '#f59e0b' },
   }
 
   const formatBRL = (value: number) =>
@@ -167,7 +168,7 @@ export function FinanceProfitTab({ transactions = [], user }: any) {
             {isFinancialAdmin ? 'Rentabilidade e Resultado' : 'Minha Rentabilidade'}
           </CardTitle>
           <CardDescription>
-            Comparativo entre margem (%) vs. resultado líquido (R$) no período.
+            Comparativo de margem (%) e entradas/saídas (R$) no período.
           </CardDescription>
         </div>
 
@@ -222,7 +223,7 @@ export function FinanceProfitTab({ transactions = [], user }: any) {
                   tickLine={false}
                   axisLine={false}
                   tick={{ fontSize: 12, fill: '#64748b' }}
-                  tickFormatter={(value) => `${value}%`}
+                  tickFormatter={(value) => formatBRL(value)}
                 />
                 <YAxis
                   yAxisId="right"
@@ -230,39 +231,49 @@ export function FinanceProfitTab({ transactions = [], user }: any) {
                   tickLine={false}
                   axisLine={false}
                   tick={{ fontSize: 12, fill: '#64748b' }}
-                  tickFormatter={(value) => formatBRL(value)}
+                  tickFormatter={(value) => `${value}%`}
                 />
+
                 <ChartTooltip
                   cursor={false}
                   content={
                     <ChartTooltipContent
                       indicator="dashed"
                       formatter={(value: any, name: string) => {
-                        if (name === 'netResult') return formatBRL(Number(value))
-                        return `${value}%`
+                        if (name === 'margin') return `${value}%`
+                        return formatBRL(Number(value))
                       }}
                     />
                   }
                 />
                 <ChartLegend content={<ChartLegendContent />} />
+
                 <Bar
                   yAxisId="left"
-                  dataKey="estimated"
-                  fill="var(--color-estimated)"
+                  dataKey="inflow"
+                  fill="var(--color-inflow)"
                   radius={[4, 4, 0, 0]}
                 />
                 <Bar
                   yAxisId="left"
-                  dataKey="realized"
-                  fill="var(--color-realized)"
+                  dataKey="outflow"
+                  fill="var(--color-outflow)"
                   radius={[4, 4, 0, 0]}
+                />
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="netResult"
+                  stroke="var(--color-netResult)"
+                  strokeWidth={3}
+                  dot={{ r: 4 }}
                 />
                 <Line
                   yAxisId="right"
                   type="monotone"
-                  dataKey="netResult"
-                  stroke="var(--color-netResult)"
-                  strokeWidth={2}
+                  dataKey="margin"
+                  stroke="var(--color-margin)"
+                  strokeWidth={3}
                   dot={{ r: 4 }}
                 />
               </ComposedChart>

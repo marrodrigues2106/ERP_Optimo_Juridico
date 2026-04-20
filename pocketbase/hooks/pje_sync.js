@@ -25,13 +25,13 @@ routerAdd(
 
     const num = record.getString('case_number')
     if (!num) {
-      const logsCol = $app.findCollectionByNameOrId('pje_sync_logs')
       try {
+        const logsCol = $app.findCollectionByNameOrId('system_logs')
         const logRecord = new Record(logsCol)
-        logRecord.set('case', record.id)
-        logRecord.set('status', 'failed')
+        logRecord.set('level', 'warning')
+        logRecord.set('module', 'PJe Sync')
         logRecord.set('message', 'Processo sem número para sincronização.')
-        logRecord.set('duration', 0)
+        logRecord.set('details', { case: record.id })
         if (record.getString('organization'))
           logRecord.set('organization', record.getString('organization'))
         $app.saveNoValidate(logRecord)
@@ -41,19 +41,18 @@ routerAdd(
       try {
         $app.saveNoValidate(record)
       } catch (err) {}
-
       return e.badRequestError('Processo sem número para sincronização.')
     }
 
     const cleanNum = String(num).replace(/\D/g, '')
     if (cleanNum.length !== 20) {
-      const logsCol = $app.findCollectionByNameOrId('pje_sync_logs')
       try {
+        const logsCol = $app.findCollectionByNameOrId('system_logs')
         const logRecord = new Record(logsCol)
-        logRecord.set('case', record.id)
-        logRecord.set('status', 'failed')
-        logRecord.set('message', 'Número de processo inválido (deve conter 20 dígitos numéricos).')
-        logRecord.set('duration', 0)
+        logRecord.set('level', 'warning')
+        logRecord.set('module', 'PJe Sync')
+        logRecord.set('message', 'Número de processo inválido.')
+        logRecord.set('details', { case: record.id })
         if (record.getString('organization'))
           logRecord.set('organization', record.getString('organization'))
         $app.saveNoValidate(logRecord)
@@ -63,7 +62,6 @@ routerAdd(
       try {
         $app.saveNoValidate(record)
       } catch (err) {}
-
       return e.badRequestError('Número de processo inválido (deve conter 20 dígitos numéricos).')
     }
 
@@ -72,7 +70,6 @@ routerAdd(
       $app.saveNoValidate(record)
     } catch (err) {}
 
-    const logsCol = $app.findCollectionByNameOrId('pje_sync_logs')
     const movementsCol = $app.findCollectionByNameOrId('case_movements')
     const startTime = Date.now()
     const orgId = record.getString('organization')
@@ -88,16 +85,11 @@ routerAdd(
         apiKey = config.getString('apiKey')
       } catch (e) {}
 
-      if (!apiKey) {
-        apiKey = $secrets.get('COMUNICA_PJE_KEY') || ''
-      }
-
+      if (!apiKey) apiKey = $secrets.get('COMUNICA_PJE_KEY') || ''
       apiKey = apiKey.trim()
 
       if (!apiKey || apiKey.length < 5) {
-        throw new Error(
-          'PJE_FORBIDDEN: Chave de API não configurada ou em formato inválido na Central de Atualizações.',
-        )
+        throw new Error('PJE_FORBIDDEN: Chave de API não configurada ou em formato inválido.')
       }
 
       const url = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao'
@@ -111,9 +103,7 @@ routerAdd(
         Authorization: apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`,
       }
 
-      const payload = {
-        numeroProcesso: cleanNum,
-      }
+      const payload = { numeroProcesso: cleanNum }
 
       const res = $http.send({
         url: url,
@@ -130,7 +120,6 @@ routerAdd(
 
       if (res.statusCode === 200 && data && data.items) {
         const items = data.items
-
         items.forEach((item) => {
           try {
             const uniqueStr = record.id + '_' + item.hash
@@ -160,21 +149,19 @@ routerAdd(
         record.set('datajud_sync_status', 'Success')
         record.set('datajud_last_sync', new Date().toISOString())
       } else {
-        if (res.statusCode === 403) {
-          const rawResponse = res.raw ? String(res.raw) : JSON.stringify(data || {})
-          syncMessage = `PJE_FORBIDDEN: Acesso negado pelo tribunal (403). Response: ${rawResponse}`
-        } else if (res.statusCode === 400) {
-          syncMessage = `PJE_BAD_REQUEST: Requisição inválida ou processo não encontrado (400). Response: ${JSON.stringify(data || {})}`
-        } else if (res.statusCode === 401) {
-          syncMessage = `PJE_UNAUTHORIZED: Token inválido ou expirado (401). Response: ${JSON.stringify(data || {})}`
-        } else if (res.statusCode === 504 || res.statusCode === 503 || res.statusCode === 502) {
+        if (res.statusCode === 403)
+          syncMessage = `PJE_FORBIDDEN: Acesso negado (403). Response: ${res.raw ? String(res.raw) : JSON.stringify(data || {})}`
+        else if (res.statusCode === 400)
+          syncMessage = `PJE_BAD_REQUEST: Requisição inválida (400). Response: ${JSON.stringify(data || {})}`
+        else if (res.statusCode === 401)
+          syncMessage = `PJE_UNAUTHORIZED: Token inválido/expirado (401). Response: ${JSON.stringify(data || {})}`
+        else if ([504, 503, 502].includes(res.statusCode))
           syncMessage = 'PJE_TIMEOUT: Sistema PJe indisponível.'
-        } else {
+        else
           syncMessage =
             data && data.message
               ? `PJe API Error: ${data.message} (HTTP ${res.statusCode})`
               : `PJe API Error: HTTP ${res.statusCode}`
-        }
         record.set('pje_sync_status', 'error')
         record.set('datajud_sync_status', 'Error')
       }
@@ -183,7 +170,7 @@ routerAdd(
       record.set('datajud_sync_status', 'Error')
       const msg = (err.message || '').toLowerCase()
       if (
-        msg.includes('context deadline exceeded') ||
+        msg.includes('deadline') ||
         msg.includes('timeout') ||
         msg.includes('network') ||
         msg.includes('gateway')
@@ -199,25 +186,25 @@ routerAdd(
     } catch (e) {}
 
     try {
+      const logsCol = $app.findCollectionByNameOrId('system_logs')
       const logRecord = new Record(logsCol)
-      logRecord.set('case', record.id)
-      logRecord.set('status', syncStatus)
+      logRecord.set('level', syncStatus === 'success' ? 'info' : 'error')
+      logRecord.set('module', 'PJe Sync')
       logRecord.set('message', syncMessage)
-      logRecord.set('duration', Date.now() - startTime)
+      logRecord.set('details', {
+        case: record.id,
+        duration: Date.now() - startTime,
+        status: syncStatus,
+      })
       if (orgId) logRecord.set('organization', orgId)
       $app.saveNoValidate(logRecord)
-    } catch (e) {
-      console.log('Error saving pje sync log', e)
-    }
+    } catch (e) {}
 
     if (syncStatus === 'success') {
       return e.json(200, { success: true, message: syncMessage })
     } else {
-      if (syncMessage.includes('PJE_FORBIDDEN')) {
-        return e.forbiddenError(syncMessage)
-      } else if (syncMessage.includes('PJE_UNAUTHORIZED')) {
-        return e.unauthorizedError(syncMessage)
-      }
+      if (syncMessage.includes('PJE_FORBIDDEN')) return e.forbiddenError(syncMessage)
+      if (syncMessage.includes('PJE_UNAUTHORIZED')) return e.unauthorizedError(syncMessage)
       return e.badRequestError(syncMessage)
     }
   },

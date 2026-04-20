@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-20T02:47:36.293Z",
+  "generatedAt": "2026-04-20T02:58:57.915Z",
   "collections": [
     {
       "name": "users",
@@ -2980,6 +2980,77 @@
         }
       ],
       "indexes": []
+    },
+    {
+      "name": "system_logs",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": null,
+        "update": null,
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "level",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["info", "warning", "error"]
+        },
+        {
+          "name": "module",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "message",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "details",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "organization",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "organizations"
+        },
+        {
+          "name": "user",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_system_logs_level ON system_logs (level)",
+        "CREATE INDEX idx_system_logs_module ON system_logs (module)",
+        "CREATE INDEX idx_system_logs_created ON system_logs (created)"
+      ]
     }
   ]
 }

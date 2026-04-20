@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
 import { format } from 'date-fns'
 import {
   Activity,
@@ -38,6 +39,8 @@ type UnifiedItem = {
   date: string
   isRead: boolean
   isArchived: boolean
+  caseNumber?: string
+  caseId?: string
   raw: any
 }
 
@@ -62,27 +65,18 @@ export default function CentralAtualizacoes() {
         pb.collection('results').getList(1, 500, { sort: '-created' }),
         pb.collection('gazette_publications').getList(1, 500, { sort: '-created' }),
         pb.collection('ocorrencias_dou').getList(1, 500, { sort: '-created' }),
-        pb.collection('legal_cases').getFullList({ fields: 'case_number' }),
+        pb.collection('legal_cases').getFullList({ fields: 'id,case_number' }),
       ])
 
-      const existingCaseNumbers = new Set(
-        casesRes.map((c) => c.case_number?.replace(/\D/g, '')).filter(Boolean),
-      )
-
-      const cleanProcessNumber = (num: string) => (num ? num.replace(/\D/g, '') : '')
-
-      const checkIsNewCase = (num: string | any) => {
-        if (!num) return false
-        let numbersToCheck: string[] = []
-        if (typeof num === 'string') numbersToCheck.push(cleanProcessNumber(num))
-        else if (Array.isArray(num)) numbersToCheck.push(...num.map(cleanProcessNumber))
-
-        if (numbersToCheck.length === 0) return false
-        return !numbersToCheck.some((n) => existingCaseNumbers.has(n))
-      }
+      const casesMap = new Map()
+      casesRes.forEach((c) => {
+        if (c.case_number) casesMap.set(c.case_number.replace(/\D/g, ''), c)
+      })
 
       const mappedPje: UnifiedItem[] = pjeRes.items.map((i) => {
-        const isNew = checkIsNewCase(i.numero_processo)
+        const numClean = i.numero_processo ? i.numero_processo.replace(/\D/g, '') : ''
+        const isNew = numClean && !casesMap.has(numClean)
+        const linkedCase = casesMap.get(numClean)
         return {
           id: i.id,
           collection: 'results',
@@ -92,12 +86,22 @@ export default function CentralAtualizacoes() {
           date: i.data_disponibilizacao || i.created,
           isRead: !!i.is_read,
           isArchived: !!i.is_archived,
+          caseNumber: i.numero_processo,
+          caseId: linkedCase ? linkedCase.id : undefined,
           raw: i,
         }
       })
 
       const mappedDouPub: UnifiedItem[] = douPub.items.map((i) => {
-        const isNew = checkIsNewCase(i.numero_processo)
+        let numList: string[] = []
+        if (typeof i.numero_processo === 'string') numList.push(i.numero_processo)
+        else if (Array.isArray(i.numero_processo)) numList.push(...i.numero_processo)
+
+        let primaryNum = numList[0] || ''
+        let numClean = primaryNum.replace(/\D/g, '')
+        const isNew = numClean && !casesMap.has(numClean)
+        const linkedCase = casesMap.get(numClean)
+
         return {
           id: i.id,
           collection: 'gazette_publications',
@@ -107,6 +111,8 @@ export default function CentralAtualizacoes() {
           date: i.data_publicacao || i.created,
           isRead: !!i.is_read,
           isArchived: !!i.is_archived,
+          caseNumber: primaryNum,
+          caseId: linkedCase ? linkedCase.id : undefined,
           raw: i,
         }
       })
@@ -205,6 +211,7 @@ export default function CentralAtualizacoes() {
           ? new Date(`${fd.get('due_date')}T12:00:00Z`).toISOString()
           : null,
         status: 'todo',
+        linked_lawsuit: selectedItem?.caseId || null,
         organization: pb.authStore.record?.active_organization,
       })
       toast({ title: 'Tarefa criada com sucesso!' })
@@ -225,6 +232,7 @@ export default function CentralAtualizacoes() {
         start_date: fd.get('start_date')
           ? new Date(`${fd.get('start_date')}T12:00:00Z`).toISOString()
           : null,
+        linked_lawsuit: selectedItem?.caseId || null,
         organization: pb.authStore.record?.active_organization,
       })
       toast({ title: 'Evento criado com sucesso!' })
@@ -280,13 +288,39 @@ export default function CentralAtualizacoes() {
         <div>
           <h3
             className={cn(
-              'text-lg font-bold mb-2',
+              'text-lg font-bold mb-2 flex items-center flex-wrap gap-2',
               item.isRead ? 'text-slate-800' : 'text-slate-900',
             )}
           >
-            {item.title}
+            {item.caseNumber && (
+              <Badge
+                variant="secondary"
+                className={cn(
+                  'text-primary bg-primary/10 border-primary/20 transition-colors',
+                  item.caseId && 'hover:bg-primary/20 cursor-pointer',
+                )}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (item.caseId) navigate(`/intranet/processos/${item.caseId}`)
+                }}
+              >
+                {item.caseNumber}
+              </Badge>
+            )}
+            <span
+              className={cn(
+                'leading-tight',
+                item.caseId &&
+                  'cursor-pointer hover:text-primary transition-colors hover:underline',
+              )}
+              onClick={() => {
+                if (item.caseId) navigate(`/intranet/processos/${item.caseId}`)
+              }}
+            >
+              {item.title}
+            </span>
           </h3>
-          <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 max-h-32 overflow-hidden relative">
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 max-h-32 overflow-hidden relative mt-2">
             <p
               className="text-sm text-slate-600 line-clamp-3 leading-relaxed"
               dangerouslySetInnerHTML={{ __html: item.description }}
@@ -334,9 +368,7 @@ export default function CentralAtualizacoes() {
               size="sm"
               variant="secondary"
               onClick={async () => {
-                if (!item.isRead) {
-                  await handleMarkAsRead(item)
-                }
+                if (!item.isRead) await handleMarkAsRead(item)
                 navigate(`/intranet/comunicacoes/${item.id}`)
               }}
             >
@@ -395,15 +427,13 @@ export default function CentralAtualizacoes() {
                 value="pje"
                 className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
               >
-                <Activity className="w-4 h-4 mr-3 text-blue-500" />
-                Lidos - PJe
+                <Activity className="w-4 h-4 mr-3 text-blue-500" /> Lidos - PJe
               </TabsTrigger>
               <TabsTrigger
                 value="dou"
                 className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
               >
-                <Landmark className="w-4 h-4 mr-3 text-emerald-500" />
-                Lidos - DOU
+                <Landmark className="w-4 h-4 mr-3 text-emerald-500" /> Lidos - DOU
               </TabsTrigger>
               <TabsTrigger
                 value="novos"
@@ -419,8 +449,7 @@ export default function CentralAtualizacoes() {
                 value="arquivados"
                 className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
               >
-                <Archive className="w-4 h-4 mr-3 text-slate-500" />
-                Arquivados
+                <Archive className="w-4 h-4 mr-3 text-slate-500" /> Arquivados
               </TabsTrigger>
             </TabsList>
           </Tabs>

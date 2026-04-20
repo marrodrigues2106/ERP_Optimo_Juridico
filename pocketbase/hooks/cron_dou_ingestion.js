@@ -2,7 +2,6 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
   console.log('[Monitoring] Starting unified background term search...')
 
   const pubDou = $app.findCollectionByNameOrId('publicacoes_dou')
-  const logs = $app.findCollectionByNameOrId('logs_processamento')
   const notifsCol = $app.findCollectionByNameOrId('lawsuit_notifications')
 
   const normalizeText = (str) => {
@@ -19,12 +18,13 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
 
   const logProcess = (etapa, status, msg, termoStr = '', fonte = '') => {
     try {
+      const logs = $app.findCollectionByNameOrId('system_logs')
       const logRec = new Record(logs)
-      logRec.set('etapa', etapa)
-      logRec.set('status', status)
-      logRec.set('mensagem', msg)
-      logRec.set('data_hora', new Date().toISOString().replace('T', ' ').substring(0, 19))
-      $app.save(logRec)
+      logRec.set('level', status === 'Erro' ? 'error' : status === 'Aviso' ? 'warning' : 'info')
+      logRec.set('module', 'DOU Ingestion')
+      logRec.set('message', `${etapa} - ${status}`)
+      logRec.set('details', { etapa, status, msg, termoStr, fonte })
+      $app.saveNoValidate(logRec)
       return logRec.id
     } catch (e) {
       console.error('Log error', e)
@@ -115,9 +115,7 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
               const res = $http.send({
                 url: url,
                 method: 'GET',
-                headers: {
-                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                },
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
                 timeout: 15,
               })
               statusCode = res.statusCode
@@ -143,13 +141,8 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
                     html = String(res.body)
                   }
                 }
-                break // success
-              } else if (
-                res.statusCode === 401 ||
-                res.statusCode === 403 ||
-                res.statusCode === 429 ||
-                res.statusCode >= 500
-              ) {
+                break
+              } else if ([401, 403, 429].includes(res.statusCode) || res.statusCode >= 500) {
                 attempt++
                 if (attempt >= maxRetries) {
                   errorMsg = `Bloqueio/Erro (HTTP ${res.statusCode}) após ${maxRetries} tentativas`
@@ -179,22 +172,13 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
           const latency = Date.now() - start
 
           try {
+            const logs = $app.findCollectionByNameOrId('system_logs')
             const logRec = new Record(logs)
-            logRec.set('etapa', 'Conexão HTTP - DOU')
-            logRec.set(
-              'status',
-              statusCode === 200
-                ? 'Sucesso'
-                : statusCode === 401 || statusCode === 403 || statusCode === 429
-                  ? 'Bloqueio Funcional'
-                  : 'Erro',
-            )
-            logRec.set(
-              'mensagem',
-              `URL: ${url} | Status: ${statusCode} | Latência: ${latency}ms | Erro: ${errorMsg}`,
-            )
-            logRec.set('data_hora', new Date().toISOString().replace('T', ' ').substring(0, 19))
-            $app.save(logRec)
+            logRec.set('level', statusCode === 200 ? 'info' : 'warning')
+            logRec.set('module', 'DOU Ingestion')
+            logRec.set('message', `Conexão HTTP - DOU (Status: ${statusCode})`)
+            logRec.set('details', { url, statusCode, latency, errorMsg })
+            $app.saveNoValidate(logRec)
           } catch (e) {}
 
           if (statusCode === 200 && html) {
@@ -243,15 +227,13 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
                 }
               } catch (e) {
                 try {
+                  const logs = $app.findCollectionByNameOrId('system_logs')
                   const logRec = new Record(logs)
-                  logRec.set('etapa', 'Conexão HTTP - DOU')
-                  logRec.set('status', 'Erro')
-                  logRec.set('mensagem', `JSON Parsing Error: ${String(e)}`)
-                  logRec.set(
-                    'data_hora',
-                    new Date().toISOString().replace('T', ' ').substring(0, 19),
-                  )
-                  $app.save(logRec)
+                  logRec.set('level', 'error')
+                  logRec.set('module', 'DOU Ingestion')
+                  logRec.set('message', `JSON Parsing Error`)
+                  logRec.set('details', { error: String(e) })
+                  $app.saveNoValidate(logRec)
                 } catch (err) {}
                 hasMore = false
               }
@@ -273,11 +255,7 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
         const url = `https://queridodiario.ok.org.br/api/gazettes?querystring=${encodeURIComponent(searchTerm)}&published_since=${today}&territory_ids=${territoryId}&excerpt_size=400`
 
         try {
-          const qdRes = $http.send({
-            url: url,
-            method: 'GET',
-            timeout: 10,
-          })
+          const qdRes = $http.send({ url: url, method: 'GET', timeout: 10 })
           statusCode = qdRes.statusCode
           if (qdRes.statusCode === 200 && qdRes.json && qdRes.json.gazettes) {
             combinedResults = combinedResults.concat(
@@ -309,18 +287,13 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
 
         const latency = Date.now() - start
         try {
+          const logs = $app.findCollectionByNameOrId('system_logs')
           const logRec = new Record(logs)
-          logRec.set('etapa', 'Conexão HTTP - Querido Diário')
-          logRec.set(
-            'status',
-            statusCode === 200 ? 'Sucesso' : statusCode === 403 ? 'Bloqueio Funcional' : 'Erro',
-          )
-          logRec.set(
-            'mensagem',
-            `URL: ${url} | Status: ${statusCode} | Latência: ${latency}ms | Erro: ${errorMsg}`,
-          )
-          logRec.set('data_hora', new Date().toISOString().replace('T', ' ').substring(0, 19))
-          $app.save(logRec)
+          logRec.set('level', statusCode === 200 ? 'info' : 'warning')
+          logRec.set('module', 'DOU Ingestion')
+          logRec.set('message', `Conexão HTTP - Querido Diário (Status: ${statusCode})`)
+          logRec.set('details', { url, statusCode, latency, errorMsg })
+          $app.saveNoValidate(logRec)
         } catch (e) {}
       }
 
@@ -346,7 +319,7 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
         logProcess(
           'Monitoramento Unificado',
           'Fila de Reprocessamento',
-          `Falha ao buscar termo: ${termStr} nas fontes DOU e Querido Diário. Marcado como pendente na fila.`,
+          `Falha ao buscar termo: ${termStr} nas fontes DOU e Querido Diário. Marcado como pendente.`,
         )
         continue
       }
@@ -395,12 +368,10 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
           ) {
             exact = exact.substring(1, exact.length - 1).trim()
           }
-          let exactNormalized = normalizeText(exact)
-          pass = fullTextNormalized.includes(exactNormalized)
+          pass = fullTextNormalized.includes(normalizeText(exact))
         } else if (searchType === 'regex') {
           try {
-            const regex = new RegExp(termStr, 'i')
-            pass = regex.test(rawFullText)
+            pass = new RegExp(termStr, 'i').test(rawFullText)
           } catch (err) {
             pass = false
           }
@@ -535,19 +506,19 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
       logProcess(
         'Monitoramento Unificado',
         'Sucesso',
-        `Busca para "${termStr}" finalizada (Fonte: ${sourceUsed}). Salvas ${savedCount} publicações e ${datajudCount} processos.`,
+        `Busca finalizada. Fonte: ${sourceUsed}. Salvas: ${savedCount} pub, ${datajudCount} proc.`,
       )
     }
   } catch (e) {
     console.error('[Monitoring] Error in ingestion cron:', e)
     try {
-      const logs = $app.findCollectionByNameOrId('logs_processamento')
+      const logs = $app.findCollectionByNameOrId('system_logs')
       const logRec = new Record(logs)
-      logRec.set('etapa', 'Monitoramento Unificado')
-      logRec.set('status', 'Erro')
-      logRec.set('mensagem', String(e))
-      logRec.set('data_hora', new Date().toISOString().replace('T', ' ').substring(0, 19))
-      $app.save(logRec)
+      logRec.set('level', 'error')
+      logRec.set('module', 'DOU Ingestion')
+      logRec.set('message', 'Erro Crítico de Monitoramento')
+      logRec.set('details', { error: String(e) })
+      $app.saveNoValidate(logRec)
     } catch (_) {}
   }
 })
