@@ -124,11 +124,11 @@ export default function ProcessDetail() {
         'O tribunal está indisponível ou rejeitou a requisição.'
 
       let userMessage = errorMsg
-      if (errorMsg.includes('PJE_FORBIDDEN')) {
-        userMessage = 'Acesso negado. Verifique a chave de API ou se o processo é sigiloso.'
-      } else if (errorMsg.includes('PJE_UNAUTHORIZED')) {
+      if (errorMsg.includes('PJE_FORBIDDEN') || errorMsg.includes('403')) {
+        userMessage = 'Acesso negado pelo tribunal. Verifique as credenciais de monitoramento.'
+      } else if (errorMsg.includes('PJE_UNAUTHORIZED') || errorMsg.includes('401')) {
         userMessage = 'Não autorizado. A chave de API do tribunal pode estar expirada.'
-      } else if (errorMsg.includes('PJE_BAD_REQUEST')) {
+      } else if (errorMsg.includes('PJE_BAD_REQUEST') || errorMsg.includes('400')) {
         userMessage = 'Processo não encontrado ou requisição inválida no tribunal.'
       }
 
