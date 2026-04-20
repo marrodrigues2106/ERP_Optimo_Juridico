@@ -112,6 +112,8 @@ routerAdd(
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',
+        Referer: 'https://comunica.pje.jus.br/',
+        Origin: 'https://comunica.pje.jus.br',
       }
 
       if (apiKey && apiKey.length >= 5) {
@@ -253,20 +255,22 @@ routerAdd(
 
       if (syncMessage.includes('PJE_FORBIDDEN')) {
         logRecord.set('level', 'error')
-        logRecord.set('module', 'pje_sync')
+        logRecord.set('module', 'PJe-Sync')
         logRecord.set('message', 'Bloqueio CloudFront (403) detectado durante sincronização PJe.')
         logRecord.set('details', {
           'Request ID': cloudFrontRequestId,
           case_id: record.id,
+          response: data || null,
         })
       } else {
         logRecord.set('level', syncStatus === 'success' ? 'info' : 'error')
-        logRecord.set('module', 'PJe Sync')
+        logRecord.set('module', 'PJe-Sync')
         logRecord.set('message', syncMessage)
         logRecord.set('details', {
           case: record.id,
           duration: Date.now() - startTime,
           status: syncStatus,
+          error_response: syncStatus !== 'success' ? data || null : null,
         })
       }
 

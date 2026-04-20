@@ -153,19 +153,23 @@ export default function ProcessDetail() {
 
       if (isForbidden) {
         userMessage =
-          'Erro 403: Acesso bloqueado pelo CloudFront do Tribunal. A sincronização foi interrompida devido a restrições regionais do servidor de destino.'
+          'Erro 403: Acesso bloqueado pelo CloudFront do Tribunal. A sincronização foi interrompida devido a restrições de segurança do servidor de destino.'
+      } else if (status === 429) {
+        userMessage = 'Erro 429: Limite de requisições excedido. Tente novamente mais tarde.'
+      } else if (status === 503) {
+        userMessage = 'Erro 503: Serviço do tribunal temporariamente indisponível.'
       } else if (status === 401 || errorMsg.includes('PJE_UNAUTHORIZED')) {
         userMessage = 'Não autorizado (401). A chave de API do tribunal pode estar expirada.'
       } else if (status === 400 || errorMsg.includes('PJE_BAD_REQUEST')) {
         userMessage = 'Requisição inválida (400) ou processo não encontrado no tribunal.'
-      } else if (errorMsg.includes('PJE_TIMEOUT') || status === 503 || status === 504) {
+      } else if (errorMsg.includes('PJE_TIMEOUT') || status === 504) {
         userMessage =
           'O sistema do tribunal (PJe) está indisponível no momento. A sincronização foi agendada para segundo plano.'
       } else if (errorMsg && errorMsg !== 'undefined' && errorMsg !== 'null') {
         userMessage = errorMsg
       }
 
-      if (!isForbidden) {
+      if (!isForbidden && status !== 429 && status !== 503) {
         try {
           const currentRecord = await getLegalCase(id!)
           if (
@@ -185,7 +189,7 @@ export default function ProcessDetail() {
       }
 
       toast({
-        title: 'Aviso de Sincronização',
+        title: isForbidden ? 'Acesso Bloqueado' : 'Falha na Sincronização',
         description: userMessage,
         variant: 'destructive',
       })
