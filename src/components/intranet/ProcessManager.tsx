@@ -37,6 +37,8 @@ import { getCollaborators } from '@/services/collaborators'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import { CaseFormModal } from './cases/CaseFormModal'
+import { batchSyncDataJud } from '@/services/datajud'
+import { cn } from '@/lib/utils'
 
 export default function ProcessManager() {
   const navigate = useNavigate()
@@ -57,6 +59,8 @@ export default function ProcessManager() {
   const [editingCase, setEditingCase] = useState<any>(null)
   const [deletingCase, setDeletingCase] = useState<any>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [selectedCases, setSelectedCases] = useState<string[]>([])
+  const [isSyncingBatch, setIsSyncingBatch] = useState(false)
 
   const loadData = async () => {
     try {
@@ -149,6 +153,30 @@ export default function ProcessManager() {
     })
     return arr
   }, [filteredCases, sortBy])
+
+  const selectableCases = useMemo(() => {
+    return sortedCases.filter((c) => c.type === 'Processo' && c.lifecycle_status !== 'Excluído')
+  }, [sortedCases])
+
+  const handleBatchSync = async () => {
+    setIsSyncingBatch(true)
+    try {
+      await batchSyncDataJud(selectedCases)
+      toast({
+        title: 'Sincronização iniciada',
+        description: `${selectedCases.length} processos entraram na fila.`,
+      })
+      setSelectedCases([])
+    } catch (error: any) {
+      toast({
+        title: 'Erro',
+        description: error?.message || 'Falha ao iniciar sincronização',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSyncingBatch(false)
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -272,7 +300,19 @@ export default function ProcessManager() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="pl-6 w-10"></TableHead>
+                    <TableHead className="pl-6 w-12">
+                      <Checkbox
+                        checked={
+                          selectableCases.length > 0 &&
+                          selectableCases.every((c) => selectedCases.includes(c.id))
+                        }
+                        onCheckedChange={(checked) => {
+                          if (checked) setSelectedCases(selectableCases.map((x) => x.id))
+                          else setSelectedCases([])
+                        }}
+                      />
+                    </TableHead>
+                    <TableHead className="w-10 px-0"></TableHead>
                     <TableHead>Identificação & Partes</TableHead>
                     <TableHead>Fase / Prazo</TableHead>
                     <TableHead>Integração DataJud</TableHead>
@@ -282,7 +322,7 @@ export default function ProcessManager() {
                 <TableBody>
                   {sortedCases.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                         Nenhum registro encontrado.
                       </TableCell>
                     </TableRow>
@@ -295,6 +335,18 @@ export default function ProcessManager() {
                         }
                       >
                         <TableCell className="pl-6">
+                          <Checkbox
+                            disabled={
+                              c.type === 'Serviço Jurídico' || c.lifecycle_status === 'Excluído'
+                            }
+                            checked={selectedCases.includes(c.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) setSelectedCases((prev) => [...prev, c.id])
+                              else setSelectedCases((prev) => prev.filter((id) => id !== c.id))
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell className="px-0">
                           <button
                             onClick={() => handleToggleFavorite(c)}
                             className="hover:scale-110 transition-transform"
@@ -328,23 +380,38 @@ export default function ProcessManager() {
                         <TableCell>
                           {c.type === 'Processo' ? (
                             <Badge
-                              className={
-                                c.datajud_sync_status === 'Success'
-                                  ? 'bg-emerald-500'
-                                  : c.datajud_sync_status === 'Syncing'
-                                    ? 'bg-amber-500'
-                                    : c.datajud_sync_status === 'Error'
-                                      ? 'bg-red-500'
-                                      : 'bg-slate-300'
-                              }
+                              className={cn(
+                                c.datajud_sync_status === 'Success' &&
+                                  'bg-emerald-500 hover:bg-emerald-600 text-white',
+                                c.datajud_sync_status === 'Syncing' &&
+                                  'bg-amber-500 hover:bg-amber-600 text-white',
+                                c.datajud_sync_status === 'Pending' &&
+                                  'bg-blue-500 hover:bg-blue-600 text-white',
+                                ['Error', 'Sync Failed', 'Not Found'].includes(
+                                  c.datajud_sync_status,
+                                ) && 'bg-red-500 hover:bg-red-600 text-white',
+                                ![
+                                  'Success',
+                                  'Syncing',
+                                  'Pending',
+                                  'Error',
+                                  'Sync Failed',
+                                  'Not Found',
+                                ].includes(c.datajud_sync_status) &&
+                                  'bg-slate-300 hover:bg-slate-400 text-slate-700',
+                              )}
                             >
                               {c.datajud_sync_status === 'Success'
                                 ? 'Sincronizado'
                                 : c.datajud_sync_status === 'Syncing'
                                   ? 'Sincronizando...'
-                                  : c.datajud_sync_status === 'Error'
-                                    ? 'Erro na Sync'
-                                    : 'Pendente'}
+                                  : c.datajud_sync_status === 'Pending'
+                                    ? 'Na Fila'
+                                    : ['Error', 'Sync Failed'].includes(c.datajud_sync_status)
+                                      ? 'Erro na Sync'
+                                      : c.datajud_sync_status === 'Not Found'
+                                        ? 'Não Encontrado'
+                                        : 'Pendente'}
                             </Badge>
                           ) : (
                             <span className="text-xs text-slate-400 italic">N/A</span>
@@ -433,6 +500,32 @@ export default function ProcessManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {selectedCases.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-full px-6 py-3 flex items-center gap-4 z-50 animate-in slide-in-from-bottom-8 fade-in">
+          <span className="text-sm font-medium text-slate-700 whitespace-nowrap">
+            {selectedCases.length} processo(s) selecionado(s)
+          </span>
+          <div className="w-px h-6 bg-slate-200" />
+          <Button
+            onClick={handleBatchSync}
+            disabled={isSyncingBatch}
+            size="sm"
+            className="rounded-full bg-primary hover:bg-primary/90 text-white shadow-sm whitespace-nowrap"
+          >
+            <RefreshCw className={cn('w-4 h-4 mr-2', isSyncingBatch && 'animate-spin')} />
+            Sincronizar em Lote
+          </Button>
+          <Button
+            onClick={() => setSelectedCases([])}
+            variant="ghost"
+            size="sm"
+            className="rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900 whitespace-nowrap"
+          >
+            Cancelar
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
