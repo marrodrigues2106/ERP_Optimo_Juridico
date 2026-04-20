@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-20T16:20:13.656Z",
+  "generatedAt": "2026-04-20T16:52:40.154Z",
   "collections": [
     {
       "name": "users",
@@ -1016,24 +1016,6 @@
           "system": false
         },
         {
-          "name": "tribunalStatus",
-          "type": "number",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "tribunalLatency",
-          "type": "number",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "tribunalError",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
           "name": "douStatus",
           "type": "number",
           "required": false,
@@ -1076,12 +1058,6 @@
           "system": false
         },
         {
-          "name": "douCredentials",
-          "type": "json",
-          "required": false,
-          "system": false
-        },
-        {
           "name": "gazetteLastError",
           "type": "text",
           "required": false,
@@ -1090,12 +1066,6 @@
         {
           "name": "gazetteLastSync",
           "type": "date",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "datajud_tribunal_status",
-          "type": "json",
           "required": false,
           "system": false
         },
@@ -1155,12 +1125,6 @@
         },
         {
           "name": "default_numero_processo",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "jota",
           "type": "text",
           "required": false,
           "system": false

@@ -62,6 +62,9 @@ export default function ProcessManager() {
   const [selectedCases, setSelectedCases] = useState<string[]>([])
   const [syncingCases, setSyncingCases] = useState<string[]>([])
   const [isSyncingBatch, setIsSyncingBatch] = useState(false)
+  const [syncProgress, setSyncProgress] = useState<{ total: number; completed: number } | null>(
+    null,
+  )
 
   const loadData = async () => {
     try {
@@ -170,6 +173,7 @@ export default function ProcessManager() {
     })
 
     setIsSyncingBatch(true)
+    setSyncProgress({ total: casesToSync.length, completed: 0 })
 
     Promise.allSettled(
       casesToSync.map(async (id) => {
@@ -191,10 +195,12 @@ export default function ProcessManager() {
           }
         } finally {
           setSyncingCases((prev) => prev.filter((c) => c !== id))
+          setSyncProgress((prev) => (prev ? { ...prev, completed: prev.completed + 1 } : null))
         }
       }),
     ).then(() => {
       setIsSyncingBatch(false)
+      setSyncProgress(null)
       loadData()
     })
   }
@@ -531,9 +537,16 @@ export default function ProcessManager() {
 
       {selectedCases.length > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-full px-6 py-3 flex items-center gap-4 z-50 animate-in slide-in-from-bottom-8 fade-in">
-          <span className="text-sm font-medium text-slate-700 whitespace-nowrap">
-            {selectedCases.length} processo(s) selecionado(s)
-          </span>
+          {syncProgress ? (
+            <span className="text-sm font-medium text-primary flex items-center gap-2 whitespace-nowrap">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              Sincronizando {syncProgress.completed} / {syncProgress.total}
+            </span>
+          ) : (
+            <span className="text-sm font-medium text-slate-700 whitespace-nowrap">
+              {selectedCases.length} processo(s) selecionado(s)
+            </span>
+          )}
           <div className="w-px h-6 bg-slate-200" />
           <Button
             onClick={handleBatchSync}

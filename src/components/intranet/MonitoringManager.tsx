@@ -38,7 +38,6 @@ export default function MonitoringManager() {
   // DataJud Config
   const [datajudApiKey, setDatajudApiKey] = useState('')
   const [syncProcessos, setSyncProcessos] = useState(true)
-  const [jota, setJota] = useState('')
   const [som, setSom] = useState(false)
   const [tribunais, setTribunais] = useState<string[]>([])
   const [tribunalsList, setTribunalsList] = useState<any[]>([])
@@ -62,6 +61,7 @@ export default function MonitoringManager() {
   const [syncing, setSyncing] = useState(false)
   const [lastSyncLog, setLastSyncLog] = useState<any>(null)
   const [pjeStatus, setPjeStatus] = useState<'online' | 'offline' | 'unknown'>('unknown')
+  const [pjeLastSync, setPjeLastSync] = useState<string | null>(null)
 
   const loadData = async () => {
     try {
@@ -78,9 +78,14 @@ export default function MonitoringManager() {
       }
 
       try {
-        const pjeLogs = await pb.collection('pje_sync_logs').getList(1, 1, { sort: '-created' })
-        if (pjeLogs.items.length > 0) {
-          setPjeStatus(pjeLogs.items[0].status === 'success' ? 'online' : 'offline')
+        const pjeCases = await pb.collection('legal_cases').getList(1, 1, {
+          filter: "pje_sync_status != ''",
+          sort: '-pje_last_sync',
+        })
+        if (pjeCases.items.length > 0) {
+          const latest = pjeCases.items[0]
+          setPjeStatus(latest.pje_sync_status === 'error' ? 'offline' : 'online')
+          setPjeLastSync(latest.pje_last_sync)
         } else {
           setPjeStatus('unknown')
         }
@@ -106,7 +111,6 @@ export default function MonitoringManager() {
         setRodouSections((c.dou_sections || '1,2,3,Extra').split(',').filter(Boolean))
         setQdTerritoryId(c.territory_id || '')
 
-        setJota(c.jota || '')
         setSom(c.som ?? false)
       }
 
@@ -162,7 +166,6 @@ export default function MonitoringManager() {
         department_ignore: rodouExcludedDepts,
         dou_sections: rodouSections.join(','),
         territory_id: qdTerritoryId,
-        jota,
         som,
       }
 
@@ -443,14 +446,6 @@ export default function MonitoringManager() {
                   Utilizado para a sincronização de andamentos do DataJud.
                 </p>
               </div>
-              <div className="space-y-2">
-                <Label>JOTA</Label>
-                <Input
-                  value={jota}
-                  onChange={(e) => setJota(e.target.value)}
-                  placeholder="Configuração JOTA..."
-                />
-              </div>
               <div className="flex items-center justify-between border p-3 rounded-lg bg-slate-50">
                 <div>
                   <Label className="text-sm">Alerta Sonoro (Som)</Label>
@@ -565,7 +560,7 @@ export default function MonitoringManager() {
                   <div className="overflow-hidden mr-2">
                     <div className="font-semibold text-sm">Integração PJe</div>
                     <div className="text-xs text-muted-foreground truncate">
-                      Conexão via Comunica / PJe Sync
+                      Última check: {pjeLastSync ? new Date(pjeLastSync).toLocaleString() : 'N/A'}
                     </div>
                   </div>
                   <Badge
@@ -583,9 +578,9 @@ export default function MonitoringManager() {
                     }
                   >
                     {pjeStatus === 'online'
-                      ? 'Operacional / Conectado'
+                      ? 'Online / Conectado'
                       : pjeStatus === 'offline'
-                        ? 'Offline'
+                        ? 'Offline / Desconectado'
                         : 'Desconhecido'}
                   </Badge>
                 </div>
@@ -626,35 +621,6 @@ export default function MonitoringManager() {
                       ? 'Operacional'
                       : config?.datajudStatus === 'error'
                         ? 'Falha'
-                        : 'Desconhecido'}
-                  </Badge>
-                </div>
-
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
-                  <div className="overflow-hidden mr-2">
-                    <div className="font-semibold text-sm">Status de Tribunais (DataJud)</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      Monitoramento do endpoint de tribunais
-                    </div>
-                  </div>
-                  <Badge
-                    variant={
-                      config?.tribunalStatus === 200
-                        ? 'default'
-                        : config?.tribunalStatus
-                          ? 'destructive'
-                          : 'secondary'
-                    }
-                    className={
-                      config?.tribunalStatus === 200
-                        ? 'bg-emerald-500 hover:bg-emerald-600 shrink-0'
-                        : 'shrink-0'
-                    }
-                  >
-                    {config?.tribunalStatus === 200
-                      ? 'Online'
-                      : config?.tribunalStatus
-                        ? `Erro ${config.tribunalStatus}`
                         : 'Desconhecido'}
                   </Badge>
                 </div>

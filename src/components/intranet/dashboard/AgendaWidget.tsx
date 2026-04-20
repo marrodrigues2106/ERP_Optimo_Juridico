@@ -61,16 +61,26 @@ export function AgendaWidget() {
       <CardHeader className="bg-white border-b py-3 flex flex-row items-center justify-between">
         <div className="flex items-center gap-2">
           <CalendarDays className="w-5 h-5 text-primary" />
-          <CardTitle className="text-lg text-slate-800">Sessão de Eventos</CardTitle>
+          <CardTitle className="text-lg text-slate-800">Agenda</CardTitle>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-primary"
-          onClick={() => setEventModalOpen(true)}
-        >
-          <Plus className="w-4 h-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-primary hover:text-primary/80 hidden sm:flex"
+            onClick={() => navigate('/intranet/agenda')}
+          >
+            Ver Agenda Completa
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-primary"
+            onClick={() => setEventModalOpen(true)}
+          >
+            <Plus className="w-4 h-4" />
+          </Button>
+        </div>
       </CardHeader>
 
       <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">

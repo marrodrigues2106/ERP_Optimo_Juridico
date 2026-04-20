@@ -197,7 +197,7 @@ export default function Dashboard() {
       pb.collection('clients').getFullList().then(setClients),
       pb
         .collection('collaborators')
-        .getFullList()
+        .getFullList({ filter: 'deleted_at = "" && user != ""' })
         .then((collabs) => {
           setCollaborators(collabs)
           if (user?.id) {
