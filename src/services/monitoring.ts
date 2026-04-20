@@ -22,6 +22,8 @@ export const syncProcesses = () =>
   pb.send('/backend/v1/monitoring/sync-processes', { method: 'POST' })
 export const syncTerms = () => pb.send('/backend/v1/monitoring/sync-terms', { method: 'POST' })
 
+export const checkHealth = () => pb.send('/backend/v1/monitoring/check-health', { method: 'POST' })
+
 export const testExternalConnection = async (
   service: 'datajud' | 'tribunal' | 'dou',
   apiKey?: string,

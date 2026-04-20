@@ -17,7 +17,7 @@ import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { Save, X, RefreshCw } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
-import { syncProcesses, syncTerms } from '@/services/monitoring'
+import { syncProcesses, syncTerms, checkHealth } from '@/services/monitoring'
 import { MonitoringLogs } from './MonitoringLogs'
 
 export default function MonitoringManager() {
@@ -56,6 +56,7 @@ export default function MonitoringManager() {
 
   const [submitting, setSubmitting] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [checkingHealth, setCheckingHealth] = useState(false)
   const [lastSyncLog, setLastSyncLog] = useState<any>(null)
   const [pjeStatus, setPjeStatus] = useState<'online' | 'offline' | 'unknown'>('unknown')
   const [pjeConnectionStatus, setPjeConnectionStatus] = useState<
@@ -204,6 +205,19 @@ export default function MonitoringManager() {
       toast({ title: 'Termo adicionado.' })
     } catch (err: any) {
       toast({ title: 'Erro ao adicionar', description: err.message, variant: 'destructive' })
+    }
+  }
+
+  const handleCheckHealth = async () => {
+    setCheckingHealth(true)
+    try {
+      await checkHealth()
+      toast({ title: 'Verificação de saúde concluída.' })
+      await loadData()
+    } catch (err: any) {
+      toast({ title: 'Erro ao verificar saúde', description: err.message, variant: 'destructive' })
+    } finally {
+      setCheckingHealth(false)
     }
   }
 
@@ -495,114 +509,159 @@ export default function MonitoringManager() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Saúde do PJe</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
-                <div className="overflow-hidden mr-2">
-                  <div className="font-semibold text-sm">Integração PJe</div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    Status de Serviço PJe
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1 items-end shrink-0">
-                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                    Status de Monitoramento
-                  </span>
-                  <Badge
-                    variant={
-                      pjeConnectionStatus === 'connected' && pjeStatus === 'online'
-                        ? 'default'
-                        : pjeStatus === 'offline' || pjeConnectionStatus === 'disconnected'
-                          ? 'destructive'
-                          : 'secondary'
-                    }
-                    className={
-                      pjeConnectionStatus === 'connected' && pjeStatus === 'online'
-                        ? 'bg-emerald-500 hover:bg-emerald-600 shrink-0'
-                        : 'shrink-0'
-                    }
-                  >
-                    {pjeConnectionStatus === 'connected' ? 'Conectado' : 'Desconectado'} -{' '}
-                    {pjeStatus === 'online' ? 'Online' : 'Offline'}
-                  </Badge>
-                </div>
+          <Card className="md:col-span-2">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <div>
+                <CardTitle>Painel de Saúde e Status</CardTitle>
+                <CardDescription>
+                  Monitoramento em tempo real dos serviços e integrações
+                </CardDescription>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Status de Integrações (DataJud e DOU)</CardTitle>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCheckHealth}
+                disabled={checkingHealth}
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${checkingHealth ? 'animate-spin' : ''}`} />
+                {checkingHealth ? 'Verificando...' : 'Testar Conexão Agora'}
+              </Button>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
-                  <div className="overflow-hidden mr-2">
-                    <div className="font-semibold text-sm">Integração DataJud</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      Última check:{' '}
-                      {config?.datajudLastCheckAt
-                        ? new Date(config.datajudLastCheckAt).toLocaleString()
-                        : 'N/A'}
-                    </div>
-                    {config?.datajudLastError && (
-                      <div
-                        className="text-xs text-red-500 mt-1 truncate"
-                        title={config.datajudLastError}
-                      >
-                        Erro: {config.datajudLastError}
-                      </div>
-                    )}
+            <CardContent className="space-y-4 pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="flex flex-col p-4 border rounded-lg bg-slate-50 relative overflow-hidden">
+                  <div className="font-semibold text-sm mb-1">Portal PJe</div>
+                  <div className="text-xs text-muted-foreground mb-3">
+                    Última verificação:
+                    <br />
+                    {config?.updated ? new Date(config.updated).toLocaleString() : 'N/A'}
                   </div>
-                  <Badge
-                    variant={
-                      config?.datajudStatus === 'online'
-                        ? 'default'
-                        : config?.datajudStatus === 'error'
-                          ? 'destructive'
-                          : 'secondary'
-                    }
-                    className={
-                      config?.datajudStatus === 'online'
-                        ? 'bg-emerald-500 hover:bg-emerald-600 shrink-0'
-                        : 'shrink-0'
-                    }
-                  >
-                    {config?.datajudStatus === 'online'
-                      ? 'Operacional'
-                      : config?.datajudStatus === 'error'
-                        ? 'Falha'
-                        : 'Desconhecido'}
-                  </Badge>
+                  <div className="mt-auto flex items-center gap-2">
+                    <div className="relative flex h-3 w-3">
+                      {pjeStatus === 'online' ? (
+                        <>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                        </>
+                      )}
+                    </div>
+                    <Badge
+                      variant={pjeStatus === 'online' ? 'default' : 'destructive'}
+                      className={
+                        pjeStatus === 'online' ? 'bg-emerald-500 hover:bg-emerald-600' : ''
+                      }
+                    >
+                      {pjeStatus === 'online' ? 'Online' : 'Offline'}
+                    </Badge>
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
-                  <div className="overflow-hidden mr-2">
-                    <div className="font-semibold text-sm">Diário Oficial</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      Último proc.:{' '}
-                      {lastSyncLog ? new Date(lastSyncLog.created).toLocaleString() : 'N/A'}
-                    </div>
+                <div className="flex flex-col p-4 border rounded-lg bg-slate-50 relative overflow-hidden">
+                  <div className="font-semibold text-sm mb-1">Scraping PJe</div>
+                  <div className="text-xs text-muted-foreground mb-3">
+                    Conexão com Microserviço
+                    <br />
+                    &nbsp;
                   </div>
-                  <Badge
-                    variant={
-                      lastSyncLog?.status === 'Sucesso'
-                        ? 'default'
-                        : lastSyncLog?.status === 'Erro'
-                          ? 'destructive'
-                          : 'secondary'
-                    }
-                    className={
-                      lastSyncLog?.status === 'Sucesso'
-                        ? 'bg-emerald-500 hover:bg-emerald-600 shrink-0'
-                        : 'shrink-0'
-                    }
-                  >
-                    {lastSyncLog?.status || 'Desconhecido'}
-                  </Badge>
+                  <div className="mt-auto flex items-center gap-2">
+                    <div className="relative flex h-3 w-3">
+                      {pjeConnectionStatus === 'connected' ? (
+                        <>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                        </>
+                      )}
+                    </div>
+                    <Badge
+                      variant={pjeConnectionStatus === 'connected' ? 'default' : 'destructive'}
+                      className={
+                        pjeConnectionStatus === 'connected'
+                          ? 'bg-emerald-500 hover:bg-emerald-600'
+                          : ''
+                      }
+                    >
+                      {pjeConnectionStatus === 'connected' ? 'Conectado' : 'Desconectado'}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="flex flex-col p-4 border rounded-lg bg-slate-50 relative overflow-hidden">
+                  <div className="font-semibold text-sm mb-1">Comunica PJe</div>
+                  <div className="text-xs text-muted-foreground mb-3">
+                    Última verificação:
+                    <br />
+                    {config?.updated ? new Date(config.updated).toLocaleString() : 'N/A'}
+                  </div>
+                  <div className="mt-auto flex items-center gap-2">
+                    <div className="relative flex h-3 w-3">
+                      {config?.datajudStatus === 'online' ? (
+                        <>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                        </>
+                      )}
+                    </div>
+                    <Badge
+                      variant={config?.datajudStatus === 'online' ? 'default' : 'destructive'}
+                      className={
+                        config?.datajudStatus === 'online'
+                          ? 'bg-emerald-500 hover:bg-emerald-600'
+                          : ''
+                      }
+                    >
+                      {config?.datajudStatus === 'online' ? 'Operacional' : 'Indisponível'}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="flex flex-col p-4 border rounded-lg bg-slate-50 relative overflow-hidden">
+                  <div className="font-semibold text-sm mb-1">Diário Oficial</div>
+                  <div className="text-xs text-muted-foreground mb-3">
+                    Último proc.:
+                    <br />
+                    {lastSyncLog ? new Date(lastSyncLog.created).toLocaleString() : 'N/A'}
+                  </div>
+                  <div className="mt-auto flex items-center gap-2">
+                    <div className="relative flex h-3 w-3">
+                      {lastSyncLog?.status === 'Sucesso' ? (
+                        <>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                        </>
+                      )}
+                    </div>
+                    <Badge
+                      variant={lastSyncLog?.status === 'Sucesso' ? 'default' : 'secondary'}
+                      className={
+                        lastSyncLog?.status === 'Sucesso'
+                          ? 'bg-emerald-500 hover:bg-emerald-600'
+                          : ''
+                      }
+                    >
+                      {lastSyncLog?.status || 'Desconhecido'}
+                    </Badge>
+                  </div>
                 </div>
               </div>
             </CardContent>
