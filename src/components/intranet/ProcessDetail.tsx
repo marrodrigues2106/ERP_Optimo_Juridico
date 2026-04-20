@@ -75,12 +75,10 @@ export default function ProcessDetail() {
     if (e.record.id === id) {
       setLegalCase((prev: any) => {
         if (!prev) return prev
-        const wasNotIdle = prev.pje_sync_status === 'syncing' || prev.pje_sync_status === 'pending'
-        const isIdleNow =
-          e.record.pje_sync_status === 'idle' ||
-          e.record.pje_sync_status === 'success' ||
-          e.record.pje_sync_status === 'error'
-        if (wasNotIdle && isIdleNow) {
+        const wasSyncing = prev.datajud_sync_status === 'Syncing'
+        const isFinished =
+          e.record.datajud_sync_status === 'Success' || e.record.datajud_sync_status === 'Error'
+        if (wasSyncing && isFinished) {
           loadMovements(1)
           loadData()
         }
@@ -130,73 +128,43 @@ export default function ProcessDetail() {
 
   const handleSync = async () => {
     try {
-      setLegalCase((prev: any) => ({ ...prev, pje_sync_status: 'syncing' }))
+      setLegalCase((prev: any) => ({ ...prev, datajud_sync_status: 'Syncing' }))
 
-      const res = await pb.send(`/backend/v1/processos/${id}/sync-pje`, {
-        method: 'GET',
+      const res = await pb.send(`/backend/v1/datajud/sync/${id}`, {
+        method: 'POST',
       })
 
       toast({
-        title: 'Sincronização iniciada',
-        description: res?.message || 'Processo atualizado com o PJe com sucesso.',
+        title: 'Sincronização concluída',
+        description: res?.message || 'Processo atualizado com o DataJud com sucesso.',
       })
 
       loadData()
       loadMovements(1)
     } catch (error: any) {
-      let userMessage =
-        'O tribunal está indisponível ou rejeitou a requisição. Tente novamente mais tarde.'
-
+      let userMessage = 'Ocorreu um erro ao sincronizar com o DataJud.'
       const status = error?.status || error?.response?.status || 500
       const errorMsg = String(error?.response?.message || error?.message || '')
-      const isForbidden = status === 403 || errorMsg.includes('PJE_FORBIDDEN')
 
-      if (isForbidden) {
-        userMessage =
-          'Erro 403: Acesso bloqueado pelo CloudFront do Tribunal. A sincronização foi interrompida devido a restrições de segurança do servidor de destino.'
+      if (status === 404) {
+        userMessage = 'Processo não encontrado no DataJud.'
+      } else if (status === 401 || status === 403) {
+        userMessage = 'Erro de autenticação no DataJud. Verifique a chave da API.'
       } else if (status === 429) {
-        userMessage = 'Erro 429: Limite de requisições excedido. Tente novamente mais tarde.'
-      } else if (status === 503) {
-        userMessage = 'Erro 503: Serviço do tribunal temporariamente indisponível.'
-      } else if (status === 401 || errorMsg.includes('PJE_UNAUTHORIZED')) {
-        userMessage = 'Não autorizado (401). A chave de API do tribunal pode estar expirada.'
-      } else if (status === 400 || errorMsg.includes('PJE_BAD_REQUEST')) {
-        userMessage = 'Requisição inválida (400) ou processo não encontrado no tribunal.'
-      } else if (errorMsg.includes('PJE_TIMEOUT') || status === 504) {
-        userMessage =
-          'O sistema do tribunal (PJe) está indisponível no momento. A sincronização foi agendada para segundo plano.'
+        userMessage = 'Limite de requisições excedido no DataJud. Tente novamente mais tarde.'
       } else if (errorMsg && errorMsg !== 'undefined' && errorMsg !== 'null') {
         userMessage = errorMsg
       }
 
-      if (!isForbidden && status !== 429 && status !== 503) {
-        try {
-          const currentRecord = await getLegalCase(id!)
-          if (
-            currentRecord.pje_sync_status === 'pending' ||
-            currentRecord.pje_sync_status === 'syncing'
-          ) {
-            toast({
-              title: 'Sincronização em andamento',
-              description: 'A sincronização foi enviada para processamento em segundo plano.',
-            })
-            setLegalCase(currentRecord)
-            return
-          }
-        } catch (err) {
-          /* ignore error */
-        }
-      }
-
       toast({
-        title: isForbidden ? 'Acesso Bloqueado' : 'Falha na Sincronização',
+        title: 'Falha na Sincronização',
         description: userMessage,
         variant: 'destructive',
       })
 
       setLegalCase((prev: any) => {
         if (!prev) return prev
-        return { ...prev, pje_sync_status: 'error' }
+        return { ...prev, datajud_sync_status: 'Error' }
       })
       loadData()
     }
@@ -298,9 +266,9 @@ export default function ProcessDetail() {
                     <Badge variant="outline" className="text-slate-500">
                       {legalCase.court || 'Tribunal não informado'}
                     </Badge>
-                    {legalCase.pje_last_sync && (
+                    {legalCase.datajud_last_sync && (
                       <Badge variant="outline" className="text-slate-500 font-normal">
-                        Última sync: {new Date(legalCase.pje_last_sync).toLocaleString('pt-BR')}
+                        Última sync: {new Date(legalCase.datajud_last_sync).toLocaleString('pt-BR')}
                       </Badge>
                     )}
                   </div>
@@ -313,31 +281,27 @@ export default function ProcessDetail() {
                 <Button
                   variant="outline"
                   onClick={handleSync}
-                  disabled={
-                    legalCase?.pje_sync_status === 'pending' ||
-                    legalCase?.pje_sync_status === 'syncing'
-                  }
+                  disabled={legalCase?.datajud_sync_status === 'Syncing'}
                   className={cn(
                     'shadow-sm',
-                    legalCase?.pje_sync_status === 'error' &&
+                    legalCase?.datajud_sync_status === 'Error' &&
                       'border-red-300 text-red-600 bg-red-50 hover:bg-red-100 hover:text-red-700',
                   )}
                   title={
-                    legalCase?.pje_sync_status === 'error' ? 'Falha na última sincronização' : ''
+                    legalCase?.datajud_sync_status === 'Error'
+                      ? 'Falha na última sincronização'
+                      : ''
                   }
                 >
                   <RefreshCw
                     className={cn(
                       'w-4 h-4 mr-2',
-                      (legalCase?.pje_sync_status === 'pending' ||
-                        legalCase?.pje_sync_status === 'syncing') &&
-                        'animate-spin',
+                      legalCase?.datajud_sync_status === 'Syncing' && 'animate-spin',
                     )}
                   />
-                  {legalCase?.pje_sync_status === 'pending' ||
-                  legalCase?.pje_sync_status === 'syncing'
-                    ? 'Sincronizando...'
-                    : 'Sincronizar Comunica PJe'}
+                  {legalCase?.datajud_sync_status === 'Syncing'
+                    ? 'Consultando DataJud...'
+                    : 'Sincronizar DataJud'}
                 </Button>
               </div>
             </div>
