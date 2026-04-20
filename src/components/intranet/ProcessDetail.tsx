@@ -133,7 +133,7 @@ export default function ProcessDetail() {
       setLegalCase((prev: any) => ({ ...prev, pje_sync_status: 'syncing' }))
 
       const res = await pb.send(`/backend/v1/processos/${id}/sync-pje`, {
-        method: 'POST',
+        method: 'GET',
       })
 
       toast({

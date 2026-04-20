@@ -1,5 +1,5 @@
 routerAdd(
-  'POST',
+  'GET',
   '/backend/v1/processos/{caseId}/sync-pje',
   (e) => {
     const caseId = e.request.pathValue('caseId')
