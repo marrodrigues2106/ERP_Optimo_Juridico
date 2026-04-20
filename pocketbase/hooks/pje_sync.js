@@ -88,33 +88,29 @@ routerAdd(
       if (!apiKey) apiKey = $secrets.get('COMUNICA_PJE_KEY') || ''
       apiKey = apiKey.trim()
 
-      if (!apiKey || apiKey.length < 5) {
-        throw new Error('PJE_FORBIDDEN: Chave de API não configurada ou em formato inválido.')
-      }
+      const currentDate = new Date().toISOString().split('T')[0]
+      const baseUrl =
+        apiKey && apiKey.length >= 5
+          ? 'https://comunicaapi.pje.jus.br/api/v1'
+          : 'https://comunica.pje.jus.br/api/v1'
+      const url = `${baseUrl}/comunicacao?numeroProcesso=${cleanNum}&dataDisponibilizacaoInicio=2024-01-01&dataDisponibilizacaoFim=${currentDate}`
 
-      const url = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao'
       const headers = {
         Accept: 'application/json',
-        'Content-Type': 'application/json',
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
         Connection: 'keep-alive',
-        Authorization: apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`,
       }
 
-      const currentDate = new Date().toISOString().split('T')[0]
-      const payload = {
-        numeroProcesso: cleanNum,
-        dataDisponibilizacaoInicio: '2024-01-01',
-        dataDisponibilizacaoFim: currentDate,
+      if (apiKey && apiKey.length >= 5) {
+        headers.Authorization = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`
       }
 
       const res = $http.send({
         url: url,
-        method: 'POST',
+        method: 'GET',
         headers: headers,
-        body: JSON.stringify(payload),
         timeout: 60,
       })
 
@@ -123,8 +119,11 @@ routerAdd(
         data = res.json
       } catch (err) {}
 
-      if (res.statusCode === 200 && data && data.items) {
-        const items = data.items
+      const isArrayData = Array.isArray(data)
+      const hasItems = data && Array.isArray(data.items)
+      const items = hasItems ? data.items : isArrayData ? data : null
+
+      if (res.statusCode === 200 && items) {
         items.forEach((item) => {
           try {
             const uniqueStr = record.id + '_' + item.hash
