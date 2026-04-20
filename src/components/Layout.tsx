@@ -50,7 +50,6 @@ import { useAuth } from '@/hooks/use-auth'
 export default function Layout() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const [apiStatus, setApiStatus] = useState<'loading' | 'online' | 'error'>('loading')
   const { user, isAuthenticated, signOut } = useAuth()
   const [orgLogo, setOrgLogo] = useState<string | null>(null)
   const [orgName, setOrgName] = useState<string>('')
@@ -63,24 +62,6 @@ export default function Layout() {
   useEffect(() => {
     if (!isAuthenticated) return
     let mounted = true
-    const checkHealth = async () => {
-      try {
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 20000)
-        const res = await pb.send('/backend/v1/datajud/health', {
-          method: 'GET',
-          signal: controller.signal,
-        })
-        clearTimeout(timeoutId)
-        if (mounted) {
-          setApiStatus(res?.status === 'online' ? 'online' : 'error')
-        }
-      } catch (error) {
-        if (mounted) setApiStatus('error')
-      }
-    }
-    checkHealth()
-    const interval = setInterval(checkHealth, 60000)
 
     if (user?.active_organization) {
       pb.collection('organizations')
@@ -127,7 +108,6 @@ export default function Layout() {
 
     return () => {
       mounted = false
-      clearInterval(interval)
     }
   }, [isAuthenticated, user])
 
@@ -373,22 +353,6 @@ export default function Layout() {
             <Outlet />
           </main>
 
-          <div className="fixed bottom-4 left-4 z-50 flex items-center gap-2 bg-white/95 backdrop-blur-md px-4 py-2 rounded-full border shadow-sm text-xs font-medium text-foreground">
-            {apiStatus === 'online' ? (
-              <Activity className="w-4 h-4 text-green-500" />
-            ) : apiStatus === 'error' ? (
-              <AlertTriangle className="w-4 h-4 text-destructive" />
-            ) : (
-              <Activity className="w-4 h-4 text-amber-500 animate-pulse" />
-            )}
-            <span>
-              {apiStatus === 'online'
-                ? 'Status DataJud: Operacional'
-                : apiStatus === 'error'
-                  ? 'Status DataJud: Serviço Indisponível'
-                  : 'Verificando Status...'}
-            </span>
-          </div>
           <Toaster />
         </div>
       </TooltipProvider>

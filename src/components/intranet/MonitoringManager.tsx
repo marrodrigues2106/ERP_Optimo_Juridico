@@ -428,11 +428,11 @@ export default function MonitoringManager() {
             </CardContent>
           </Card>
 
-          <Card className="md:col-span-2">
+          <Card>
             <CardHeader>
               <CardTitle>Alertas e Notificações</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>Canal de Alerta</Label>
                 <Select value={alertType} onValueChange={setAlertType}>
@@ -459,6 +459,81 @@ export default function MonitoringManager() {
                     <SelectItem value="diario">Resumo Diário (Digest)</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Saúde dos Serviços</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
+                  <div className="overflow-hidden mr-2">
+                    <div className="font-semibold text-sm">Integração DataJud</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      Última check:{' '}
+                      {config?.datajudLastCheckAt
+                        ? new Date(config.datajudLastCheckAt).toLocaleString()
+                        : 'N/A'}
+                    </div>
+                    {config?.datajudLastError && (
+                      <div
+                        className="text-xs text-red-500 mt-1 truncate"
+                        title={config.datajudLastError}
+                      >
+                        Erro: {config.datajudLastError}
+                      </div>
+                    )}
+                  </div>
+                  <Badge
+                    variant={
+                      config?.datajudStatus === 'online'
+                        ? 'default'
+                        : config?.datajudStatus === 'error'
+                          ? 'destructive'
+                          : 'secondary'
+                    }
+                    className={
+                      config?.datajudStatus === 'online'
+                        ? 'bg-emerald-500 hover:bg-emerald-600 shrink-0'
+                        : 'shrink-0'
+                    }
+                  >
+                    {config?.datajudStatus === 'online'
+                      ? 'Operacional'
+                      : config?.datajudStatus === 'error'
+                        ? 'Falha'
+                        : 'Desconhecido'}
+                  </Badge>
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
+                  <div className="overflow-hidden mr-2">
+                    <div className="font-semibold text-sm">Diário Oficial</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      Último proc.:{' '}
+                      {lastSyncLog ? new Date(lastSyncLog.created).toLocaleString() : 'N/A'}
+                    </div>
+                  </div>
+                  <Badge
+                    variant={
+                      lastSyncLog?.status === 'Sucesso'
+                        ? 'default'
+                        : lastSyncLog?.status === 'Erro'
+                          ? 'destructive'
+                          : 'secondary'
+                    }
+                    className={
+                      lastSyncLog?.status === 'Sucesso'
+                        ? 'bg-emerald-500 hover:bg-emerald-600 shrink-0'
+                        : 'shrink-0'
+                    }
+                  >
+                    {lastSyncLog?.status || 'Desconhecido'}
+                  </Badge>
+                </div>
               </div>
             </CardContent>
           </Card>
