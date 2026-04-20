@@ -422,7 +422,10 @@ export default function ProcessDetail() {
                               const isDecision =
                                 /decisão|despacho|sentença|julgamento|acórdão|liminar/i.test(
                                   mov.description || '',
-                                )
+                                ) ||
+                                String(mov.movement_details?.codigo) === '3' ||
+                                String(mov.movement_details?.codigo) === '193'
+
                               const dotColorClass = isDecision
                                 ? 'bg-amber-500 ring-amber-100'
                                 : 'bg-primary ring-white'
@@ -431,8 +434,68 @@ export default function ProcessDetail() {
                                 ? 'border-amber-200'
                                 : 'border-slate-200'
 
-                              const primaryText =
-                                mov.movement_details?.teor || mov.details || mov.description
+                              const fixEncoding = (str: string | undefined | null) => {
+                                if (!str) return ''
+                                return str
+                                  .replace(/ï¿½RGï¿½O/g, 'ÓRGÃO')
+                                  .replace(/ï¿½rgï¿½o/g, 'Órgão')
+                                  .replace(/Aï¿½ï¿½O/g, 'AÇÃO')
+                                  .replace(/aï¿½ï¿½o/g, 'ação')
+                                  .replace(/DECISï¿½O/g, 'DECISÃO')
+                                  .replace(/decisï¿½o/g, 'decisão')
+                                  .replace(/CONCLUSï¿½O/g, 'CONCLUSÃO')
+                                  .replace(/conclusï¿½o/g, 'conclusão')
+                                  .replace(/Sï¿½O/g, 'SÃO')
+                                  .replace(/sï¿½o/g, 'são')
+                                  .replace(/Nï¿½O/g, 'NÃO')
+                                  .replace(/nï¿½o/g, 'não')
+                                  .replace(/Justiï¿½a/g, 'Justiça')
+                                  .replace(/Mï¿½S/g, 'MÊS')
+                                  .replace(/mï¿½s/g, 'mês')
+                                  .replace(/TRï¿½S/g, 'TRÊS')
+                                  .replace(/trï¿½s/g, 'três')
+                                  .replace(/CONCILIAï¿½ï¿½O/g, 'CONCILIAÇÃO')
+                                  .replace(/conciliaï¿½ï¿½o/g, 'conciliação')
+                                  .replace(/INFORMAï¿½ï¿½O/g, 'INFORMAÇÃO')
+                                  .replace(/informaï¿½ï¿½o/g, 'informação')
+                                  .replace(/PETIï¿½ï¿½O/g, 'PETIÇÃO')
+                                  .replace(/petiï¿½ï¿½o/g, 'petição')
+                                  .replace(/RELAï¿½ï¿½O/g, 'RELAÇÃO')
+                                  .replace(/relaï¿½ï¿½o/g, 'relação')
+                                  .replace(/CITAï¿½ï¿½O/g, 'CITAÇÃO')
+                                  .replace(/citaï¿½ï¿½o/g, 'citação')
+                                  .replace(/INTIMAï¿½ï¿½O/g, 'INTIMAÇÃO')
+                                  .replace(/intimaï¿½ï¿½o/g, 'intimação')
+                                  .replace(/PUBLICAï¿½ï¿½O/g, 'PUBLICAÇÃO')
+                                  .replace(/publicaï¿½ï¿½o/g, 'publicação')
+                                  .replace(/EXPEDIï¿½ï¿½O/g, 'EXPEDIÇÃO')
+                                  .replace(/expediï¿½ï¿½o/g, 'expedição')
+                                  .replace(/CERTIDï¿½O/g, 'CERTIDÃO')
+                                  .replace(/certidï¿½o/g, 'certidão')
+                                  .replace(/EXECUï¿½ï¿½O/g, 'EXECUÇÃO')
+                                  .replace(/execuï¿½ï¿½o/g, 'execução')
+                                  .replace(/APELAï¿½ï¿½O/g, 'APELAÇÃO')
+                                  .replace(/apelaï¿½ï¿½o/g, 'apelação')
+                                  .replace(/ACï¿½RDï¿½O/g, 'ACÓRDÃO')
+                                  .replace(/acï¿½rdï¿½o/g, 'acórdão')
+                                  .replace(/VARA Cï¿½VEL/g, 'VARA CÍVEL')
+                                  .replace(/Vara Cï¿½vel/g, 'Vara Cível')
+                                  .replace(/TRIBUNAL DE JUSTIï¿½A/g, 'TRIBUNAL DE JUSTIÇA')
+                                  .replace(/Cï¿½DIGO/g, 'CÓDIGO')
+                                  .replace(/cï¿½digo/g, 'código')
+                                  .replace(/ï¿½/g, '')
+                              }
+
+                              const rawText =
+                                mov.movement_details?.teor ||
+                                mov.movement_details?.texto ||
+                                (typeof mov.details === 'string' && !mov.details.startsWith('[')
+                                  ? mov.details
+                                  : null)
+                              const textContent = fixEncoding(rawText)
+                              const hasDetailedContent =
+                                textContent.trim().length > 0 &&
+                                textContent !== 'Movimento sem descrição'
 
                               const hasAdditionalMeta =
                                 mov.movement_details?.codigo ||
@@ -501,21 +564,37 @@ export default function ProcessDetail() {
 
                                     <div className="p-4 space-y-4 bg-white">
                                       <div className="space-y-3">
-                                        <h4 className="text-base font-semibold text-slate-800 leading-snug">
-                                          {isDecision
-                                            ? 'Ato do Magistrado / Decisão'
-                                            : mov.description}
-                                        </h4>
+                                        <div>
+                                          <h4 className="text-base font-semibold text-slate-800 leading-snug">
+                                            {isDecision
+                                              ? 'Ato do Magistrado / Decisão'
+                                              : fixEncoding(mov.description)}
+                                          </h4>
+                                          {isDecision &&
+                                            mov.description &&
+                                            mov.description !== 'Ato do Magistrado / Decisão' && (
+                                              <p className="text-sm text-slate-500 font-medium mt-0.5">
+                                                {fixEncoding(mov.description)}
+                                              </p>
+                                            )}
+                                        </div>
                                         <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed max-h-[400px] overflow-y-auto custom-scrollbar bg-slate-50/50 p-4 rounded-md border border-slate-100">
-                                          {/<[a-z][\s\S]*>/i.test(primaryText) ? (
-                                            <div
-                                              dangerouslySetInnerHTML={{
-                                                __html: primaryText,
-                                              }}
-                                              className="prose prose-sm max-w-none text-slate-700"
-                                            />
+                                          {hasDetailedContent ? (
+                                            /<[a-z][\s\S]*>/i.test(textContent) ? (
+                                              <div
+                                                dangerouslySetInnerHTML={{
+                                                  __html: textContent,
+                                                }}
+                                                className="prose prose-sm max-w-none text-slate-700"
+                                              />
+                                            ) : (
+                                              textContent
+                                            )
                                           ) : (
-                                            primaryText
+                                            <span className="italic text-slate-400">
+                                              Nenhum conteúdo detalhado (texto da decisão ou
+                                              andamento) foi fornecido pelo tribunal.
+                                            </span>
                                           )}
                                         </div>
                                       </div>
@@ -571,7 +650,9 @@ export default function ProcessDetail() {
                                                     <span className="font-semibold text-slate-800">
                                                       Órgão Julgador:
                                                     </span>{' '}
-                                                    {mov.movement_details.orgaoJulgador}
+                                                    {fixEncoding(
+                                                      mov.movement_details.orgaoJulgador,
+                                                    )}
                                                   </div>
                                                 )}
                                                 {mov.movement_details?.magistradoNome && (

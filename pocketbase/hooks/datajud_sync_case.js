@@ -162,11 +162,72 @@ routerAdd(
               newMov.set('source', 'DataJud')
               newMov.set('external_id', extId)
 
-              const teorText =
+              let teorText =
                 mov.texto || mov.teor || mov.textoIntegral || mov.decisao || mov.conteudo || null
+
+              if (teorText) {
+                teorText = teorText
+                  .replace(/ï¿½RGï¿½O/g, 'ÓRGÃO')
+                  .replace(/ï¿½rgï¿½o/g, 'Órgão')
+                  .replace(/Aï¿½ï¿½O/g, 'AÇÃO')
+                  .replace(/aï¿½ï¿½o/g, 'ação')
+                  .replace(/DECISï¿½O/g, 'DECISÃO')
+                  .replace(/decisï¿½o/g, 'decisão')
+                  .replace(/CONCLUSï¿½O/g, 'CONCLUSÃO')
+                  .replace(/conclusï¿½o/g, 'conclusão')
+                  .replace(/Sï¿½O/g, 'SÃO')
+                  .replace(/sï¿½o/g, 'são')
+                  .replace(/Nï¿½O/g, 'NÃO')
+                  .replace(/nï¿½o/g, 'não')
+                  .replace(/Justiï¿½a/g, 'Justiça')
+                  .replace(/Mï¿½S/g, 'MÊS')
+                  .replace(/mï¿½s/g, 'mês')
+                  .replace(/TRï¿½S/g, 'TRÊS')
+                  .replace(/trï¿½s/g, 'três')
+                  .replace(/CONCILIAï¿½ï¿½O/g, 'CONCILIAÇÃO')
+                  .replace(/conciliaï¿½ï¿½o/g, 'conciliação')
+                  .replace(/INFORMAï¿½ï¿½O/g, 'INFORMAÇÃO')
+                  .replace(/informaï¿½ï¿½o/g, 'informação')
+                  .replace(/PETIï¿½ï¿½O/g, 'PETIÇÃO')
+                  .replace(/petiï¿½ï¿½o/g, 'petição')
+                  .replace(/RELAï¿½ï¿½O/g, 'RELAÇÃO')
+                  .replace(/relaï¿½ï¿½o/g, 'relação')
+                  .replace(/CITAï¿½ï¿½O/g, 'CITAÇÃO')
+                  .replace(/citaï¿½ï¿½o/g, 'citação')
+                  .replace(/INTIMAï¿½ï¿½O/g, 'INTIMAÇÃO')
+                  .replace(/intimaï¿½ï¿½o/g, 'intimação')
+                  .replace(/PUBLICAï¿½ï¿½O/g, 'PUBLICAÇÃO')
+                  .replace(/publicaï¿½ï¿½o/g, 'publicação')
+                  .replace(/EXPEDIï¿½ï¿½O/g, 'EXPEDIÇÃO')
+                  .replace(/expediï¿½ï¿½o/g, 'expedição')
+                  .replace(/CERTIDï¿½O/g, 'CERTIDÃO')
+                  .replace(/certidï¿½o/g, 'certidão')
+                  .replace(/EXECUï¿½ï¿½O/g, 'EXECUÇÃO')
+                  .replace(/execuï¿½ï¿½o/g, 'execução')
+                  .replace(/APELAï¿½ï¿½O/g, 'APELAÇÃO')
+                  .replace(/apelaï¿½ï¿½o/g, 'apelação')
+                  .replace(/ACï¿½RDï¿½O/g, 'ACÓRDÃO')
+                  .replace(/acï¿½rdï¿½o/g, 'acórdão')
+                  .replace(/VARA Cï¿½VEL/g, 'VARA CÍVEL')
+                  .replace(/Vara Cï¿½vel/g, 'Vara Cível')
+                  .replace(/TRIBUNAL DE JUSTIï¿½A/g, 'TRIBUNAL DE JUSTIÇA')
+                  .replace(/Cï¿½DIGO/g, 'CÓDIGO')
+                  .replace(/cï¿½digo/g, 'código')
+                  .replace(/ï¿½/g, '')
+              }
+
+              let orgaoJulgador = caseData.orgaoJulgador?.nome || ''
+              if (orgaoJulgador) {
+                orgaoJulgador = orgaoJulgador
+                  .replace(/ï¿½RGï¿½O/g, 'ÓRGÃO')
+                  .replace(/ï¿½rgï¿½o/g, 'Órgão')
+                  .replace(/Justiï¿½a/g, 'Justiça')
+                  .replace(/ï¿½/g, '')
+              }
+
               const details = {
                 codigo: codigo,
-                orgaoJulgador: caseData.orgaoJulgador?.nome || '',
+                orgaoJulgador: orgaoJulgador,
                 classe: caseData.classe?.nome || '',
                 documentos: mov.documentosVinculados || mov.documentos || [],
                 complementos: mov.complementosTabelados || mov.complementos || [],
