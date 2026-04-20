@@ -36,6 +36,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination'
 import { useNavigate, Link } from 'react-router-dom'
 import { useToast } from '@/hooks/use-toast'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
@@ -74,6 +81,17 @@ export default function Dashboard() {
   const [caseCount, setCaseCount] = useState(0)
   const [recentCases, setRecentCases] = useState<any[]>([])
 
+  const [searchPage, setSearchPage] = useState(1)
+  const [searchPerPage, setSearchPerPage] = useState(() => {
+    const stored = sessionStorage.getItem('dashboard_search_per_page')
+    return stored ? Number(stored) : 10
+  })
+  const [searchesData, setSearchesData] = useState<{
+    items: any[]
+    totalItems: number
+    totalPages: number
+  }>({ items: [], totalItems: 0, totalPages: 0 })
+
   const canFilterOthers =
     isAdmin || user?.role === 'manager' || user?.role === 'admin' || user?.isAdmin
 
@@ -99,6 +117,26 @@ export default function Dashboard() {
       console.error(e)
     }
   }
+
+  const loadSearches = async () => {
+    try {
+      const res = await pb.collection('searches').getList(searchPage, searchPerPage, {
+        sort: '-created',
+      })
+      setSearchesData({
+        items: res.items,
+        totalItems: res.totalItems,
+        totalPages: res.totalPages,
+      })
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  useEffect(() => {
+    sessionStorage.setItem('dashboard_search_per_page', searchPerPage.toString())
+    loadSearches()
+  }, [searchPage, searchPerPage])
 
   const loadFeed = async () => {
     const orgId = pb.authStore.record?.active_organization
@@ -245,12 +283,17 @@ export default function Dashboard() {
     () => createDebouncedLoader('caseCount', loadCaseCount),
     [createDebouncedLoader, selectedCollaboratorId],
   )
+  const debouncedLoadSearches = useMemo(
+    () => createDebouncedLoader('searches', loadSearches),
+    [createDebouncedLoader, searchPage, searchPerPage],
+  )
 
   useRealtime('tasks', debouncedLoadTasks)
   useRealtime('legal_cases', debouncedLoadCaseCount)
   useRealtime('gazette_publications', debouncedLoadFeed)
   useRealtime('ocorrencias_dou', debouncedLoadFeed)
   useRealtime('case_movements', debouncedLoadFeed)
+  useRealtime('searches', debouncedLoadSearches)
 
   const toggleTask = async (id: string, currentStatus: string) => {
     try {
@@ -533,10 +576,19 @@ export default function Dashboard() {
             >
               Arquivados
             </TabsTrigger>
+            <TabsTrigger
+              value="searches"
+              className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-4 py-2"
+            >
+              Buscas Recentes
+            </TabsTrigger>
           </TabsList>
 
           {['unread', 'read'].includes(activeTab) && (
-            <TabsContent value={activeTab} className="outline-none space-y-4">
+            <TabsContent
+              value={activeTab}
+              className="outline-none space-y-4 animate-in fade-in duration-300"
+            >
               <div className="flex items-center justify-between bg-slate-50/50 p-3 rounded-lg border border-slate-200">
                 <div className="flex items-center gap-2">
                   <Checkbox
@@ -694,6 +746,116 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))
+              )}
+            </TabsContent>
+          )}
+
+          {activeTab === 'searches' && (
+            <TabsContent
+              value="searches"
+              className="outline-none space-y-4 animate-in fade-in duration-300"
+            >
+              <div className="flex items-center justify-between bg-slate-50/50 p-3 rounded-lg border border-slate-200">
+                <div className="text-sm font-medium text-slate-700">Histórico de Buscas</div>
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-slate-500">Itens por página:</Label>
+                  <Select
+                    value={searchPerPage.toString()}
+                    onValueChange={(val) => {
+                      setSearchPerPage(Number(val))
+                      setSearchPage(1)
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-20 text-xs bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {searchesData.items.length === 0 ? (
+                <div className="text-center py-16 text-slate-400 border border-dashed rounded-xl bg-slate-50/50">
+                  <Activity className="w-10 h-10 mx-auto mb-4 opacity-50 text-slate-300" />
+                  <p className="text-sm font-medium">Nenhuma busca recente encontrada.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {searchesData.items.map((search) => (
+                    <div
+                      key={search.id}
+                      className="p-4 border rounded-xl bg-white flex gap-4 transition-all hover:shadow-md"
+                    >
+                      <div className="pt-1">
+                        <Activity className="w-5 h-5 text-blue-500" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <h4 className="font-bold text-sm text-slate-900">
+                            {search.term || 'Busca sem termo'}
+                          </h4>
+                          <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                            {new Date(search.created).toLocaleString('pt-BR')}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-700 mb-2">
+                          Tipo: {search.search_type || 'N/A'} | Status: {search.status || 'N/A'}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 px-2 py-1 rounded">
+                            Resultados: {search.results_count || 0}
+                          </span>
+                          {search.message && (
+                            <span className="text-[10px] font-bold uppercase tracking-wider bg-red-50 text-red-500 px-2 py-1 rounded">
+                              {search.message}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {searchesData.totalPages > 1 && (
+                <div className="mt-6 border-t pt-4 flex justify-center">
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          onClick={() => setSearchPage((p) => Math.max(1, p - 1))}
+                          className={
+                            searchPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'
+                          }
+                        />
+                      </PaginationItem>
+
+                      <PaginationItem>
+                        <span className="text-sm text-slate-600 px-4">
+                          Página {searchPage} de {searchesData.totalPages} (
+                          {searchesData.totalItems} total)
+                        </span>
+                      </PaginationItem>
+
+                      <PaginationItem>
+                        <PaginationNext
+                          onClick={() =>
+                            setSearchPage((p) => Math.min(searchesData.totalPages, p + 1))
+                          }
+                          className={
+                            searchPage === searchesData.totalPages
+                              ? 'pointer-events-none opacity-50'
+                              : 'cursor-pointer'
+                          }
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
               )}
             </TabsContent>
           )}
