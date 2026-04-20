@@ -51,6 +51,443 @@ import { Badge } from '@/components/ui/badge'
 import { useRealtime } from '@/hooks/use-realtime'
 import { cn } from '@/lib/utils'
 
+const MovementItem = ({ mov, isNew, recordId }: { mov: any; isNew: boolean; recordId: string }) => {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const { toast } = useToast()
+
+  const isDecision =
+    /decisão|despacho|sentença|julgamento|acórdão|liminar/i.test(mov.description || '') ||
+    String(mov.movement_details?.codigo) === '3' ||
+    String(mov.movement_details?.codigo) === '193'
+
+  const dotColorClass = isDecision ? 'bg-amber-500 ring-amber-100' : 'bg-primary ring-white'
+  const headerBgClass = isDecision ? 'bg-amber-50/50' : 'bg-slate-50/80'
+  const borderColorClass = isDecision ? 'border-amber-200' : 'border-slate-200'
+
+  const fixEncoding = (str: string | undefined | null) => {
+    if (!str) return ''
+    return str
+      .replace(/ï¿½RGï¿½O/g, 'ÓRGÃO')
+      .replace(/ï¿½rgï¿½o/g, 'Órgão')
+      .replace(/Aï¿½ï¿½O/g, 'AÇÃO')
+      .replace(/aï¿½ï¿½o/g, 'ação')
+      .replace(/DECISï¿½O/g, 'DECISÃO')
+      .replace(/decisï¿½o/g, 'decisão')
+      .replace(/CONCLUSï¿½O/g, 'CONCLUSÃO')
+      .replace(/conclusï¿½o/g, 'conclusão')
+      .replace(/Sï¿½O/g, 'SÃO')
+      .replace(/sï¿½o/g, 'são')
+      .replace(/Nï¿½O/g, 'NÃO')
+      .replace(/nï¿½o/g, 'não')
+      .replace(/Justiï¿½a/g, 'Justiça')
+      .replace(/Mï¿½S/g, 'MÊS')
+      .replace(/mï¿½s/g, 'mês')
+      .replace(/TRï¿½S/g, 'TRÊS')
+      .replace(/trï¿½s/g, 'três')
+      .replace(/CONCILIAï¿½ï¿½O/g, 'CONCILIAÇÃO')
+      .replace(/conciliaï¿½ï¿½o/g, 'conciliação')
+      .replace(/INFORMAï¿½ï¿½O/g, 'INFORMAÇÃO')
+      .replace(/informaï¿½ï¿½o/g, 'informação')
+      .replace(/PETIï¿½ï¿½O/g, 'PETIÇÃO')
+      .replace(/petiï¿½ï¿½o/g, 'petição')
+      .replace(/RELAï¿½ï¿½O/g, 'RELAÇÃO')
+      .replace(/relaï¿½ï¿½o/g, 'relação')
+      .replace(/CITAï¿½ï¿½O/g, 'CITAÇÃO')
+      .replace(/citaï¿½ï¿½o/g, 'citação')
+      .replace(/INTIMAï¿½ï¿½O/g, 'INTIMAÇÃO')
+      .replace(/intimaï¿½ï¿½o/g, 'intimação')
+      .replace(/PUBLICAï¿½ï¿½O/g, 'PUBLICAÇÃO')
+      .replace(/publicaï¿½ï¿½o/g, 'publicação')
+      .replace(/EXPEDIï¿½ï¿½O/g, 'EXPEDIÇÃO')
+      .replace(/expediï¿½ï¿½o/g, 'expedição')
+      .replace(/CERTIDï¿½O/g, 'CERTIDÃO')
+      .replace(/certidï¿½o/g, 'certidão')
+      .replace(/EXECUï¿½ï¿½O/g, 'EXECUÇÃO')
+      .replace(/execuï¿½ï¿½o/g, 'execução')
+      .replace(/APELAï¿½ï¿½O/g, 'APELAÇÃO')
+      .replace(/apelaï¿½ï¿½o/g, 'apelação')
+      .replace(/ACï¿½RDï¿½O/g, 'ACÓRDÃO')
+      .replace(/acï¿½rdï¿½o/g, 'acórdão')
+      .replace(/VARA Cï¿½VEL/g, 'VARA CÍVEL')
+      .replace(/Vara Cï¿½vel/g, 'Vara Cível')
+      .replace(/TRIBUNAL DE JUSTIï¿½A/g, 'TRIBUNAL DE JUSTIÇA')
+      .replace(/Cï¿½DIGO/g, 'CÓDIGO')
+      .replace(/cï¿½digo/g, 'código')
+      .replace(/SESSï¿½O/g, 'SESSÃO')
+      .replace(/sessï¿½o/g, 'sessão')
+      .replace(/AUDIï¿½NCIA/g, 'AUDIÊNCIA')
+      .replace(/audiï¿½ncia/g, 'audiência')
+      .replace(/Fï¿½RUM/g, 'FÓRUM')
+      .replace(/fï¿½rum/g, 'fórum')
+      .replace(/Cï¿½MARA/g, 'CÂMARA')
+      .replace(/cï¿½mara/g, 'câmara')
+      .replace(/COLï¿½GIO/g, 'COLÉGIO')
+      .replace(/colï¿½gio/g, 'colégio')
+      .replace(/ELETRï¿½NICO/g, 'ELETRÔNICO')
+      .replace(/eletrï¿½nico/g, 'eletrônico')
+      .replace(/Mï¿½RITO/g, 'MÉRITO')
+      .replace(/mï¿½rito/g, 'mérito')
+      .replace(/PROCEDï¿½NCIA/g, 'PROCEDÊNCIA')
+      .replace(/procedï¿½ncia/g, 'procedência')
+      .replace(/IMPROCEDï¿½NCIA/g, 'IMPROCEDÊNCIA')
+      .replace(/improcedï¿½ncia/g, 'improcedência')
+      .replace(/ï¿½/g, '')
+  }
+
+  const rawText =
+    mov.movement_details?.texto ||
+    mov.movement_details?.teor ||
+    (typeof mov.details === 'string' && !mov.details.startsWith('[') ? mov.details : null)
+
+  const textContent = fixEncoding(rawText)
+  const hasDetailedContent =
+    textContent.trim().length > 0 && textContent !== 'Movimento sem descrição'
+
+  const isLongText = textContent.length > 400
+
+  const hasAdditionalMeta =
+    mov.movement_details?.codigo ||
+    mov.movement_details?.magistradoNome ||
+    mov.movement_details?.magistradoCpf ||
+    mov.movement_details?.orgaoJulgador ||
+    (mov.movement_details?.complementos && mov.movement_details.complementos.length > 0)
+
+  const renderNestedObject = (obj: any): React.ReactNode => {
+    if (typeof obj !== 'object' || obj === null) return String(obj)
+    if (Array.isArray(obj)) {
+      return (
+        <ul className="list-disc pl-4 space-y-1">
+          {obj.map((item, idx) => (
+            <li key={idx}>{renderNestedObject(item)}</li>
+          ))}
+        </ul>
+      )
+    }
+    return (
+      <ul className="list-disc pl-4 space-y-1">
+        {Object.entries(obj).map(([k, v]) => (
+          <li key={k}>
+            <span className="font-semibold capitalize">{k}:</span> {renderNestedObject(v)}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  return (
+    <div className="relative pl-6 md:pl-8 group">
+      <div
+        className={`absolute w-4 h-4 rounded-full -left-[9px] top-1.5 ring-4 shadow-sm ${dotColorClass}`}
+      />
+
+      <Card
+        className={`border shadow-sm overflow-hidden transition-colors ${borderColorClass} hover:border-primary/40`}
+      >
+        <div
+          className={`${headerBgClass} px-4 py-3 border-b border-slate-100 flex flex-wrap gap-2 items-center justify-between`}
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              {isDecision ? (
+                <Scale className="w-4 h-4 text-amber-600" />
+              ) : (
+                <FileText className="w-4 h-4 text-slate-400" />
+              )}
+              <span
+                className={`text-sm font-bold ${isDecision ? 'text-amber-900' : 'text-slate-700'}`}
+              >
+                {new Date(mov.event_date).toLocaleString('pt-BR', {
+                  dateStyle: 'short',
+                  timeStyle: 'short',
+                })}
+              </span>
+            </div>
+            {mov.movement_details?.nivelSigilo && (
+              <Badge
+                variant="outline"
+                className="text-[10px] bg-red-50 text-red-600 border-red-200 uppercase tracking-wider"
+              >
+                Sigilo: {mov.movement_details.nivelSigilo}
+              </Badge>
+            )}
+          </div>
+          <div className="flex gap-2 flex-wrap items-center">
+            <Badge variant="outline" className="text-[10px] bg-white text-slate-600">
+              {mov.source}
+            </Badge>
+            {isNew && (
+              <Badge className="bg-green-100 text-green-800 border-none text-[10px] px-2 uppercase tracking-wider">
+                Novo
+              </Badge>
+            )}
+            {mov.movement_details?.avisosPendentes && (
+              <Badge className="bg-amber-100 text-amber-800 border-none text-[10px] px-2 flex items-center gap-1 uppercase tracking-wider">
+                <AlertTriangle className="w-3 h-3" /> Aviso
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        <div className="p-4 space-y-4 bg-white">
+          <div className="space-y-3">
+            <div>
+              <h4 className="text-base font-semibold text-slate-800 leading-snug">
+                {isDecision ? 'Ato do Magistrado / Decisão' : fixEncoding(mov.description)}
+              </h4>
+              {isDecision &&
+                mov.description &&
+                mov.description !== 'Ato do Magistrado / Decisão' && (
+                  <p className="text-sm text-slate-500 font-medium mt-0.5">
+                    {fixEncoding(mov.description)}
+                  </p>
+                )}
+            </div>
+
+            <div className="relative">
+              <div
+                className={cn(
+                  'text-sm text-slate-700 whitespace-pre-wrap leading-relaxed bg-slate-50/50 p-4 rounded-md border border-slate-100 transition-all duration-300',
+                  !isExpanded && isLongText ? 'max-h-[160px] overflow-hidden' : 'max-h-none',
+                )}
+              >
+                {hasDetailedContent ? (
+                  /<[a-z][\s\S]*>/i.test(textContent) ? (
+                    <div
+                      dangerouslySetInnerHTML={{
+                        __html: textContent,
+                      }}
+                      className="prose prose-sm max-w-none text-slate-700 [&>p]:mb-2 [&>p:last-child]:mb-0 [&>div]:mb-2 [&>br]:mb-1 break-words"
+                    />
+                  ) : (
+                    <div className="break-words font-sans text-slate-700 leading-relaxed">
+                      {textContent}
+                    </div>
+                  )
+                ) : (
+                  <span className="italic text-slate-400">
+                    Nenhum conteúdo detalhado (texto da decisão ou andamento) foi fornecido pelo
+                    tribunal.
+                  </span>
+                )}
+              </div>
+
+              {!isExpanded && isLongText && (
+                <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-slate-50 to-transparent pointer-events-none rounded-b-md" />
+              )}
+
+              {isLongText && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 w-full text-primary hover:text-primary/80 hover:bg-primary/5"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                >
+                  {isExpanded ? 'Ocultar detalhes' : 'Ler na íntegra'}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {(mov.movement_details?.protocolo || mov.movement_details?.recibo) && (
+            <div className="flex flex-wrap gap-4 text-xs text-slate-600 bg-slate-50/80 p-3 rounded-lg border border-slate-100">
+              {mov.movement_details?.protocolo && (
+                <div className="flex items-center gap-1.5">
+                  <FileSignature className="w-4 h-4 text-slate-400" />
+                  <span className="font-semibold">Protocolo:</span> {mov.movement_details.protocolo}
+                </div>
+              )}
+              {mov.movement_details?.recibo && (
+                <div className="flex items-center gap-1.5">
+                  <Paperclip className="w-4 h-4 text-slate-400" />
+                  <span className="font-semibold">Recibo:</span> {mov.movement_details.recibo}
+                </div>
+              )}
+            </div>
+          )}
+
+          {hasAdditionalMeta && (
+            <Accordion type="single" collapsible className="w-full mt-3">
+              <AccordionItem
+                value="metadata"
+                className="border border-slate-200 rounded-lg overflow-hidden shadow-sm"
+              >
+                <AccordionTrigger className="py-2.5 px-4 text-sm font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 hover:no-underline transition-colors flex gap-2">
+                  <div className="flex items-center gap-2">
+                    <Info className="w-4 h-4 text-slate-400" />
+                    Informações Adicionais (Metadados)
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="p-4 bg-white border-t border-slate-100">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-600">
+                    {mov.movement_details?.codigo && (
+                      <div>
+                        <span className="font-semibold text-slate-800">Código do Movimento:</span>{' '}
+                        <Badge
+                          variant="outline"
+                          className="ml-1 bg-slate-50 text-slate-700 font-mono text-xs"
+                        >
+                          {mov.movement_details.codigo}
+                        </Badge>
+                      </div>
+                    )}
+                    {mov.movement_details?.orgaoJulgador && (
+                      <div>
+                        <span className="font-semibold text-slate-800">Órgão Julgador:</span>{' '}
+                        {fixEncoding(mov.movement_details.orgaoJulgador)}
+                      </div>
+                    )}
+                    {mov.movement_details?.magistradoNome && (
+                      <div>
+                        <span className="font-semibold text-slate-800">Magistrado:</span>{' '}
+                        {mov.movement_details.magistradoNome}
+                      </div>
+                    )}
+                    {mov.movement_details?.magistradoCpf && (
+                      <div>
+                        <span className="font-semibold text-slate-800">CPF Magistrado:</span>{' '}
+                        {mov.movement_details.magistradoCpf}
+                      </div>
+                    )}
+                    {mov.movement_details?.complementos &&
+                      mov.movement_details.complementos.length > 0 && (
+                        <div className="col-span-full">
+                          <span className="font-semibold block text-slate-800 mb-1">
+                            Complementos:
+                          </span>
+                          <ul className="list-disc pl-5 space-y-0.5">
+                            {mov.movement_details.complementos.map((c: any, idx: number) => (
+                              <li key={idx}>
+                                {c.nome || c.descricao}: {c.valor || c.descricaoValor}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
+
+          {mov.movement_details?.documentos && mov.movement_details.documentos.length > 0 && (
+            <div className="pt-2">
+              <h5 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <FileStack className="w-4 h-4" /> Documentos Vinculados (
+                {mov.movement_details.documentos.length})
+              </h5>
+              <div className="grid grid-cols-1 gap-3">
+                {mov.movement_details.documentos.map((doc: any, i: number) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg bg-slate-50 hover:bg-white hover:border-primary/40 hover:shadow-sm transition-all group"
+                  >
+                    <div className="bg-white p-2 rounded-md border border-slate-200 shadow-sm shrink-0">
+                      <FileText className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className="text-sm font-semibold text-slate-800 truncate"
+                        title={doc.nome || doc.tipoDocumento || 'Documento'}
+                      >
+                        {doc.nome || doc.tipoDocumento || 'Documento'}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">
+                          ID: {doc.idDocumento || doc.id || doc.hash || 'Sem ID'}
+                        </span>
+                        {doc.dataJuntada && (
+                          <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {new Date(doc.dataJuntada).toLocaleDateString('pt-BR', {
+                              dateStyle: 'short',
+                              timeStyle: 'short',
+                            })}
+                          </span>
+                        )}
+                      </div>
+                      {doc.signatarios && doc.signatarios.length > 0 && (
+                        <p className="text-[10px] text-slate-500 mt-1 truncate">
+                          <span className="font-semibold text-slate-600">Assinado por: </span>
+                          {doc.signatarios
+                            .map((s: any) => s.pessoa?.nome || s.nome || '')
+                            .join(', ')}
+                        </p>
+                      )}
+                      {mov.movement_details?.signatarios &&
+                        mov.movement_details.signatarios.length > 0 &&
+                        (!doc.signatarios || doc.signatarios.length === 0) && (
+                          <p className="text-[10px] text-slate-500 mt-1 truncate">
+                            <span className="font-semibold text-slate-600">Assinado por: </span>
+                            {mov.movement_details.signatarios
+                              .map((s: any) => s.pessoa?.nome || s.nome || '')
+                              .join(', ')}
+                          </p>
+                        )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 text-xs shadow-sm bg-white"
+                      onClick={() =>
+                        toast({
+                          title: 'Visualização de Documentos',
+                          description:
+                            'A funcionalidade de download/visualização do documento diretamente do tribunal estará disponível em breve.',
+                        })
+                      }
+                    >
+                      Visualizar
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(mov.movement_details?.avisosPendentes ||
+            mov.movement_details?.teorComunicacao ||
+            mov.movement_details?.ciencia) && (
+            <div className="mt-4 p-4 bg-indigo-50/60 border border-indigo-200/60 rounded-lg space-y-4">
+              {mov.movement_details.teorComunicacao && (
+                <div>
+                  <span className="font-bold text-indigo-900 text-xs flex items-center gap-1.5 mb-2 uppercase tracking-wider">
+                    <Bell className="w-4 h-4" /> Teor da Comunicação / Intimação
+                  </span>
+                  <div className="text-sm text-indigo-900 bg-white p-3.5 rounded-md border border-indigo-100 shadow-sm whitespace-pre-wrap leading-relaxed">
+                    {mov.movement_details.teorComunicacao}
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {mov.movement_details.ciencia && (
+                  <div>
+                    <span className="font-bold text-indigo-900 text-xs flex items-center gap-1.5 mb-2 uppercase tracking-wider">
+                      <CheckCircle2 className="w-4 h-4" /> Status de Ciência
+                    </span>
+                    <div className="text-xs text-indigo-800 bg-white p-3 rounded-md border border-indigo-100 shadow-sm custom-scrollbar overflow-auto max-h-32">
+                      {renderNestedObject(mov.movement_details.ciencia)}
+                    </div>
+                  </div>
+                )}
+                {mov.movement_details.avisosPendentes && (
+                  <div>
+                    <span className="font-bold text-amber-800 text-xs flex items-center gap-1.5 mb-2 uppercase tracking-wider">
+                      <AlertTriangle className="w-4 h-4" /> Avisos Pendentes
+                    </span>
+                    <div className="text-xs text-amber-900 bg-white p-3 rounded-md border border-amber-100 shadow-sm custom-scrollbar overflow-auto max-h-32">
+                      {renderNestedObject(mov.movement_details.avisosPendentes)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+    </div>
+  )
+}
+
 export default function ProcessDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -416,463 +853,7 @@ export default function ProcessDetail() {
                         const movDate = new Date(mov.created).getTime()
                         const isNew = movDate > Date.now() - 86400000 * 2
 
-                        return (
-                          <div key={mov.id} className="relative pl-6 md:pl-8 group">
-                            {(() => {
-                              const isDecision =
-                                /decisão|despacho|sentença|julgamento|acórdão|liminar/i.test(
-                                  mov.description || '',
-                                ) ||
-                                String(mov.movement_details?.codigo) === '3' ||
-                                String(mov.movement_details?.codigo) === '193'
-
-                              const dotColorClass = isDecision
-                                ? 'bg-amber-500 ring-amber-100'
-                                : 'bg-primary ring-white'
-                              const headerBgClass = isDecision ? 'bg-amber-50/50' : 'bg-slate-50/80'
-                              const borderColorClass = isDecision
-                                ? 'border-amber-200'
-                                : 'border-slate-200'
-
-                              const fixEncoding = (str: string | undefined | null) => {
-                                if (!str) return ''
-                                return str
-                                  .replace(/ï¿½RGï¿½O/g, 'ÓRGÃO')
-                                  .replace(/ï¿½rgï¿½o/g, 'Órgão')
-                                  .replace(/Aï¿½ï¿½O/g, 'AÇÃO')
-                                  .replace(/aï¿½ï¿½o/g, 'ação')
-                                  .replace(/DECISï¿½O/g, 'DECISÃO')
-                                  .replace(/decisï¿½o/g, 'decisão')
-                                  .replace(/CONCLUSï¿½O/g, 'CONCLUSÃO')
-                                  .replace(/conclusï¿½o/g, 'conclusão')
-                                  .replace(/Sï¿½O/g, 'SÃO')
-                                  .replace(/sï¿½o/g, 'são')
-                                  .replace(/Nï¿½O/g, 'NÃO')
-                                  .replace(/nï¿½o/g, 'não')
-                                  .replace(/Justiï¿½a/g, 'Justiça')
-                                  .replace(/Mï¿½S/g, 'MÊS')
-                                  .replace(/mï¿½s/g, 'mês')
-                                  .replace(/TRï¿½S/g, 'TRÊS')
-                                  .replace(/trï¿½s/g, 'três')
-                                  .replace(/CONCILIAï¿½ï¿½O/g, 'CONCILIAÇÃO')
-                                  .replace(/conciliaï¿½ï¿½o/g, 'conciliação')
-                                  .replace(/INFORMAï¿½ï¿½O/g, 'INFORMAÇÃO')
-                                  .replace(/informaï¿½ï¿½o/g, 'informação')
-                                  .replace(/PETIï¿½ï¿½O/g, 'PETIÇÃO')
-                                  .replace(/petiï¿½ï¿½o/g, 'petição')
-                                  .replace(/RELAï¿½ï¿½O/g, 'RELAÇÃO')
-                                  .replace(/relaï¿½ï¿½o/g, 'relação')
-                                  .replace(/CITAï¿½ï¿½O/g, 'CITAÇÃO')
-                                  .replace(/citaï¿½ï¿½o/g, 'citação')
-                                  .replace(/INTIMAï¿½ï¿½O/g, 'INTIMAÇÃO')
-                                  .replace(/intimaï¿½ï¿½o/g, 'intimação')
-                                  .replace(/PUBLICAï¿½ï¿½O/g, 'PUBLICAÇÃO')
-                                  .replace(/publicaï¿½ï¿½o/g, 'publicação')
-                                  .replace(/EXPEDIï¿½ï¿½O/g, 'EXPEDIÇÃO')
-                                  .replace(/expediï¿½ï¿½o/g, 'expedição')
-                                  .replace(/CERTIDï¿½O/g, 'CERTIDÃO')
-                                  .replace(/certidï¿½o/g, 'certidão')
-                                  .replace(/EXECUï¿½ï¿½O/g, 'EXECUÇÃO')
-                                  .replace(/execuï¿½ï¿½o/g, 'execução')
-                                  .replace(/APELAï¿½ï¿½O/g, 'APELAÇÃO')
-                                  .replace(/apelaï¿½ï¿½o/g, 'apelação')
-                                  .replace(/ACï¿½RDï¿½O/g, 'ACÓRDÃO')
-                                  .replace(/acï¿½rdï¿½o/g, 'acórdão')
-                                  .replace(/VARA Cï¿½VEL/g, 'VARA CÍVEL')
-                                  .replace(/Vara Cï¿½vel/g, 'Vara Cível')
-                                  .replace(/TRIBUNAL DE JUSTIï¿½A/g, 'TRIBUNAL DE JUSTIÇA')
-                                  .replace(/Cï¿½DIGO/g, 'CÓDIGO')
-                                  .replace(/cï¿½digo/g, 'código')
-                                  .replace(/SESSï¿½O/g, 'SESSÃO')
-                                  .replace(/sessï¿½o/g, 'sessão')
-                                  .replace(/AUDIï¿½NCIA/g, 'AUDIÊNCIA')
-                                  .replace(/audiï¿½ncia/g, 'audiência')
-                                  .replace(/Fï¿½RUM/g, 'FÓRUM')
-                                  .replace(/fï¿½rum/g, 'fórum')
-                                  .replace(/Cï¿½MARA/g, 'CÂMARA')
-                                  .replace(/cï¿½mara/g, 'câmara')
-                                  .replace(/COLï¿½GIO/g, 'COLÉGIO')
-                                  .replace(/colï¿½gio/g, 'colégio')
-                                  .replace(/ELETRï¿½NICO/g, 'ELETRÔNICO')
-                                  .replace(/eletrï¿½nico/g, 'eletrônico')
-                                  .replace(/Mï¿½RITO/g, 'MÉRITO')
-                                  .replace(/mï¿½rito/g, 'mérito')
-                                  .replace(/PROCEDï¿½NCIA/g, 'PROCEDÊNCIA')
-                                  .replace(/procedï¿½ncia/g, 'procedência')
-                                  .replace(/IMPROCEDï¿½NCIA/g, 'IMPROCEDÊNCIA')
-                                  .replace(/improcedï¿½ncia/g, 'improcedência')
-                                  .replace(/ï¿½/g, '')
-                              }
-
-                              const rawText =
-                                mov.movement_details?.teor ||
-                                mov.movement_details?.texto ||
-                                (typeof mov.details === 'string' && !mov.details.startsWith('[')
-                                  ? mov.details
-                                  : null)
-                              const textContent = fixEncoding(rawText)
-                              const hasDetailedContent =
-                                textContent.trim().length > 0 &&
-                                textContent !== 'Movimento sem descrição'
-
-                              const hasAdditionalMeta =
-                                mov.movement_details?.codigo ||
-                                mov.movement_details?.magistradoNome ||
-                                mov.movement_details?.magistradoCpf ||
-                                mov.movement_details?.orgaoJulgador ||
-                                (mov.movement_details?.complementos &&
-                                  mov.movement_details.complementos.length > 0)
-
-                              return (
-                                <>
-                                  <div
-                                    className={`absolute w-4 h-4 rounded-full -left-[9px] top-1.5 ring-4 shadow-sm ${dotColorClass}`}
-                                  />
-
-                                  <Card
-                                    className={`border shadow-sm overflow-hidden transition-colors ${borderColorClass} hover:border-primary/40`}
-                                  >
-                                    <div
-                                      className={`${headerBgClass} px-4 py-3 border-b border-slate-100 flex flex-wrap gap-2 items-center justify-between`}
-                                    >
-                                      <div className="flex items-center gap-3">
-                                        <div className="flex items-center gap-1.5">
-                                          {isDecision ? (
-                                            <Scale className="w-4 h-4 text-amber-600" />
-                                          ) : (
-                                            <FileText className="w-4 h-4 text-slate-400" />
-                                          )}
-                                          <span
-                                            className={`text-sm font-bold ${isDecision ? 'text-amber-900' : 'text-slate-700'}`}
-                                          >
-                                            {new Date(mov.event_date).toLocaleString('pt-BR', {
-                                              dateStyle: 'short',
-                                              timeStyle: 'short',
-                                            })}
-                                          </span>
-                                        </div>
-                                        {mov.movement_details?.nivelSigilo && (
-                                          <Badge
-                                            variant="outline"
-                                            className="text-[10px] bg-red-50 text-red-600 border-red-200 uppercase tracking-wider"
-                                          >
-                                            Sigilo: {mov.movement_details.nivelSigilo}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      <div className="flex gap-2 flex-wrap items-center">
-                                        <Badge
-                                          variant="outline"
-                                          className="text-[10px] bg-white text-slate-600"
-                                        >
-                                          {mov.source}
-                                        </Badge>
-                                        {isNew && (
-                                          <Badge className="bg-green-100 text-green-800 border-none text-[10px] px-2 uppercase tracking-wider">
-                                            Novo
-                                          </Badge>
-                                        )}
-                                        {mov.movement_details?.avisosPendentes && (
-                                          <Badge className="bg-amber-100 text-amber-800 border-none text-[10px] px-2 flex items-center gap-1 uppercase tracking-wider">
-                                            <AlertTriangle className="w-3 h-3" /> Aviso
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    <div className="p-4 space-y-4 bg-white">
-                                      <div className="space-y-3">
-                                        <div>
-                                          <h4 className="text-base font-semibold text-slate-800 leading-snug">
-                                            {isDecision
-                                              ? 'Ato do Magistrado / Decisão'
-                                              : fixEncoding(mov.description)}
-                                          </h4>
-                                          {isDecision &&
-                                            mov.description &&
-                                            mov.description !== 'Ato do Magistrado / Decisão' && (
-                                              <p className="text-sm text-slate-500 font-medium mt-0.5">
-                                                {fixEncoding(mov.description)}
-                                              </p>
-                                            )}
-                                        </div>
-                                        <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed max-h-[500px] overflow-y-auto custom-scrollbar bg-slate-50/50 p-4 rounded-md border border-slate-100">
-                                          {hasDetailedContent ? (
-                                            /<[a-z][\s\S]*>/i.test(textContent) ? (
-                                              <div
-                                                dangerouslySetInnerHTML={{
-                                                  __html: textContent,
-                                                }}
-                                                className="prose prose-sm max-w-none text-slate-700 [&>p]:mb-2 [&>p:last-child]:mb-0 [&>div]:mb-2 [&>br]:mb-1 break-words"
-                                              />
-                                            ) : (
-                                              <div className="break-words font-sans text-slate-700 leading-relaxed">
-                                                {textContent}
-                                              </div>
-                                            )
-                                          ) : (
-                                            <span className="italic text-slate-400">
-                                              Nenhum conteúdo detalhado (texto da decisão ou
-                                              andamento) foi fornecido pelo tribunal.
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-
-                                      {(mov.movement_details?.protocolo ||
-                                        mov.movement_details?.recibo) && (
-                                        <div className="flex flex-wrap gap-4 text-xs text-slate-600 bg-slate-50/80 p-3 rounded-lg border border-slate-100">
-                                          {mov.movement_details?.protocolo && (
-                                            <div className="flex items-center gap-1.5">
-                                              <FileSignature className="w-4 h-4 text-slate-400" />
-                                              <span className="font-semibold">Protocolo:</span>{' '}
-                                              {mov.movement_details.protocolo}
-                                            </div>
-                                          )}
-                                          {mov.movement_details?.recibo && (
-                                            <div className="flex items-center gap-1.5">
-                                              <Paperclip className="w-4 h-4 text-slate-400" />
-                                              <span className="font-semibold">Recibo:</span>{' '}
-                                              {mov.movement_details.recibo}
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-
-                                      {hasAdditionalMeta && (
-                                        <Accordion
-                                          type="single"
-                                          collapsible
-                                          className="w-full mt-3"
-                                        >
-                                          <AccordionItem
-                                            value="metadata"
-                                            className="border border-slate-200 rounded-lg overflow-hidden shadow-sm"
-                                          >
-                                            <AccordionTrigger className="py-2.5 px-4 text-sm font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 hover:no-underline transition-colors flex gap-2">
-                                              <div className="flex items-center gap-2">
-                                                <Info className="w-4 h-4 text-slate-400" />
-                                                Informações Adicionais (Metadados)
-                                              </div>
-                                            </AccordionTrigger>
-                                            <AccordionContent className="p-4 bg-white border-t border-slate-100">
-                                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-600">
-                                                {mov.movement_details?.codigo && (
-                                                  <div>
-                                                    <span className="font-semibold text-slate-800">
-                                                      Código do Movimento:
-                                                    </span>{' '}
-                                                    <Badge
-                                                      variant="outline"
-                                                      className="ml-1 bg-slate-50 text-slate-700 font-mono text-xs"
-                                                    >
-                                                      {mov.movement_details.codigo}
-                                                    </Badge>
-                                                  </div>
-                                                )}
-                                                {mov.movement_details?.orgaoJulgador && (
-                                                  <div>
-                                                    <span className="font-semibold text-slate-800">
-                                                      Órgão Julgador:
-                                                    </span>{' '}
-                                                    {fixEncoding(
-                                                      mov.movement_details.orgaoJulgador,
-                                                    )}
-                                                  </div>
-                                                )}
-                                                {mov.movement_details?.magistradoNome && (
-                                                  <div>
-                                                    <span className="font-semibold text-slate-800">
-                                                      Magistrado:
-                                                    </span>{' '}
-                                                    {mov.movement_details.magistradoNome}
-                                                  </div>
-                                                )}
-                                                {mov.movement_details?.magistradoCpf && (
-                                                  <div>
-                                                    <span className="font-semibold text-slate-800">
-                                                      CPF Magistrado:
-                                                    </span>{' '}
-                                                    {mov.movement_details.magistradoCpf}
-                                                  </div>
-                                                )}
-                                                {mov.movement_details?.complementos &&
-                                                  mov.movement_details.complementos.length > 0 && (
-                                                    <div className="col-span-full">
-                                                      <span className="font-semibold block text-slate-800 mb-1">
-                                                        Complementos:
-                                                      </span>
-                                                      <ul className="list-disc pl-5 space-y-0.5">
-                                                        {mov.movement_details.complementos.map(
-                                                          (c: any, idx: number) => (
-                                                            <li key={idx}>
-                                                              {c.nome || c.descricao}:{' '}
-                                                              {c.valor || c.descricaoValor}
-                                                            </li>
-                                                          ),
-                                                        )}
-                                                      </ul>
-                                                    </div>
-                                                  )}
-                                              </div>
-                                            </AccordionContent>
-                                          </AccordionItem>
-                                        </Accordion>
-                                      )}
-
-                                      {mov.movement_details?.documentos &&
-                                        mov.movement_details.documentos.length > 0 && (
-                                          <div className="pt-2">
-                                            <h5 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                                              <FileStack className="w-4 h-4" /> Documentos
-                                              Vinculados ({mov.movement_details.documentos.length})
-                                            </h5>
-                                            <div className="grid grid-cols-1 gap-3">
-                                              {mov.movement_details.documentos.map(
-                                                (doc: any, i: number) => (
-                                                  <div
-                                                    key={i}
-                                                    className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg bg-slate-50 hover:bg-white hover:border-primary/40 hover:shadow-sm transition-all group"
-                                                  >
-                                                    <div className="bg-white p-2 rounded-md border border-slate-200 shadow-sm shrink-0">
-                                                      <FileText className="w-5 h-5 text-primary" />
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                      <p
-                                                        className="text-sm font-semibold text-slate-800 truncate"
-                                                        title={
-                                                          doc.nome ||
-                                                          doc.tipoDocumento ||
-                                                          'Documento'
-                                                        }
-                                                      >
-                                                        {doc.nome ||
-                                                          doc.tipoDocumento ||
-                                                          'Documento'}
-                                                      </p>
-                                                      <div className="flex items-center gap-2 mt-1">
-                                                        <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">
-                                                          ID:{' '}
-                                                          {doc.idDocumento ||
-                                                            doc.id ||
-                                                            doc.hash ||
-                                                            'Sem ID'}
-                                                        </span>
-                                                        {doc.dataJuntada && (
-                                                          <span className="text-[10px] text-slate-500 flex items-center gap-1">
-                                                            <Calendar className="w-3 h-3" />
-                                                            {new Date(
-                                                              doc.dataJuntada,
-                                                            ).toLocaleDateString('pt-BR', {
-                                                              dateStyle: 'short',
-                                                              timeStyle: 'short',
-                                                            })}
-                                                          </span>
-                                                        )}
-                                                      </div>
-                                                      {doc.signatarios &&
-                                                        doc.signatarios.length > 0 && (
-                                                          <p className="text-[10px] text-slate-500 mt-1 truncate">
-                                                            <span className="font-semibold text-slate-600">
-                                                              Assinado por:{' '}
-                                                            </span>
-                                                            {doc.signatarios
-                                                              .map(
-                                                                (s: any) =>
-                                                                  s.pessoa?.nome || s.nome || '',
-                                                              )
-                                                              .join(', ')}
-                                                          </p>
-                                                        )}
-                                                      {mov.movement_details?.signatarios &&
-                                                        mov.movement_details.signatarios.length >
-                                                          0 &&
-                                                        (!doc.signatarios ||
-                                                          doc.signatarios.length === 0) && (
-                                                          <p className="text-[10px] text-slate-500 mt-1 truncate">
-                                                            <span className="font-semibold text-slate-600">
-                                                              Assinado por:{' '}
-                                                            </span>
-                                                            {mov.movement_details.signatarios
-                                                              .map(
-                                                                (s: any) =>
-                                                                  s.pessoa?.nome || s.nome || '',
-                                                              )
-                                                              .join(', ')}
-                                                          </p>
-                                                        )}
-                                                    </div>
-                                                    <Button
-                                                      variant="outline"
-                                                      size="sm"
-                                                      className="shrink-0 text-xs shadow-sm bg-white"
-                                                      onClick={() =>
-                                                        toast({
-                                                          title: 'Visualização de Documentos',
-                                                          description:
-                                                            'A funcionalidade de download/visualização do documento diretamente do tribunal estará disponível em breve.',
-                                                        })
-                                                      }
-                                                    >
-                                                      Visualizar
-                                                    </Button>
-                                                  </div>
-                                                ),
-                                              )}
-                                            </div>
-                                          </div>
-                                        )}
-
-                                      {(mov.movement_details?.avisosPendentes ||
-                                        mov.movement_details?.teorComunicacao ||
-                                        mov.movement_details?.ciencia) && (
-                                        <div className="mt-4 p-4 bg-indigo-50/60 border border-indigo-200/60 rounded-lg space-y-4">
-                                          {mov.movement_details.teorComunicacao && (
-                                            <div>
-                                              <span className="font-bold text-indigo-900 text-xs flex items-center gap-1.5 mb-2 uppercase tracking-wider">
-                                                <Bell className="w-4 h-4" /> Teor da Comunicação /
-                                                Intimação
-                                              </span>
-                                              <div className="text-sm text-indigo-900 bg-white p-3.5 rounded-md border border-indigo-100 shadow-sm whitespace-pre-wrap leading-relaxed">
-                                                {mov.movement_details.teorComunicacao}
-                                              </div>
-                                            </div>
-                                          )}
-                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {mov.movement_details.ciencia && (
-                                              <div>
-                                                <span className="font-bold text-indigo-900 text-xs flex items-center gap-1.5 mb-2 uppercase tracking-wider">
-                                                  <CheckCircle2 className="w-4 h-4" /> Status de
-                                                  Ciência
-                                                </span>
-                                                <div className="text-xs text-indigo-800 bg-white p-3 rounded-md border border-indigo-100 shadow-sm custom-scrollbar overflow-auto max-h-32">
-                                                  {renderNestedObject(mov.movement_details.ciencia)}
-                                                </div>
-                                              </div>
-                                            )}
-                                            {mov.movement_details.avisosPendentes && (
-                                              <div>
-                                                <span className="font-bold text-amber-800 text-xs flex items-center gap-1.5 mb-2 uppercase tracking-wider">
-                                                  <AlertTriangle className="w-4 h-4" /> Avisos
-                                                  Pendentes
-                                                </span>
-                                                <div className="text-xs text-amber-900 bg-white p-3 rounded-md border border-amber-100 shadow-sm custom-scrollbar overflow-auto max-h-32">
-                                                  {renderNestedObject(
-                                                    mov.movement_details.avisosPendentes,
-                                                  )}
-                                                </div>
-                                              </div>
-                                            )}
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </Card>
-                                </>
-                              )
-                            })()}
-                          </div>
-                        )
+                        return <MovementItem key={mov.id} mov={mov} isNew={isNew} recordId={id!} />
                       })
                     )}
                   </div>
