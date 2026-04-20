@@ -27,17 +27,25 @@ export default function MonitoringManager() {
 
   const [config, setConfig] = useState<any>(null)
 
-  // Config
-  const [datajudApiKey, setDatajudApiKey] = useState('')
+  // DOU Config
   const [frequency, setFrequency] = useState('Daily')
-  const [syncProcessos, setSyncProcessos] = useState(true)
   const [rodouExactSearch, setRodouExactSearch] = useState(false)
   const [rodouIgnoreSignature, setRodouIgnoreSignature] = useState(true)
   const [rodouExcludedDepts, setRodouExcludedDepts] = useState('')
   const [rodouSections, setRodouSections] = useState<string[]>(['1', '2', '3', 'Extra'])
   const [qdTerritoryId, setQdTerritoryId] = useState('')
+
+  // DataJud Config
+  const [datajudApiKey, setDatajudApiKey] = useState('')
+  const [syncProcessos, setSyncProcessos] = useState(true)
+  const [jota, setJota] = useState('')
+  const [som, setSom] = useState(false)
   const [tribunais, setTribunais] = useState<string[]>([])
   const [tribunalsList, setTribunalsList] = useState<any[]>([])
+
+  // Comunica PJe Config
+  const [comunicaUrl, setComunicaUrl] = useState('')
+  const [comunicaKey, setComunicaKey] = useState('')
 
   // Terms
   const [termos, setTermos] = useState<any[]>([])
@@ -85,7 +93,16 @@ export default function MonitoringManager() {
         setRodouExcludedDepts(c.department_ignore || '')
         setRodouSections((c.dou_sections || '1,2,3,Extra').split(',').filter(Boolean))
         setQdTerritoryId(c.territory_id || '')
+
+        setJota(c.jota || '')
+        setSom(c.som ?? false)
       }
+
+      const settings = await pb.collection('settings').getFullList()
+      const urlSetting = settings.find((s) => s.key === 'comunica_pje_url')
+      const keySetting = settings.find((s) => s.key === 'comunica_pje_key')
+      if (urlSetting) setComunicaUrl(urlSetting.value)
+      if (keySetting) setComunicaKey(keySetting.value)
 
       if (user?.id) {
         const tList = await pb
@@ -133,10 +150,31 @@ export default function MonitoringManager() {
         department_ignore: rodouExcludedDepts,
         dou_sections: rodouSections.join(','),
         territory_id: qdTerritoryId,
+        jota,
+        som,
       }
 
       if (config?.id) await pb.collection('monitoring_configs').update(config.id, payload)
       else await pb.collection('monitoring_configs').create(payload)
+
+      try {
+        const settings = await pb.collection('settings').getFullList()
+        const urlSetting = settings.find((s) => s.key === 'comunica_pje_url')
+        if (urlSetting) {
+          await pb.collection('settings').update(urlSetting.id, { value: comunicaUrl })
+        } else {
+          await pb.collection('settings').create({ key: 'comunica_pje_url', value: comunicaUrl })
+        }
+
+        const keySetting = settings.find((s) => s.key === 'comunica_pje_key')
+        if (keySetting) {
+          await pb.collection('settings').update(keySetting.id, { value: comunicaKey })
+        } else {
+          await pb.collection('settings').create({ key: 'comunica_pje_key', value: comunicaKey })
+        }
+      } catch (settingsError) {
+        console.error('Settings collection error', settingsError)
+      }
 
       if (user?.id) {
         const aData = {
@@ -378,20 +416,37 @@ export default function MonitoringManager() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Configurações de Sincronização (PJe / DataJud)</CardTitle>
+              <CardTitle>Configurações DataJud</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Token PJe (Bearer) / Chave API DataJud</Label>
+                <Label>Chave API DataJud</Label>
                 <Input
                   type="password"
                   value={datajudApiKey}
                   onChange={(e) => setDatajudApiKey(e.target.value)}
-                  placeholder="Insira o Token Bearer ou Chave de API"
+                  placeholder="Insira a Chave de API"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Utilizado para a sincronização de andamentos do PJe.
+                  Utilizado para a sincronização de andamentos do DataJud.
                 </p>
+              </div>
+              <div className="space-y-2">
+                <Label>JOTA</Label>
+                <Input
+                  value={jota}
+                  onChange={(e) => setJota(e.target.value)}
+                  placeholder="Configuração JOTA..."
+                />
+              </div>
+              <div className="flex items-center justify-between border p-3 rounded-lg bg-slate-50">
+                <div>
+                  <Label className="text-sm">Alerta Sonoro (Som)</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Reproduzir som ao encontrar atualizações.
+                  </p>
+                </div>
+                <Switch checked={som} onCheckedChange={setSom} />
               </div>
               <div className="flex items-center justify-between border p-3 rounded-lg bg-slate-50">
                 <div>
@@ -424,6 +479,31 @@ export default function MonitoringManager() {
                     </div>
                   ))}
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Configurações Comunica PJe</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>API URL (Endpoint Comunica PJe)</Label>
+                <Input
+                  value={comunicaUrl}
+                  onChange={(e) => setComunicaUrl(e.target.value)}
+                  placeholder="https://comunicaapi.pje.jus.br/api/v1"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>API Key (Token Comunica PJe)</Label>
+                <Input
+                  type="password"
+                  value={comunicaKey}
+                  onChange={(e) => setComunicaKey(e.target.value)}
+                  placeholder="Bearer token ou API Key..."
+                />
               </div>
             </CardContent>
           </Card>

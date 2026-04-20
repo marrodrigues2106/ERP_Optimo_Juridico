@@ -40,8 +40,8 @@ export default function ProfileManager() {
     apiKey: '',
     datajud_tribunal_status: '',
     frequency: 'Daily',
-    default_cpf_cnpj: '',
-    default_numero_processo: '',
+    jota: '',
+    som: false,
   })
 
   const [comunicaUrl, setComunicaUrl] = useState('')
@@ -103,8 +103,8 @@ export default function ProfileManager() {
             ? JSON.stringify(data.datajud_tribunal_status, null, 2)
             : '',
           frequency: data.frequency || 'Daily',
-          default_cpf_cnpj: data.default_cpf_cnpj || '',
-          default_numero_processo: data.default_numero_processo || '',
+          jota: data.jota || '',
+          som: data.som ?? false,
         })
       })
       .catch((e) => console.error(e))
@@ -153,13 +153,15 @@ export default function ProfileManager() {
             ? JSON.parse(configForm.datajud_tribunal_status)
             : null,
           frequency: configForm.frequency,
-          default_cpf_cnpj: configForm.default_cpf_cnpj,
-          default_numero_processo: configForm.default_numero_processo,
+          jota: configForm.jota,
+          som: configForm.som,
         })
       } else {
         await pb.collection('monitoring_configs').create({
           apiKey: configForm.apiKey,
           frequency: configForm.frequency,
+          jota: configForm.jota,
+          som: configForm.som,
         })
       }
 
@@ -243,23 +245,11 @@ export default function ProfileManager() {
           <TabsTrigger value="perfil" className="text-base px-4 py-2 font-medium">
             Perfil
           </TabsTrigger>
-          <TabsTrigger value="monitoramento-geral" className="text-base px-4 py-2 font-medium">
-            Configurações Gerais de Monitoramento
-          </TabsTrigger>
-          <TabsTrigger value="monitoramento-dou" className="text-base px-4 py-2 font-medium">
-            Monitoramento DOU
-          </TabsTrigger>
-          <TabsTrigger value="monitoramento-datajud" className="text-base px-4 py-2 font-medium">
-            Monitoramento Datajud
-          </TabsTrigger>
-          <TabsTrigger value="monitoramento-pje" className="text-base px-4 py-2 font-medium">
-            Comunica PJe
+          <TabsTrigger value="monitoramento" className="text-base px-4 py-2 font-medium">
+            Monitoramento
           </TabsTrigger>
           <TabsTrigger value="historico" className="text-base px-4 py-2 font-medium">
             Histórico de Buscas
-          </TabsTrigger>
-          <TabsTrigger value="status" className="text-base px-4 py-2 font-medium">
-            Monitoramento
           </TabsTrigger>
         </TabsList>
 
@@ -326,23 +316,21 @@ export default function ProfileManager() {
           </div>
         </TabsContent>
 
-        <TabsContent value="monitoramento-geral">
+        <TabsContent value="monitoramento" className="space-y-8 animate-fade-in">
           <Card className="max-w-4xl border-slate-200 shadow-sm">
             <CardHeader>
-              <CardTitle className="text-2xl">Configurações Gerais de Monitoramento</CardTitle>
+              <CardTitle className="text-2xl">DOU e Geral</CardTitle>
               <CardDescription className="text-base">
-                Frequência global de monitoramento e termos de busca do Diário Oficial.
+                Configurações gerais e do Diário Oficial.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
               <div className="space-y-3 max-w-sm">
-                <Label className="text-base font-medium">
-                  Frequência de Sincronização (DOU e PJe)
-                </Label>
+                <Label className="text-base font-medium">Frequência de Sincronização</Label>
                 <select
                   value={configForm.frequency}
                   onChange={(e) => setConfigForm({ ...configForm, frequency: e.target.value })}
-                  className="flex h-12 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-12 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <option value="Hourly">A cada hora</option>
                   <option value="Daily">Diariamente</option>
@@ -350,8 +338,31 @@ export default function ProfileManager() {
                 </select>
               </div>
 
+              <div className="space-y-3">
+                <Label className="text-base font-medium">Token Querido Diário</Label>
+                <Input
+                  type="password"
+                  value={configForm.queridoDiarioToken}
+                  onChange={(e) =>
+                    setConfigForm({ ...configForm, queridoDiarioToken: e.target.value })
+                  }
+                  className="text-base py-6"
+                  placeholder="Token do Querido Diário..."
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-base font-medium">Credenciais IN.GOV (JSON)</Label>
+                <textarea
+                  value={configForm.douCredentials}
+                  onChange={(e) => setConfigForm({ ...configForm, douCredentials: e.target.value })}
+                  className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-4 py-3 text-base font-mono shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  placeholder='{"user": "...", "pass": "..."}'
+                />
+              </div>
+
               <div className="pt-6 border-t border-slate-100">
-                <h3 className="text-xl font-bold mb-4">Gerenciamento de Termos (DOU)</h3>
+                <h3 className="text-xl font-bold mb-4">Termos do DOU</h3>
                 <div className="flex gap-2 mb-6">
                   <Input
                     placeholder="Novo termo de busca..."
@@ -363,16 +374,13 @@ export default function ProfileManager() {
                     <Plus className="w-5 h-5 mr-2" /> Adicionar
                   </Button>
                 </div>
-
                 <div className="space-y-3">
                   {termos.map((t) => (
                     <div
                       key={t.id}
                       className="flex items-center justify-between bg-slate-50 p-4 rounded-lg border border-slate-200 shadow-sm"
                     >
-                      <div>
-                        <span className="font-bold text-slate-800 text-lg">{t.termo}</span>
-                      </div>
+                      <span className="font-bold text-slate-800 text-lg">{t.termo}</span>
                       <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2">
                           <Switch
@@ -401,175 +409,187 @@ export default function ProfileManager() {
                   )}
                 </div>
               </div>
+            </CardContent>
+          </Card>
 
+          <Card className="max-w-4xl border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-2xl">DataJud</CardTitle>
+              <CardDescription className="text-base">
+                Sincronização com tribunais e DataJud API.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-8">
+              <div className="space-y-3">
+                <Label className="text-base font-medium">Chave API DataJud</Label>
+                <Input
+                  type="password"
+                  value={configForm.apiKey}
+                  onChange={(e) => setConfigForm({ ...configForm, apiKey: e.target.value })}
+                  className="text-base py-6"
+                  placeholder="Insira a chave da API..."
+                />
+              </div>
+              <div className="space-y-3">
+                <Label className="text-base font-medium">Status Tribunais (JSON)</Label>
+                <textarea
+                  value={configForm.datajud_tribunal_status}
+                  onChange={(e) =>
+                    setConfigForm({ ...configForm, datajud_tribunal_status: e.target.value })
+                  }
+                  className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-4 py-3 text-base font-mono shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  placeholder='{"TJSP": "active", "TRF3": "error"}'
+                />
+              </div>
+              <div className="space-y-3">
+                <Label className="text-base font-medium">JOTA</Label>
+                <Input
+                  value={configForm.jota}
+                  onChange={(e) => setConfigForm({ ...configForm, jota: e.target.value })}
+                  className="text-base py-6"
+                  placeholder="Configuração JOTA"
+                />
+              </div>
+              <div className="flex items-center justify-between bg-slate-50 p-4 rounded-lg border border-slate-200 shadow-sm">
+                <div>
+                  <Label className="text-base font-medium">Alerta Sonoro (Som)</Label>
+                  <p className="text-sm text-slate-500 mt-1">Ativar notificações sonoras.</p>
+                </div>
+                <Switch
+                  checked={configForm.som}
+                  onCheckedChange={(c) => setConfigForm({ ...configForm, som: c })}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="max-w-4xl border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-2xl">Comunica PJe</CardTitle>
+              <CardDescription className="text-base">Painel de buscas PJe.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-8">
+              <div className="space-y-3">
+                <Label className="text-base font-medium">API URL (Endpoint Comunica PJe)</Label>
+                <Input
+                  value={comunicaUrl}
+                  onChange={(e) => setComunicaUrl(e.target.value)}
+                  className="text-base py-6"
+                  placeholder="https://comunicaapi.pje.jus.br/api/v1"
+                />
+              </div>
+              <div className="space-y-3">
+                <Label className="text-base font-medium">API Key (Token Comunica PJe)</Label>
+                <Input
+                  type="password"
+                  value={comunicaKey}
+                  onChange={(e) => setComunicaKey(e.target.value)}
+                  className="text-base py-6"
+                  placeholder="Bearer token ou API Key..."
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="max-w-4xl border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-2xl flex items-center gap-3">
+                <Activity className="w-6 h-6 text-primary" /> Status do Monitoramento
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center justify-between p-5 border rounded-xl bg-slate-50/80 shadow-sm">
+                  <div className="overflow-hidden mr-4">
+                    <div className="font-bold text-slate-800 text-lg">DataJud API</div>
+                    <div className="text-sm text-slate-500 mt-1 font-medium">
+                      Última verificação:{' '}
+                      <span className="text-slate-700">
+                        {config?.datajudLastCheckAt
+                          ? new Date(config.datajudLastCheckAt).toLocaleString('pt-BR')
+                          : 'Nunca'}
+                      </span>
+                    </div>
+                    {config?.datajudLastError && (
+                      <div
+                        className="text-sm text-red-500 mt-2 truncate bg-red-50 px-2 py-1 rounded border border-red-100"
+                        title={config.datajudLastError}
+                      >
+                        Erro: {config.datajudLastError}
+                      </div>
+                    )}
+                  </div>
+                  <Badge
+                    variant={
+                      config?.datajudStatus === 'online'
+                        ? 'default'
+                        : config?.datajudStatus === 'error'
+                          ? 'destructive'
+                          : 'secondary'
+                    }
+                    className={
+                      config?.datajudStatus === 'online'
+                        ? 'bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 text-sm uppercase tracking-wider'
+                        : 'px-3 py-1.5 text-sm uppercase tracking-wider'
+                    }
+                  >
+                    {config?.datajudStatus === 'online'
+                      ? 'Online'
+                      : config?.datajudStatus === 'error'
+                        ? 'Offline'
+                        : 'Desconhecido'}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between p-5 border rounded-xl bg-slate-50/80 shadow-sm">
+                  <div className="overflow-hidden mr-4">
+                    <div className="font-bold text-slate-800 text-lg">DOU</div>
+                    <div className="text-sm text-slate-500 mt-1 font-medium">
+                      Último processamento:{' '}
+                      <span className="text-slate-700">
+                        {lastSyncLog
+                          ? new Date(lastSyncLog.created).toLocaleString('pt-BR')
+                          : 'Nunca'}
+                      </span>
+                    </div>
+                    {lastSyncLog?.status === 'Erro' && (
+                      <div
+                        className="text-sm text-red-500 mt-2 truncate bg-red-50 px-2 py-1 rounded border border-red-100"
+                        title={lastSyncLog.mensagem}
+                      >
+                        Erro: {lastSyncLog.mensagem}
+                      </div>
+                    )}
+                  </div>
+                  <Badge
+                    variant={
+                      lastSyncLog?.status === 'Sucesso'
+                        ? 'default'
+                        : lastSyncLog?.status === 'Erro'
+                          ? 'destructive'
+                          : 'secondary'
+                    }
+                    className={
+                      lastSyncLog?.status === 'Sucesso'
+                        ? 'bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 text-sm uppercase tracking-wider'
+                        : 'px-3 py-1.5 text-sm uppercase tracking-wider'
+                    }
+                  >
+                    {lastSyncLog?.status || 'Desconhecido'}
+                  </Badge>
+                </div>
+              </div>
               <Button
                 onClick={handleSaveConfig}
                 disabled={saving}
-                className="py-6 px-8 text-base font-bold mt-4"
+                className="py-6 px-8 text-base font-bold w-full md:w-auto mt-4"
               >
                 {saving ? (
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                 ) : (
                   <Save className="w-5 h-5 mr-2" />
-                )}
-                Salvar Configurações Gerais
+                )}{' '}
+                Salvar Todas Configurações
               </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="monitoramento-dou">
-          <Card className="max-w-3xl border-slate-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-2xl">Monitoramento DOU</CardTitle>
-              <CardDescription className="text-base">
-                Gerencie as credenciais e os termos monitorados no Diário Oficial.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-8">
-              <div className="space-y-6">
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Token Querido Diário</Label>
-                  <Input
-                    type="password"
-                    value={configForm.queridoDiarioToken}
-                    onChange={(e) =>
-                      setConfigForm({ ...configForm, queridoDiarioToken: e.target.value })
-                    }
-                    className="text-base py-6"
-                    placeholder="Token do Querido Diário..."
-                  />
-                </div>
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Credenciais IN.GOV (JSON)</Label>
-                  <textarea
-                    value={configForm.douCredentials}
-                    onChange={(e) =>
-                      setConfigForm({ ...configForm, douCredentials: e.target.value })
-                    }
-                    className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-4 py-3 text-base font-mono shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                    placeholder='{"user": "...", "pass": "..."}'
-                  />
-                </div>
-
-                <Button
-                  onClick={handleSaveConfig}
-                  disabled={saving}
-                  className="py-6 px-8 text-base font-bold mt-4"
-                >
-                  {saving ? (
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="w-5 h-5 mr-2" />
-                  )}
-                  Salvar Configurações
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="monitoramento-datajud">
-          <Card className="max-w-3xl border-slate-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-2xl">Monitoramento Datajud</CardTitle>
-              <CardDescription className="text-base">
-                Chaves e status para sincronização com tribunais pelo DataJud API.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-8">
-              <div className="space-y-6">
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">API Key (DataJud)</Label>
-                  <Input
-                    type="password"
-                    value={configForm.apiKey}
-                    onChange={(e) => setConfigForm({ ...configForm, apiKey: e.target.value })}
-                    className="text-base py-6"
-                    placeholder="Insira a chave da API..."
-                  />
-                </div>
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Status Tribunais (JSON)</Label>
-                  <textarea
-                    value={configForm.datajud_tribunal_status}
-                    onChange={(e) =>
-                      setConfigForm({ ...configForm, datajud_tribunal_status: e.target.value })
-                    }
-                    className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-4 py-3 text-base font-mono shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                    placeholder='{"TJSP": "active", "TRF3": "error"}'
-                  />
-                </div>
-                <Button
-                  onClick={handleSaveConfig}
-                  disabled={saving}
-                  className="py-6 px-8 text-base font-bold"
-                >
-                  {saving ? (
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="w-5 h-5 mr-2" />
-                  )}
-                  Salvar Configurações
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="monitoramento-pje">
-          <Card className="max-w-3xl border-slate-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-2xl">Monitoramento Comunica PJe</CardTitle>
-              <CardDescription className="text-base">
-                Configurações para as buscas no painel Comunica PJe.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-8">
-              <div className="space-y-6">
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">API URL (Endpoint Comunica PJe)</Label>
-                  <Input
-                    value={comunicaUrl}
-                    onChange={(e) => setComunicaUrl(e.target.value)}
-                    className="text-base py-6"
-                    placeholder="https://comunicaapi.pje.jus.br/api/v1"
-                  />
-                </div>
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">API Key (Token Comunica PJe)</Label>
-                  <Input
-                    type="password"
-                    value={comunicaKey}
-                    onChange={(e) => setComunicaKey(e.target.value)}
-                    className="text-base py-6"
-                    placeholder="Bearer token ou API Key..."
-                  />
-                </div>
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">CPF/CNPJ Padrão</Label>
-                  <Input
-                    value={configForm.default_cpf_cnpj}
-                    onChange={(e) =>
-                      setConfigForm({ ...configForm, default_cpf_cnpj: e.target.value })
-                    }
-                    className="text-base py-6"
-                    placeholder="000.000.000-00"
-                  />
-                </div>
-                <Button
-                  onClick={handleSaveConfig}
-                  disabled={saving}
-                  className="py-6 px-8 text-base font-bold"
-                >
-                  {saving ? (
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="w-5 h-5 mr-2" />
-                  )}
-                  Salvar Configurações
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -660,123 +680,6 @@ export default function ProfileManager() {
                   )}
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="status">
-          <Card className="border-slate-200 shadow-sm max-w-4xl mx-auto">
-            <CardHeader>
-              <CardTitle className="text-2xl flex items-center gap-3">
-                <Activity className="w-6 h-6 text-primary" /> Status do Monitoramento
-              </CardTitle>
-              <CardDescription className="text-base">
-                Acompanhe a saúde e a latência das integrações com os diários e tribunais em tempo
-                real.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center justify-between p-5 border rounded-xl bg-slate-50/80 shadow-sm">
-                  <div className="overflow-hidden mr-4">
-                    <div className="font-bold text-slate-800 text-lg">DataJud API</div>
-                    <div className="text-sm text-slate-500 mt-1 font-medium">
-                      Última verificação:{' '}
-                      <span className="text-slate-700">
-                        {config?.datajudLastCheckAt
-                          ? new Date(config.datajudLastCheckAt).toLocaleString('pt-BR')
-                          : 'Nunca'}
-                      </span>
-                    </div>
-                    {config?.datajudLastError && (
-                      <div
-                        className="text-sm text-red-500 mt-2 truncate bg-red-50 px-2 py-1 rounded border border-red-100"
-                        title={config.datajudLastError}
-                      >
-                        Erro: {config.datajudLastError}
-                      </div>
-                    )}
-                  </div>
-                  <Badge
-                    variant={
-                      config?.datajudStatus === 'online'
-                        ? 'default'
-                        : config?.datajudStatus === 'error'
-                          ? 'destructive'
-                          : 'secondary'
-                    }
-                    className={
-                      config?.datajudStatus === 'online'
-                        ? 'bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 text-sm uppercase tracking-wider'
-                        : 'px-3 py-1.5 text-sm uppercase tracking-wider'
-                    }
-                  >
-                    {config?.datajudStatus === 'online'
-                      ? 'Online'
-                      : config?.datajudStatus === 'error'
-                        ? 'Offline'
-                        : 'Desconhecido'}
-                  </Badge>
-                </div>
-
-                <div className="flex items-center justify-between p-5 border rounded-xl bg-slate-50/80 shadow-sm">
-                  <div className="overflow-hidden mr-4">
-                    <div className="font-bold text-slate-800 text-lg">Diário Oficial (DOU)</div>
-                    <div className="text-sm text-slate-500 mt-1 font-medium">
-                      Último processamento:{' '}
-                      <span className="text-slate-700">
-                        {lastSyncLog
-                          ? new Date(lastSyncLog.created).toLocaleString('pt-BR')
-                          : 'Nunca'}
-                      </span>
-                    </div>
-                    {lastSyncLog?.status === 'Erro' && (
-                      <div
-                        className="text-sm text-red-500 mt-2 truncate bg-red-50 px-2 py-1 rounded border border-red-100"
-                        title={lastSyncLog.mensagem}
-                      >
-                        Erro: {lastSyncLog.mensagem}
-                      </div>
-                    )}
-                  </div>
-                  <Badge
-                    variant={
-                      lastSyncLog?.status === 'Sucesso'
-                        ? 'default'
-                        : lastSyncLog?.status === 'Erro'
-                          ? 'destructive'
-                          : 'secondary'
-                    }
-                    className={
-                      lastSyncLog?.status === 'Sucesso'
-                        ? 'bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 text-sm uppercase tracking-wider'
-                        : 'px-3 py-1.5 text-sm uppercase tracking-wider'
-                    }
-                  >
-                    {lastSyncLog?.status || 'Desconhecido'}
-                  </Badge>
-                </div>
-
-                <div className="flex items-center justify-between p-5 border rounded-xl bg-slate-50/80 shadow-sm md:col-span-2">
-                  <div className="overflow-hidden mr-4">
-                    <div className="font-bold text-slate-800 text-lg">Comunica PJe</div>
-                    <div className="text-sm text-slate-500 mt-1 font-medium">
-                      Endpoint API:{' '}
-                      <span className="text-slate-700">{comunicaUrl || 'Não configurado'}</span>
-                    </div>
-                  </div>
-                  <Badge
-                    variant={comunicaKey ? 'default' : 'secondary'}
-                    className={
-                      comunicaKey
-                        ? 'bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 text-sm uppercase tracking-wider'
-                        : 'px-3 py-1.5 text-sm uppercase tracking-wider'
-                    }
-                  >
-                    {comunicaKey ? 'Configurado' : 'Pendente'}
-                  </Badge>
-                </div>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-20T15:59:19.948Z",
+  "generatedAt": "2026-04-20T16:12:36.517Z",
   "collections": [
     {
       "name": "users",
@@ -1156,6 +1156,18 @@
         {
           "name": "default_numero_processo",
           "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "jota",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "som",
+          "type": "bool",
           "required": false,
           "system": false
         }

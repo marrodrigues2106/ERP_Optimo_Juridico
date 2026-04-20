@@ -2,16 +2,28 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getAgendaEvents } from '@/services/agenda'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { useRealtime } from '@/hooks/use-realtime'
-import { CalendarDays, Clock, Link as LinkIcon, Plus } from 'lucide-react'
+import {
+  CalendarDays,
+  Clock,
+  Link as LinkIcon,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  Calendar as CalendarIcon,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EventFormModal } from '../cases/EventFormModal'
+import { format, addDays, startOfDay, endOfDay } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
+import { cn } from '@/lib/utils'
 
 export function AgendaWidget() {
   const [eventModalOpen, setEventModalOpen] = useState(false)
   const [events, setEvents] = useState<any[]>([])
-  const [view, setView] = useState('7')
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const navigate = useNavigate()
 
   const load = async () => {
@@ -31,12 +43,7 @@ export function AgendaWidget() {
   const filtered = events.filter((e) => {
     if (!e.start_date) return false
     const d = new Date(e.start_date)
-    const now = new Date()
-    now.setHours(0, 0, 0, 0)
-    const end = new Date(now)
-    end.setDate(now.getDate() + parseInt(view))
-    end.setHours(23, 59, 59, 999)
-    return d >= now && d <= end
+    return d >= startOfDay(selectedDate) && d <= endOfDay(selectedDate)
   })
 
   const handleEventClick = (lawsuitId: string | undefined) => {
@@ -45,12 +52,16 @@ export function AgendaWidget() {
     }
   }
 
+  const navigateDay = (days: number) => {
+    setSelectedDate((prev) => addDays(prev, days))
+  }
+
   return (
     <Card className="border-slate-200 shadow-sm h-full flex flex-col bg-white">
       <CardHeader className="bg-white border-b py-3 flex flex-row items-center justify-between">
         <div className="flex items-center gap-2">
           <CalendarDays className="w-5 h-5 text-primary" />
-          <CardTitle className="text-lg text-slate-800">Sua Agenda</CardTitle>
+          <CardTitle className="text-lg text-slate-800">Console de Eventos</CardTitle>
         </div>
         <Button
           variant="ghost"
@@ -63,33 +74,58 @@ export function AgendaWidget() {
       </CardHeader>
 
       <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-        <ToggleGroup
-          type="single"
-          value={view}
-          onValueChange={(v) => v && setView(v)}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => navigateDay(-1)}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  'h-7 justify-start text-left font-medium text-xs px-3',
+                  !selectedDate && 'text-muted-foreground',
+                )}
+              >
+                <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                {selectedDate ? (
+                  format(selectedDate, "dd 'de' MMM", { locale: ptBR })
+                ) : (
+                  <span>Selecione</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => date && setSelectedDate(date)}
+                initialFocus
+                locale={ptBR}
+              />
+            </PopoverContent>
+          </Popover>
+
+          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => navigateDay(1)}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+        <Button
+          variant="ghost"
           size="sm"
-          className="justify-start bg-white border border-slate-200 rounded-md p-0.5"
+          className="h-7 text-xs"
+          onClick={() => setSelectedDate(new Date())}
         >
-          <ToggleGroupItem value="1" className="text-xs h-7 px-3 data-[state=on]:bg-slate-100">
-            Hoje
-          </ToggleGroupItem>
-          <ToggleGroupItem value="3" className="text-xs h-7 px-3 data-[state=on]:bg-slate-100">
-            3 Dias
-          </ToggleGroupItem>
-          <ToggleGroupItem value="7" className="text-xs h-7 px-3 data-[state=on]:bg-slate-100">
-            Semana
-          </ToggleGroupItem>
-          <ToggleGroupItem value="30" className="text-xs h-7 px-3 data-[state=on]:bg-slate-100">
-            Mês
-          </ToggleGroupItem>
-        </ToggleGroup>
+          Hoje
+        </Button>
       </div>
 
       <CardContent className="p-3 flex-1 overflow-y-auto">
         {filtered.length === 0 ? (
           <div className="text-center py-12 flex flex-col items-center justify-center h-full">
             <CalendarDays className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-            <p className="text-slate-500 text-sm">Nenhum compromisso no período.</p>
+            <p className="text-slate-500 text-sm">Nenhum compromisso neste dia.</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -100,19 +136,10 @@ export function AgendaWidget() {
                 <div
                   key={e.id}
                   onClick={() => handleEventClick(e.expand?.linked_lawsuit?.id)}
-                  className={`flex gap-3 bg-white border-b border-slate-100 p-2 last:border-0 transition-colors hover:bg-slate-50 ${isLinked ? 'cursor-pointer' : ''}`}
+                  className={`flex gap-3 bg-white border border-slate-100 rounded-lg p-2 transition-colors hover:bg-slate-50 ${isLinked ? 'cursor-pointer' : ''}`}
                 >
-                  <div className="flex flex-col items-center justify-center min-w-[45px] shrink-0">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-                      {new Date(e.start_date).toLocaleString('pt-BR', { month: 'short' })}
-                    </span>
-                    <span className="text-[18px] font-bold text-slate-700 leading-tight">
-                      {new Date(e.start_date).getDate()}
-                    </span>
-                  </div>
-
                   <div
-                    className="w-[3px] rounded-full shrink-0"
+                    className="w-1.5 rounded-full shrink-0"
                     style={{
                       backgroundColor:
                         e.type === 'Meeting'
@@ -170,7 +197,12 @@ export function AgendaWidget() {
           </div>
         )}
       </CardContent>
-      <EventFormModal open={eventModalOpen} onOpenChange={setEventModalOpen} onSuccess={load} />
+      <EventFormModal
+        open={eventModalOpen}
+        onOpenChange={setEventModalOpen}
+        onSuccess={load}
+        defaultDate={selectedDate}
+      />
     </Card>
   )
 }

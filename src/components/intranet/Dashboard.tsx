@@ -1,13 +1,10 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Calendar } from '@/components/ui/calendar'
-
 import {
   Bell,
   UserPlus,
   CheckCircle2,
-  Calendar as CalendarIcon,
   Plus,
   ChevronLeft,
   ChevronRight,
@@ -26,9 +23,7 @@ import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useAuth } from '@/hooks/use-auth'
 import { usePermissions } from '@/hooks/use-permissions'
-import { format, isBefore, startOfDay, addDays, startOfMonth, endOfMonth, addWeeks } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
-import { EventFormModal } from './cases/EventFormModal'
+import { isBefore, startOfDay } from 'date-fns'
 import { CaseFormModal } from './cases/CaseFormModal'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -64,7 +59,6 @@ export default function Dashboard() {
   const { isAdmin } = usePermissions()
 
   const [tasks, setTasks] = useState<any[]>([])
-  const [eventModalOpen, setEventModalOpen] = useState(false)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
   const [caseModalOpen, setCaseModalOpen] = useState(false)
   const [editingTask, setEditingTask] = useState<any>(null)
@@ -72,9 +66,7 @@ export default function Dashboard() {
   const [feedItems, setFeedItems] = useState<FeedItem[]>([])
   const [clients, setClients] = useState<any[]>([])
   const [collaborators, setCollaborators] = useState<any[]>([])
-  const [events, setEvents] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState('unread')
-  const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedFeedItems, setSelectedFeedItems] = useState<string[]>([])
   const [selectedCollaboratorId, setSelectedCollaboratorId] = useState<string | null>(null)
   const [myCollaboratorId, setMyCollaboratorId] = useState<string | null>(null)
@@ -91,21 +83,6 @@ export default function Dashboard() {
     }
     const fetchedTasks = await pb.collection('tasks').getFullList({ filter, sort: 'due_date' })
     setTasks(fetchedTasks)
-  }
-
-  const loadEvents = async () => {
-    const startStr = startOfDay(selectedDate).toISOString().replace('T', ' ')
-    const endStr = new Date(startOfDay(selectedDate).getTime() + 24 * 60 * 60 * 1000 - 1)
-      .toISOString()
-      .replace('T', ' ')
-    let filter = `start_date >= "${startStr}" && start_date <= "${endStr}" && deleted_at = ""`
-    if (selectedCollaboratorId) {
-      filter += ` && (collaborator = "${selectedCollaboratorId}" || participants ~ "${selectedCollaboratorId}")`
-    }
-    const fetchedEvents = await pb
-      .collection('agenda_events')
-      .getFullList({ filter, sort: 'start_date' })
-    setEvents(fetchedEvents)
   }
 
   const loadCaseCount = async () => {
@@ -211,10 +188,8 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
-    Promise.allSettled([loadTasks(), loadEvents(), loadFeed(), loadCaseCount()]).catch(
-      console.error,
-    )
-  }, [selectedDate, selectedCollaboratorId])
+    Promise.allSettled([loadTasks(), loadFeed(), loadCaseCount()]).catch(console.error)
+  }, [selectedCollaboratorId])
 
   useEffect(() => {
     Promise.allSettled([
@@ -252,10 +227,6 @@ export default function Dashboard() {
     () => createDebouncedLoader('tasks', loadTasks),
     [createDebouncedLoader, selectedCollaboratorId],
   )
-  const debouncedLoadEvents = useMemo(
-    () => createDebouncedLoader('events', loadEvents),
-    [createDebouncedLoader, selectedDate, selectedCollaboratorId],
-  )
   const debouncedLoadFeed = useMemo(
     () => createDebouncedLoader('feed', loadFeed),
     [createDebouncedLoader],
@@ -270,7 +241,6 @@ export default function Dashboard() {
   useRealtime('gazette_publications', debouncedLoadFeed)
   useRealtime('ocorrencias_dou', debouncedLoadFeed)
   useRealtime('case_movements', debouncedLoadFeed)
-  useRealtime('agenda_events', debouncedLoadEvents)
 
   const toggleTask = async (id: string, currentStatus: string) => {
     try {
@@ -510,10 +480,6 @@ export default function Dashboard() {
                 <span className="text-slate-600">Tarefas Pendentes</span>
                 <span className="font-bold text-slate-800">{tasks.length}</span>
               </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-600">Eventos Hoje</span>
-                <span className="font-bold text-slate-800">{events.length}</span>
-              </div>
             </div>
           </div>
         </div>
@@ -725,79 +691,6 @@ export default function Dashboard() {
       </div>
 
       <div className="w-96 border-l border-slate-200 p-8 flex flex-col gap-8 shrink-0 bg-slate-50/50 overflow-y-auto hidden md:flex">
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-slate-700 font-bold text-lg">
-              <CalendarIcon className="w-5 h-5 text-primary" />
-              Sua Agenda
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs font-semibold"
-                onClick={() => setEventModalOpen(true)}
-              >
-                <Plus className="w-3.5 h-3.5 mr-1" /> Novo Compromisso
-              </Button>
-            </div>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 flex justify-center">
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={(date) => date && setSelectedDate(date)}
-              className="rounded-md"
-              locale={ptBR}
-            />
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col flex-1 max-h-[300px]">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50 shrink-0">
-              <div className="font-semibold text-sm text-slate-700">
-                Eventos em {format(selectedDate, "dd 'de' MMM", { locale: ptBR })}
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-[10px]"
-                onClick={() => navigate('/intranet/agenda')}
-              >
-                Ver Agenda
-              </Button>
-            </div>
-            <div className="p-3 space-y-2 overflow-y-auto flex-1 custom-scrollbar">
-              {events.length === 0 ? (
-                <div className="text-center py-6 rounded-lg text-slate-500 flex flex-col items-center">
-                  <CalendarIcon className="w-8 h-8 mb-3 text-slate-300" />
-                  <p className="text-sm">Nenhum evento para este dia</p>
-                </div>
-              ) : (
-                events.map((e) => (
-                  <div
-                    key={e.id}
-                    className="p-3 border border-slate-100 rounded-lg text-sm shadow-sm bg-white hover:border-primary/30 transition-colors"
-                  >
-                    <div className="flex justify-between items-start">
-                      <p className="font-semibold text-slate-800 line-clamp-1" title={e.title}>
-                        {e.title}
-                      </p>
-                      <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap font-medium">
-                        {e.type}
-                      </span>
-                    </div>
-                    <p className="text-slate-500 text-xs mt-1.5 font-medium flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5" />
-                      {format(new Date(e.start_date), 'HH:mm', { locale: ptBR })}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
         <div className="flex-1 flex flex-col min-h-[250px]">
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
             <div className="flex items-center gap-2 text-slate-700 font-bold">
@@ -885,12 +778,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <EventFormModal
-        open={eventModalOpen}
-        onOpenChange={setEventModalOpen}
-        defaultDate={selectedDate}
-        onSuccess={debouncedLoadEvents}
-      />
       <CaseFormModal
         open={caseModalOpen}
         onOpenChange={setCaseModalOpen}
