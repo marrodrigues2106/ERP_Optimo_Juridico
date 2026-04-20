@@ -37,7 +37,7 @@ import { getCollaborators } from '@/services/collaborators'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import { CaseFormModal } from './cases/CaseFormModal'
-import { batchSyncDataJud } from '@/services/datajud'
+import { syncDataJudCase } from '@/services/datajud'
 import { cn } from '@/lib/utils'
 
 export default function ProcessManager() {
@@ -60,6 +60,7 @@ export default function ProcessManager() {
   const [deletingCase, setDeletingCase] = useState<any>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [selectedCases, setSelectedCases] = useState<string[]>([])
+  const [syncingCases, setSyncingCases] = useState<string[]>([])
   const [isSyncingBatch, setIsSyncingBatch] = useState(false)
 
   const loadData = async () => {
@@ -159,23 +160,41 @@ export default function ProcessManager() {
   }, [sortedCases])
 
   const handleBatchSync = async () => {
+    if (selectedCases.length === 0) return
+    const casesToSync = [...selectedCases]
+    setSelectedCases([])
+
+    toast({
+      title: 'Sincronização Simultânea',
+      description: `${casesToSync.length} processos estão sendo atualizados.`,
+    })
+
     setIsSyncingBatch(true)
-    try {
-      await batchSyncDataJud(selectedCases)
-      toast({
-        title: 'Sincronização iniciada',
-        description: `${selectedCases.length} processos entraram na fila.`,
-      })
-      setSelectedCases([])
-    } catch (error: any) {
-      toast({
-        title: 'Erro',
-        description: error?.message || 'Falha ao iniciar sincronização',
-        variant: 'destructive',
-      })
-    } finally {
+
+    Promise.allSettled(
+      casesToSync.map(async (id) => {
+        setSyncingCases((prev) => [...prev, id])
+        try {
+          await syncDataJudCase(id)
+        } catch (error: any) {
+          try {
+            await pb.collection('system_logs').create({
+              level: 'error',
+              module: 'batch_sync',
+              message: `Falha ao sincronizar processo ${id}`,
+              details: { error: error.message || String(error) },
+              organization: pb.authStore.record?.active_organization,
+              user: pb.authStore.record?.id,
+            })
+          } catch (e) {}
+        } finally {
+          setSyncingCases((prev) => prev.filter((c) => c !== id))
+        }
+      }),
+    ).then(() => {
       setIsSyncingBatch(false)
-    }
+      loadData()
+    })
   }
 
   return (
@@ -379,40 +398,47 @@ export default function ProcessManager() {
                         </TableCell>
                         <TableCell>
                           {c.type === 'Processo' ? (
-                            <Badge
-                              className={cn(
-                                c.datajud_sync_status === 'Success' &&
-                                  'bg-emerald-500 hover:bg-emerald-600 text-white',
-                                c.datajud_sync_status === 'Syncing' &&
-                                  'bg-amber-500 hover:bg-amber-600 text-white',
-                                c.datajud_sync_status === 'Pending' &&
-                                  'bg-blue-500 hover:bg-blue-600 text-white',
-                                ['Error', 'Sync Failed', 'Not Found'].includes(
-                                  c.datajud_sync_status,
-                                ) && 'bg-red-500 hover:bg-red-600 text-white',
-                                ![
-                                  'Success',
-                                  'Syncing',
-                                  'Pending',
-                                  'Error',
-                                  'Sync Failed',
-                                  'Not Found',
-                                ].includes(c.datajud_sync_status) &&
-                                  'bg-slate-300 hover:bg-slate-400 text-slate-700',
-                              )}
-                            >
-                              {c.datajud_sync_status === 'Success'
-                                ? 'Sincronizado'
-                                : c.datajud_sync_status === 'Syncing'
-                                  ? 'Sincronizando...'
-                                  : c.datajud_sync_status === 'Pending'
-                                    ? 'Na Fila'
-                                    : ['Error', 'Sync Failed'].includes(c.datajud_sync_status)
-                                      ? 'Erro na Sync'
-                                      : c.datajud_sync_status === 'Not Found'
-                                        ? 'Não Encontrado'
-                                        : 'Pendente'}
-                            </Badge>
+                            syncingCases.includes(c.id) ? (
+                              <Badge className="bg-blue-500 hover:bg-blue-600 text-white">
+                                <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                                Sincronizando...
+                              </Badge>
+                            ) : (
+                              <Badge
+                                className={cn(
+                                  c.datajud_sync_status === 'Success' &&
+                                    'bg-emerald-500 hover:bg-emerald-600 text-white',
+                                  c.datajud_sync_status === 'Syncing' &&
+                                    'bg-amber-500 hover:bg-amber-600 text-white',
+                                  c.datajud_sync_status === 'Pending' &&
+                                    'bg-blue-500 hover:bg-blue-600 text-white',
+                                  ['Error', 'Sync Failed', 'Not Found'].includes(
+                                    c.datajud_sync_status,
+                                  ) && 'bg-red-500 hover:bg-red-600 text-white',
+                                  ![
+                                    'Success',
+                                    'Syncing',
+                                    'Pending',
+                                    'Error',
+                                    'Sync Failed',
+                                    'Not Found',
+                                  ].includes(c.datajud_sync_status) &&
+                                    'bg-slate-300 hover:bg-slate-400 text-slate-700',
+                                )}
+                              >
+                                {c.datajud_sync_status === 'Success'
+                                  ? 'Sincronizado'
+                                  : c.datajud_sync_status === 'Syncing'
+                                    ? 'Sincronizando...'
+                                    : c.datajud_sync_status === 'Pending'
+                                      ? 'Na Fila'
+                                      : ['Error', 'Sync Failed'].includes(c.datajud_sync_status)
+                                        ? 'Erro na Sync'
+                                        : c.datajud_sync_status === 'Not Found'
+                                          ? 'Não Encontrado'
+                                          : 'Pendente'}
+                              </Badge>
+                            )
                           ) : (
                             <span className="text-xs text-slate-400 italic">N/A</span>
                           )}

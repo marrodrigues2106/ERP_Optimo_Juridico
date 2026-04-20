@@ -61,7 +61,7 @@ export function AgendaWidget() {
       <CardHeader className="bg-white border-b py-3 flex flex-row items-center justify-between">
         <div className="flex items-center gap-2">
           <CalendarDays className="w-5 h-5 text-primary" />
-          <CardTitle className="text-lg text-slate-800">Console de Eventos</CardTitle>
+          <CardTitle className="text-lg text-slate-800">Sessão de Eventos</CardTitle>
         </div>
         <Button
           variant="ghost"

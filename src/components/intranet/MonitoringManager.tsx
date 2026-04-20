@@ -61,6 +61,7 @@ export default function MonitoringManager() {
   const [submitting, setSubmitting] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [lastSyncLog, setLastSyncLog] = useState<any>(null)
+  const [pjeStatus, setPjeStatus] = useState<'online' | 'offline' | 'unknown'>('unknown')
 
   const loadData = async () => {
     try {
@@ -74,6 +75,17 @@ export default function MonitoringManager() {
         }
       } catch (e) {
         // ignore error
+      }
+
+      try {
+        const pjeLogs = await pb.collection('pje_sync_logs').getList(1, 1, { sort: '-created' })
+        if (pjeLogs.items.length > 0) {
+          setPjeStatus(pjeLogs.items[0].status === 'success' ? 'online' : 'offline')
+        } else {
+          setPjeStatus('unknown')
+        }
+      } catch (e) {
+        setPjeStatus('unknown')
       }
 
       const tribs = await pb.collection('tribunals').getFullList({ sort: 'name' })
@@ -551,6 +563,35 @@ export default function MonitoringManager() {
               <div className="space-y-3">
                 <div className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
                   <div className="overflow-hidden mr-2">
+                    <div className="font-semibold text-sm">Integração PJe</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      Conexão via Comunica / PJe Sync
+                    </div>
+                  </div>
+                  <Badge
+                    variant={
+                      pjeStatus === 'online'
+                        ? 'default'
+                        : pjeStatus === 'offline'
+                          ? 'destructive'
+                          : 'secondary'
+                    }
+                    className={
+                      pjeStatus === 'online'
+                        ? 'bg-emerald-500 hover:bg-emerald-600 shrink-0'
+                        : 'shrink-0'
+                    }
+                  >
+                    {pjeStatus === 'online'
+                      ? 'Operacional / Conectado'
+                      : pjeStatus === 'offline'
+                        ? 'Offline'
+                        : 'Desconhecido'}
+                  </Badge>
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
+                  <div className="overflow-hidden mr-2">
                     <div className="font-semibold text-sm">Integração DataJud</div>
                     <div className="text-xs text-muted-foreground truncate">
                       Última check:{' '}
@@ -585,6 +626,35 @@ export default function MonitoringManager() {
                       ? 'Operacional'
                       : config?.datajudStatus === 'error'
                         ? 'Falha'
+                        : 'Desconhecido'}
+                  </Badge>
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
+                  <div className="overflow-hidden mr-2">
+                    <div className="font-semibold text-sm">Status de Tribunais (DataJud)</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      Monitoramento do endpoint de tribunais
+                    </div>
+                  </div>
+                  <Badge
+                    variant={
+                      config?.tribunalStatus === 200
+                        ? 'default'
+                        : config?.tribunalStatus
+                          ? 'destructive'
+                          : 'secondary'
+                    }
+                    className={
+                      config?.tribunalStatus === 200
+                        ? 'bg-emerald-500 hover:bg-emerald-600 shrink-0'
+                        : 'shrink-0'
+                    }
+                  >
+                    {config?.tribunalStatus === 200
+                      ? 'Online'
+                      : config?.tribunalStatus
+                        ? `Erro ${config.tribunalStatus}`
                         : 'Desconhecido'}
                   </Badge>
                 </div>

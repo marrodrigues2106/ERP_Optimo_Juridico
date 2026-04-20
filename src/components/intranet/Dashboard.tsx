@@ -39,6 +39,7 @@ import {
 import { useNavigate, Link } from 'react-router-dom'
 import { useToast } from '@/hooks/use-toast'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
+import { AgendaWidget } from './dashboard/AgendaWidget'
 
 type FeedItem = {
   id: string
@@ -690,7 +691,10 @@ export default function Dashboard() {
         </Tabs>
       </div>
 
-      <div className="w-96 border-l border-slate-200 p-8 flex flex-col gap-8 shrink-0 bg-slate-50/50 overflow-y-auto hidden md:flex">
+      <div className="w-96 border-l border-slate-200 p-8 flex flex-col gap-8 shrink-0 bg-slate-50/50 overflow-y-auto hidden lg:flex">
+        <div className="h-[380px] shrink-0">
+          <AgendaWidget />
+        </div>
         <div className="flex-1 flex flex-col min-h-[250px]">
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
             <div className="flex items-center gap-2 text-slate-700 font-bold">
