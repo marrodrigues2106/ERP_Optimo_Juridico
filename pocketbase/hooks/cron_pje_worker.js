@@ -1,31 +1,3 @@
-// Schedule sync for active cases every 2 hours
-cronAdd('pje_scheduler', '0 */2 * * *', () => {
-  try {
-    $app
-      .db()
-      .newQuery(`
-      UPDATE legal_cases
-      SET pje_sync_status = 'pending'
-      WHERE lifecycle_status = 'Ativo'
-        AND (pje_sync_status = 'idle' OR pje_sync_status = 'error' OR pje_sync_status = '' OR pje_sync_status IS NULL)
-    `)
-      .execute()
-  } catch (err) {
-    try {
-      const logsCol = $app.findCollectionByNameOrId('system_logs')
-      const logRecord = new Record(logsCol)
-      logRecord.set('level', 'error')
-      logRecord.set('module', 'PJe Sync')
-      logRecord.set('message', 'Scheduler error')
-      logRecord.set('details', { error: err.message })
-      $app.saveNoValidate(logRecord)
-    } catch (e) {
-      console.log('Error saving pje_scheduler log: ' + e.message)
-    }
-  }
-})
-
-// Process pending cases every minute
 cronAdd('pje_worker', '* * * * *', () => {
   try {
     const pendingCases = $app.findRecordsByFilter(
@@ -57,7 +29,8 @@ cronAdd('pje_worker', '* * * * *', () => {
         $app.saveNoValidate(logRecord)
       } catch (e) {}
 
-      for (const record of pendingCases) {
+      for (let i = 0; i < pendingCases.length; i++) {
+        const record = pendingCases[i]
         record.set('pje_sync_status', 'error')
         try {
           $app.saveNoValidate(record)
@@ -68,7 +41,8 @@ cronAdd('pje_worker', '* * * * *', () => {
 
     const movementsCol = $app.findCollectionByNameOrId('case_movements')
 
-    for (const record of pendingCases) {
+    for (let i = 0; i < pendingCases.length; i++) {
+      const record = pendingCases[i]
       const startTime = Date.now()
       const orgId = record.getString('organization')
 
@@ -96,7 +70,7 @@ cronAdd('pje_worker', '* * * * *', () => {
           currentDate
         const headers = {
           Accept: 'application/json',
-          Authorization: apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`,
+          Authorization: apiKey.startsWith('Bearer ') ? apiKey : 'Bearer ' + apiKey,
         }
 
         const res = $http.send({ url: url, method: 'GET', headers: headers, timeout: 60 })
@@ -108,12 +82,13 @@ cronAdd('pje_worker', '* * * * *', () => {
 
         if (res.statusCode === 200 && data && data.items) {
           const items = data.items
-          items.forEach((item) => {
+          for (let j = 0; j < items.length; j++) {
+            const item = items[j]
             try {
               const uniqueStr = record.id + '_' + item.hash
               const extId = item.hash || $security.md5(uniqueStr)
               try {
-                $app.findFirstRecordByFilter('case_movements', `external_id = '${extId}'`)
+                $app.findFirstRecordByFilter('case_movements', "external_id = '" + extId + "'")
               } catch (notfound) {
                 const mov = new Record(movementsCol)
                 mov.set('case', record.id)
@@ -127,10 +102,10 @@ cronAdd('pje_worker', '* * * * *', () => {
                 added++
               }
             } catch (err) {}
-          })
+          }
 
           syncStatus = 'success'
-          syncMessage = `Sincronizado com sucesso. ${added} novas movimentações.`
+          syncMessage = 'Sincronizado com sucesso. ' + added + ' novas movimentações.'
           record.set('pje_sync_status', 'idle')
           record.set('pje_last_sync', new Date().toISOString())
           record.set('datajud_sync_status', 'Success')
@@ -142,13 +117,13 @@ cronAdd('pje_worker', '* * * * *', () => {
             syncMessage = 'PJE_BAD_REQUEST: Requisição inválida (400).'
           else if (res.statusCode === 401)
             syncMessage = 'PJE_UNAUTHORIZED: Token inválido/expirado (401).'
-          else if ([504, 503, 502].includes(res.statusCode))
+          else if (res.statusCode === 504 || res.statusCode === 503 || res.statusCode === 502)
             syncMessage = 'PJE_TIMEOUT: Sistema PJe indisponível.'
           else
             syncMessage =
               data && data.message
-                ? `PJe API Error: ${data.message} (HTTP ${res.statusCode})`
-                : `PJe API Error: HTTP ${res.statusCode}`
+                ? 'PJe API Error: ' + data.message + ' (HTTP ' + res.statusCode + ')'
+                : 'PJe API Error: HTTP ' + res.statusCode
           record.set('pje_sync_status', 'error')
           record.set('datajud_sync_status', 'Error')
         }
@@ -157,10 +132,10 @@ cronAdd('pje_worker', '* * * * *', () => {
         record.set('datajud_sync_status', 'Error')
         const msg = (err.message || '').toLowerCase()
         if (
-          msg.includes('deadline') ||
-          msg.includes('timeout') ||
-          msg.includes('network') ||
-          msg.includes('gateway')
+          msg.indexOf('deadline') !== -1 ||
+          msg.indexOf('timeout') !== -1 ||
+          msg.indexOf('network') !== -1 ||
+          msg.indexOf('gateway') !== -1
         ) {
           syncMessage = 'PJE_TIMEOUT: Sistema PJe indisponível.'
         } else {
