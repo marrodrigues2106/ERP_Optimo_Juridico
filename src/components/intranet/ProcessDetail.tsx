@@ -67,12 +67,22 @@ export default function ProcessDetail() {
         if (!prev) return prev
         const wasNotIdle = prev.pje_sync_status === 'syncing' || prev.pje_sync_status === 'pending'
         const isIdleNow =
-          e.record.pje_sync_status === 'idle' || e.record.pje_sync_status === 'success'
+          e.record.pje_sync_status === 'idle' ||
+          e.record.pje_sync_status === 'success' ||
+          e.record.pje_sync_status === 'error'
         if (wasNotIdle && isIdleNow) {
           loadMovements(1)
+          loadData()
         }
         return { ...prev, ...e.record }
       })
+    }
+  })
+
+  useRealtime('case_movements', (e) => {
+    if (e.record.case === id) {
+      loadMovements(movementsPage)
+      loadData()
     }
   })
 
@@ -117,7 +127,7 @@ export default function ProcessDetail() {
       })
 
       toast({
-        title: 'Sincronização concluída',
+        title: 'Sincronização iniciada',
         description: res?.message || 'Processo atualizado com o PJe com sucesso.',
       })
 
@@ -131,28 +141,44 @@ export default function ProcessDetail() {
       const errorMsg = String(error?.response?.message || error?.message || '')
 
       if (status === 403 || errorMsg.includes('PJE_FORBIDDEN')) {
-        userMessage = 'Acesso negado pelo tribunal. Por favor, verifique as configurações da API.'
+        userMessage = 'Acesso negado pelo tribunal. A sincronização continuará em segundo plano.'
       } else if (status === 401 || errorMsg.includes('PJE_UNAUTHORIZED')) {
         userMessage = 'Não autorizado (401). A chave de API do tribunal pode estar expirada.'
       } else if (status === 400 || errorMsg.includes('PJE_BAD_REQUEST')) {
         userMessage = 'Requisição inválida (400) ou processo não encontrado no tribunal.'
       } else if (errorMsg.includes('PJE_TIMEOUT') || status === 503 || status === 504) {
         userMessage =
-          'O sistema do tribunal (PJe) está indisponível no momento ou houve falha de rede.'
+          'O sistema do tribunal (PJe) está indisponível no momento. A sincronização foi agendada para segundo plano.'
       } else if (errorMsg && errorMsg !== 'undefined' && errorMsg !== 'null') {
         userMessage = errorMsg
       }
 
+      try {
+        const currentRecord = await getLegalCase(id!)
+        if (
+          currentRecord.pje_sync_status === 'pending' ||
+          currentRecord.pje_sync_status === 'syncing'
+        ) {
+          toast({
+            title: 'Sincronização em andamento',
+            description: 'A sincronização foi enviada para processamento em segundo plano.',
+          })
+          setLegalCase(currentRecord)
+          return
+        }
+      } catch (err) {}
+
       toast({
-        title: 'Falha na Sincronização',
+        title: 'Aviso de Sincronização',
         description: userMessage,
-        variant: 'destructive',
+        variant: status === 403 || status === 400 ? 'default' : 'destructive',
       })
 
       setLegalCase((prev: any) => {
         if (!prev) return prev
         return { ...prev, pje_sync_status: 'error' }
       })
+      loadData()
     }
   }
 

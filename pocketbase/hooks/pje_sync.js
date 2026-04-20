@@ -167,12 +167,11 @@ routerAdd(
             data && data.message
               ? `PJe API Error: ${data.message} (HTTP ${res.statusCode})`
               : `PJe API Error: HTTP ${res.statusCode}`
-        record.set('pje_sync_status', 'error')
-        record.set('datajud_sync_status', 'Error')
+
+        record.set('pje_sync_status', 'pending')
       }
     } catch (err) {
-      record.set('pje_sync_status', 'error')
-      record.set('datajud_sync_status', 'Error')
+      record.set('pje_sync_status', 'pending')
       const msg = (err.message || '').toLowerCase()
       if (
         msg.includes('deadline') ||
