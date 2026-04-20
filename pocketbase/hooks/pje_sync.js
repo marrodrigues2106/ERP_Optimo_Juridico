@@ -25,16 +25,52 @@ routerAdd(
 
     const num = record.getString('case_number')
     if (!num) {
+      const logsCol = $app.findCollectionByNameOrId('pje_sync_logs')
+      try {
+        const logRecord = new Record(logsCol)
+        logRecord.set('case', record.id)
+        logRecord.set('status', 'failed')
+        logRecord.set('message', 'Processo sem número para sincronização.')
+        logRecord.set('duration', 0)
+        if (record.getString('organization'))
+          logRecord.set('organization', record.getString('organization'))
+        $app.saveNoValidate(logRecord)
+      } catch (logErr) {}
+
+      record.set('pje_sync_status', 'error')
+      try {
+        $app.saveNoValidate(record)
+      } catch (err) {}
+
       return e.badRequestError('Processo sem número para sincronização.')
     }
 
     const cleanNum = String(num).replace(/\D/g, '')
     if (cleanNum.length !== 20) {
+      const logsCol = $app.findCollectionByNameOrId('pje_sync_logs')
+      try {
+        const logRecord = new Record(logsCol)
+        logRecord.set('case', record.id)
+        logRecord.set('status', 'failed')
+        logRecord.set('message', 'Número de processo inválido (deve conter 20 dígitos numéricos).')
+        logRecord.set('duration', 0)
+        if (record.getString('organization'))
+          logRecord.set('organization', record.getString('organization'))
+        $app.saveNoValidate(logRecord)
+      } catch (logErr) {}
+
+      record.set('pje_sync_status', 'error')
+      try {
+        $app.saveNoValidate(record)
+      } catch (err) {}
+
       return e.badRequestError('Número de processo inválido (deve conter 20 dígitos numéricos).')
     }
 
     record.set('pje_sync_status', 'syncing')
-    $app.saveNoValidate(record)
+    try {
+      $app.saveNoValidate(record)
+    } catch (err) {}
 
     const logsCol = $app.findCollectionByNameOrId('pje_sync_logs')
     const movementsCol = $app.findCollectionByNameOrId('case_movements')

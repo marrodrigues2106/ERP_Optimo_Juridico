@@ -11,7 +11,17 @@ cronAdd('pje_scheduler', '0 */2 * * *', () => {
     `)
       .execute()
   } catch (err) {
-    console.log('Error in pje_scheduler cron: ' + err.message)
+    try {
+      const auditCol = $app.findCollectionByNameOrId('audit_logs')
+      const audit = new Record(auditCol)
+      audit.set('collection_name', 'system')
+      audit.set('record_id', 'pje_scheduler')
+      audit.set('action', 'pje_scheduler_error')
+      audit.set('changes', { error: err.message })
+      $app.saveNoValidate(audit)
+    } catch (e) {
+      console.log('Error saving pje_scheduler audit log: ' + e.message)
+    }
   }
 })
 
@@ -28,6 +38,47 @@ cronAdd('pje_worker', '* * * * *', () => {
 
     if (!pendingCases || pendingCases.length === 0) return
 
+    let apiKey = $secrets.get('COMUNICA_PJE_KEY') || ''
+    if (!apiKey) {
+      try {
+        const config = $app.findFirstRecordByFilter('monitoring_configs', "apiKey != ''")
+        apiKey = config.getString('apiKey')
+      } catch (e) {}
+    }
+    apiKey = apiKey.trim()
+
+    if (!apiKey || apiKey.length < 5) {
+      try {
+        const auditCol = $app.findCollectionByNameOrId('audit_logs')
+        const audit = new Record(auditCol)
+        audit.set('collection_name', 'system')
+        audit.set('record_id', 'pje_worker')
+        audit.set('action', 'pje_sync_system_error')
+        audit.set('changes', { error: 'Missing authentication token for PJe sync' })
+        $app.saveNoValidate(audit)
+      } catch (e) {}
+
+      for (const record of pendingCases) {
+        record.set('pje_sync_status', 'error')
+        try {
+          $app.saveNoValidate(record)
+        } catch (e) {}
+
+        try {
+          const logsCol = $app.findCollectionByNameOrId('pje_sync_logs')
+          const logRecord = new Record(logsCol)
+          logRecord.set('case', record.id)
+          logRecord.set('status', 'failed')
+          logRecord.set('message', 'System error: Missing authentication token')
+          logRecord.set('duration', 0)
+          const orgId = record.getString('organization')
+          if (orgId) logRecord.set('organization', orgId)
+          $app.saveNoValidate(logRecord)
+        } catch (e) {}
+      }
+      return
+    }
+
     const logsCol = $app.findCollectionByNameOrId('pje_sync_logs')
     const movementsCol = $app.findCollectionByNameOrId('case_movements')
 
@@ -36,7 +87,9 @@ cronAdd('pje_worker', '* * * * *', () => {
       const orgId = record.getString('organization')
 
       record.set('pje_sync_status', 'syncing')
-      $app.saveNoValidate(record)
+      try {
+        $app.saveNoValidate(record)
+      } catch (e) {}
 
       let syncStatus = 'failed'
       let syncMessage = ''
@@ -49,18 +102,10 @@ cronAdd('pje_worker', '* * * * *', () => {
         const cleanNum = String(num).replace(/\D/g, '')
         if (cleanNum.length !== 20) throw new Error('Invalid case number')
 
-        let apiKey = $secrets.get('COMUNICA_PJE_KEY')
-        if (!apiKey) {
-          try {
-            const config = $app.findFirstRecordByFilter('monitoring_configs', "apiKey != ''")
-            apiKey = config.getString('apiKey')
-          } catch (e) {}
-        }
-
         const url = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=' + cleanNum
-        const headers = { Accept: 'application/json' }
-        if (apiKey) {
-          headers['Authorization'] = 'Bearer ' + apiKey
+        const headers = {
+          Accept: 'application/json',
+          Authorization: apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`,
         }
 
         const res = $http.send({
@@ -111,12 +156,14 @@ cronAdd('pje_worker', '* * * * *', () => {
             syncMessage = 'PJE_FORBIDDEN: Acesso negado pelo tribunal (403).'
           } else if (res.statusCode === 400) {
             syncMessage = 'PJE_BAD_REQUEST: Requisição inválida ou processo não encontrado (400).'
+          } else if (res.statusCode === 401) {
+            syncMessage = 'PJE_UNAUTHORIZED: Token inválido ou expirado (401).'
           } else if (res.statusCode === 504 || res.statusCode === 503 || res.statusCode === 502) {
             syncMessage = 'PJE_TIMEOUT: Sistema PJe indisponível.'
           } else {
             syncMessage =
               data && data.message
-                ? `PJe API Error: ${data.message}`
+                ? `PJe API Error: ${data.message} (HTTP ${res.statusCode})`
                 : `PJe API Error: HTTP ${res.statusCode}`
           }
           record.set('pje_sync_status', 'error')
@@ -140,9 +187,7 @@ cronAdd('pje_worker', '* * * * *', () => {
 
       try {
         $app.saveNoValidate(record)
-      } catch (e) {
-        console.log('Failed to save case status: ' + e.message)
-      }
+      } catch (e) {}
 
       try {
         const logRecord = new Record(logsCol)
@@ -152,11 +197,19 @@ cronAdd('pje_worker', '* * * * *', () => {
         logRecord.set('duration', Date.now() - startTime)
         if (orgId) logRecord.set('organization', orgId)
         $app.saveNoValidate(logRecord)
-      } catch (e) {
-        console.log('Failed to save pje_sync_log: ' + e.message)
-      }
+      } catch (e) {}
     }
   } catch (err) {
-    console.log('Error in pje_worker cron: ' + err.message)
+    try {
+      const auditCol = $app.findCollectionByNameOrId('audit_logs')
+      const audit = new Record(auditCol)
+      audit.set('collection_name', 'system')
+      audit.set('record_id', 'pje_worker')
+      audit.set('action', 'pje_worker_error')
+      audit.set('changes', { error: err.message })
+      $app.saveNoValidate(audit)
+    } catch (e) {
+      console.log('Error saving pje_worker audit log: ' + e.message)
+    }
   }
 })

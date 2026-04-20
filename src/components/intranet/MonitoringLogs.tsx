@@ -115,13 +115,20 @@ export function MonitoringLogs() {
                             {new Date(l.created).toLocaleTimeString()}
                           </span>
                         </div>
-                        <p className="text-slate-600 mt-0.5">{l.message}</p>
-                        <Badge
-                          variant={l.status === 'success' ? 'default' : 'destructive'}
-                          className="mt-1 text-[10px]"
-                        >
-                          {l.status === 'success' ? 'Sucesso' : 'Falha'}
-                        </Badge>
+                        <p className="text-slate-600 mt-0.5 text-xs">{l.message}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge
+                            variant={l.status === 'success' ? 'default' : 'destructive'}
+                            className="text-[10px]"
+                          >
+                            {l.status === 'success' ? 'Sucesso' : 'Falha'}
+                          </Badge>
+                          {l.duration !== undefined && l.duration !== null && (
+                            <span className="text-[10px] text-muted-foreground">
+                              {l.duration}ms
+                            </span>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
