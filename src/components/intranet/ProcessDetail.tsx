@@ -587,7 +587,7 @@ export default function ProcessDetail() {
                         <div key={mov.id} className="p-6 hover:bg-slate-50 transition-colors">
                           <div className="flex items-center gap-3 mb-2 flex-wrap">
                             <span className="text-sm font-semibold text-slate-700">
-                              {new Date(mov.event_date).toLocaleDateString('pt-BR')}
+                              {new Date(mov.event_date).toLocaleString('pt-BR')}
                             </span>
                             <Badge variant="outline" className="text-xs text-slate-500 bg-white">
                               {mov.source}
@@ -658,16 +658,61 @@ export default function ProcessDetail() {
                                           )}
                                           {mov.movement_details.ciencia && (
                                             <div className="col-span-1 lg:col-span-2">
-                                              <span className="font-semibold text-slate-800">
-                                                Ciência (Awareness):
+                                              <span className="font-semibold text-slate-800 block mb-1">
+                                                Status de Ciência (Awareness):
                                               </span>
-                                              <pre className="mt-1 bg-white p-2 rounded border border-slate-200 text-[10px] overflow-x-auto">
-                                                {JSON.stringify(
-                                                  mov.movement_details.ciencia,
-                                                  null,
-                                                  2,
+                                              <div className="bg-white p-3 rounded border border-slate-200 text-xs overflow-x-auto">
+                                                {typeof mov.movement_details.ciencia ===
+                                                'object' ? (
+                                                  <ul className="space-y-1">
+                                                    {Object.entries(
+                                                      mov.movement_details.ciencia,
+                                                    ).map(([k, v]) => (
+                                                      <li key={k}>
+                                                        <span className="font-semibold">{k}:</span>{' '}
+                                                        {String(v)}
+                                                      </li>
+                                                    ))}
+                                                  </ul>
+                                                ) : (
+                                                  <span>
+                                                    {String(mov.movement_details.ciencia)}
+                                                  </span>
                                                 )}
-                                              </pre>
+                                              </div>
+                                            </div>
+                                          )}
+                                          {mov.movement_details.avisosPendentes && (
+                                            <div className="col-span-1 lg:col-span-2">
+                                              <span className="font-semibold text-amber-700 block mb-1 flex items-center gap-1">
+                                                Avisos Pendentes:
+                                              </span>
+                                              <div className="bg-amber-50 p-3 rounded border border-amber-200 text-xs overflow-x-auto">
+                                                {typeof mov.movement_details.avisosPendentes ===
+                                                'object' ? (
+                                                  <pre className="text-[10px]">
+                                                    {JSON.stringify(
+                                                      mov.movement_details.avisosPendentes,
+                                                      null,
+                                                      2,
+                                                    )}
+                                                  </pre>
+                                                ) : (
+                                                  <span>
+                                                    {String(mov.movement_details.avisosPendentes)}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          )}
+                                          {mov.movement_details.teorComunicacao && (
+                                            <div className="col-span-1 lg:col-span-2">
+                                              <span className="font-semibold text-slate-800 block mb-1">
+                                                Teor da Comunicação / Intimação:
+                                              </span>
+                                              <div className="bg-white p-3 rounded border border-slate-200 text-xs whitespace-pre-wrap leading-relaxed">
+                                                {mov.movement_details.teorComunicacao}
+                                              </div>
                                             </div>
                                           )}
                                           {mov.movement_details.tipoDocumento && (
@@ -676,6 +721,16 @@ export default function ProcessDetail() {
                                                 Tipo Documento:
                                               </span>{' '}
                                               {mov.movement_details.tipoDocumento}
+                                            </div>
+                                          )}
+                                          {mov.movement_details.teor && (
+                                            <div className="col-span-1 lg:col-span-2">
+                                              <span className="font-semibold text-slate-800 block mb-1">
+                                                Texto Integral (Teor):
+                                              </span>
+                                              <div className="bg-white p-3 rounded border border-slate-200 text-xs whitespace-pre-wrap leading-relaxed">
+                                                {mov.movement_details.teor}
+                                              </div>
                                             </div>
                                           )}
                                           {mov.movement_details.link && (

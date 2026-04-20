@@ -275,7 +275,7 @@ export default function ProcessManager() {
                     <TableHead className="pl-6 w-10"></TableHead>
                     <TableHead>Identificação & Partes</TableHead>
                     <TableHead>Fase / Prazo</TableHead>
-                    <TableHead>Integração PJe</TableHead>
+                    <TableHead>Integração DataJud</TableHead>
                     <TableHead className="text-right pr-6">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -329,21 +329,20 @@ export default function ProcessManager() {
                           {c.type === 'Processo' ? (
                             <Badge
                               className={
-                                c.pje_sync_status === 'idle'
+                                c.datajud_sync_status === 'Success'
                                   ? 'bg-emerald-500'
-                                  : c.pje_sync_status === 'pending' ||
-                                      c.pje_sync_status === 'syncing'
+                                  : c.datajud_sync_status === 'Syncing'
                                     ? 'bg-amber-500'
-                                    : c.pje_sync_status === 'error'
+                                    : c.datajud_sync_status === 'Error'
                                       ? 'bg-red-500'
                                       : 'bg-slate-300'
                               }
                             >
-                              {c.pje_sync_status === 'idle'
+                              {c.datajud_sync_status === 'Success'
                                 ? 'Sincronizado'
-                                : c.pje_sync_status === 'pending' || c.pje_sync_status === 'syncing'
+                                : c.datajud_sync_status === 'Syncing'
                                   ? 'Sincronizando...'
-                                  : c.pje_sync_status === 'error'
+                                  : c.datajud_sync_status === 'Error'
                                     ? 'Erro na Sync'
                                     : 'Pendente'}
                             </Badge>
