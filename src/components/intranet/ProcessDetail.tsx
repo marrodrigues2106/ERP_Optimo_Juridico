@@ -424,9 +424,22 @@ export default function ProcessDetail() {
                             <Card className="border-slate-200 shadow-sm overflow-hidden hover:border-primary/30 transition-colors">
                               {/* Header */}
                               <div className="bg-slate-50/80 px-4 py-3 border-b border-slate-100 flex flex-wrap gap-2 items-center justify-between">
-                                <span className="text-sm font-bold text-slate-700">
-                                  {new Date(mov.event_date).toLocaleString('pt-BR')}
-                                </span>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-sm font-bold text-slate-700">
+                                    {new Date(mov.event_date).toLocaleString('pt-BR', {
+                                      dateStyle: 'short',
+                                      timeStyle: 'short',
+                                    })}
+                                  </span>
+                                  {mov.movement_details?.nivelSigilo && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] bg-red-50 text-red-600 border-red-200 uppercase tracking-wider"
+                                    >
+                                      Sigilo: {mov.movement_details.nivelSigilo}
+                                    </Badge>
+                                  )}
+                                </div>
                                 <div className="flex gap-2 flex-wrap items-center">
                                   <Badge
                                     variant="outline"
@@ -449,29 +462,25 @@ export default function ProcessDetail() {
 
                               <div className="p-4 space-y-4 bg-white">
                                 {/* Title */}
-                                <h4 className="text-base font-semibold text-slate-800 leading-snug">
-                                  {mov.description}
-                                </h4>
+                                <div className="space-y-1">
+                                  <h4 className="text-base font-semibold text-slate-800 leading-snug">
+                                    {mov.description}
+                                  </h4>
 
-                                {/* Interpretation / Complementos */}
-                                {mov.movement_details?.complementos &&
-                                  mov.movement_details.complementos.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mt-2">
-                                      {mov.movement_details.complementos.map(
-                                        (c: any, i: number) => (
-                                          <span
-                                            key={i}
-                                            className="text-xs bg-slate-50 text-slate-700 px-2.5 py-1.5 rounded-md border border-slate-200 shadow-sm flex items-center gap-1.5"
-                                          >
-                                            <span className="font-semibold text-slate-500">
-                                              {c.nome || c.descricao}:
-                                            </span>
-                                            {c.valor || c.descricaoValor || '-'}
-                                          </span>
-                                        ),
-                                      )}
-                                    </div>
-                                  )}
+                                  {/* Interpretation / Complementos in Main Text Format */}
+                                  {mov.movement_details?.complementos &&
+                                    mov.movement_details.complementos.length > 0 && (
+                                      <p className="text-sm text-slate-600 font-medium">
+                                        <span className="text-slate-400">Detalhes: </span>
+                                        {mov.movement_details.complementos
+                                          .map(
+                                            (c: any) =>
+                                              `${c.nome || c.descricao}: ${c.valor || c.descricaoValor}`,
+                                          )
+                                          .join(' • ')}
+                                      </p>
+                                    )}
+                                </div>
 
                                 {/* Protocol Info */}
                                 {(mov.movement_details?.protocolo ||
@@ -496,12 +505,12 @@ export default function ProcessDetail() {
 
                                 {/* Full Text / Decision Summary */}
                                 {mov.movement_details?.teor && (
-                                  <Accordion type="single" collapsible className="w-full">
+                                  <Accordion type="single" collapsible className="w-full mt-3">
                                     <AccordionItem
                                       value="teor"
                                       className="border border-slate-200 rounded-lg overflow-hidden shadow-sm"
                                     >
-                                      <AccordionTrigger className="py-3 px-4 text-sm font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 hover:no-underline transition-colors flex gap-2">
+                                      <AccordionTrigger className="py-2.5 px-4 text-sm font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 hover:no-underline transition-colors flex gap-2">
                                         <div className="flex items-center gap-2">
                                           <FileText className="w-4 h-4 text-primary" />
                                           Teor do Documento / Decisão
@@ -533,37 +542,86 @@ export default function ProcessDetail() {
                                         <FileStack className="w-4 h-4" /> Documentos Vinculados (
                                         {mov.movement_details.documentos.length})
                                       </h5>
-                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      <div className="grid grid-cols-1 gap-3">
                                         {mov.movement_details.documentos.map(
                                           (doc: any, i: number) => (
                                             <div
                                               key={i}
-                                              className="flex items-start gap-3 p-3 border border-slate-200 rounded-lg bg-white hover:border-primary/40 hover:shadow-sm transition-all group"
+                                              className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg bg-slate-50 hover:bg-white hover:border-primary/40 hover:shadow-sm transition-all group"
                                             >
-                                              <FileText className="w-5 h-5 text-slate-400 mt-0.5 shrink-0 group-hover:text-primary transition-colors" />
+                                              <div className="bg-white p-2 rounded-md border border-slate-200 shadow-sm shrink-0">
+                                                <FileText className="w-5 h-5 text-primary" />
+                                              </div>
                                               <div className="min-w-0 flex-1">
                                                 <p
-                                                  className="text-xs font-semibold text-slate-800 truncate"
+                                                  className="text-sm font-semibold text-slate-800 truncate"
                                                   title={
                                                     doc.nome || doc.tipoDocumento || 'Documento'
                                                   }
                                                 >
                                                   {doc.nome || doc.tipoDocumento || 'Documento'}
                                                 </p>
-                                                <p className="text-[10px] text-slate-500 mt-1 truncate">
-                                                  ID:{' '}
-                                                  <span className="font-mono">
+                                                <div className="flex items-center gap-2 mt-1">
+                                                  <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">
+                                                    ID:{' '}
                                                     {doc.idDocumento ||
                                                       doc.id ||
                                                       doc.hash ||
                                                       'Sem ID'}
                                                   </span>
-                                                  {doc.dataJuntada &&
-                                                    ` • Juntado em ${new Date(
-                                                      doc.dataJuntada,
-                                                    ).toLocaleDateString('pt-BR')}`}
-                                                </p>
+                                                  {doc.dataJuntada && (
+                                                    <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                                                      <Calendar className="w-3 h-3" />
+                                                      {new Date(doc.dataJuntada).toLocaleDateString(
+                                                        'pt-BR',
+                                                        { dateStyle: 'short', timeStyle: 'short' },
+                                                      )}
+                                                    </span>
+                                                  )}
+                                                </div>
+                                                {doc.signatarios && doc.signatarios.length > 0 && (
+                                                  <p className="text-[10px] text-slate-500 mt-1 truncate">
+                                                    <span className="font-semibold text-slate-600">
+                                                      Assinado por:{' '}
+                                                    </span>
+                                                    {doc.signatarios
+                                                      .map(
+                                                        (s: any) => s.pessoa?.nome || s.nome || '',
+                                                      )
+                                                      .join(', ')}
+                                                  </p>
+                                                )}
+                                                {mov.movement_details.signatarios &&
+                                                  mov.movement_details.signatarios.length > 0 &&
+                                                  (!doc.signatarios ||
+                                                    doc.signatarios.length === 0) && (
+                                                    <p className="text-[10px] text-slate-500 mt-1 truncate">
+                                                      <span className="font-semibold text-slate-600">
+                                                        Assinado por:{' '}
+                                                      </span>
+                                                      {mov.movement_details.signatarios
+                                                        .map(
+                                                          (s: any) =>
+                                                            s.pessoa?.nome || s.nome || '',
+                                                        )
+                                                        .join(', ')}
+                                                    </p>
+                                                  )}
                                               </div>
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="shrink-0 text-xs shadow-sm bg-white"
+                                                onClick={() =>
+                                                  toast({
+                                                    title: 'Visualização de Documentos',
+                                                    description:
+                                                      'A funcionalidade de download/visualização do documento diretamente do tribunal estará disponível em breve.',
+                                                  })
+                                                }
+                                              >
+                                                Visualizar
+                                              </Button>
                                             </div>
                                           ),
                                         )}
@@ -575,37 +633,42 @@ export default function ProcessDetail() {
                                 {(mov.movement_details?.avisosPendentes ||
                                   mov.movement_details?.teorComunicacao ||
                                   mov.movement_details?.ciencia) && (
-                                  <div className="mt-4 p-4 bg-amber-50/60 border border-amber-200/60 rounded-lg space-y-4">
-                                    {mov.movement_details.avisosPendentes && (
-                                      <div>
-                                        <span className="font-semibold text-amber-800 text-xs flex items-center gap-1.5 mb-2 uppercase tracking-wider">
-                                          <AlertTriangle className="w-4 h-4" /> Avisos Pendentes
-                                        </span>
-                                        <div className="text-xs text-amber-900 bg-white p-3 rounded-md border border-amber-100 shadow-sm">
-                                          {renderNestedObject(mov.movement_details.avisosPendentes)}
-                                        </div>
-                                      </div>
-                                    )}
+                                  <div className="mt-4 p-4 bg-indigo-50/60 border border-indigo-200/60 rounded-lg space-y-4">
                                     {mov.movement_details.teorComunicacao && (
                                       <div>
-                                        <span className="font-semibold text-amber-800 text-xs flex items-center gap-1.5 mb-2 uppercase tracking-wider">
-                                          <Bell className="w-4 h-4" /> Teor da Comunicação
+                                        <span className="font-bold text-indigo-900 text-xs flex items-center gap-1.5 mb-2 uppercase tracking-wider">
+                                          <Bell className="w-4 h-4" /> Teor da Comunicação /
+                                          Intimação
                                         </span>
-                                        <div className="text-xs text-amber-900 bg-white p-3 rounded-md border border-amber-100 shadow-sm whitespace-pre-wrap leading-relaxed">
+                                        <div className="text-sm text-indigo-900 bg-white p-3.5 rounded-md border border-indigo-100 shadow-sm whitespace-pre-wrap leading-relaxed">
                                           {mov.movement_details.teorComunicacao}
                                         </div>
                                       </div>
                                     )}
-                                    {mov.movement_details.ciencia && (
-                                      <div>
-                                        <span className="font-semibold text-amber-800 text-xs flex items-center gap-1.5 mb-2 uppercase tracking-wider">
-                                          <CheckCircle2 className="w-4 h-4" /> Status de Ciência
-                                        </span>
-                                        <div className="text-xs text-amber-900 bg-white p-3 rounded-md border border-amber-100 shadow-sm">
-                                          {renderNestedObject(mov.movement_details.ciencia)}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      {mov.movement_details.ciencia && (
+                                        <div>
+                                          <span className="font-bold text-indigo-900 text-xs flex items-center gap-1.5 mb-2 uppercase tracking-wider">
+                                            <CheckCircle2 className="w-4 h-4" /> Status de Ciência
+                                          </span>
+                                          <div className="text-xs text-indigo-800 bg-white p-3 rounded-md border border-indigo-100 shadow-sm custom-scrollbar overflow-auto max-h-32">
+                                            {renderNestedObject(mov.movement_details.ciencia)}
+                                          </div>
                                         </div>
-                                      </div>
-                                    )}
+                                      )}
+                                      {mov.movement_details.avisosPendentes && (
+                                        <div>
+                                          <span className="font-bold text-amber-800 text-xs flex items-center gap-1.5 mb-2 uppercase tracking-wider">
+                                            <AlertTriangle className="w-4 h-4" /> Avisos Pendentes
+                                          </span>
+                                          <div className="text-xs text-amber-900 bg-white p-3 rounded-md border border-amber-100 shadow-sm custom-scrollbar overflow-auto max-h-32">
+                                            {renderNestedObject(
+                                              mov.movement_details.avisosPendentes,
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 )}
 

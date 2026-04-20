@@ -111,8 +111,32 @@ routerAdd(
         caseData.movimentos.forEach((mov) => {
           try {
             const movDate = mov.dataHora || new Date().toISOString()
-            const desc = mov.nome || 'Movimento sem descrição'
-            const codigo = mov.codigo || ''
+
+            let descBase = 'Movimento sem descrição'
+            let codigo = ''
+
+            if (mov.tipo && mov.tipo.nacional) {
+              descBase = mov.tipo.nacional.nome || mov.tipo.nacional.descricao || descBase
+              codigo = String(mov.tipo.nacional.codigo || mov.tipo.nacional.id || '')
+            } else if (mov.tipo && mov.tipo.local) {
+              descBase = mov.tipo.local.nome || mov.tipo.local.descricao || descBase
+              codigo = String(mov.tipo.local.codigo || mov.tipo.local.id || '')
+            } else if (mov.nome) {
+              descBase = mov.nome
+              codigo = String(mov.codigo || '')
+            } else if (mov.descricao) {
+              descBase = mov.descricao
+            }
+
+            const complementosList = mov.complementosTabelados || mov.complementos || []
+            let complementosText = complementosList
+              .map((c) => `${c.nome || c.descricao}: ${c.valor || c.descricaoValor || '-'}`)
+              .join(' | ')
+
+            let desc = descBase
+            if (complementosText) {
+              desc = `${descBase} — ${complementosText}`
+            }
 
             const uniqueStr = record.id + '_' + movDate + '_' + codigo
             const extId = 'dj_' + $security.md5(uniqueStr)
@@ -152,6 +176,7 @@ routerAdd(
                 teorComunicacao: mov.teorComunicacao || null,
                 ciencia: mov.ciencia || null,
                 signatarios: mov.signatarios || [],
+                nivelSigilo: mov.nivelSigilo || null,
               }
               newMov.set('movement_details', details)
 

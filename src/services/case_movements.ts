@@ -17,7 +17,7 @@ export const getPaginatedCaseMovements = async (
 }
 
 const sanitizeMovement = (data: any) => {
-  if (data.source && !['DataJud', 'Tribunal', 'Diário', 'Manual', 'PJe'].includes(data.source)) {
+  if (data.source && !['DataJud', 'Tribunal', 'Diário', 'Manual'].includes(data.source)) {
     data.source = 'Manual'
   }
   return data

@@ -17,6 +17,7 @@ import {
   Check,
   Trash2,
   RefreshCw,
+  AlertTriangle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import pb from '@/lib/pocketbase/client'
@@ -76,6 +77,7 @@ export default function Dashboard() {
   const [selectedCollaboratorId, setSelectedCollaboratorId] = useState<string | null>(null)
   const [myCollaboratorId, setMyCollaboratorId] = useState<string | null>(null)
   const [caseCount, setCaseCount] = useState(0)
+  const [recentCases, setRecentCases] = useState<any[]>([])
 
   const canFilterOthers =
     isAdmin || user?.role === 'manager' || user?.role === 'admin' || user?.isAdmin
@@ -106,8 +108,9 @@ export default function Dashboard() {
       filter += ` && responsible_collaborator = "${selectedCollaboratorId}"`
     }
     try {
-      const records = await pb.collection('legal_cases').getList(1, 1, { filter })
+      const records = await pb.collection('legal_cases').getList(1, 5, { filter, sort: '-created' })
       setCaseCount(records.totalItems)
+      setRecentCases(records.items)
     } catch (e) {
       console.error(e)
     }
@@ -436,6 +439,45 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="mt-8 pt-6 border-t border-slate-200/60">
+            <h3 className="text-[10px] font-bold text-slate-400 mb-4 uppercase tracking-wider">
+              Sincronização DataJud (Ativos)
+            </h3>
+            <div className="space-y-3 mb-6">
+              {recentCases.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex justify-between items-center text-sm border-b border-slate-100 pb-2 last:border-0 last:pb-0"
+                >
+                  <Link
+                    to={`/intranet/processos/${c.id}`}
+                    className="text-slate-600 hover:text-primary truncate pr-2 max-w-[160px]"
+                  >
+                    {c.case_number || 'Sem número'}
+                  </Link>
+                  <div className="flex items-center">
+                    {c.datajud_sync_status === 'Success' ? (
+                      <CheckCircle2
+                        className="w-3.5 h-3.5 text-emerald-500"
+                        title="Sincronizado (DataJud)"
+                      />
+                    ) : c.datajud_sync_status === 'Syncing' ? (
+                      <RefreshCw
+                        className="w-3.5 h-3.5 text-blue-500 animate-spin"
+                        title="Sincronizando..."
+                      />
+                    ) : c.datajud_sync_status === 'Error' ? (
+                      <AlertTriangle
+                        className="w-3.5 h-3.5 text-red-500"
+                        title="Erro na sincronização"
+                      />
+                    ) : (
+                      <span className="w-2 h-2 rounded-full bg-slate-300" title="Pendente"></span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
             <h3 className="text-[10px] font-bold text-slate-400 mb-4 uppercase tracking-wider">
               Estatísticas
             </h3>
