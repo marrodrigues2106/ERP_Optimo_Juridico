@@ -88,13 +88,9 @@ routerAdd(
       if (!apiKey) apiKey = $secrets.get('COMUNICA_PJE_KEY') || ''
       apiKey = apiKey.trim()
 
-      const inlabsKey = $secrets.get('INLABS') || ''
-
       const currentDate = new Date().toISOString().split('T')[0]
       let baseUrl = 'https://comunica.pje.jus.br/api/v1'
-      if (inlabsKey) {
-        baseUrl = 'https://pje.inlabs.app/api/v1'
-      } else if (apiKey && apiKey.length >= 5) {
+      if (apiKey && apiKey.length >= 5) {
         baseUrl = 'https://comunicaapi.pje.jus.br/api/v1'
       }
 
@@ -108,9 +104,7 @@ routerAdd(
         Connection: 'keep-alive',
       }
 
-      if (inlabsKey) {
-        headers.Authorization = `Bearer ${inlabsKey}`
-      } else if (apiKey && apiKey.length >= 5) {
+      if (apiKey && apiKey.length >= 5) {
         headers.Authorization = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`
       }
 
@@ -155,7 +149,7 @@ routerAdd(
 
         syncStatus = 'success'
         syncMessage = `Sincronizado com sucesso. ${added} novas movimentações.`
-        record.set('pje_sync_status', 'idle')
+        record.set('pje_sync_status', 'success')
         record.set('pje_last_sync', new Date().toISOString())
         record.set('datajud_sync_status', 'Success')
         record.set('datajud_last_sync', new Date().toISOString())
@@ -184,11 +178,12 @@ routerAdd(
         msg.includes('deadline') ||
         msg.includes('timeout') ||
         msg.includes('network') ||
-        msg.includes('gateway')
+        msg.includes('gateway') ||
+        msg.includes('no such host')
       ) {
-        syncMessage = 'PJE_TIMEOUT: Sistema PJe indisponível.'
+        syncMessage = 'PJE_TIMEOUT: Sistema PJe indisponível ou falha de conectividade.'
       } else {
-        syncMessage = err.message || 'Erro desconhecido'
+        syncMessage = err.message || 'Erro desconhecido ao tentar conectar.'
       }
     }
 

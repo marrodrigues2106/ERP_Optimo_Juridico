@@ -66,7 +66,8 @@ export default function ProcessDetail() {
       setLegalCase((prev: any) => {
         if (!prev) return prev
         const wasNotIdle = prev.pje_sync_status === 'syncing' || prev.pje_sync_status === 'pending'
-        const isIdleNow = e.record.pje_sync_status === 'idle'
+        const isIdleNow =
+          e.record.pje_sync_status === 'idle' || e.record.pje_sync_status === 'success'
         if (wasNotIdle && isIdleNow) {
           loadMovements(1)
         }
@@ -123,48 +124,28 @@ export default function ProcessDetail() {
       loadData()
       loadMovements(1)
     } catch (error: any) {
-      let errorMsg: string | object = 'O tribunal está indisponível ou rejeitou a requisição.'
+      let userMessage =
+        'O tribunal está indisponível ou rejeitou a requisição. Tente novamente mais tarde.'
 
-      try {
-        if (error?.response?.message) {
-          errorMsg =
-            typeof error.response.message === 'string'
-              ? error.response.message
-              : JSON.stringify(error.response.message)
-        } else if (error?.message) {
-          errorMsg = error.message
-        }
-      } catch (e) {
-        // ignore parsing errors
-      }
+      const status = error?.status || error?.response?.status || 500
+      const errorMsg = String(error?.response?.message || error?.message || '')
 
-      let userMessage = errorMsg
-      const status = error?.status
-
-      if (
-        status === 403 ||
-        (typeof errorMsg === 'string' &&
-          (errorMsg.includes('PJE_FORBIDDEN') || errorMsg.includes('403')))
-      ) {
-        userMessage =
-          'Acesso negado pelo tribunal. Por favor, verifique as configurações da API ou tente novamente mais tarde.'
-      } else if (
-        status === 401 ||
-        (typeof errorMsg === 'string' &&
-          (errorMsg.includes('PJE_UNAUTHORIZED') || errorMsg.includes('401')))
-      ) {
+      if (status === 403 || errorMsg.includes('PJE_FORBIDDEN')) {
+        userMessage = 'Acesso negado pelo tribunal. Por favor, verifique as configurações da API.'
+      } else if (status === 401 || errorMsg.includes('PJE_UNAUTHORIZED')) {
         userMessage = 'Não autorizado (401). A chave de API do tribunal pode estar expirada.'
-      } else if (
-        status === 400 ||
-        (typeof errorMsg === 'string' &&
-          (errorMsg.includes('PJE_BAD_REQUEST') || errorMsg.includes('400')))
-      ) {
+      } else if (status === 400 || errorMsg.includes('PJE_BAD_REQUEST')) {
         userMessage = 'Requisição inválida (400) ou processo não encontrado no tribunal.'
+      } else if (errorMsg.includes('PJE_TIMEOUT') || status === 503 || status === 504) {
+        userMessage =
+          'O sistema do tribunal (PJe) está indisponível no momento ou houve falha de rede.'
+      } else if (errorMsg && errorMsg !== 'undefined' && errorMsg !== 'null') {
+        userMessage = errorMsg
       }
 
       toast({
         title: 'Falha na Sincronização',
-        description: String(userMessage),
+        description: userMessage,
         variant: 'destructive',
       })
 

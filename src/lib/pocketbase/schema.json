@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-20T04:14:03.682Z",
+  "generatedAt": "2026-04-20T04:18:44.474Z",
   "collections": [
     {
       "name": "users",
@@ -1476,7 +1476,7 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": ["idle", "pending", "syncing", "error"]
+          "selectValues": ["idle", "pending", "syncing", "error", "success"]
         }
       ],
       "indexes": [
