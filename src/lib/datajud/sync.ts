@@ -67,8 +67,9 @@ export async function runDatajudSync(caseRecord: any, onProgress: (msg: string) 
   onProgress('Iniciando sincronização com DataJud...')
 
   try {
-    const res = await pb.send(`/backend/v1/datajud/background-sync/${caseRecord.id}`, {
+    const res = await pb.send(`/backend/v1/datajud/sync-case`, {
       method: 'POST',
+      body: JSON.stringify({ caseId: caseRecord.id }),
     })
     if (res.status === 'ok') {
       onProgress('Sincronização concluída com sucesso.')

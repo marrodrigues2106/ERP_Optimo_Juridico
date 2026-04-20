@@ -1,7 +1,9 @@
 import pb from '@/lib/pocketbase/client'
 
 export const getCollaborators = () =>
-  pb.collection('collaborators').getFullList({ filter: 'deleted_at = ""', sort: '-created' })
+  pb
+    .collection('collaborators')
+    .getFullList({ filter: 'deleted_at = "" && user != ""', sort: '-created' })
 export const getCollaborator = (id: string) => pb.collection('collaborators').getOne(id)
 
 const sanitizeCollaborator = (data: any) => {

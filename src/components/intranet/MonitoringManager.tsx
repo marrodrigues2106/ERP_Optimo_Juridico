@@ -58,7 +58,9 @@ export default function MonitoringManager() {
   const [syncing, setSyncing] = useState(false)
   const [lastSyncLog, setLastSyncLog] = useState<any>(null)
   const [pjeStatus, setPjeStatus] = useState<'online' | 'offline' | 'unknown'>('unknown')
-  const [pjeLastSync, setPjeLastSync] = useState<string | null>(null)
+  const [pjeConnectionStatus, setPjeConnectionStatus] = useState<
+    'connected' | 'disconnected' | 'unknown'
+  >('unknown')
 
   const loadData = async () => {
     try {
@@ -74,22 +76,6 @@ export default function MonitoringManager() {
         // ignore error
       }
 
-      try {
-        const pjeCases = await pb.collection('legal_cases').getList(1, 1, {
-          filter: "pje_sync_status != ''",
-          sort: '-pje_last_sync',
-        })
-        if (pjeCases.items.length > 0) {
-          const latest = pjeCases.items[0]
-          setPjeStatus(latest.pje_sync_status === 'error' ? 'offline' : 'online')
-          setPjeLastSync(latest.pje_last_sync)
-        } else {
-          setPjeStatus('unknown')
-        }
-      } catch (e) {
-        setPjeStatus('unknown')
-      }
-
       const records = await pb.collection('monitoring_configs').getFullList()
       if (records.length > 0) {
         const c = records[0]
@@ -103,6 +89,8 @@ export default function MonitoringManager() {
         setRodouExcludedDepts(c.department_ignore || '')
         setRodouSections((c.dou_sections || '1,2,3,Extra').split(',').filter(Boolean))
         setQdTerritoryId(c.territory_id || '')
+        setPjeStatus(c.pje_status || 'unknown')
+        setPjeConnectionStatus(c.pje_connection_status || 'unknown')
       }
 
       const settings = await pb.collection('settings').getFullList()
@@ -517,7 +505,7 @@ export default function MonitoringManager() {
                   <div className="overflow-hidden mr-2">
                     <div className="font-semibold text-sm">Integração PJe</div>
                     <div className="text-xs text-muted-foreground truncate">
-                      Última check: {pjeLastSync ? new Date(pjeLastSync).toLocaleString() : 'N/A'}
+                      Status de Serviço PJe
                     </div>
                   </div>
                   <div className="flex flex-col gap-1 items-end shrink-0">
@@ -526,23 +514,20 @@ export default function MonitoringManager() {
                     </span>
                     <Badge
                       variant={
-                        pjeStatus === 'online'
+                        pjeConnectionStatus === 'connected' && pjeStatus === 'online'
                           ? 'default'
-                          : pjeStatus === 'offline'
+                          : pjeStatus === 'offline' || pjeConnectionStatus === 'disconnected'
                             ? 'destructive'
                             : 'secondary'
                       }
                       className={
-                        pjeStatus === 'online'
+                        pjeConnectionStatus === 'connected' && pjeStatus === 'online'
                           ? 'bg-emerald-500 hover:bg-emerald-600 shrink-0'
                           : 'shrink-0'
                       }
                     >
-                      {pjeStatus === 'online'
-                        ? 'Conectado - Online'
-                        : pjeStatus === 'offline'
-                          ? 'Desconectado - Offline'
-                          : 'Desconhecido'}
+                      {pjeConnectionStatus === 'connected' ? 'Conectado' : 'Desconectado'} -{' '}
+                      {pjeStatus === 'online' ? 'Online' : 'Offline'}
                     </Badge>
                   </div>
                 </div>

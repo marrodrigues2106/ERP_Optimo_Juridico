@@ -17,3 +17,7 @@ export const syncDataJudCase = async (id: string) => {
     throw err
   }
 }
+
+export const batchSyncDataJudCases = async (caseIds: string[]) => {
+  return Promise.all(caseIds.map((id) => syncDataJudCase(id)))
+}

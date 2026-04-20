@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-20T18:18:44.842Z",
+  "generatedAt": "2026-04-20T18:26:41.533Z",
   "collections": [
     {
       "name": "users",
@@ -1110,6 +1110,20 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "pje_status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["online", "offline"]
+        },
+        {
+          "name": "pje_connection_status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["connected", "disconnected"]
         }
       ],
       "indexes": []
