@@ -102,7 +102,8 @@ export function FinanceProfitTab({ transactions = [], cases = [], estimates = []
       tOut = 0
     const grouped: any = {}
     expanded.forEach((t: any) => {
-      t.type === 'inflow' ? (tIn += t.amount || 0) : (tOut += t.amount || 0)
+      if (t.type === 'inflow') tIn += t.amount || 0
+      else tOut += t.amount || 0
       const d = new Date(t.date.substring(0, 10) + 'T12:00:00')
       const isDaily = differenceInDays(eObj, sObj) <= 31
       const key = format(d, isDaily ? 'dd/MM' : 'MMM yyyy', { locale: ptBR })
@@ -113,9 +114,8 @@ export function FinanceProfitTab({ transactions = [], cases = [], estimates = []
           outflow: 0,
           sortKey: isDaily ? d.getTime() : startOfMonth(d).getTime(),
         }
-      t.type === 'inflow'
-        ? (grouped[key].inflow += t.amount || 0)
-        : (grouped[key].outflow += t.amount || 0)
+      if (t.type === 'inflow') grouped[key].inflow += t.amount || 0
+      else grouped[key].outflow += t.amount || 0
     })
 
     return {
