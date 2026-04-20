@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Camera, History, Save, Loader2, X, Plus, Activity } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
+import { Badge } from '@/components/ui/badge'
 import {
   Pagination,
   PaginationContent,
