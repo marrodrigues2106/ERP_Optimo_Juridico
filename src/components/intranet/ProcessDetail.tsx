@@ -109,18 +109,24 @@ export default function ProcessDetail() {
 
   const handleSync = async () => {
     try {
-      await pb.send(`/backend/v1/processos/${id}/sync-pje`, { method: 'POST' })
+      setLegalCase((prev: any) => ({ ...prev, pje_sync_status: 'syncing' }))
+      const res = await pb.send(`/backend/v1/processos/${id}/sync-pje`, { method: 'POST' })
       toast({
-        title: 'Sincronização agendada',
-        description: 'O processo será atualizado em background.',
+        title: 'Sincronização concluída',
+        description: res?.message || 'Processo atualizado com o PJe com sucesso.',
       })
-      setLegalCase((prev: any) => ({ ...prev, pje_sync_status: 'pending' }))
+      loadData()
+      loadMovements(1)
     } catch (error: any) {
       toast({
-        title: 'Erro na Solicitação',
-        description: error?.response?.message || error?.message || 'Erro desconhecido.',
+        title: 'Falha na Sincronização',
+        description:
+          error?.response?.message ||
+          error?.message ||
+          'O tribunal está indisponível ou rejeitou a requisição.',
         variant: 'destructive',
       })
+      setLegalCase((prev: any) => ({ ...prev, pje_sync_status: 'error' }))
     }
   }
 

@@ -41,7 +41,13 @@ routerAdd(
       const res = $http.send({
         url: url,
         method: 'GET',
-        headers: { Accept: 'application/json' },
+        headers: {
+          Accept: 'application/json',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+          Connection: 'keep-alive',
+        },
         timeout: 60,
       })
 
@@ -82,7 +88,11 @@ routerAdd(
         record.set('datajud_sync_status', 'Success')
         record.set('datajud_last_sync', new Date().toISOString())
       } else {
-        if (res.statusCode === 504 || res.statusCode === 503 || res.statusCode === 502) {
+        if (res.statusCode === 403) {
+          syncMessage = 'PJE_FORBIDDEN: Acesso negado pelo tribunal (403).'
+        } else if (res.statusCode === 400) {
+          syncMessage = 'PJE_BAD_REQUEST: Requisição inválida ou processo não encontrado (400).'
+        } else if (res.statusCode === 504 || res.statusCode === 503 || res.statusCode === 502) {
           syncMessage = 'PJE_TIMEOUT: Sistema PJe indisponível.'
         } else {
           syncMessage =
