@@ -72,6 +72,7 @@ export default function Dashboard() {
   const [recentCases, setRecentCases] = useState<any[]>([])
 
   const [feedPage, setFeedPage] = useState(1)
+  const [isProcessingBatch, setIsProcessingBatch] = useState(false)
   const [feedPerPage, setFeedPerPage] = useState(() => {
     const stored = sessionStorage.getItem('dashboard_feed_per_page')
     return stored ? Number(stored) : 10
@@ -242,11 +243,12 @@ export default function Dashboard() {
     [createDebouncedLoader, selectedCollaboratorId],
   )
 
-  useRealtime('tasks', debouncedLoadTasks)
-  useRealtime('legal_cases', debouncedLoadCaseCount)
-  useRealtime('gazette_publications', debouncedLoadFeed)
-  useRealtime('ocorrencias_dou', debouncedLoadFeed)
-  useRealtime('case_movements', debouncedLoadFeed)
+  useRealtime('tasks', debouncedLoadTasks, !isProcessingBatch)
+  useRealtime('legal_cases', debouncedLoadCaseCount, !isProcessingBatch)
+  useRealtime('gazette_publications', debouncedLoadFeed, !isProcessingBatch)
+  useRealtime('ocorrencias_dou', debouncedLoadFeed, !isProcessingBatch)
+  useRealtime('case_movements', debouncedLoadFeed, !isProcessingBatch)
+  useRealtime('results', debouncedLoadFeed, !isProcessingBatch)
 
   const toggleTask = async (id: string, currentStatus: string) => {
     try {
@@ -341,32 +343,81 @@ export default function Dashboard() {
 
   const handleBulkAction = async (markAsRead: boolean) => {
     if (selectedFeedItems.length === 0) return
+    setIsProcessingBatch(true)
+
+    // Optimistic UI update
     setFeedItems((prev) =>
       prev.map((i) => (selectedFeedItems.includes(i.id) ? { ...i, isRead: markAsRead } : i)),
     )
     const itemsToUpdate = feedItems.filter((i) => selectedFeedItems.includes(i.id))
     setSelectedFeedItems([])
-    try {
+
+    const CHUNK_SIZE = 10
+    const chunks = []
+    for (let i = 0; i < itemsToUpdate.length; i += CHUNK_SIZE) {
+      chunks.push(itemsToUpdate.slice(i, i + CHUNK_SIZE))
+    }
+
+    let hasErrors = false
+
+    for (const chunk of chunks) {
       await Promise.all(
-        itemsToUpdate.map((item) => {
-          if (item.source === 'gazette')
-            return pb.collection('gazette_publications').update(item.id, { is_read: markAsRead })
-          else if (item.source === 'dou')
-            return pb
-              .collection('ocorrencias_dou')
-              .update(item.id, { status_alerta: markAsRead ? 'visualizado' : 'pendente' })
-          else if (item.source === 'movement')
-            return pb.collection('case_movements').update(item.id, { notified_client: markAsRead })
-          else if (item.source === 'comunica')
-            return pb.collection('results').update(item.id, { is_read: markAsRead })
+        chunk.map(async (item) => {
+          let success = false
+          let attempts = 0
+          let lastError = null
+
+          while (!success && attempts < 3) {
+            try {
+              if (item.source === 'gazette')
+                await pb.collection('gazette_publications').update(item.id, { is_read: markAsRead })
+              else if (item.source === 'dou')
+                await pb
+                  .collection('ocorrencias_dou')
+                  .update(item.id, { status_alerta: markAsRead ? 'visualizado' : 'pendente' })
+              else if (item.source === 'movement')
+                await pb
+                  .collection('case_movements')
+                  .update(item.id, { notified_client: markAsRead })
+              else if (item.source === 'comunica')
+                await pb.collection('results').update(item.id, { is_read: markAsRead })
+              success = true
+            } catch (err) {
+              lastError = err
+              attempts++
+              if (attempts < 3) {
+                await new Promise((r) => setTimeout(r, 500 * attempts))
+              }
+            }
+          }
+
+          if (!success) {
+            hasErrors = true
+            try {
+              await pb.collection('system_logs').create({
+                level: 'error',
+                module: 'Dashboard',
+                message: `Falha ao processar item em lote (ID: ${item.id}) após 3 tentativas.`,
+                details: { item, error: lastError },
+                organization: pb.authStore.record?.active_organization || null,
+                user: pb.authStore.record?.id || null,
+              })
+            } catch (logErr) {
+              console.error('Failed to write audit log', logErr)
+            }
+          }
         }),
       )
-      toast({ title: `Itens marcados como ${markAsRead ? 'lidos' : 'não lidos'}` })
-      debouncedLoadFeed()
-    } catch (e) {
-      toast({ title: 'Erro ao atualizar itens', variant: 'destructive' })
-      debouncedLoadFeed()
     }
+
+    if (hasErrors) {
+      toast({ title: 'Alguns itens falharam e foram registrados no log', variant: 'destructive' })
+    } else {
+      toast({ title: `Itens marcados como ${markAsRead ? 'lidos' : 'não lidos'}` })
+    }
+
+    debouncedLoadFeed()
+    setIsProcessingBatch(false)
   }
 
   return (
@@ -552,7 +603,7 @@ export default function Dashboard() {
                     paginatedFeed.length > 0 && selectedFeedItems.length === paginatedFeed.length
                   }
                   onCheckedChange={handleSelectAll}
-                  disabled={paginatedFeed.length === 0}
+                  disabled={paginatedFeed.length === 0 || isProcessingBatch}
                 />
                 <Label
                   htmlFor="select-all-feed"
@@ -571,7 +622,9 @@ export default function Dashboard() {
                     variant="outline"
                     className="h-8 text-xs bg-white"
                     onClick={() => handleBulkAction(true)}
+                    disabled={isProcessingBatch}
                   >
+                    {isProcessingBatch && <RefreshCw className="w-3 h-3 mr-2 animate-spin" />}
                     Marcar como Lido
                   </Button>
                   <Button
@@ -579,7 +632,9 @@ export default function Dashboard() {
                     variant="outline"
                     className="h-8 text-xs bg-white"
                     onClick={() => handleBulkAction(false)}
+                    disabled={isProcessingBatch}
                   >
+                    {isProcessingBatch && <RefreshCw className="w-3 h-3 mr-2 animate-spin" />}
                     Marcar como Não Lido
                   </Button>
                 </div>
@@ -606,6 +661,7 @@ export default function Dashboard() {
                       <Checkbox
                         checked={selectedFeedItems.includes(item.id)}
                         onCheckedChange={(c) => handleSelect(item.id, !!c)}
+                        disabled={isProcessingBatch}
                       />
                       {item.source === 'gazette' ? (
                         <BookOpen
@@ -694,6 +750,7 @@ export default function Dashboard() {
                               : 'text-primary hover:text-primary/80',
                           )}
                           onClick={() => toggleRead(item)}
+                          disabled={isProcessingBatch}
                         >
                           <Check className="w-3.5 h-3.5 mr-1" />
                           {item.isRead ? 'Mover para Não Lidos' : 'Marcar como Lido'}
