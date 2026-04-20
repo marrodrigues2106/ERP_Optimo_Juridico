@@ -108,13 +108,38 @@ export default function ProcessDetail() {
   }
 
   const handleSync = async () => {
+    const startTime = Date.now()
     try {
       setLegalCase((prev: any) => ({ ...prev, pje_sync_status: 'syncing' }))
-      const res = await pb.send(`/backend/v1/processos/${id}/sync-pje`, { method: 'POST' })
+
+      const sanitizedNumber = legalCase?.case_number?.replace(/\D/g, '') || ''
+
+      await pb.collection('legal_cases').update(id!, {
+        pje_sync_status: 'syncing',
+      })
+
+      const res = await pb.send(`/backend/v1/processos/${id}/sync-pje`, {
+        method: 'POST',
+        body: JSON.stringify({ numero_processo: sanitizedNumber }),
+      })
+
+      await pb.collection('legal_cases').update(id!, {
+        pje_sync_status: 'idle',
+        pje_last_sync: new Date().toISOString(),
+      })
+
+      await pb.collection('pje_sync_logs').create({
+        case: id,
+        status: 'success',
+        duration: Date.now() - startTime,
+        organization: pb.authStore.record?.active_organization,
+      })
+
       toast({
         title: 'Sincronização concluída',
         description: res?.message || 'Processo atualizado com o PJe com sucesso.',
       })
+
       loadData()
       loadMovements(1)
     } catch (error: any) {
@@ -130,7 +155,8 @@ export default function ProcessDetail() {
       const status = error?.status
 
       if (status === 403 || errorMsg.includes('PJE_FORBIDDEN') || errorMsg.includes('403')) {
-        userMessage = 'Acesso negado pelo tribunal. Verifique suas credenciais de API.'
+        userMessage =
+          'Acesso negado pelo tribunal. Por favor, verifique as configurações da API ou tente novamente mais tarde.'
       } else if (
         status === 401 ||
         errorMsg.includes('PJE_UNAUTHORIZED') ||
@@ -150,6 +176,23 @@ export default function ProcessDetail() {
         description: userMessage,
         variant: 'destructive',
       })
+
+      try {
+        await pb.collection('legal_cases').update(id!, {
+          pje_sync_status: 'error',
+        })
+
+        await pb.collection('pje_sync_logs').create({
+          case: id,
+          status: 'failed',
+          message: userMessage,
+          duration: Date.now() - startTime,
+          organization: pb.authStore.record?.active_organization,
+        })
+      } catch (e) {
+        console.error('Failed to log sync error', e)
+      }
+
       setLegalCase((prev: any) => ({ ...prev, pje_sync_status: 'error' }))
     }
   }
@@ -444,9 +487,9 @@ export default function ProcessDetail() {
                             {mov.source}
                           </Badge>
                         </div>
-                        <p className="text-slate-800 text-sm whitespace-pre-wrap leading-relaxed">
+                        <div className="text-slate-800 text-sm whitespace-pre-wrap leading-relaxed break-words overflow-hidden w-full">
                           {mov.description}
-                        </p>
+                        </div>
                       </div>
                     ))}
                   </div>

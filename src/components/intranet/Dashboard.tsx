@@ -44,7 +44,7 @@ import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 type FeedItem = {
   id: string
-  source: 'gazette' | 'dou' | 'movement'
+  source: 'gazette' | 'dou' | 'movement' | 'comunica'
   title: string
   description: string
   date: string
@@ -130,7 +130,8 @@ export default function Dashboard() {
   }
 
   const loadFeed = async () => {
-    const [gUnread, gRead, dUnread, dRead, mUnread, mRead] = await Promise.all([
+    const orgId = pb.authStore.record?.active_organization
+    const [gUnread, gRead, dUnread, dRead, mUnread, mRead, cUnread, cRead] = await Promise.all([
       pb
         .collection('gazette_publications')
         .getFullList({ filter: 'is_read = false', sort: '-created' }),
@@ -144,14 +145,22 @@ export default function Dashboard() {
         .collection('ocorrencias_dou')
         .getList(1, 20, { filter: 'status_alerta != "pendente"', sort: '-updated' }),
       pb.collection('case_movements').getFullList({
-        filter: 'notified_client = false && deleted_at = ""',
+        filter: `notified_client = false && deleted_at = ""${orgId ? ` && organization = "${orgId}"` : ''}`,
         sort: '-event_date',
         expand: 'case',
       }),
       pb.collection('case_movements').getList(1, 20, {
-        filter: 'notified_client = true && deleted_at = ""',
+        filter: `notified_client = true && deleted_at = ""${orgId ? ` && organization = "${orgId}"` : ''}`,
         sort: '-event_date',
         expand: 'case',
+      }),
+      pb.collection('results').getFullList({
+        filter: 'is_read = false',
+        sort: '-created',
+      }),
+      pb.collection('results').getList(1, 20, {
+        filter: 'is_read = true',
+        sort: '-updated',
       }),
     ])
 
@@ -164,11 +173,21 @@ export default function Dashboard() {
             ? 'Diário Oficial'
             : source === 'dou'
               ? 'Ocorrência DOU'
-              : `Movimentação: ${i.expand?.case?.case_number || 'Processo'}`,
-        description: i.texto_normalizado || i.trecho_encontrado || i.description || '',
-        date: i.data_publicacao || i.data_deteccao || i.event_date || i.created,
+              : source === 'comunica'
+                ? `Comunicação PJe: ${i.numero_processo || 'Processo'}`
+                : `Movimentação: ${i.expand?.case?.case_number || 'Processo'}`,
+        description:
+          source === 'comunica'
+            ? i.texto
+            : i.texto_normalizado || i.trecho_encontrado || i.description || '',
+        date:
+          i.data_publicacao ||
+          i.data_deteccao ||
+          i.event_date ||
+          i.data_disponibilizacao ||
+          i.created,
         isRead,
-        tags: [i.orgao || i.source || 'Tribunal'],
+        tags: [i.orgao || i.sigla_tribunal || i.source || 'Tribunal'],
         raw: i,
         lawsuitId: source === 'movement' ? i.case : undefined,
       }))
@@ -180,6 +199,8 @@ export default function Dashboard() {
       ...mapItems(dRead.items, 'dou', true),
       ...mapItems(mUnread, 'movement', false),
       ...mapItems(mRead.items, 'movement', true),
+      ...mapItems(cUnread, 'comunica', false),
+      ...mapItems(cRead.items, 'comunica', true),
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
     setFeedItems(all)
@@ -299,6 +320,8 @@ export default function Dashboard() {
           .update(item.id, { status_alerta: item.isRead ? 'pendente' : 'visualizado' })
       } else if (item.source === 'movement') {
         await pb.collection('case_movements').update(item.id, { notified_client: !item.isRead })
+      } else if (item.source === 'comunica') {
+        await pb.collection('results').update(item.id, { is_read: !item.isRead })
       }
       toast({ title: item.isRead ? 'Marcado como não lido' : 'Marcado como lido' })
       debouncedLoadFeed()
@@ -344,6 +367,8 @@ export default function Dashboard() {
               .update(item.id, { status_alerta: markAsRead ? 'visualizado' : 'pendente' })
           else if (item.source === 'movement')
             return pb.collection('case_movements').update(item.id, { notified_client: markAsRead })
+          else if (item.source === 'comunica')
+            return pb.collection('results').update(item.id, { is_read: markAsRead })
         }),
       )
       toast({ title: `Itens marcados como ${markAsRead ? 'lidos' : 'não lidos'}` })
@@ -571,6 +596,13 @@ export default function Dashboard() {
                             item.isRead ? 'text-slate-400' : 'text-emerald-500',
                           )}
                         />
+                      ) : item.source === 'comunica' ? (
+                        <Bell
+                          className={cn(
+                            'w-5 h-5',
+                            item.isRead ? 'text-slate-400' : 'text-purple-500',
+                          )}
+                        />
                       ) : (
                         <Activity
                           className={cn(
@@ -591,6 +623,13 @@ export default function Dashboard() {
                           {item.lawsuitId ? (
                             <Link
                               to={`/intranet/processos/${item.lawsuitId}`}
+                              className="text-primary hover:underline"
+                            >
+                              {item.title}
+                            </Link>
+                          ) : item.source === 'comunica' ? (
+                            <Link
+                              to={`/intranet/comunicacoes/${item.id}`}
                               className="text-primary hover:underline"
                             >
                               {item.title}
