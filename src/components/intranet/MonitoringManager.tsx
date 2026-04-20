@@ -378,16 +378,20 @@ export default function MonitoringManager() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Configurações DataJud</CardTitle>
+              <CardTitle>Configurações de Sincronização (PJe / DataJud)</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Chave API DataJud</Label>
+                <Label>Token PJe (Bearer) / Chave API DataJud</Label>
                 <Input
                   type="password"
                   value={datajudApiKey}
                   onChange={(e) => setDatajudApiKey(e.target.value)}
+                  placeholder="Insira o Token Bearer ou Chave de API"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Utilizado para a sincronização de andamentos do PJe.
+                </p>
               </div>
               <div className="flex items-center justify-between border p-3 rounded-lg bg-slate-50">
                 <div>

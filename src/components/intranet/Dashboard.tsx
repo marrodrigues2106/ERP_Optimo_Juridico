@@ -86,7 +86,7 @@ export default function Dashboard() {
     try {
       await pb.send('/backend/v1/processos-sync-pje-all', { method: 'POST' })
       toast({
-        title: 'Sincronização agendada',
+        title: 'Sincronização Agendada',
         description: 'Os processos ativos serão atualizados em background.',
       })
     } catch (err: any) {
@@ -485,7 +485,7 @@ export default function Dashboard() {
               className="hidden sm:flex shadow-sm bg-white"
             >
               <RefreshCw className={`w-4 h-4 mr-2 ${isSyncingAll ? 'animate-spin' : ''}`} />
-              Sincronizar com PJe
+              {isSyncingAll ? 'Sincronizando...' : 'Sincronizar com PJe'}
             </Button>
             <Button
               onClick={() => setCaseModalOpen(true)}

@@ -63,7 +63,10 @@ export default function ProcessManager() {
     setIsSyncingAll(true)
     try {
       await pb.send('/backend/v1/processos-sync-pje-all', { method: 'POST' })
-      toast({ title: 'Sincronização com PJe concluída.' })
+      toast({
+        title: 'Sincronização Agendada',
+        description: 'Os processos ativos serão atualizados em background.',
+      })
       loadData()
     } catch (err: any) {
       toast({ title: 'Erro na Sincronização', description: err.message, variant: 'destructive' })
@@ -183,7 +186,7 @@ export default function ProcessManager() {
             className="shadow-sm"
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${isSyncingAll ? 'animate-spin' : ''}`} />{' '}
-            Sincronizar com PJe
+            {isSyncingAll ? 'Sincronizando...' : 'Sincronizar com PJe'}
           </Button>
           <Button onClick={() => handleOpenForm()} className="shadow-sm">
             <Plus className="w-4 h-4 mr-2" /> Novo Registro
@@ -352,17 +355,23 @@ export default function ProcessManager() {
                           {c.type === 'Processo' ? (
                             <Badge
                               className={
-                                c.datajud_sync_status === 'Synced' ||
-                                c.datajud_sync_status === 'Success'
+                                c.pje_sync_status === 'idle'
                                   ? 'bg-emerald-500'
-                                  : c.datajud_sync_status === 'Pending'
+                                  : c.pje_sync_status === 'pending' ||
+                                      c.pje_sync_status === 'syncing'
                                     ? 'bg-amber-500'
-                                    : c.datajud_sync_status === 'Error'
+                                    : c.pje_sync_status === 'error'
                                       ? 'bg-red-500'
                                       : 'bg-slate-300'
                               }
                             >
-                              {c.datajud_sync_status || 'Pendente'}
+                              {c.pje_sync_status === 'idle'
+                                ? 'Sincronizado'
+                                : c.pje_sync_status === 'pending' || c.pje_sync_status === 'syncing'
+                                  ? 'Sincronizando...'
+                                  : c.pje_sync_status === 'error'
+                                    ? 'Erro na Sync'
+                                    : 'Pendente'}
                             </Badge>
                           ) : (
                             <span className="text-xs text-slate-400 italic">N/A</span>

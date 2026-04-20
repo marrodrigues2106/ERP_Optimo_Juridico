@@ -65,9 +65,9 @@ export default function ProcessDetail() {
     if (e.record.id === id) {
       setLegalCase((prev: any) => {
         if (!prev) return prev
-        const wasSyncing = prev.pje_sync_status === 'syncing'
+        const wasNotIdle = prev.pje_sync_status === 'syncing' || prev.pje_sync_status === 'pending'
         const isIdleNow = e.record.pje_sync_status === 'idle'
-        if (wasSyncing && isIdleNow) {
+        if (wasNotIdle && isIdleNow) {
           loadMovements(1)
         }
         return { ...prev, ...e.record }
@@ -108,31 +108,11 @@ export default function ProcessDetail() {
   }
 
   const handleSync = async () => {
-    const startTime = Date.now()
     try {
       setLegalCase((prev: any) => ({ ...prev, pje_sync_status: 'syncing' }))
 
-      const sanitizedNumber = legalCase?.case_number?.replace(/\D/g, '') || ''
-
-      await pb.collection('legal_cases').update(id!, {
-        pje_sync_status: 'syncing',
-      })
-
       const res = await pb.send(`/backend/v1/processos/${id}/sync-pje`, {
         method: 'POST',
-        body: JSON.stringify({ numero_processo: sanitizedNumber }),
-      })
-
-      await pb.collection('legal_cases').update(id!, {
-        pje_sync_status: 'idle',
-        pje_last_sync: new Date().toISOString(),
-      })
-
-      await pb.collection('pje_sync_logs').create({
-        case: id,
-        status: 'success',
-        duration: Date.now() - startTime,
-        organization: pb.authStore.record?.active_organization,
       })
 
       toast({
@@ -176,22 +156,6 @@ export default function ProcessDetail() {
         description: userMessage,
         variant: 'destructive',
       })
-
-      try {
-        await pb.collection('legal_cases').update(id!, {
-          pje_sync_status: 'error',
-        })
-
-        await pb.collection('pje_sync_logs').create({
-          case: id,
-          status: 'failed',
-          message: userMessage,
-          duration: Date.now() - startTime,
-          organization: pb.authStore.record?.active_organization,
-        })
-      } catch (e) {
-        console.error('Failed to log sync error', e)
-      }
 
       setLegalCase((prev: any) => ({ ...prev, pje_sync_status: 'error' }))
     }
@@ -331,8 +295,8 @@ export default function ProcessDetail() {
                   />
                   {legalCase?.pje_sync_status === 'pending' ||
                   legalCase?.pje_sync_status === 'syncing'
-                    ? 'Sincronizando em 2º plano...'
-                    : 'Solicitar Atualização PJe'}
+                    ? 'Sincronizando...'
+                    : 'Sincronizar com PJe'}
                 </Button>
               </div>
             </div>
