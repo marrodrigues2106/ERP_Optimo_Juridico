@@ -334,6 +334,21 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
           record.set('distribution_date', new Date(dDate).toISOString())
         }
 
+        const oldMetadata = record.get('metadata') || {}
+        const newMetadata = {
+          ...oldMetadata,
+          assuntos: primarySource.assuntos || [],
+          polos: primarySource.polos || [],
+          classe: primarySource.classe || null,
+          orgaoJulgador: primarySource.orgaoJulgador || null,
+          valorCausa: primarySource.valorCausa || null,
+          hash: primarySource.hash || null,
+          formato: primarySource.formato || null,
+          nivelSigilo: primarySource.nivelSigilo || null,
+          ultimaAtualizacaoDatajud: primarySource.dataAtualizacao || null,
+        }
+        record.set('metadata', newMetadata)
+
         const oldStatus = record.get('status') || ''
         let latestMovTime = 0
         let latestMovDesc = ''
@@ -376,6 +391,11 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
             const movementDetailsObj = {
               orgaoJulgador: movOrganName,
               complementosTabelados: m.complementosTabelados || [],
+              documentos: m.documentos || [],
+              idDocumentoVinculado: m.idDocumentoVinculado || null,
+              nivelSigilo: m.nivelSigilo || null,
+              tipoDecisao: m.tipoDecisao || null,
+              hash: m.hash || null,
             }
 
             if (movTime > latestMovTime) {

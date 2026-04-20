@@ -30,14 +30,42 @@ onRecordAfterCreateSuccess((e) => {
           const uniqueStr = record.id + '_' + item.hash
           const extId = item.hash || $security.md5(uniqueStr)
 
+          const movementDetailsObj = {
+            meio: item.meio || '',
+            tipoDocumento: item.tipoDocumento || '',
+            numeroComunicacao: item.numeroComunicacao || '',
+            link: item.link || '',
+            destinatarios: item.destinatarios || [],
+            hash: item.hash || '',
+            orgaoJulgador: item.nomeOrgao || '',
+            classe: item.nomeClasse || '',
+            protocolo: item.protocolo || null,
+            recibo: item.recibo || null,
+            ciencia: item.ciencia || null,
+            teor: item.teor || item.texto || '',
+          }
+
           try {
-            $app.findFirstRecordByFilter('case_movements', `external_id = '${extId}'`)
+            const existing = $app.findFirstRecordByFilter(
+              'case_movements',
+              `external_id = '${extId}'`,
+            )
+            let updated = false
+            const currDetails = existing.get('movement_details') || {}
+            if (JSON.stringify(currDetails) !== JSON.stringify(movementDetailsObj)) {
+              existing.set('movement_details', movementDetailsObj)
+              updated = true
+            }
+            if (updated) {
+              $app.saveNoValidate(existing)
+            }
           } catch (notfound) {
             const mov = new Record(movementsCol)
             mov.set('case', record.id)
             mov.set('event_date', item.dataDisponibilizacao || new Date().toISOString())
             mov.set('description', item.tipoComunicacao || 'Comunicação PJe')
-            mov.set('details', item.texto || '')
+            mov.set('details', item.teor || item.texto || '')
+            mov.set('movement_details', movementDetailsObj)
             mov.set('source', 'PJe')
             mov.set('external_id', extId)
             if (orgId) mov.set('organization', orgId)

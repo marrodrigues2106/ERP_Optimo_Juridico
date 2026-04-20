@@ -23,6 +23,12 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination'
 import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from '@/components/ui/accordion'
+import {
   ArrowLeft,
   RefreshCw,
   User,
@@ -32,6 +38,10 @@ import {
   Calendar,
   CheckSquare,
   Plus,
+  Scale,
+  FileText,
+  Tags,
+  Hash,
 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { Badge } from '@/components/ui/badge'
@@ -362,9 +372,15 @@ export default function ProcessDetail() {
                 <TabsList className="w-full bg-white border-b rounded-none justify-start px-4 h-auto pt-2 pb-0 flex-wrap">
                   <TabsTrigger
                     value="andamento"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent py-3"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent py-3 whitespace-nowrap"
                   >
                     Ocorrência Processual
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="detalhes"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent py-3 whitespace-nowrap"
+                  >
+                    Metadados (DataJud/MNI)
                   </TabsTrigger>
                   <TabsTrigger
                     value="tarefa"
@@ -391,6 +407,132 @@ export default function ProcessDetail() {
                       Salvar
                     </Button>
                   </form>
+                </TabsContent>
+                <TabsContent value="detalhes" className="p-6 pt-6">
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-primary" /> Metadados Estruturados
+                    </h3>
+                    {legalCase.metadata && Object.keys(legalCase.metadata).length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <Card className="shadow-sm border-slate-200">
+                          <CardHeader className="py-3 px-4 border-b bg-slate-50">
+                            <div className="text-sm font-semibold flex items-center gap-2">
+                              <Scale className="w-4 h-4 text-slate-500" /> Informações do Processo
+                            </div>
+                          </CardHeader>
+                          <CardContent className="p-4 space-y-3 text-sm text-slate-600">
+                            {legalCase.metadata.classe?.nome && (
+                              <div>
+                                <span className="font-semibold block text-slate-800">Classe:</span>{' '}
+                                {legalCase.metadata.classe.nome}
+                              </div>
+                            )}
+                            {legalCase.metadata.orgaoJulgador?.nome && (
+                              <div>
+                                <span className="font-semibold block text-slate-800">
+                                  Órgão Julgador:
+                                </span>{' '}
+                                {legalCase.metadata.orgaoJulgador.nome}
+                              </div>
+                            )}
+                            {legalCase.metadata.valorCausa?.valor !== undefined && (
+                              <div>
+                                <span className="font-semibold block text-slate-800">
+                                  Valor da Causa:
+                                </span>{' '}
+                                R$ {legalCase.metadata.valorCausa.valor}
+                              </div>
+                            )}
+                            {legalCase.metadata.nivelSigilo !== undefined && (
+                              <div>
+                                <span className="font-semibold block text-slate-800">
+                                  Nível de Sigilo:
+                                </span>{' '}
+                                {legalCase.metadata.nivelSigilo}
+                              </div>
+                            )}
+                            {legalCase.metadata.hash && (
+                              <div className="break-all">
+                                <span className="font-semibold block text-slate-800">
+                                  Hash (MNI):
+                                </span>{' '}
+                                {legalCase.metadata.hash}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+
+                        <Card className="shadow-sm border-slate-200">
+                          <CardHeader className="py-3 px-4 border-b bg-slate-50">
+                            <div className="text-sm font-semibold flex items-center gap-2">
+                              <User className="w-4 h-4 text-slate-500" /> Partes (Polos)
+                            </div>
+                          </CardHeader>
+                          <CardContent className="p-4 space-y-3 text-sm text-slate-600">
+                            {legalCase.metadata.polos && legalCase.metadata.polos.length > 0 ? (
+                              legalCase.metadata.polos.map((polo: any, idx: number) => (
+                                <div key={idx} className="pb-2 border-b last:border-0 last:pb-0">
+                                  <span className="font-semibold text-slate-800 capitalize">
+                                    {polo.polo}
+                                  </span>
+                                  <ul className="list-disc pl-4 mt-1">
+                                    {polo.partes?.map((parte: any, pIdx: number) => (
+                                      <li key={pIdx}>
+                                        {parte.pessoa?.nome || 'Não informado'}
+                                        {parte.representantes &&
+                                          parte.representantes.length > 0 && (
+                                            <div className="text-xs text-slate-500 mt-1">
+                                              Rep:{' '}
+                                              {parte.representantes
+                                                .map((r: any) => r.pessoa?.nome || '')
+                                                .join(', ')}
+                                            </div>
+                                          )}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ))
+                            ) : (
+                              <span className="text-slate-400">Nenhuma parte detalhada.</span>
+                            )}
+                          </CardContent>
+                        </Card>
+
+                        <Card className="shadow-sm border-slate-200 md:col-span-2">
+                          <CardHeader className="py-3 px-4 border-b bg-slate-50">
+                            <div className="text-sm font-semibold flex items-center gap-2">
+                              <Tags className="w-4 h-4 text-slate-500" /> Assuntos
+                            </div>
+                          </CardHeader>
+                          <CardContent className="p-4 text-sm text-slate-600">
+                            {legalCase.metadata.assuntos &&
+                            legalCase.metadata.assuntos.length > 0 ? (
+                              <div className="flex flex-wrap gap-2">
+                                {legalCase.metadata.assuntos.map((assunto: any, idx: number) => (
+                                  <Badge
+                                    key={idx}
+                                    variant="secondary"
+                                    className="font-normal bg-slate-100 text-slate-700"
+                                  >
+                                    {assunto.nome || assunto.codigo}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">Nenhum assunto detalhado.</span>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </div>
+                    ) : (
+                      <div className="text-slate-500 text-sm bg-slate-50 p-6 rounded-lg border border-dashed text-center">
+                        Os metadados detalhados ainda não foram sincronizados ou não estão
+                        disponíveis no tribunal.
+                      </div>
+                    )}
+                  </div>
                 </TabsContent>
                 <TabsContent value="tarefa" className="p-6 pt-6">
                   <form onSubmit={handleAddTask} className="space-y-4">
@@ -464,21 +606,192 @@ export default function ProcessDetail() {
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-100">
-                    {movements.map((mov) => (
-                      <div key={mov.id} className="p-6 hover:bg-slate-50 transition-colors">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-sm font-semibold text-slate-700">
-                            {new Date(mov.event_date).toLocaleDateString('pt-BR')}
-                          </span>
-                          <Badge variant="outline" className="text-xs text-slate-500 bg-white">
-                            {mov.source}
-                          </Badge>
+                    {movements.map((mov) => {
+                      const movDate = new Date(mov.created).getTime()
+                      const isNew = movDate > Date.now() - 86400000 * 2
+                      const isUpdated = new Date(mov.updated).getTime() - movDate > 2000
+
+                      return (
+                        <div key={mov.id} className="p-6 hover:bg-slate-50 transition-colors">
+                          <div className="flex items-center gap-3 mb-2 flex-wrap">
+                            <span className="text-sm font-semibold text-slate-700">
+                              {new Date(mov.event_date).toLocaleDateString('pt-BR')}
+                            </span>
+                            <Badge variant="outline" className="text-xs text-slate-500 bg-white">
+                              {mov.source}
+                            </Badge>
+                            {isNew && (
+                              <Badge className="bg-green-100 text-green-800 hover:bg-green-200 border-none text-[10px] px-2 py-0">
+                                Novo
+                              </Badge>
+                            )}
+                            {isUpdated && !isNew && (
+                              <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200 border-none text-[10px] px-2 py-0">
+                                Atualizado
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-slate-800 text-sm whitespace-pre-wrap leading-relaxed break-words overflow-hidden w-full">
+                            {mov.description}
+                          </div>
+
+                          {(mov.details ||
+                            (mov.movement_details &&
+                              Object.keys(mov.movement_details).length > 0)) && (
+                            <div className="mt-4">
+                              <Accordion type="single" collapsible className="w-full">
+                                <AccordionItem
+                                  value="details"
+                                  className="border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm"
+                                >
+                                  <AccordionTrigger className="py-2.5 px-4 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-50 hover:no-underline transition-colors">
+                                    Detalhes e Metadados Técnicos (MNI)
+                                  </AccordionTrigger>
+                                  <AccordionContent className="p-4 pt-2 border-t border-slate-100 bg-slate-50/50">
+                                    {mov.movement_details &&
+                                      Object.keys(mov.movement_details).length > 0 && (
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-3 text-xs text-slate-600 mb-3">
+                                          {mov.movement_details.orgaoJulgador && (
+                                            <div>
+                                              <span className="font-semibold text-slate-800">
+                                                Órgão Julgador:
+                                              </span>{' '}
+                                              {mov.movement_details.orgaoJulgador}
+                                            </div>
+                                          )}
+                                          {mov.movement_details.hash && (
+                                            <div className="break-all flex gap-1">
+                                              <Hash className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-400" />
+                                              <span className="font-semibold text-slate-800">
+                                                Hash:
+                                              </span>{' '}
+                                              {mov.movement_details.hash}
+                                            </div>
+                                          )}
+                                          {mov.movement_details.protocolo && (
+                                            <div>
+                                              <span className="font-semibold text-slate-800">
+                                                Protocolo:
+                                              </span>{' '}
+                                              {mov.movement_details.protocolo}
+                                            </div>
+                                          )}
+                                          {mov.movement_details.recibo && (
+                                            <div>
+                                              <span className="font-semibold text-slate-800">
+                                                Recibo:
+                                              </span>{' '}
+                                              {mov.movement_details.recibo}
+                                            </div>
+                                          )}
+                                          {mov.movement_details.ciencia && (
+                                            <div className="col-span-1 lg:col-span-2">
+                                              <span className="font-semibold text-slate-800">
+                                                Ciência (Awareness):
+                                              </span>
+                                              <pre className="mt-1 bg-white p-2 rounded border border-slate-200 text-[10px] overflow-x-auto">
+                                                {JSON.stringify(
+                                                  mov.movement_details.ciencia,
+                                                  null,
+                                                  2,
+                                                )}
+                                              </pre>
+                                            </div>
+                                          )}
+                                          {mov.movement_details.tipoDocumento && (
+                                            <div>
+                                              <span className="font-semibold text-slate-800">
+                                                Tipo Documento:
+                                              </span>{' '}
+                                              {mov.movement_details.tipoDocumento}
+                                            </div>
+                                          )}
+                                          {mov.movement_details.link && (
+                                            <div>
+                                              <span className="font-semibold text-slate-800">
+                                                Link Documento:
+                                              </span>{' '}
+                                              <a
+                                                href={mov.movement_details.link}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-primary hover:underline font-medium"
+                                              >
+                                                Acessar Anexo ↗
+                                              </a>
+                                            </div>
+                                          )}
+                                          {mov.movement_details.destinatarios &&
+                                            mov.movement_details.destinatarios.length > 0 && (
+                                              <div className="col-span-1 lg:col-span-2">
+                                                <span className="font-semibold text-slate-800 block mb-1">
+                                                  Destinatários da Comunicação:
+                                                </span>
+                                                <ul className="list-disc pl-4 space-y-0.5">
+                                                  {mov.movement_details.destinatarios.map(
+                                                    (d: any, i: number) => (
+                                                      <li key={i}>
+                                                        {d.nome || 'Não identificado'}
+                                                      </li>
+                                                    ),
+                                                  )}
+                                                </ul>
+                                              </div>
+                                            )}
+                                          {mov.movement_details.documentos &&
+                                            mov.movement_details.documentos.length > 0 && (
+                                              <div className="col-span-1 lg:col-span-2">
+                                                <span className="font-semibold text-slate-800 block mb-1">
+                                                  Documentos Vinculados (MNI):
+                                                </span>
+                                                <div className="bg-white rounded border border-slate-200 overflow-hidden">
+                                                  <table className="min-w-full divide-y divide-slate-200">
+                                                    <thead className="bg-slate-50">
+                                                      <tr>
+                                                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                                                          Tipo
+                                                        </th>
+                                                        <th className="px-3 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                                                          ID / Hash
+                                                        </th>
+                                                      </tr>
+                                                    </thead>
+                                                    <tbody className="bg-white divide-y divide-slate-200">
+                                                      {mov.movement_details.documentos.map(
+                                                        (doc: any, i: number) => (
+                                                          <tr key={i}>
+                                                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
+                                                              {doc.tipoDocumento || 'Documento'}
+                                                            </td>
+                                                            <td className="px-3 py-1.5 whitespace-nowrap text-slate-500 font-mono">
+                                                              {doc.idDocumento || doc.hash}
+                                                            </td>
+                                                          </tr>
+                                                        ),
+                                                      )}
+                                                    </tbody>
+                                                  </table>
+                                                </div>
+                                              </div>
+                                            )}
+                                        </div>
+                                      )}
+                                    {mov.details && (
+                                      <div className="mt-2 p-3 bg-white rounded-md text-xs text-slate-700 whitespace-pre-wrap border border-slate-200 shadow-sm font-mono leading-relaxed">
+                                        <span className="font-semibold text-slate-800 block mb-1 font-sans">
+                                          Teor / Complementos:
+                                        </span>
+                                        {mov.details}
+                                      </div>
+                                    )}
+                                  </AccordionContent>
+                                </AccordionItem>
+                              </Accordion>
+                            </div>
+                          )}
                         </div>
-                        <div className="text-slate-800 text-sm whitespace-pre-wrap leading-relaxed break-words overflow-hidden w-full">
-                          {mov.description}
-                        </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
                 {movementsTotalPages > 1 && (
