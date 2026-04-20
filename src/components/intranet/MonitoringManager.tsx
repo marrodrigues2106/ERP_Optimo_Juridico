@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { Save, X, RefreshCw } from 'lucide-react'
 import { useAuth } from '@/hooks/use-auth'
+import { useRealtime } from '@/hooks/use-realtime'
 import { syncProcesses, syncTerms, checkHealth } from '@/services/monitoring'
 import { MonitoringLogs } from './MonitoringLogs'
 
@@ -123,6 +124,14 @@ export default function MonitoringManager() {
   useEffect(() => {
     loadData()
   }, [])
+
+  useRealtime('monitoring_configs', (e) => {
+    if (e.action === 'update' || e.action === 'create') {
+      setConfig(e.record)
+      setPjeStatus(e.record.pje_status || 'unknown')
+      setPjeConnectionStatus(e.record.pje_connection_status || 'unknown')
+    }
+  })
 
   if (!isAdmin) {
     return (
@@ -563,11 +572,11 @@ export default function MonitoringManager() {
                 </div>
 
                 <div className="flex flex-col p-4 border rounded-lg bg-slate-50 relative overflow-hidden">
-                  <div className="font-semibold text-sm mb-1">Scraping PJe</div>
+                  <div className="font-semibold text-sm mb-1">Comunica PJe</div>
                   <div className="text-xs text-muted-foreground mb-3">
-                    Conexão com Microserviço
+                    Conexão com Serviço
                     <br />
-                    &nbsp;
+                    {config?.updated ? new Date(config.updated).toLocaleString() : 'N/A'}
                   </div>
                   <div className="mt-auto flex items-center gap-2">
                     <div className="relative flex h-3 w-3">
@@ -597,11 +606,13 @@ export default function MonitoringManager() {
                 </div>
 
                 <div className="flex flex-col p-4 border rounded-lg bg-slate-50 relative overflow-hidden">
-                  <div className="font-semibold text-sm mb-1">Comunica PJe</div>
+                  <div className="font-semibold text-sm mb-1">DataJud</div>
                   <div className="text-xs text-muted-foreground mb-3">
                     Última verificação:
                     <br />
-                    {config?.updated ? new Date(config.updated).toLocaleString() : 'N/A'}
+                    {config?.datajudLastCheckAt
+                      ? new Date(config.datajudLastCheckAt).toLocaleString()
+                      : 'N/A'}
                   </div>
                   <div className="mt-auto flex items-center gap-2">
                     <div className="relative flex h-3 w-3">
