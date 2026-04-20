@@ -153,7 +153,7 @@ export default function ProcessDetail() {
 
       if (isForbidden) {
         userMessage =
-          'Acesso negado pelo tribunal. O servidor do PJe (CloudFront) está bloqueando a conexão. Por favor, tente novamente mais tarde ou verifique as configurações de rede.'
+          'Erro 403: Acesso bloqueado pelo CloudFront do Tribunal. A sincronização foi interrompida devido a restrições regionais do servidor de destino.'
       } else if (status === 401 || errorMsg.includes('PJE_UNAUTHORIZED')) {
         userMessage = 'Não autorizado (401). A chave de API do tribunal pode estar expirada.'
       } else if (status === 400 || errorMsg.includes('PJE_BAD_REQUEST')) {

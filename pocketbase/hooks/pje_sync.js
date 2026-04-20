@@ -77,6 +77,7 @@ routerAdd(
     let syncStatus = 'failed'
     let syncMessage = ''
     let added = 0
+    let cloudFrontRequestId = 'unknown'
 
     try {
       let apiKey = ''
@@ -97,11 +98,20 @@ routerAdd(
       const url = `${baseUrl}/comunicacao?numeroProcesso=${cleanNum}&dataDisponibilizacaoInicio=2024-01-01&dataDisponibilizacaoFim=${currentDate}`
 
       const headers = {
-        Accept: 'application/json',
+        Accept:
+          'application/json, text/html, application/xhtml+xml, application/xml;q=0.9, */*;q=0.8',
         'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
         Connection: 'keep-alive',
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+        'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
       }
 
       if (apiKey && apiKey.length >= 5) {
@@ -114,6 +124,14 @@ routerAdd(
         headers: headers,
         timeout: 60,
       })
+
+      if (res.headers) {
+        cloudFrontRequestId =
+          res.headers['x-amz-cf-id'] ||
+          res.headers['X-Amz-Cf-Id'] ||
+          res.headers['X-Amzn-Trace-Id'] ||
+          'unknown'
+      }
 
       let data = null
       try {
@@ -190,6 +208,7 @@ routerAdd(
         if (res.statusCode === 403) {
           syncMessage = `PJE_FORBIDDEN: Acesso negado (403). Response: ${res.raw ? String(res.raw) : JSON.stringify(data || {})}`
           record.set('pje_sync_status', 'error')
+          record.set('pje_last_sync', new Date().toISOString())
         } else if (res.statusCode === 400) {
           syncMessage = `PJE_BAD_REQUEST: Requisição inválida (400). Response: ${JSON.stringify(data || {})}`
           record.set('pje_sync_status', 'error')
@@ -231,21 +250,26 @@ routerAdd(
     try {
       const logsCol = $app.findCollectionByNameOrId('system_logs')
       const logRecord = new Record(logsCol)
-      logRecord.set('level', syncStatus === 'success' ? 'info' : 'error')
-      logRecord.set('module', 'PJe Sync')
-      logRecord.set('message', syncMessage)
-
-      const detailsObj = {
-        case: record.id,
-        duration: Date.now() - startTime,
-        status: syncStatus,
-      }
 
       if (syncMessage.includes('PJE_FORBIDDEN')) {
-        detailsObj.raw_error = syncMessage
+        logRecord.set('level', 'error')
+        logRecord.set('module', 'pje_sync')
+        logRecord.set('message', 'Bloqueio CloudFront (403) detectado durante sincronização PJe.')
+        logRecord.set('details', {
+          'Request ID': cloudFrontRequestId,
+          case_id: record.id,
+        })
+      } else {
+        logRecord.set('level', syncStatus === 'success' ? 'info' : 'error')
+        logRecord.set('module', 'PJe Sync')
+        logRecord.set('message', syncMessage)
+        logRecord.set('details', {
+          case: record.id,
+          duration: Date.now() - startTime,
+          status: syncStatus,
+        })
       }
 
-      logRecord.set('details', detailsObj)
       if (orgId) logRecord.set('organization', orgId)
       $app.saveNoValidate(logRecord)
     } catch (e) {}
