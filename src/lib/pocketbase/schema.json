@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-20T05:05:56.483Z",
+  "generatedAt": "2026-04-20T05:15:12.245Z",
   "collections": [
     {
       "name": "users",
@@ -2916,6 +2916,13 @@
           "type": "bool",
           "required": false,
           "system": false
+        },
+        {
+          "name": "legal_case",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "legal_cases"
         }
       ],
       "indexes": []

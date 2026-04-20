@@ -337,7 +337,7 @@ export default function ProcessDetail() {
                   {legalCase?.pje_sync_status === 'pending' ||
                   legalCase?.pje_sync_status === 'syncing'
                     ? 'Sincronizando...'
-                    : 'Atualizar via PJe'}
+                    : 'Sincronizar Comunica PJe'}
                 </Button>
               </div>
             </div>

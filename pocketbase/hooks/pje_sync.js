@@ -233,6 +233,44 @@ routerAdd(
               $app.saveNoValidate(mov)
               added++
             }
+
+            try {
+              const resultsCol = $app.findCollectionByNameOrId('results')
+              let existingResult = null
+              try {
+                existingResult = $app.findFirstRecordByFilter(
+                  'results',
+                  `hash_comunicacao = '${item.hash}'`,
+                )
+              } catch (err) {}
+
+              if (existingResult) {
+                if (!existingResult.getString('legal_case')) {
+                  existingResult.set('legal_case', record.id)
+                  $app.saveNoValidate(existingResult)
+                }
+              } else {
+                const resultRecord = new Record(resultsCol)
+                resultRecord.set('legal_case', record.id)
+                resultRecord.set('sigla_tribunal', item.siglaTribunal)
+                resultRecord.set('tipo_comunicacao', item.tipoComunicacao)
+                resultRecord.set('nome_orgao', item.nomeOrgao)
+                resultRecord.set('texto', item.teor || item.texto || '')
+                resultRecord.set('numero_processo', item.numeroProcesso)
+                resultRecord.set('meio', item.meio)
+                resultRecord.set('tipo_documento', item.tipoDocumento)
+                resultRecord.set('nome_classe', item.nomeClasse)
+                resultRecord.set('data_disponibilizacao', item.dataDisponibilizacao)
+                resultRecord.set('numero_comunicacao', item.numeroComunicacao)
+                resultRecord.set('link', item.link)
+                resultRecord.set('hash_comunicacao', item.hash)
+                resultRecord.set('status_comunicacao', item.status)
+                resultRecord.set('raw_json', item)
+                $app.saveNoValidate(resultRecord)
+              }
+            } catch (resErr) {
+              console.log('Erro ao salvar no results', resErr)
+            }
           } catch (err) {}
         })
 
