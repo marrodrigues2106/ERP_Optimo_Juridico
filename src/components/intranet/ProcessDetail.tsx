@@ -166,7 +166,9 @@ export default function ProcessDetail() {
           setLegalCase(currentRecord)
           return
         }
-      } catch (err) {}
+      } catch (err) {
+        /* ignore error */
+      }
 
       toast({
         title: 'Aviso de Sincronização',
