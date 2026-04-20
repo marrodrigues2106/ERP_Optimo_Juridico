@@ -25,6 +25,7 @@ import UsersManager from '@/components/intranet/UsersManager'
 import ProfileManager from '@/components/intranet/ProfileManager'
 import AgendaManager from '@/components/intranet/AgendaManager'
 import AuditLogs from '@/components/intranet/AuditLogs'
+import { SettingsProxy } from '@/components/intranet/SettingsProxy'
 import DouSearch from '@/components/intranet/DouSearch'
 import GlobalSearch from '@/components/intranet/GlobalSearch'
 import ComunicaPjeSearch from '@/components/intranet/comunica-pje/ComunicaPjeSearch'
@@ -83,6 +84,7 @@ function App() {
                 <Route path="users" element={<UsersManager />} />
                 <Route path="audit" element={<Navigate to="/intranet/settings/logs" replace />} />
                 <Route path="settings/logs" element={<AuditLogs />} />
+                <Route path="settings/proxy" element={<SettingsProxy />} />
                 <Route path="profile" element={<ProfileManager />} />
               </Route>
 

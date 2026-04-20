@@ -23,7 +23,7 @@ cronAdd('pje_worker', '* * * * *', () => {
         const logsCol = $app.findCollectionByNameOrId('system_logs')
         const logRecord = new Record(logsCol)
         logRecord.set('level', 'error')
-        logRecord.set('module', 'PJe Sync')
+        logRecord.set('module', 'PJe Sync Worker')
         logRecord.set('message', 'System error: Missing authentication token')
         logRecord.set('details', {})
         $app.saveNoValidate(logRecord)
@@ -54,6 +54,10 @@ cronAdd('pje_worker', '* * * * *', () => {
       let syncStatus = 'failed'
       let syncMessage = ''
       let added = 0
+      let httpStatus = null
+      let isProxied = false
+      let usedProxyUrl = ''
+      let cloudFrontRequestId = 'unknown'
 
       try {
         const num = record.getString('case_number')
@@ -68,12 +72,62 @@ cronAdd('pje_worker', '* * * * *', () => {
           cleanNum +
           '&dataDisponibilizacaoInicio=2024-01-01&dataDisponibilizacaoFim=' +
           currentDate
+
         const headers = {
-          Accept: 'application/json',
+          Accept:
+            'application/json, text/html, application/xhtml+xml, application/xml;q=0.9, */*;q=0.8',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+          Connection: 'keep-alive',
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache',
+          Referer: 'https://comunica.pje.jus.br/',
+          Origin: 'https://comunica.pje.jus.br',
           Authorization: apiKey.startsWith('Bearer ') ? apiKey : 'Bearer ' + apiKey,
         }
 
-        const res = $http.send({ url: url, method: 'GET', headers: headers, timeout: 60 })
+        let proxyEnabled = false
+        let proxyUrl = ''
+        let proxyAuth = ''
+        try {
+          const enRecord = $app.findFirstRecordByFilter('settings', "key='pje_proxy_enabled'")
+          proxyEnabled = enRecord.getString('value') === 'true'
+          const urlRecord = $app.findFirstRecordByFilter('settings', "key='pje_proxy_url'")
+          proxyUrl = urlRecord.getString('value')
+          const authRecord = $app.findFirstRecordByFilter('settings', "key='pje_proxy_auth'")
+          proxyAuth = authRecord.getString('value')
+        } catch (e) {}
+
+        let finalUrl = url
+        if (proxyEnabled && proxyUrl) {
+          isProxied = true
+          usedProxyUrl = proxyUrl
+          if (proxyUrl.indexOf('?') !== -1 || proxyUrl.endsWith('=')) {
+            finalUrl = proxyUrl + encodeURIComponent(url)
+          } else {
+            finalUrl = url
+              .replace('https://comunicaapi.pje.jus.br/api/v1', proxyUrl)
+              .replace('https://comunica.pje.jus.br/api/v1', proxyUrl)
+          }
+          if (proxyAuth) {
+            headers['Proxy-Authorization'] = proxyAuth
+            headers['X-Proxy-Auth'] = proxyAuth
+          }
+        }
+
+        const res = $http.send({ url: finalUrl, method: 'GET', headers: headers, timeout: 60 })
+        httpStatus = res.statusCode
+
+        if (res.headers) {
+          cloudFrontRequestId =
+            res.headers['x-amz-cf-id'] ||
+            res.headers['X-Amz-Cf-Id'] ||
+            res.headers['X-Amzn-Trace-Id'] ||
+            res.headers['x-proxy-request-id'] ||
+            res.headers['X-Proxy-Request-Id'] ||
+            'unknown'
+        }
 
         let data = null
         try {
@@ -106,7 +160,7 @@ cronAdd('pje_worker', '* * * * *', () => {
 
           syncStatus = 'success'
           syncMessage = 'Sincronizado com sucesso. ' + added + ' novas movimentações.'
-          record.set('pje_sync_status', 'idle')
+          record.set('pje_sync_status', 'success')
           record.set('pje_last_sync', new Date().toISOString())
           record.set('datajud_sync_status', 'Success')
           record.set('datajud_last_sync', new Date().toISOString())
@@ -124,12 +178,15 @@ cronAdd('pje_worker', '* * * * *', () => {
               data && data.message
                 ? 'PJe API Error: ' + data.message + ' (HTTP ' + res.statusCode + ')'
                 : 'PJe API Error: HTTP ' + res.statusCode
-          record.set('pje_sync_status', 'error')
-          record.set('datajud_sync_status', 'Error')
+
+          if (res.statusCode === 504 || res.statusCode === 503 || res.statusCode === 502) {
+            record.set('pje_sync_status', 'pending')
+          } else {
+            record.set('pje_sync_status', 'error')
+            record.set('datajud_sync_status', 'Error')
+          }
         }
       } catch (err) {
-        record.set('pje_sync_status', 'error')
-        record.set('datajud_sync_status', 'Error')
         const msg = (err.message || '').toLowerCase()
         if (
           msg.indexOf('deadline') !== -1 ||
@@ -138,8 +195,11 @@ cronAdd('pje_worker', '* * * * *', () => {
           msg.indexOf('gateway') !== -1
         ) {
           syncMessage = 'PJE_TIMEOUT: Sistema PJe indisponível.'
+          record.set('pje_sync_status', 'pending')
         } else {
           syncMessage = err.message || 'Erro desconhecido'
+          record.set('pje_sync_status', 'error')
+          record.set('datajud_sync_status', 'Error')
         }
       }
 
@@ -151,12 +211,16 @@ cronAdd('pje_worker', '* * * * *', () => {
         const logsCol = $app.findCollectionByNameOrId('system_logs')
         const logRecord = new Record(logsCol)
         logRecord.set('level', syncStatus === 'success' ? 'info' : 'error')
-        logRecord.set('module', 'PJe Sync')
+        logRecord.set('module', 'PJe Sync Worker')
         logRecord.set('message', syncMessage)
         logRecord.set('details', {
           case: record.id,
           duration: Date.now() - startTime,
           status: syncStatus,
+          proxied: isProxied,
+          proxy_url: isProxied ? usedProxyUrl : null,
+          request_id: cloudFrontRequestId,
+          http_status: httpStatus,
         })
         if (orgId) logRecord.set('organization', orgId)
         $app.saveNoValidate(logRecord)
@@ -167,7 +231,7 @@ cronAdd('pje_worker', '* * * * *', () => {
       const logsCol = $app.findCollectionByNameOrId('system_logs')
       const audit = new Record(logsCol)
       audit.set('level', 'error')
-      audit.set('module', 'PJe Sync')
+      audit.set('module', 'PJe Sync Worker')
       audit.set('message', 'Worker critical error')
       audit.set('details', { error: err.message })
       $app.saveNoValidate(audit)

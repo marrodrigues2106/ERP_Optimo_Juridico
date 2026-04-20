@@ -78,6 +78,10 @@ routerAdd(
     let syncMessage = ''
     let added = 0
     let cloudFrontRequestId = 'unknown'
+    let httpStatus = null
+    let isProxied = false
+    let usedProxyUrl = ''
+    let data = null
 
     try {
       let apiKey = ''
@@ -120,22 +124,54 @@ routerAdd(
         headers.Authorization = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`
       }
 
+      let proxyEnabled = false
+      let proxyUrl = ''
+      let proxyAuth = ''
+      try {
+        const enRecord = $app.findFirstRecordByFilter('settings', "key='pje_proxy_enabled'")
+        proxyEnabled = enRecord.getString('value') === 'true'
+        const urlRecord = $app.findFirstRecordByFilter('settings', "key='pje_proxy_url'")
+        proxyUrl = urlRecord.getString('value')
+        const authRecord = $app.findFirstRecordByFilter('settings', "key='pje_proxy_auth'")
+        proxyAuth = authRecord.getString('value')
+      } catch (e) {}
+
+      let finalUrl = url
+      if (proxyEnabled && proxyUrl) {
+        isProxied = true
+        usedProxyUrl = proxyUrl
+        if (proxyUrl.indexOf('?') !== -1 || proxyUrl.endsWith('=')) {
+          finalUrl = proxyUrl + encodeURIComponent(url)
+        } else {
+          finalUrl = url
+            .replace('https://comunicaapi.pje.jus.br/api/v1', proxyUrl)
+            .replace('https://comunica.pje.jus.br/api/v1', proxyUrl)
+        }
+        if (proxyAuth) {
+          headers['Proxy-Authorization'] = proxyAuth
+          headers['X-Proxy-Auth'] = proxyAuth
+        }
+      }
+
       const res = $http.send({
-        url: url,
+        url: finalUrl,
         method: 'GET',
         headers: headers,
         timeout: 60,
       })
+
+      httpStatus = res.statusCode
 
       if (res.headers) {
         cloudFrontRequestId =
           res.headers['x-amz-cf-id'] ||
           res.headers['X-Amz-Cf-Id'] ||
           res.headers['X-Amzn-Trace-Id'] ||
+          res.headers['x-proxy-request-id'] ||
+          res.headers['X-Proxy-Request-Id'] ||
           'unknown'
       }
 
-      let data = null
       try {
         data = res.json
       } catch (err) {}
@@ -261,6 +297,9 @@ routerAdd(
           'Request ID': cloudFrontRequestId,
           case_id: record.id,
           response: data || null,
+          proxied: isProxied,
+          proxy_url: isProxied ? usedProxyUrl : null,
+          http_status: httpStatus,
         })
       } else {
         logRecord.set('level', syncStatus === 'success' ? 'info' : 'error')
@@ -271,6 +310,10 @@ routerAdd(
           duration: Date.now() - startTime,
           status: syncStatus,
           error_response: syncStatus !== 'success' ? data || null : null,
+          proxied: isProxied,
+          proxy_url: isProxied ? usedProxyUrl : null,
+          request_id: cloudFrontRequestId,
+          http_status: httpStatus,
         })
       }
 
