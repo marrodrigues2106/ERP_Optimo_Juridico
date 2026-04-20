@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Calendar } from '@/components/ui/calendar'
 
 import {
   Bell,
@@ -18,6 +19,7 @@ import {
   Trash2,
   RefreshCw,
   AlertTriangle,
+  Clock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import pb from '@/lib/pocketbase/client'
@@ -103,7 +105,7 @@ export default function Dashboard() {
   }
 
   const loadCaseCount = async () => {
-    let filter = 'lifecycle_status = "Ativo" && deleted_at = ""'
+    let filter = 'lifecycle_status = "Ativo" && type = "Processo" && deleted_at = ""'
     if (selectedCollaboratorId) {
       filter += ` && responsible_collaborator = "${selectedCollaboratorId}"`
     }
@@ -377,9 +379,6 @@ export default function Dashboard() {
     }
   }
 
-  const navigateDate = (dir: 'prev' | 'next') =>
-    setSelectedDate((prev) => addDays(prev, dir === 'next' ? 1 : -1))
-
   return (
     <div className="flex h-[calc(100vh-80px)] -m-4 lg:-m-8 bg-white text-slate-800 font-sans shadow-sm rounded-xl overflow-hidden border border-slate-200/60">
       <div className="w-72 border-r border-slate-200 p-8 flex flex-col gap-8 shrink-0 hidden xl:flex bg-slate-50/50">
@@ -390,8 +389,19 @@ export default function Dashboard() {
           </h3>
           <div className="space-y-4">
             <div>
-              <div className="flex items-center text-sm font-semibold text-slate-800 mb-3">
-                <UserPlus className="w-4 h-4 mr-2" /> Por colaborador
+              <div className="flex items-center justify-between text-sm font-semibold text-slate-800 mb-3">
+                <div className="flex items-center">
+                  <UserPlus className="w-4 h-4 mr-2" /> Por colaborador
+                </div>
+                {canFilterOthers && (
+                  <button
+                    onClick={() => navigate('/intranet/team')}
+                    className="text-primary text-[10px] font-bold hover:underline uppercase tracking-wide"
+                    title="Convidar Colaborador"
+                  >
+                    + Convidar
+                  </button>
+                )}
               </div>
               <ul className="space-y-3 pl-6 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                 {canFilterOthers && (
@@ -496,12 +506,6 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-          <button
-            onClick={() => navigate('/intranet/team')}
-            className="text-primary text-xs font-bold mt-6 hover:underline transition-all uppercase tracking-wide"
-          >
-            Convidar Colaborador
-          </button>
         </div>
       </div>
 
@@ -710,87 +714,81 @@ export default function Dashboard() {
         </Tabs>
       </div>
 
-      <div className="w-96 border-l border-slate-200 p-8 flex flex-col gap-10 shrink-0 bg-slate-50/50 overflow-y-auto hidden md:flex">
-        <div className="flex items-center justify-between">
-          <div className="flex items-baseline gap-2">
-            <span className="text-5xl font-light text-slate-800 tracking-tighter">
-              {format(selectedDate, 'dd')}
-            </span>
-            <div className="flex flex-col">
-              <span className="text-lg font-medium text-slate-700 leading-none capitalize">
-                {format(selectedDate, 'MMMM', { locale: ptBR })}
-              </span>
-              <span className="text-sm text-slate-500 lowercase">
-                {format(selectedDate, 'EEEE', { locale: ptBR })}
-              </span>
+      <div className="w-96 border-l border-slate-200 p-8 flex flex-col gap-8 shrink-0 bg-slate-50/50 overflow-y-auto hidden md:flex">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-slate-700 font-bold text-lg">
+              <CalendarIcon className="w-5 h-5 text-primary" />
+              Sua Agenda
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs font-semibold"
+                onClick={() => setEventModalOpen(true)}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" /> Novo
+              </Button>
             </div>
           </div>
-          <div className="flex gap-0.5 text-slate-400">
-            <button
-              onClick={() => setEventModalOpen(true)}
-              className="px-2 py-1 bg-slate-100 hover:bg-primary hover:text-white rounded transition-colors text-slate-600 mx-1 flex items-center gap-1 text-xs font-semibold border"
-              title="Adicionar Evento"
-            >
-              <Plus className="w-3.5 h-3.5" /> Evento
-            </button>
-            <button
-              className="p-1 hover:bg-slate-100 rounded transition-colors"
-              onClick={() => navigateDate('prev')}
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <button
-              className="p-1 hover:bg-slate-100 rounded transition-colors"
-              onClick={() => navigateDate('next')}
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
-            <div className="flex items-center gap-2 text-slate-700 font-bold">
-              Próximos Eventos/Prazos
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-[10px]"
-              onClick={() => navigate('/intranet/agenda')}
-            >
-              Ver Agenda
-            </Button>
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-3 flex justify-center">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => date && setSelectedDate(date)}
+              className="rounded-md"
+              locale={ptBR}
+            />
           </div>
-          {events.length === 0 ? (
-            <div className="text-center py-8 rounded-lg text-slate-500 flex flex-col items-center">
-              <CalendarIcon className="w-8 h-8 mb-3 text-slate-300" />
-              <p className="text-sm">Nenhum compromisso pendente</p>
+
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col flex-1 max-h-[300px]">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50 shrink-0">
+              <div className="font-semibold text-sm text-slate-700">
+                Eventos em {format(selectedDate, "dd 'de' MMM", { locale: ptBR })}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px]"
+                onClick={() => navigate('/intranet/agenda')}
+              >
+                Ver Agenda
+              </Button>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {events.map((e) => (
-                <div
-                  key={e.id}
-                  className="p-3 border border-slate-200 rounded-lg text-sm shadow-sm bg-white hover:border-primary/30 transition-colors"
-                >
-                  <div className="flex justify-between items-start">
-                    <p className="font-semibold text-slate-800 line-clamp-1">{e.title}</p>
-                    <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap">
-                      {e.type}
-                    </span>
-                  </div>
-                  <p className="text-slate-500 text-xs mt-1.5 font-medium flex items-center gap-1.5">
-                    <CalendarIcon className="w-3 h-3" />
-                    {format(new Date(e.start_date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                  </p>
+            <div className="p-3 space-y-2 overflow-y-auto flex-1 custom-scrollbar">
+              {events.length === 0 ? (
+                <div className="text-center py-6 rounded-lg text-slate-500 flex flex-col items-center">
+                  <CalendarIcon className="w-8 h-8 mb-3 text-slate-300" />
+                  <p className="text-sm">Nenhum compromisso nesta data</p>
                 </div>
-              ))}
+              ) : (
+                events.map((e) => (
+                  <div
+                    key={e.id}
+                    className="p-3 border border-slate-100 rounded-lg text-sm shadow-sm bg-white hover:border-primary/30 transition-colors"
+                  >
+                    <div className="flex justify-between items-start">
+                      <p className="font-semibold text-slate-800 line-clamp-1" title={e.title}>
+                        {e.title}
+                      </p>
+                      <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap font-medium">
+                        {e.type}
+                      </span>
+                    </div>
+                    <p className="text-slate-500 text-xs mt-1.5 font-medium flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5" />
+                      {format(new Date(e.start_date), 'HH:mm', { locale: ptBR })}
+                    </p>
+                  </div>
+                ))
+              )}
             </div>
-          )}
+          </div>
         </div>
 
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-h-[250px]">
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200">
             <div className="flex items-center gap-2 text-slate-700 font-bold">
               <CheckCircle2 className="w-5 h-5 text-emerald-500" /> Tarefas ({tasks.length})
