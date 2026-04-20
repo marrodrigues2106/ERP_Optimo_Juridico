@@ -37,17 +37,31 @@ routerAdd(
     let added = 0
 
     try {
+      let apiKey = $secrets.get('COMUNICA_PJE_KEY')
+      if (!apiKey) {
+        try {
+          const config = $app.findFirstRecordByFilter('monitoring_configs', "apiKey != ''")
+          apiKey = config.getString('apiKey')
+        } catch (e) {}
+      }
+
       const url = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=' + cleanNum
+      const headers = {
+        Accept: 'application/json',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+        Connection: 'keep-alive',
+      }
+
+      if (apiKey) {
+        headers['Authorization'] = 'Bearer ' + apiKey
+      }
+
       const res = $http.send({
         url: url,
         method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-          Connection: 'keep-alive',
-        },
+        headers: headers,
         timeout: 60,
       })
 

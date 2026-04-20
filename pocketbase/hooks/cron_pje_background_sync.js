@@ -49,11 +49,24 @@ cronAdd('pje_worker', '* * * * *', () => {
         const cleanNum = String(num).replace(/\D/g, '')
         if (cleanNum.length !== 20) throw new Error('Invalid case number')
 
+        let apiKey = $secrets.get('COMUNICA_PJE_KEY')
+        if (!apiKey) {
+          try {
+            const config = $app.findFirstRecordByFilter('monitoring_configs', "apiKey != ''")
+            apiKey = config.getString('apiKey')
+          } catch (e) {}
+        }
+
         const url = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=' + cleanNum
+        const headers = { Accept: 'application/json' }
+        if (apiKey) {
+          headers['Authorization'] = 'Bearer ' + apiKey
+        }
+
         const res = $http.send({
           url: url,
           method: 'GET',
-          headers: { Accept: 'application/json' },
+          headers: headers,
           timeout: 60,
         })
 
@@ -94,7 +107,11 @@ cronAdd('pje_worker', '* * * * *', () => {
           record.set('datajud_sync_status', 'Success')
           record.set('datajud_last_sync', new Date().toISOString())
         } else {
-          if (res.statusCode === 504 || res.statusCode === 503 || res.statusCode === 502) {
+          if (res.statusCode === 403) {
+            syncMessage = 'PJE_FORBIDDEN: Acesso negado pelo tribunal (403).'
+          } else if (res.statusCode === 400) {
+            syncMessage = 'PJE_BAD_REQUEST: Requisição inválida ou processo não encontrado (400).'
+          } else if (res.statusCode === 504 || res.statusCode === 503 || res.statusCode === 502) {
             syncMessage = 'PJE_TIMEOUT: Sistema PJe indisponível.'
           } else {
             syncMessage =
