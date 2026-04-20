@@ -706,8 +706,8 @@ export default function ProcessDetail() {
   return (
     <div className="bg-[#f0f2f5] min-h-screen -m-6 p-6 animate-fade-in-up">
       <div className="max-w-7xl mx-auto space-y-6">
-        <Card className="rounded-xl border-none shadow-sm overflow-hidden">
-          <CardContent className="p-6 bg-white">
+        <Card className="sticky top-4 z-20 rounded-xl border border-slate-200 shadow-md overflow-hidden bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 mb-2">
+          <CardContent className="p-6">
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
               <div className="flex items-start gap-4">
                 <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="mt-1">
@@ -750,37 +750,56 @@ export default function ProcessDetail() {
                 <Badge className="bg-slate-600 hover:bg-slate-700 text-white font-medium uppercase px-3 py-1">
                   {legalCase.lifecycle_status || 'ATIVO'}
                 </Badge>
-                <Button
-                  variant="outline"
-                  onClick={handleSync}
-                  disabled={
-                    legalCase?.datajud_sync_status === 'Syncing' ||
-                    legalCase?.datajud_sync_status === 'Pending'
-                  }
-                  className={cn(
-                    'shadow-sm',
-                    legalCase?.datajud_sync_status === 'Error' &&
-                      'border-red-300 text-red-600 bg-red-50 hover:bg-red-100 hover:text-red-700',
-                  )}
-                  title={
-                    legalCase?.datajud_sync_status === 'Error'
-                      ? 'Falha na última sincronização'
-                      : ''
-                  }
-                >
-                  <RefreshCw
+                <div className="flex flex-col items-end gap-1">
+                  <Button
+                    variant="outline"
+                    onClick={handleSync}
+                    disabled={
+                      legalCase?.datajud_sync_status === 'Syncing' ||
+                      legalCase?.datajud_sync_status === 'Pending'
+                    }
                     className={cn(
-                      'w-4 h-4 mr-2',
-                      (legalCase?.datajud_sync_status === 'Syncing' ||
-                        legalCase?.datajud_sync_status === 'Pending') &&
-                        'animate-spin',
+                      'shadow-sm transition-all',
+                      legalCase?.datajud_sync_status === 'Error' &&
+                        'border-red-300 text-red-600 bg-red-50 hover:bg-red-100 hover:text-red-700',
+                      legalCase?.datajud_sync_status === 'Success' &&
+                        'border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100',
                     )}
-                  />
-                  {legalCase?.datajud_sync_status === 'Syncing' ||
-                  legalCase?.datajud_sync_status === 'Pending'
-                    ? 'Consultando DataJud...'
-                    : 'Sincronizar DataJud'}
-                </Button>
+                    title={
+                      legalCase?.datajud_sync_status === 'Error'
+                        ? 'Falha na última sincronização'
+                        : legalCase?.datajud_sync_status === 'Success'
+                          ? 'Sincronizado com sucesso'
+                          : 'Sincronizar agora'
+                    }
+                  >
+                    {legalCase?.datajud_sync_status === 'Success' ? (
+                      <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" />
+                    ) : (
+                      <RefreshCw
+                        className={cn(
+                          'w-4 h-4 mr-2',
+                          (legalCase?.datajud_sync_status === 'Syncing' ||
+                            legalCase?.datajud_sync_status === 'Pending') &&
+                            'animate-spin text-blue-500',
+                        )}
+                      />
+                    )}
+                    {legalCase?.datajud_sync_status === 'Syncing'
+                      ? 'Sincronizando...'
+                      : legalCase?.datajud_sync_status === 'Pending'
+                        ? 'Na Fila...'
+                        : legalCase?.datajud_sync_status === 'Success'
+                          ? 'Sincronizado'
+                          : 'Sincronizar DataJud'}
+                  </Button>
+                  {(legalCase?.datajud_sync_status === 'Syncing' ||
+                    legalCase?.datajud_sync_status === 'Pending') && (
+                    <div className="w-full bg-slate-100 rounded-full h-1.5 mt-1 overflow-hidden">
+                      <div className="bg-blue-500 h-1.5 rounded-full animate-[pulse_2s_ease-in-out_infinite] w-full" />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-slate-100">
@@ -1003,6 +1022,7 @@ export default function ProcessDetail() {
                             <SelectItem value="Meeting">Reunião</SelectItem>
                             <SelectItem value="Call">Ligação</SelectItem>
                             <SelectItem value="Email">Email</SelectItem>
+                            <SelectItem value="Task">Tarefa</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

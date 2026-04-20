@@ -27,7 +27,7 @@ import { Loader2 } from 'lucide-react'
 const formSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
   description: z.string().optional(),
-  type: z.enum(['Note', 'Meeting', 'Call', 'Deadline', 'Reminder', 'Hearing', 'Task', 'Email']),
+  type: z.enum(['Meeting', 'Call', 'Hearing', 'Task', 'Email']),
   start_date: z.string().min(1, 'Data de início é obrigatória'),
   end_date: z.string().optional(),
   collaborator: z.string().optional(),
@@ -269,15 +269,12 @@ export function EventFormModal({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Meeting">Reunião</SelectItem>
                       <SelectItem value="Hearing">Audiência</SelectItem>
-                      <SelectItem value="Deadline">Prazo Processual</SelectItem>
-                      <SelectItem value="Call">Atendimento Cliente</SelectItem>
+                      <SelectItem value="Meeting">Reunião</SelectItem>
+                      <SelectItem value="Call">Ligação</SelectItem>
+                      <SelectItem value="Email">Email</SelectItem>
                       <SelectItem value="Task">Tarefa</SelectItem>
-                      <SelectItem value="Note">Anotação</SelectItem>
-                      <SelectItem value="Email">E-mail</SelectItem>
-                      <SelectItem value="Reminder">Lembrete</SelectItem>
-                    </SelectContent>
+                    </SelectContent>{' '}
                   </Select>
                 )}
               />

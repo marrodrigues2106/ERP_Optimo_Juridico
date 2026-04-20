@@ -41,9 +41,15 @@ cronAdd('datajud_batch_worker', '* * * * *', () => {
 
       if (res.statusCode >= 200 && res.statusCode < 300) {
         successCount++
+        record.set('datajud_sync_status', 'Success')
+        record.set('pje_sync_status', 'success')
+        try {
+          $app.saveNoValidate(record)
+        } catch (e) {}
       } else {
         errorCount++
         record.set('datajud_sync_status', 'Error')
+        record.set('pje_sync_status', 'error')
         try {
           $app.saveNoValidate(record)
         } catch (e) {}

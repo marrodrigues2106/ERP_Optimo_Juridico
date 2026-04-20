@@ -617,14 +617,15 @@ export default function CentralAtualizacoes() {
               </div>
               <div>
                 <Label>Tipo</Label>
-                <Select name="type" defaultValue="Deadline">
+                <Select name="type" defaultValue="Hearing">
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Deadline">Prazo</SelectItem>
                     <SelectItem value="Hearing">Audiência</SelectItem>
                     <SelectItem value="Meeting">Reunião</SelectItem>
+                    <SelectItem value="Call">Ligação</SelectItem>
+                    <SelectItem value="Email">Email</SelectItem>
                     <SelectItem value="Task">Tarefa</SelectItem>
                   </SelectContent>
                 </Select>

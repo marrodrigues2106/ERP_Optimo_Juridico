@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/hooks/use-auth'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
-import { Camera, History, Save, Loader2, X, Plus } from 'lucide-react'
+import { Camera, History, Save, Loader2, X, Plus, Activity } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
 import {
@@ -53,6 +53,7 @@ export default function ProfileManager() {
   const [historyPage, setHistoryPage] = useState(1)
   const [historyTotalPages, setHistoryTotalPages] = useState(1)
   const [saving, setSaving] = useState(false)
+  const [lastSyncLog, setLastSyncLog] = useState<any>(null)
 
   const loadSettings = async () => {
     try {
@@ -80,6 +81,13 @@ export default function ProfileManager() {
   }
 
   useEffect(() => {
+    pb.collection('logs_processamento')
+      .getList(1, 1, { sort: '-created', filter: "etapa ~ 'Conexão HTTP'" })
+      .then((res) => {
+        if (res.items.length > 0) setLastSyncLog(res.items[0])
+      })
+      .catch(() => {})
+
     pb.collection('monitoring_configs')
       .getFirstListItem('')
       .then((data) => {
@@ -248,6 +256,9 @@ export default function ProfileManager() {
           </TabsTrigger>
           <TabsTrigger value="historico" className="text-base px-4 py-2 font-medium">
             Histórico de Buscas
+          </TabsTrigger>
+          <TabsTrigger value="status" className="text-base px-4 py-2 font-medium">
+            Monitoramento
           </TabsTrigger>
         </TabsList>
 
@@ -648,6 +659,123 @@ export default function ProfileManager() {
                   )}
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="status">
+          <Card className="border-slate-200 shadow-sm max-w-4xl mx-auto">
+            <CardHeader>
+              <CardTitle className="text-2xl flex items-center gap-3">
+                <Activity className="w-6 h-6 text-primary" /> Status do Monitoramento
+              </CardTitle>
+              <CardDescription className="text-base">
+                Acompanhe a saúde e a latência das integrações com os diários e tribunais em tempo
+                real.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center justify-between p-5 border rounded-xl bg-slate-50/80 shadow-sm">
+                  <div className="overflow-hidden mr-4">
+                    <div className="font-bold text-slate-800 text-lg">DataJud API</div>
+                    <div className="text-sm text-slate-500 mt-1 font-medium">
+                      Última verificação:{' '}
+                      <span className="text-slate-700">
+                        {config?.datajudLastCheckAt
+                          ? new Date(config.datajudLastCheckAt).toLocaleString('pt-BR')
+                          : 'Nunca'}
+                      </span>
+                    </div>
+                    {config?.datajudLastError && (
+                      <div
+                        className="text-sm text-red-500 mt-2 truncate bg-red-50 px-2 py-1 rounded border border-red-100"
+                        title={config.datajudLastError}
+                      >
+                        Erro: {config.datajudLastError}
+                      </div>
+                    )}
+                  </div>
+                  <Badge
+                    variant={
+                      config?.datajudStatus === 'online'
+                        ? 'default'
+                        : config?.datajudStatus === 'error'
+                          ? 'destructive'
+                          : 'secondary'
+                    }
+                    className={
+                      config?.datajudStatus === 'online'
+                        ? 'bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 text-sm uppercase tracking-wider'
+                        : 'px-3 py-1.5 text-sm uppercase tracking-wider'
+                    }
+                  >
+                    {config?.datajudStatus === 'online'
+                      ? 'Online'
+                      : config?.datajudStatus === 'error'
+                        ? 'Offline'
+                        : 'Desconhecido'}
+                  </Badge>
+                </div>
+
+                <div className="flex items-center justify-between p-5 border rounded-xl bg-slate-50/80 shadow-sm">
+                  <div className="overflow-hidden mr-4">
+                    <div className="font-bold text-slate-800 text-lg">Diário Oficial (DOU)</div>
+                    <div className="text-sm text-slate-500 mt-1 font-medium">
+                      Último processamento:{' '}
+                      <span className="text-slate-700">
+                        {lastSyncLog
+                          ? new Date(lastSyncLog.created).toLocaleString('pt-BR')
+                          : 'Nunca'}
+                      </span>
+                    </div>
+                    {lastSyncLog?.status === 'Erro' && (
+                      <div
+                        className="text-sm text-red-500 mt-2 truncate bg-red-50 px-2 py-1 rounded border border-red-100"
+                        title={lastSyncLog.mensagem}
+                      >
+                        Erro: {lastSyncLog.mensagem}
+                      </div>
+                    )}
+                  </div>
+                  <Badge
+                    variant={
+                      lastSyncLog?.status === 'Sucesso'
+                        ? 'default'
+                        : lastSyncLog?.status === 'Erro'
+                          ? 'destructive'
+                          : 'secondary'
+                    }
+                    className={
+                      lastSyncLog?.status === 'Sucesso'
+                        ? 'bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 text-sm uppercase tracking-wider'
+                        : 'px-3 py-1.5 text-sm uppercase tracking-wider'
+                    }
+                  >
+                    {lastSyncLog?.status || 'Desconhecido'}
+                  </Badge>
+                </div>
+
+                <div className="flex items-center justify-between p-5 border rounded-xl bg-slate-50/80 shadow-sm md:col-span-2">
+                  <div className="overflow-hidden mr-4">
+                    <div className="font-bold text-slate-800 text-lg">Comunica PJe</div>
+                    <div className="text-sm text-slate-500 mt-1 font-medium">
+                      Endpoint API:{' '}
+                      <span className="text-slate-700">{comunicaUrl || 'Não configurado'}</span>
+                    </div>
+                  </div>
+                  <Badge
+                    variant={comunicaKey ? 'default' : 'secondary'}
+                    className={
+                      comunicaKey
+                        ? 'bg-emerald-500 hover:bg-emerald-600 px-3 py-1.5 text-sm uppercase tracking-wider'
+                        : 'px-3 py-1.5 text-sm uppercase tracking-wider'
+                    }
+                  >
+                    {comunicaKey ? 'Configurado' : 'Pendente'}
+                  </Badge>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
