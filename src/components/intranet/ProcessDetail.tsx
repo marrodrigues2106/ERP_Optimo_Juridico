@@ -483,6 +483,24 @@ export default function ProcessDetail() {
                                   .replace(/TRIBUNAL DE JUSTIï¿½A/g, 'TRIBUNAL DE JUSTIÇA')
                                   .replace(/Cï¿½DIGO/g, 'CÓDIGO')
                                   .replace(/cï¿½digo/g, 'código')
+                                  .replace(/SESSï¿½O/g, 'SESSÃO')
+                                  .replace(/sessï¿½o/g, 'sessão')
+                                  .replace(/AUDIï¿½NCIA/g, 'AUDIÊNCIA')
+                                  .replace(/audiï¿½ncia/g, 'audiência')
+                                  .replace(/Fï¿½RUM/g, 'FÓRUM')
+                                  .replace(/fï¿½rum/g, 'fórum')
+                                  .replace(/Cï¿½MARA/g, 'CÂMARA')
+                                  .replace(/cï¿½mara/g, 'câmara')
+                                  .replace(/COLï¿½GIO/g, 'COLÉGIO')
+                                  .replace(/colï¿½gio/g, 'colégio')
+                                  .replace(/ELETRï¿½NICO/g, 'ELETRÔNICO')
+                                  .replace(/eletrï¿½nico/g, 'eletrônico')
+                                  .replace(/Mï¿½RITO/g, 'MÉRITO')
+                                  .replace(/mï¿½rito/g, 'mérito')
+                                  .replace(/PROCEDï¿½NCIA/g, 'PROCEDÊNCIA')
+                                  .replace(/procedï¿½ncia/g, 'procedência')
+                                  .replace(/IMPROCEDï¿½NCIA/g, 'IMPROCEDÊNCIA')
+                                  .replace(/improcedï¿½ncia/g, 'improcedência')
                                   .replace(/ï¿½/g, '')
                               }
 
@@ -578,17 +596,19 @@ export default function ProcessDetail() {
                                               </p>
                                             )}
                                         </div>
-                                        <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed max-h-[400px] overflow-y-auto custom-scrollbar bg-slate-50/50 p-4 rounded-md border border-slate-100">
+                                        <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed max-h-[500px] overflow-y-auto custom-scrollbar bg-slate-50/50 p-4 rounded-md border border-slate-100">
                                           {hasDetailedContent ? (
                                             /<[a-z][\s\S]*>/i.test(textContent) ? (
                                               <div
                                                 dangerouslySetInnerHTML={{
                                                   __html: textContent,
                                                 }}
-                                                className="prose prose-sm max-w-none text-slate-700"
+                                                className="prose prose-sm max-w-none text-slate-700 [&>p]:mb-2 [&>p:last-child]:mb-0 [&>div]:mb-2 [&>br]:mb-1 break-words"
                                               />
                                             ) : (
-                                              textContent
+                                              <div className="break-words font-sans text-slate-700 leading-relaxed">
+                                                {textContent}
+                                              </div>
                                             )
                                           ) : (
                                             <span className="italic text-slate-400">
@@ -632,7 +652,7 @@ export default function ProcessDetail() {
                                             <AccordionTrigger className="py-2.5 px-4 text-sm font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 hover:no-underline transition-colors flex gap-2">
                                               <div className="flex items-center gap-2">
                                                 <Info className="w-4 h-4 text-slate-400" />
-                                                Informações Adicionais
+                                                Informações Adicionais (Metadados)
                                               </div>
                                             </AccordionTrigger>
                                             <AccordionContent className="p-4 bg-white border-t border-slate-100">
@@ -642,7 +662,12 @@ export default function ProcessDetail() {
                                                     <span className="font-semibold text-slate-800">
                                                       Código do Movimento:
                                                     </span>{' '}
-                                                    {mov.movement_details.codigo}
+                                                    <Badge
+                                                      variant="outline"
+                                                      className="ml-1 bg-slate-50 text-slate-700 font-mono text-xs"
+                                                    >
+                                                      {mov.movement_details.codigo}
+                                                    </Badge>
                                                   </div>
                                                 )}
                                                 {mov.movement_details?.orgaoJulgador && (
