@@ -6,8 +6,6 @@ import {
   UserPlus,
   CheckCircle2,
   Plus,
-  ChevronLeft,
-  ChevronRight,
   Activity,
   BookOpen,
   Landmark,
@@ -16,7 +14,6 @@ import {
   Trash2,
   RefreshCw,
   AlertTriangle,
-  Clock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import pb from '@/lib/pocketbase/client'
@@ -36,13 +33,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationNext,
-  PaginationPrevious,
-} from '@/components/ui/pagination'
 import { useNavigate, Link } from 'react-router-dom'
 import { useToast } from '@/hooks/use-toast'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
@@ -81,62 +71,36 @@ export default function Dashboard() {
   const [caseCount, setCaseCount] = useState(0)
   const [recentCases, setRecentCases] = useState<any[]>([])
 
-  const [searchPage, setSearchPage] = useState(1)
-  const [searchPerPage, setSearchPerPage] = useState(() => {
-    const stored = sessionStorage.getItem('dashboard_search_per_page')
+  const [feedPage, setFeedPage] = useState(1)
+  const [feedPerPage, setFeedPerPage] = useState(() => {
+    const stored = sessionStorage.getItem('dashboard_feed_per_page')
     return stored ? Number(stored) : 10
   })
-  const [searchesData, setSearchesData] = useState<{
-    items: any[]
-    totalItems: number
-    totalPages: number
-  }>({ items: [], totalItems: 0, totalPages: 0 })
 
   const canFilterOthers =
     isAdmin || user?.role === 'manager' || user?.role === 'admin' || user?.isAdmin
 
+  useEffect(() => {
+    sessionStorage.setItem('dashboard_feed_per_page', feedPerPage.toString())
+  }, [feedPerPage])
+
   const loadTasks = async () => {
     let filter = 'status = "todo" && deleted_at = ""'
-    if (selectedCollaboratorId) {
-      filter += ` && collaborator = "${selectedCollaboratorId}"`
-    }
+    if (selectedCollaboratorId) filter += ` && collaborator = "${selectedCollaboratorId}"`
     const fetchedTasks = await pb.collection('tasks').getFullList({ filter, sort: 'due_date' })
     setTasks(fetchedTasks)
   }
 
   const loadCaseCount = async () => {
     let filter = 'lifecycle_status = "Ativo" && type = "Processo" && deleted_at = ""'
-    if (selectedCollaboratorId) {
+    if (selectedCollaboratorId)
       filter += ` && responsible_collaborator = "${selectedCollaboratorId}"`
-    }
     try {
       const records = await pb.collection('legal_cases').getList(1, 5, { filter, sort: '-created' })
       setCaseCount(records.totalItems)
       setRecentCases(records.items)
-    } catch (e) {
-      console.error(e)
-    }
+    } catch (e) {}
   }
-
-  const loadSearches = async () => {
-    try {
-      const res = await pb.collection('searches').getList(searchPage, searchPerPage, {
-        sort: '-created',
-      })
-      setSearchesData({
-        items: res.items,
-        totalItems: res.totalItems,
-        totalPages: res.totalPages,
-      })
-    } catch (e) {
-      console.error(e)
-    }
-  }
-
-  useEffect(() => {
-    sessionStorage.setItem('dashboard_search_per_page', searchPerPage.toString())
-    loadSearches()
-  }, [searchPage, searchPerPage])
 
   const loadFeed = async () => {
     const orgId = pb.authStore.record?.active_organization
@@ -153,24 +117,22 @@ export default function Dashboard() {
       pb
         .collection('ocorrencias_dou')
         .getList(1, 20, { filter: 'status_alerta != "pendente"', sort: '-updated' }),
-      pb.collection('case_movements').getFullList({
-        filter: `notified_client = false && deleted_at = ""${orgId ? ` && organization = "${orgId}"` : ''}`,
-        sort: '-event_date',
-        expand: 'case',
-      }),
-      pb.collection('case_movements').getList(1, 20, {
-        filter: `notified_client = true && deleted_at = ""${orgId ? ` && organization = "${orgId}"` : ''}`,
-        sort: '-event_date',
-        expand: 'case',
-      }),
-      pb.collection('results').getFullList({
-        filter: 'is_read = false',
-        sort: '-created',
-      }),
-      pb.collection('results').getList(1, 20, {
-        filter: 'is_read = true',
-        sort: '-updated',
-      }),
+      pb
+        .collection('case_movements')
+        .getFullList({
+          filter: `notified_client = false && deleted_at = ""${orgId ? ` && organization = "${orgId}"` : ''}`,
+          sort: '-event_date',
+          expand: 'case',
+        }),
+      pb
+        .collection('case_movements')
+        .getList(1, 20, {
+          filter: `notified_client = true && deleted_at = ""${orgId ? ` && organization = "${orgId}"` : ''}`,
+          sort: '-event_date',
+          expand: 'case',
+        }),
+      pb.collection('results').getFullList({ filter: 'is_read = false', sort: '-created' }),
+      pb.collection('results').getList(1, 20, { filter: 'is_read = true', sort: '-updated' }),
     ])
 
     const mapItems = (items: any[], source: any, isRead: boolean): FeedItem[] =>
@@ -251,9 +213,7 @@ export default function Dashboard() {
             const mine = activeCollabs.find((c) => c.user === user.id)
             if (mine) {
               setMyCollaboratorId(mine.id)
-              if (!canFilterOthers) {
-                setSelectedCollaboratorId(mine.id)
-              }
+              if (!canFilterOthers) setSelectedCollaboratorId(mine.id)
             }
           }
         }),
@@ -283,17 +243,12 @@ export default function Dashboard() {
     () => createDebouncedLoader('caseCount', loadCaseCount),
     [createDebouncedLoader, selectedCollaboratorId],
   )
-  const debouncedLoadSearches = useMemo(
-    () => createDebouncedLoader('searches', loadSearches),
-    [createDebouncedLoader, searchPage, searchPerPage],
-  )
 
   useRealtime('tasks', debouncedLoadTasks)
   useRealtime('legal_cases', debouncedLoadCaseCount)
   useRealtime('gazette_publications', debouncedLoadFeed)
   useRealtime('ocorrencias_dou', debouncedLoadFeed)
   useRealtime('case_movements', debouncedLoadFeed)
-  useRealtime('searches', debouncedLoadSearches)
 
   const toggleTask = async (id: string, currentStatus: string) => {
     try {
@@ -344,17 +299,16 @@ export default function Dashboard() {
 
   const toggleRead = async (item: FeedItem) => {
     try {
-      if (item.source === 'gazette') {
+      if (item.source === 'gazette')
         await pb.collection('gazette_publications').update(item.id, { is_read: !item.isRead })
-      } else if (item.source === 'dou') {
+      else if (item.source === 'dou')
         await pb
           .collection('ocorrencias_dou')
           .update(item.id, { status_alerta: item.isRead ? 'pendente' : 'visualizado' })
-      } else if (item.source === 'movement') {
+      else if (item.source === 'movement')
         await pb.collection('case_movements').update(item.id, { notified_client: !item.isRead })
-      } else if (item.source === 'comunica') {
+      else if (item.source === 'comunica')
         await pb.collection('results').update(item.id, { is_read: !item.isRead })
-      }
       toast({ title: item.isRead ? 'Marcado como não lido' : 'Marcado como lido' })
       debouncedLoadFeed()
     } catch (e) {
@@ -367,12 +321,18 @@ export default function Dashboard() {
     [feedItems, activeTab],
   )
 
+  const paginatedFeed = useMemo(() => {
+    const start = (feedPage - 1) * feedPerPage
+    return visibleFeed.slice(start, start + feedPerPage)
+  }, [visibleFeed, feedPage, feedPerPage])
+
   useEffect(() => {
     setSelectedFeedItems([])
+    setFeedPage(1)
   }, [activeTab])
 
   const handleSelectAll = (checked: boolean) => {
-    if (checked) setSelectedFeedItems(visibleFeed.map((i) => i.id))
+    if (checked) setSelectedFeedItems(paginatedFeed.map((i) => i.id))
     else setSelectedFeedItems([])
   }
 
@@ -557,8 +517,12 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-4xl mx-auto">
-          <TabsList className="bg-slate-100/50 p-1 mb-6 rounded-lg inline-flex">
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="w-full max-w-4xl mx-auto flex flex-col flex-1"
+        >
+          <TabsList className="bg-slate-100/50 p-1 mb-6 rounded-lg inline-flex self-start">
             <TabsTrigger
               value="unread"
               className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-4 py-2"
@@ -576,68 +540,62 @@ export default function Dashboard() {
             >
               Arquivados
             </TabsTrigger>
-            <TabsTrigger
-              value="searches"
-              className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-md px-4 py-2"
-            >
-              Buscas Recentes
-            </TabsTrigger>
           </TabsList>
 
-          {['unread', 'read'].includes(activeTab) && (
-            <TabsContent
-              value={activeTab}
-              className="outline-none space-y-4 animate-in fade-in duration-300"
-            >
-              <div className="flex items-center justify-between bg-slate-50/50 p-3 rounded-lg border border-slate-200">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="select-all-feed"
-                    checked={
-                      visibleFeed.length > 0 && selectedFeedItems.length === visibleFeed.length
-                    }
-                    onCheckedChange={handleSelectAll}
-                    disabled={visibleFeed.length === 0}
-                  />
-                  <Label
-                    htmlFor="select-all-feed"
-                    className="text-sm cursor-pointer text-slate-700 font-medium"
-                  >
-                    Selecionar Todos
-                  </Label>
-                </div>
-                {selectedFeedItems.length > 0 && (
-                  <div className="flex items-center gap-2 animate-in fade-in duration-200">
-                    <span className="text-xs text-muted-foreground mr-2 font-medium">
-                      {selectedFeedItems.length} selecionados
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 text-xs bg-white"
-                      onClick={() => handleBulkAction(true)}
-                    >
-                      Marcar como Lido
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 text-xs bg-white"
-                      onClick={() => handleBulkAction(false)}
-                    >
-                      Marcar como Não Lido
-                    </Button>
-                  </div>
-                )}
+          <TabsContent
+            value={activeTab}
+            className="outline-none flex flex-col flex-1 animate-in fade-in duration-300"
+          >
+            <div className="flex items-center justify-between bg-slate-50/50 p-3 rounded-lg border border-slate-200 mb-4 shrink-0">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="select-all-feed"
+                  checked={
+                    paginatedFeed.length > 0 && selectedFeedItems.length === paginatedFeed.length
+                  }
+                  onCheckedChange={handleSelectAll}
+                  disabled={paginatedFeed.length === 0}
+                />
+                <Label
+                  htmlFor="select-all-feed"
+                  className="text-sm cursor-pointer text-slate-700 font-medium"
+                >
+                  Selecionar Página
+                </Label>
               </div>
+              {selectedFeedItems.length > 0 && (
+                <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                  <span className="text-xs text-muted-foreground mr-2 font-medium">
+                    {selectedFeedItems.length} selecionados
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs bg-white"
+                    onClick={() => handleBulkAction(true)}
+                  >
+                    Marcar como Lido
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs bg-white"
+                    onClick={() => handleBulkAction(false)}
+                  >
+                    Marcar como Não Lido
+                  </Button>
+                </div>
+              )}
+            </div>
 
-              {visibleFeed.length === 0 ? (
+            <div className="space-y-4 flex-1 overflow-y-auto min-h-0">
+              {paginatedFeed.length === 0 ? (
                 <div className="text-center py-16 text-slate-400 border border-dashed rounded-xl bg-slate-50/50">
                   <Archive className="w-10 h-10 mx-auto mb-4 opacity-50 text-slate-300" />
                   <p className="text-sm font-medium">Nenhum item nesta lista.</p>
                 </div>
               ) : (
-                visibleFeed.map((item) => (
+                paginatedFeed.map((item) => (
                   <div
                     key={item.id}
                     className={cn(
@@ -747,26 +705,20 @@ export default function Dashboard() {
                   </div>
                 ))
               )}
-            </TabsContent>
-          )}
+            </div>
 
-          {activeTab === 'searches' && (
-            <TabsContent
-              value="searches"
-              className="outline-none space-y-4 animate-in fade-in duration-300"
-            >
-              <div className="flex items-center justify-between bg-slate-50/50 p-3 rounded-lg border border-slate-200">
-                <div className="text-sm font-medium text-slate-700">Histórico de Buscas</div>
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs text-slate-500">Itens por página:</Label>
+            {visibleFeed.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between bg-white p-4 border rounded-xl mt-4 gap-4 shrink-0">
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <span>Mostrar</span>
                   <Select
-                    value={searchPerPage.toString()}
-                    onValueChange={(val) => {
-                      setSearchPerPage(Number(val))
-                      setSearchPage(1)
+                    value={feedPerPage.toString()}
+                    onValueChange={(v) => {
+                      setFeedPerPage(Number(v))
+                      setFeedPage(1)
                     }}
                   >
-                    <SelectTrigger className="h-8 w-20 text-xs bg-white">
+                    <SelectTrigger className="w-20 h-8 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -775,90 +727,39 @@ export default function Dashboard() {
                       <SelectItem value="50">50</SelectItem>
                     </SelectContent>
                   </Select>
+                  <span>por página</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFeedPage((p) => Math.max(1, p - 1))}
+                    disabled={feedPage === 1}
+                  >
+                    Anterior
+                  </Button>
+                  <span className="text-sm text-slate-600 font-medium px-2">
+                    Página {feedPage} de {Math.ceil(visibleFeed.length / feedPerPage) || 1}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setFeedPage((p) =>
+                        Math.min(Math.ceil(visibleFeed.length / feedPerPage), p + 1),
+                      )
+                    }
+                    disabled={
+                      feedPage === Math.ceil(visibleFeed.length / feedPerPage) ||
+                      visibleFeed.length === 0
+                    }
+                  >
+                    Próxima
+                  </Button>
                 </div>
               </div>
-
-              {searchesData.items.length === 0 ? (
-                <div className="text-center py-16 text-slate-400 border border-dashed rounded-xl bg-slate-50/50">
-                  <Activity className="w-10 h-10 mx-auto mb-4 opacity-50 text-slate-300" />
-                  <p className="text-sm font-medium">Nenhuma busca recente encontrada.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {searchesData.items.map((search) => (
-                    <div
-                      key={search.id}
-                      className="p-4 border rounded-xl bg-white flex gap-4 transition-all hover:shadow-md"
-                    >
-                      <div className="pt-1">
-                        <Activity className="w-5 h-5 text-blue-500" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <h4 className="font-bold text-sm text-slate-900">
-                            {search.term || 'Busca sem termo'}
-                          </h4>
-                          <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                            {new Date(search.created).toLocaleString('pt-BR')}
-                          </span>
-                        </div>
-                        <p className="text-sm text-slate-700 mb-2">
-                          Tipo: {search.search_type || 'N/A'} | Status: {search.status || 'N/A'}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 px-2 py-1 rounded">
-                            Resultados: {search.results_count || 0}
-                          </span>
-                          {search.message && (
-                            <span className="text-[10px] font-bold uppercase tracking-wider bg-red-50 text-red-500 px-2 py-1 rounded">
-                              {search.message}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {searchesData.totalPages > 1 && (
-                <div className="mt-6 border-t pt-4 flex justify-center">
-                  <Pagination>
-                    <PaginationContent>
-                      <PaginationItem>
-                        <PaginationPrevious
-                          onClick={() => setSearchPage((p) => Math.max(1, p - 1))}
-                          className={
-                            searchPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'
-                          }
-                        />
-                      </PaginationItem>
-
-                      <PaginationItem>
-                        <span className="text-sm text-slate-600 px-4">
-                          Página {searchPage} de {searchesData.totalPages} (
-                          {searchesData.totalItems} total)
-                        </span>
-                      </PaginationItem>
-
-                      <PaginationItem>
-                        <PaginationNext
-                          onClick={() =>
-                            setSearchPage((p) => Math.min(searchesData.totalPages, p + 1))
-                          }
-                          className={
-                            searchPage === searchesData.totalPages
-                              ? 'pointer-events-none opacity-50'
-                              : 'cursor-pointer'
-                          }
-                        />
-                      </PaginationItem>
-                    </PaginationContent>
-                  </Pagination>
-                </div>
-              )}
-            </TabsContent>
-          )}
+            )}
+          </TabsContent>
         </Tabs>
       </div>
 
@@ -979,12 +880,14 @@ export default function Dashboard() {
                   variant: 'destructive',
                 })
               try {
-                await pb.collection('tasks').create({
-                  title: title.trim(),
-                  status: 'todo',
-                  priority: fd.get('priority'),
-                  organization: pb.authStore.record?.active_organization,
-                })
+                await pb
+                  .collection('tasks')
+                  .create({
+                    title: title.trim(),
+                    status: 'todo',
+                    priority: fd.get('priority'),
+                    organization: pb.authStore.record?.active_organization,
+                  })
                 toast({ title: 'Sucesso', description: 'Tarefa criada.' })
                 setTaskModalOpen(false)
                 debouncedLoadTasks()
@@ -1018,7 +921,6 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Task Dialog */}
       <Dialog open={!!editingTask} onOpenChange={(o) => !o && setEditingTask(null)}>
         <DialogContent>
           <DialogHeader>
