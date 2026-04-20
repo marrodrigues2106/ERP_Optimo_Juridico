@@ -260,8 +260,13 @@ export default function Dashboard() {
     () => createDebouncedLoader('feed', loadFeed),
     [createDebouncedLoader],
   )
+  const debouncedLoadCaseCount = useMemo(
+    () => createDebouncedLoader('caseCount', loadCaseCount),
+    [createDebouncedLoader, selectedCollaboratorId],
+  )
 
   useRealtime('tasks', debouncedLoadTasks)
+  useRealtime('legal_cases', debouncedLoadCaseCount)
   useRealtime('gazette_publications', debouncedLoadFeed)
   useRealtime('ocorrencias_dou', debouncedLoadFeed)
   useRealtime('case_movements', debouncedLoadFeed)
@@ -474,7 +479,8 @@ export default function Dashboard() {
                         className="w-3.5 h-3.5 text-emerald-500"
                         title="Sincronizado (DataJud)"
                       />
-                    ) : c.datajud_sync_status === 'Syncing' ? (
+                    ) : c.datajud_sync_status === 'Syncing' ||
+                      c.datajud_sync_status === 'Pending' ? (
                       <RefreshCw
                         className="w-3.5 h-3.5 text-blue-500 animate-spin"
                         title="Sincronizando..."

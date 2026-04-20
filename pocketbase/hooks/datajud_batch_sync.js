@@ -32,6 +32,7 @@ routerAdd(
         if (record.get('type') === 'Serviço Jurídico') continue
 
         record.set('datajud_sync_status', 'Pending')
+        record.set('pje_sync_status', 'pending')
         $app.saveNoValidate(record)
         count++
       } catch (err) {

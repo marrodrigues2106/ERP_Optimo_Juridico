@@ -105,7 +105,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
     const cleanNum = String(num).replace(/\D/g, '')
 
     if (cleanNum.length !== 20) {
-      record.set('datajud_sync_status', 'Sync Failed')
+      record.set('datajud_sync_status', 'Error')
       try {
         $app.saveNoValidate(record)
       } catch (e) {}
@@ -179,7 +179,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
       !monitoredTribunals.includes(alias) &&
       !monitoredTribunals.includes(`api_publica_${alias}`)
     ) {
-      record.set('datajud_sync_status', 'Skipped (Tribunal not monitored)')
+      record.set('datajud_sync_status', 'Error')
       try {
         $app.saveNoValidate(record)
       } catch (err) {}
@@ -274,7 +274,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
 
       if (apiResult.errorType !== 'online') {
         if (allHits.length === 0) {
-          record.set('datajud_sync_status', 'Sync Failed')
+          record.set('datajud_sync_status', 'Error')
           try {
             $app.saveNoValidate(record)
           } catch (err) {}
@@ -303,7 +303,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
     let foundMatchingProc = false
 
     if (allHits.length === 0) {
-      record.set('datajud_sync_status', 'Not Found')
+      record.set('datajud_sync_status', 'Error')
     } else {
       let procs = allHits.filter(
         (h) => h._source && String(h._source.numeroProcesso).replace(/\D/g, '') === cleanNum,
@@ -450,7 +450,7 @@ routerAdd('POST', '/backend/v1/datajud/background-sync/{id}', (e) => {
         record.set('datajud_sync_status', 'Success')
         record.set('datajud_last_sync', new Date().toISOString())
       } else {
-        record.set('datajud_sync_status', 'Not Found')
+        record.set('datajud_sync_status', 'Error')
       }
     }
 

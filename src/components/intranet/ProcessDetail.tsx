@@ -515,7 +515,8 @@ export default function ProcessDetail() {
     if (e.record.id === id) {
       setLegalCase((prev: any) => {
         if (!prev) return prev
-        const wasSyncing = prev.datajud_sync_status === 'Syncing'
+        const wasSyncing =
+          prev.datajud_sync_status === 'Syncing' || prev.datajud_sync_status === 'Pending'
         const isFinished =
           e.record.datajud_sync_status === 'Success' || e.record.datajud_sync_status === 'Error'
         if (wasSyncing && isFinished) {
@@ -752,7 +753,10 @@ export default function ProcessDetail() {
                 <Button
                   variant="outline"
                   onClick={handleSync}
-                  disabled={legalCase?.datajud_sync_status === 'Syncing'}
+                  disabled={
+                    legalCase?.datajud_sync_status === 'Syncing' ||
+                    legalCase?.datajud_sync_status === 'Pending'
+                  }
                   className={cn(
                     'shadow-sm',
                     legalCase?.datajud_sync_status === 'Error' &&
@@ -767,10 +771,13 @@ export default function ProcessDetail() {
                   <RefreshCw
                     className={cn(
                       'w-4 h-4 mr-2',
-                      legalCase?.datajud_sync_status === 'Syncing' && 'animate-spin',
+                      (legalCase?.datajud_sync_status === 'Syncing' ||
+                        legalCase?.datajud_sync_status === 'Pending') &&
+                        'animate-spin',
                     )}
                   />
-                  {legalCase?.datajud_sync_status === 'Syncing'
+                  {legalCase?.datajud_sync_status === 'Syncing' ||
+                  legalCase?.datajud_sync_status === 'Pending'
                     ? 'Consultando DataJud...'
                     : 'Sincronizar DataJud'}
                 </Button>
@@ -808,6 +815,54 @@ export default function ProcessDetail() {
                 </span>
               </div>
             </div>
+
+            {/* Metadados (DataJud/MNI) relocated to header */}
+            {legalCase.metadata && Object.keys(legalCase.metadata).length > 0 && (
+              <div className="mt-6 pt-4 border-t border-slate-100">
+                <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2 mb-4">
+                  <FileText className="w-4 h-4 text-primary" /> Metadados Estruturados (DataJud/MNI)
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-2 text-sm">
+                    {legalCase.metadata.valorCausa?.valor !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Valor da Causa:</span>
+                        <span className="font-medium text-slate-800">
+                          R$ {legalCase.metadata.valorCausa.valor}
+                        </span>
+                      </div>
+                    )}
+                    {legalCase.metadata.nivelSigilo !== undefined && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Sigilo:</span>
+                        <span className="font-medium text-slate-800">
+                          {legalCase.metadata.nivelSigilo}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 text-sm md:col-span-2">
+                    {legalCase.metadata.assuntos && legalCase.metadata.assuntos.length > 0 && (
+                      <div>
+                        <span className="text-slate-500 block mb-1">Assuntos:</span>
+                        <div className="flex flex-wrap gap-1">
+                          {legalCase.metadata.assuntos.map((assunto: any, idx: number) => (
+                            <Badge
+                              key={idx}
+                              variant="secondary"
+                              className="font-normal bg-slate-100 text-slate-700 text-xs"
+                            >
+                              {assunto.nome || assunto.codigo}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -821,12 +876,6 @@ export default function ProcessDetail() {
                     className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent py-3 whitespace-nowrap"
                   >
                     Ocorrência Processual
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="detalhes"
-                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent py-3 whitespace-nowrap"
-                  >
-                    Metadados (DataJud/MNI)
                   </TabsTrigger>
                   <TabsTrigger
                     value="tarefa"
@@ -903,132 +952,6 @@ export default function ProcessDetail() {
                       </Pagination>
                     </div>
                   )}
-                </TabsContent>
-                <TabsContent value="detalhes" className="p-6 pt-6">
-                  <div className="space-y-6">
-                    <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-primary" /> Metadados Estruturados
-                    </h3>
-                    {legalCase.metadata && Object.keys(legalCase.metadata).length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card className="shadow-sm border-slate-200">
-                          <CardHeader className="py-3 px-4 border-b bg-slate-50">
-                            <div className="text-sm font-semibold flex items-center gap-2">
-                              <Scale className="w-4 h-4 text-slate-500" /> Informações do Processo
-                            </div>
-                          </CardHeader>
-                          <CardContent className="p-4 space-y-3 text-sm text-slate-600">
-                            {legalCase.metadata.classe?.nome && (
-                              <div>
-                                <span className="font-semibold block text-slate-800">Classe:</span>{' '}
-                                {legalCase.metadata.classe.nome}
-                              </div>
-                            )}
-                            {legalCase.metadata.orgaoJulgador?.nome && (
-                              <div>
-                                <span className="font-semibold block text-slate-800">
-                                  Órgão Julgador:
-                                </span>{' '}
-                                {legalCase.metadata.orgaoJulgador.nome}
-                              </div>
-                            )}
-                            {legalCase.metadata.valorCausa?.valor !== undefined && (
-                              <div>
-                                <span className="font-semibold block text-slate-800">
-                                  Valor da Causa:
-                                </span>{' '}
-                                R$ {legalCase.metadata.valorCausa.valor}
-                              </div>
-                            )}
-                            {legalCase.metadata.nivelSigilo !== undefined && (
-                              <div>
-                                <span className="font-semibold block text-slate-800">
-                                  Nível de Sigilo:
-                                </span>{' '}
-                                {legalCase.metadata.nivelSigilo}
-                              </div>
-                            )}
-                            {legalCase.metadata.hash && (
-                              <div className="break-all">
-                                <span className="font-semibold block text-slate-800">
-                                  Hash (MNI):
-                                </span>{' '}
-                                {legalCase.metadata.hash}
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-
-                        <Card className="shadow-sm border-slate-200">
-                          <CardHeader className="py-3 px-4 border-b bg-slate-50">
-                            <div className="text-sm font-semibold flex items-center gap-2">
-                              <User className="w-4 h-4 text-slate-500" /> Partes (Polos)
-                            </div>
-                          </CardHeader>
-                          <CardContent className="p-4 space-y-3 text-sm text-slate-600">
-                            {legalCase.metadata.polos && legalCase.metadata.polos.length > 0 ? (
-                              legalCase.metadata.polos.map((polo: any, idx: number) => (
-                                <div key={idx} className="pb-2 border-b last:border-0 last:pb-0">
-                                  <span className="font-semibold text-slate-800 capitalize">
-                                    {polo.polo}
-                                  </span>
-                                  <ul className="list-disc pl-4 mt-1">
-                                    {polo.partes?.map((parte: any, pIdx: number) => (
-                                      <li key={pIdx}>
-                                        {parte.pessoa?.nome || 'Não informado'}
-                                        {parte.representantes &&
-                                          parte.representantes.length > 0 && (
-                                            <div className="text-xs text-slate-500 mt-1">
-                                              Rep:{' '}
-                                              {parte.representantes
-                                                .map((r: any) => r.pessoa?.nome || '')
-                                                .join(', ')}
-                                            </div>
-                                          )}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              ))
-                            ) : (
-                              <span className="text-slate-400">Nenhuma parte detalhada.</span>
-                            )}
-                          </CardContent>
-                        </Card>
-
-                        <Card className="shadow-sm border-slate-200 md:col-span-2">
-                          <CardHeader className="py-3 px-4 border-b bg-slate-50">
-                            <div className="text-sm font-semibold flex items-center gap-2">
-                              <Tags className="w-4 h-4 text-slate-500" /> Assuntos
-                            </div>
-                          </CardHeader>
-                          <CardContent className="p-4 text-sm text-slate-600">
-                            {legalCase.metadata.assuntos &&
-                            legalCase.metadata.assuntos.length > 0 ? (
-                              <div className="flex flex-wrap gap-2">
-                                {legalCase.metadata.assuntos.map((assunto: any, idx: number) => (
-                                  <Badge
-                                    key={idx}
-                                    variant="secondary"
-                                    className="font-normal bg-slate-100 text-slate-700"
-                                  >
-                                    {assunto.nome || assunto.codigo}
-                                  </Badge>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-slate-400">Nenhum assunto detalhado.</span>
-                            )}
-                          </CardContent>
-                        </Card>
-                      </div>
-                    ) : (
-                      <div className="text-slate-500 text-sm bg-slate-50 p-6 rounded-lg border border-dashed text-center">
-                        Os metadados detalhados ainda não foram sincronizados ou não estão
-                        disponíveis no tribunal.
-                      </div>
-                    )}
-                  </div>
                 </TabsContent>
                 <TabsContent value="tarefa" className="p-6 pt-6">
                   <form onSubmit={handleAddTask} className="space-y-4">
