@@ -45,23 +45,30 @@ routerAdd(
         } catch (e) {}
       }
 
-      const url = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=' + cleanNum
+      if (!apiKey) {
+        throw new Error('PJE_FORBIDDEN: Chave de API não configurada. Acesso negado.')
+      }
+
+      const url = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao'
       const headers = {
         Accept: 'application/json',
+        'Content-Type': 'application/json',
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
         Connection: 'keep-alive',
+        Authorization: 'Bearer ' + apiKey,
       }
 
-      if (apiKey) {
-        headers['Authorization'] = 'Bearer ' + apiKey
+      const payload = {
+        numeroProcesso: cleanNum,
       }
 
       const res = $http.send({
         url: url,
-        method: 'GET',
+        method: 'POST',
         headers: headers,
+        body: JSON.stringify(payload),
         timeout: 60,
       })
 
@@ -106,12 +113,14 @@ routerAdd(
           syncMessage = 'PJE_FORBIDDEN: Acesso negado pelo tribunal (403).'
         } else if (res.statusCode === 400) {
           syncMessage = 'PJE_BAD_REQUEST: Requisição inválida ou processo não encontrado (400).'
+        } else if (res.statusCode === 401) {
+          syncMessage = 'PJE_UNAUTHORIZED: Token inválido ou expirado (401).'
         } else if (res.statusCode === 504 || res.statusCode === 503 || res.statusCode === 502) {
           syncMessage = 'PJE_TIMEOUT: Sistema PJe indisponível.'
         } else {
           syncMessage =
             data && data.message
-              ? `PJe API Error: ${data.message}`
+              ? `PJe API Error: ${data.message} (HTTP ${res.statusCode})`
               : `PJe API Error: HTTP ${res.statusCode}`
         }
         record.set('pje_sync_status', 'error')

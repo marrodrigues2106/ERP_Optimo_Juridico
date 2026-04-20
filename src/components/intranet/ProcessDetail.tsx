@@ -118,12 +118,23 @@ export default function ProcessDetail() {
       loadData()
       loadMovements(1)
     } catch (error: any) {
+      const errorMsg =
+        error?.response?.message ||
+        error?.message ||
+        'O tribunal está indisponível ou rejeitou a requisição.'
+
+      let userMessage = errorMsg
+      if (errorMsg.includes('PJE_FORBIDDEN')) {
+        userMessage = 'Acesso negado. Verifique a chave de API ou se o processo é sigiloso.'
+      } else if (errorMsg.includes('PJE_UNAUTHORIZED')) {
+        userMessage = 'Não autorizado. A chave de API do tribunal pode estar expirada.'
+      } else if (errorMsg.includes('PJE_BAD_REQUEST')) {
+        userMessage = 'Processo não encontrado ou requisição inválida no tribunal.'
+      }
+
       toast({
         title: 'Falha na Sincronização',
-        description:
-          error?.response?.message ||
-          error?.message ||
-          'O tribunal está indisponível ou rejeitou a requisição.',
+        description: userMessage,
         variant: 'destructive',
       })
       setLegalCase((prev: any) => ({ ...prev, pje_sync_status: 'error' }))
