@@ -728,6 +728,15 @@ export default function ProcessDetail() {
                     <Badge variant="outline" className="text-slate-500">
                       {legalCase.court || 'Tribunal não informado'}
                     </Badge>
+                    {legalCase.court_organ && (
+                      <Badge
+                        variant="outline"
+                        className="text-slate-500 max-w-sm truncate"
+                        title={legalCase.court_organ}
+                      >
+                        {legalCase.court_organ}
+                      </Badge>
+                    )}
                     {legalCase.datajud_last_sync && (
                       <Badge variant="outline" className="text-slate-500 font-normal">
                         Última sync: {new Date(legalCase.datajud_last_sync).toLocaleString('pt-BR')}
@@ -791,8 +800,11 @@ export default function ProcessDetail() {
               <div className="flex items-center gap-2 text-sm text-slate-600">
                 <Info className="w-4 h-4 text-slate-400" />
                 <span className="font-medium text-slate-500">Classe:</span>
-                <span className="font-semibold text-slate-800">
-                  {legalCase.type || 'Não informado'}
+                <span
+                  className="font-semibold text-slate-800 truncate"
+                  title={legalCase.metadata?.classe?.nome || legalCase.type}
+                >
+                  {legalCase.metadata?.classe?.nome || legalCase.type || 'Não informado'}
                 </span>
               </div>
             </div>
