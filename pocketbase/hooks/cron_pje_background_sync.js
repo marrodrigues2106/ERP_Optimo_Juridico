@@ -49,7 +49,7 @@ cronAdd('pje_worker', '* * * * *', () => {
         const cleanNum = String(num).replace(/\D/g, '')
         if (cleanNum.length !== 20) throw new Error('Invalid case number')
 
-        const url = 'https://comunica.pje.jus.br/api/v1/comunicacao?numeroProcesso=' + cleanNum
+        const url = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=' + cleanNum
         const res = $http.send({
           url: url,
           method: 'GET',
