@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { BarChart3, TrendingUp, TrendingDown, DollarSign, Target } from 'lucide-react'
+import { BarChart3, TrendingUp, TrendingDown, DollarSign, Percent } from 'lucide-react'
 import {
   ChartContainer,
   ChartTooltip,
@@ -26,22 +26,37 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from '@/components/ui/chart'
+import { cn } from '@/lib/utils'
+
+const KPICard = ({ title, value, icon: Icon, color, valColor }: any) => (
+  <Card className="shadow-sm border-slate-200">
+    <CardContent className="p-4 flex items-center gap-4">
+      <div className={`p-3 rounded-lg ${color}`}>
+        <Icon className="w-5 h-5" />
+      </div>
+      <div>
+        <p className="text-sm font-medium text-slate-500">{title}</p>
+        <h4 className={cn('text-xl font-bold', valColor)}>{value}</h4>
+      </div>
+    </CardContent>
+  </Card>
+)
 
 export function FinanceProfitTab({ transactions = [], cases = [], estimates = [], user }: any) {
-  const [filterMode, setFilterMode] = useState<string>('ultimos_12_meses')
-  const [startDate, setStartDate] = useState<string>(
+  const [filterMode, setFilterMode] = useState('ultimos_12_meses')
+  const [startDate, setStartDate] = useState(
     format(startOfMonth(addMonths(new Date(), -11)), 'yyyy-MM-dd'),
   )
-  const [endDate, setEndDate] = useState<string>(format(endOfMonth(new Date()), 'yyyy-MM-dd'))
-
-  const isFinancialAdmin =
-    user?.role === 'admin' || user?.isAdmin || user?.role === 'financial_user'
+  const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'))
 
   const handleFilterChange = (val: string) => {
     setFilterMode(val)
     const today = new Date()
     if (val === 'mensal') {
       setStartDate(format(startOfMonth(today), 'yyyy-MM-dd'))
+      setEndDate(format(endOfMonth(today), 'yyyy-MM-dd'))
+    } else if (val === 'trimestral') {
+      setStartDate(format(startOfMonth(addMonths(today, -2)), 'yyyy-MM-dd'))
       setEndDate(format(endOfMonth(today), 'yyyy-MM-dd'))
     } else if (val === 'ano_atual') {
       setStartDate(format(startOfYear(today), 'yyyy-MM-dd'))
@@ -52,256 +67,195 @@ export function FinanceProfitTab({ transactions = [], cases = [], estimates = []
     }
   }
 
-  const handleCustomDateChange = (type: 'start' | 'end', val: string) => {
-    setFilterMode('custom')
-    if (type === 'start') setStartDate(val)
-    if (type === 'end') setEndDate(val)
-  }
+  const { chartData, summary, casesProf } = useMemo(() => {
+    const sObj = new Date(startDate + 'T00:00:00'),
+      eObj = new Date(endDate + 'T23:59:59')
+    if (isNaN(eObj.getTime()) || isNaN(sObj.getTime()))
+      return { chartData: [], summary: null, casesProf: [] }
 
-  const { chartData, summary } = useMemo(() => {
-    const grouped: Record<
-      string,
-      {
-        period: string
-        realizedIn: number
-        realizedOut: number
-        sortKey: number
-        casesInvolved: Set<string>
+    const expanded: any[] = []
+    transactions.forEach((t: any) => {
+      if (t.deleted_at || !t.date) return
+      const st = t.status?.toLowerCase() || ''
+      if (
+        !(t.type === 'inflow' && ['realizada', 'recebida'].includes(st)) &&
+        !(t.type === 'outflow' && ['realizado', 'pago'].includes(st))
+      )
+        return
+
+      const tDate = t.date.substring(0, 10)
+      if (t.recurrence_id || !t.frequency || t.frequency === 'única') {
+        if (tDate >= startDate && tDate <= endDate) expanded.push(t)
+      } else {
+        const cur = new Date(tDate + 'T12:00:00')
+        for (let limit = 0; limit < 1000 && cur <= eObj; limit++) {
+          if (cur >= sObj) expanded.push({ ...t, date: cur.toISOString() })
+          if (t.frequency === 'semanal') cur.setDate(cur.getDate() + 7)
+          else if (t.frequency === 'quinzenal') cur.setDate(cur.getDate() + 14)
+          else if (t.frequency === 'mensal') cur.setMonth(cur.getMonth() + 1)
+          else break
+        }
       }
-    > = {}
-
-    const ed = new Date(endDate)
-    const sd = new Date(startDate)
-
-    let totalIn = 0
-    let totalOut = 0
-    const casesInPeriod = new Set<string>()
-
-    if (isNaN(ed.getTime()) || isNaN(sd.getTime())) return { chartData: [], summary: null }
-
-    const diffDays = differenceInDays(ed, sd)
-    const groupByDay = diffDays <= 31
-
-    const filteredFinances = transactions.filter((f: any) => {
-      if (f.deleted_at) return false
-      if (!f.date) return false
-      const d = f.date.substring(0, 10)
-      return d >= startDate && d <= endDate
     })
 
-    filteredFinances.forEach((f: any) => {
-      if (!f.date) return
-      const date = new Date(f.date + 'T12:00:00')
-      if (isNaN(date.getTime())) return
-
-      const key = groupByDay ? format(date, 'dd/MM') : format(date, 'MMM yyyy', { locale: ptBR })
-      const sortKey = groupByDay ? date.getTime() : startOfMonth(date).getTime()
-
-      if (!grouped[key]) {
+    let tIn = 0,
+      tOut = 0
+    const grouped: any = {}
+    expanded.forEach((t: any) => {
+      t.type === 'inflow' ? (tIn += t.amount || 0) : (tOut += t.amount || 0)
+      const d = new Date(t.date.substring(0, 10) + 'T12:00:00')
+      const isDaily = differenceInDays(eObj, sObj) <= 31
+      const key = format(d, isDaily ? 'dd/MM' : 'MMM yyyy', { locale: ptBR })
+      if (!grouped[key])
         grouped[key] = {
           period: key,
-          realizedIn: 0,
-          realizedOut: 0,
-          sortKey,
-          casesInvolved: new Set(),
+          inflow: 0,
+          outflow: 0,
+          sortKey: isDaily ? d.getTime() : startOfMonth(d).getTime(),
         }
-      }
-
-      if (f.type === 'inflow') {
-        grouped[key].realizedIn += f.amount || 0
-        totalIn += f.amount || 0
-      }
-      if (f.type === 'outflow') {
-        grouped[key].realizedOut += f.amount || 0
-        totalOut += f.amount || 0
-      }
-      if (f.linked_lawsuit) {
-        grouped[key].casesInvolved.add(f.linked_lawsuit)
-        casesInPeriod.add(f.linked_lawsuit)
-      }
+      t.type === 'inflow'
+        ? (grouped[key].inflow += t.amount || 0)
+        : (grouped[key].outflow += t.amount || 0)
     })
-
-    // Calculate Margin = Estimated Fees - Costs
-    let totalEstimatedFees = 0
-    casesInPeriod.forEach((caseId) => {
-      const estimate = estimates.find((e: any) => e.case === caseId)
-      if (estimate && estimate.estimated_fees) {
-        totalEstimatedFees += estimate.estimated_fees
-      }
-    })
-
-    const finalChartData = Object.values(grouped)
-      .map((g) => {
-        const netResult = g.realizedIn - g.realizedOut
-
-        let periodEstFees = 0
-        g.casesInvolved.forEach((cid) => {
-          const est = estimates.find((e: any) => e.case === cid)
-          if (est && est.estimated_fees) periodEstFees += est.estimated_fees
-        })
-        const periodMargin = periodEstFees > 0 ? periodEstFees - g.realizedOut : netResult
-
-        return {
-          period: g.period,
-          margin: Number(periodMargin.toFixed(2)),
-          netResult: Number(netResult.toFixed(2)),
-          inflow: Number(g.realizedIn.toFixed(2)),
-          outflow: Number(g.realizedOut.toFixed(2)),
-          sortKey: g.sortKey,
-        }
-      })
-      .sort((a, b) => a.sortKey - b.sortKey)
-
-    const totalMargin = totalEstimatedFees > 0 ? totalEstimatedFees - totalOut : totalIn - totalOut
 
     return {
-      chartData: finalChartData,
-      summary: {
-        totalIn,
-        totalOut,
-        netResult: totalIn - totalOut,
-        totalEstimatedFees,
-        totalMargin,
-      },
+      chartData: Object.values(grouped)
+        .map((g: any) => ({ ...g, netResult: g.inflow - g.outflow }))
+        .sort((a: any, b: any) => a.sortKey - b.sortKey),
+      summary: { tIn, tOut, net: tIn - tOut, margin: tIn > 0 ? ((tIn - tOut) / tIn) * 100 : 0 },
+      casesProf: cases
+        .map((c: any) => {
+          const cTx = expanded.filter((t) => t.linked_lawsuit === c.id)
+          const cIn = cTx.reduce((acc, t) => (t.type === 'inflow' ? acc + (t.amount || 0) : acc), 0)
+          const cOut = cTx.reduce(
+            (acc, t) => (t.type === 'outflow' ? acc + (t.amount || 0) : acc),
+            0,
+          )
+          const cEst = estimates.filter((e: any) => e.case === c.id)
+          const eF = cEst.reduce((acc, e) => acc + (e.estimated_fees || 0), 0)
+          const eC = cEst.reduce((acc, e) => acc + (e.total_estimated_costs || 0), 0)
+          return {
+            ...c,
+            cIn,
+            cOut,
+            fix: c.allocated_fixed_cost || 0,
+            prof: cIn - (cOut + (c.allocated_fixed_cost || 0)),
+            eF,
+            eC,
+            marg: cIn > 0 ? ((cIn - (cOut + (c.allocated_fixed_cost || 0))) / cIn) * 100 : 0,
+          }
+        })
+        .filter((c: any) => c.cIn > 0 || c.cOut > 0 || c.eF > 0 || c.eC > 0),
     }
-  }, [transactions, startDate, endDate, estimates])
+  }, [transactions, cases, estimates, startDate, endDate])
 
-  const chartConfig = {
-    inflow: { label: 'Receitas', color: '#10b981' },
-    outflow: { label: 'Despesas', color: '#ef4444' },
-    netResult: { label: 'Resultado Líquido', color: '#3b82f6' },
-    margin: { label: 'Margem', color: '#f59e0b' },
-  }
-
-  const formatBRL = (value: number) =>
+  const fmtBRL = (v: number) =>
     new Intl.NumberFormat('pt-BR', {
       notation: 'compact',
       compactDisplay: 'short',
       style: 'currency',
       currency: 'BRL',
-    }).format(value || 0)
-
-  const formatFullBRL = (value: number) =>
-    new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(value || 0)
+    }).format(v || 0)
+  const fmtFull = (v: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
+  const cfg = {
+    inflow: { label: 'Receitas', color: '#10b981' },
+    outflow: { label: 'Despesas', color: '#ef4444' },
+    netResult: { label: 'Resultado Líquido', color: '#3b82f6' },
+  }
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h2 className="text-lg font-medium text-slate-800">
+          {user?.role === 'admin' ? 'Visão Geral de Rentabilidade' : 'Minha Rentabilidade'}
+        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={filterMode} onValueChange={handleFilterChange}>
+            <SelectTrigger className="w-[150px] h-9 text-xs bg-slate-50">
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="mensal">Mensal</SelectItem>
+              <SelectItem value="trimestral">Trimestral</SelectItem>
+              <SelectItem value="ano_atual">Ano Atual</SelectItem>
+              <SelectItem value="ultimos_12_meses">Últimos 12 Meses</SelectItem>
+              <SelectItem value="custom">Personalizado</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-md border">
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setFilterMode('custom')
+                setStartDate(e.target.value)
+              }}
+              className="w-auto h-7 text-xs border-none shadow-none bg-white"
+            />
+            <span className="text-slate-400 text-xs">até</span>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setFilterMode('custom')
+                setEndDate(e.target.value)
+              }}
+              className="w-auto h-7 text-xs border-none shadow-none bg-white"
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="shadow-sm border-slate-200">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-emerald-50 rounded-lg text-emerald-500">
-              <TrendingUp className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Total Receitas</p>
-              <h4 className="text-xl font-bold text-slate-800">
-                {summary ? formatFullBRL(summary.totalIn) : 'R$ 0,00'}
-              </h4>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm border-slate-200">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-red-50 rounded-lg text-red-500">
-              <TrendingDown className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Total Custos/Despesas</p>
-              <h4 className="text-xl font-bold text-slate-800">
-                {summary ? formatFullBRL(summary.totalOut) : 'R$ 0,00'}
-              </h4>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm border-slate-200">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-blue-50 rounded-lg text-blue-500">
-              <DollarSign className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Resultado Líquido</p>
-              <h4
-                className={`text-xl font-bold ${summary && summary.netResult < 0 ? 'text-red-500' : 'text-slate-800'}`}
-              >
-                {summary ? formatFullBRL(summary.netResult) : 'R$ 0,00'}
-              </h4>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm border-slate-200">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-amber-50 rounded-lg text-amber-500">
-              <Target className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Margem (Estimativa - Custos)</p>
-              <h4
-                className={`text-xl font-bold ${summary && summary.totalMargin < 0 ? 'text-red-500' : 'text-slate-800'}`}
-              >
-                {summary ? formatFullBRL(summary.totalMargin) : 'R$ 0,00'}
-              </h4>
-            </div>
-          </CardContent>
-        </Card>
+        <KPICard
+          title="Receita Total"
+          value={summary ? fmtFull(summary.tIn) : 'R$ 0,00'}
+          icon={TrendingUp}
+          color="bg-emerald-50 text-emerald-500"
+          valColor="text-slate-800"
+        />
+        <KPICard
+          title="Custos e Despesas"
+          value={summary ? fmtFull(summary.tOut) : 'R$ 0,00'}
+          icon={TrendingDown}
+          color="bg-red-50 text-red-500"
+          valColor="text-slate-800"
+        />
+        <KPICard
+          title="Lucro Líquido"
+          value={summary ? fmtFull(summary.net) : 'R$ 0,00'}
+          icon={DollarSign}
+          color="bg-blue-50 text-blue-500"
+          valColor={summary && summary.net < 0 ? 'text-red-500' : 'text-slate-800'}
+        />
+        <KPICard
+          title="Margem Média"
+          value={summary ? `${summary.margin.toFixed(1)}%` : '0,0%'}
+          icon={Percent}
+          color="bg-amber-50 text-amber-500"
+          valColor={summary && summary.margin < 0 ? 'text-red-500' : 'text-slate-800'}
+        />
       </div>
 
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <BarChart3 className="w-5 h-5 text-primary" />{' '}
-              {isFinancialAdmin ? 'Análise de Rentabilidade' : 'Minha Rentabilidade'}
-            </CardTitle>
-            <CardDescription>
-              Evolução de receitas, custos, resultado e margem no período selecionado.
-            </CardDescription>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={filterMode} onValueChange={handleFilterChange}>
-              <SelectTrigger className="w-[160px] h-9 text-xs bg-slate-50">
-                <SelectValue placeholder="Período" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="mensal">Mensal</SelectItem>
-                <SelectItem value="ano_atual">Ano Atual</SelectItem>
-                <SelectItem value="ultimos_12_meses">Últimos 12 Meses</SelectItem>
-                <SelectItem value="custom">Personalizado</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-md border">
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => handleCustomDateChange('start', e.target.value)}
-                className="w-auto h-7 text-xs bg-white border-none shadow-none"
-              />
-              <span className="text-slate-400 text-xs font-medium">até</span>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => handleCustomDateChange('end', e.target.value)}
-                className="w-auto h-7 text-xs bg-white border-none shadow-none"
-              />
-            </div>
-          </div>
+        <CardHeader className="border-b pb-4">
+          <CardTitle className="text-lg">Evolução Financeira</CardTitle>
+          <CardDescription>
+            Comparativo de receitas, despesas e resultado líquido ao longo do tempo.
+          </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
-          <div className="h-[400px] w-full">
+          <div className="h-[350px] w-full">
             {chartData.length === 0 ? (
-              <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 border border-dashed rounded-lg bg-slate-50/50">
-                <BarChart3 className="w-10 h-10 mb-3 text-slate-300" />
-                <p className="font-medium text-sm">Nenhum dado financeiro encontrado no período.</p>
+              <div className="flex h-full items-center justify-center text-slate-400 border border-dashed rounded-lg bg-slate-50/50">
+                <BarChart3 className="w-8 h-8 mr-2" /> Nenhum dado no período.
               </div>
             ) : (
-              <ChartContainer config={chartConfig} className="h-full w-full">
+              <ChartContainer config={cfg} className="h-full w-full">
                 <ComposedChart
                   data={chartData}
-                  margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
+                  margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis
@@ -315,22 +269,18 @@ export function FinanceProfitTab({ transactions = [], cases = [], estimates = []
                     tickLine={false}
                     axisLine={false}
                     tick={{ fontSize: 12, fill: '#64748b' }}
-                    tickFormatter={(value) => formatBRL(value)}
+                    tickFormatter={fmtBRL}
                   />
-
                   <ChartTooltip
                     cursor={false}
                     content={
                       <ChartTooltipContent
                         indicator="dashed"
-                        formatter={(value: any, name: string) => {
-                          return formatFullBRL(Number(value))
-                        }}
+                        formatter={(v: any) => fmtFull(Number(v))}
                       />
                     }
                   />
                   <ChartLegend content={<ChartLegendContent />} />
-
                   <Bar
                     yAxisId="left"
                     dataKey="inflow"
@@ -351,19 +301,68 @@ export function FinanceProfitTab({ transactions = [], cases = [], estimates = []
                     strokeWidth={3}
                     dot={{ r: 4 }}
                   />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="margin"
-                    stroke="var(--color-margin)"
-                    strokeWidth={3}
-                    dot={{ r: 4, strokeDasharray: '3 3' }}
-                    strokeDasharray="5 5"
-                  />
                 </ComposedChart>
               </ChartContainer>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="border-b pb-4">
+          <CardTitle className="text-lg">Rentabilidade por Processo</CardTitle>
+          <CardDescription>
+            Análise detalhada do lucro real e estimado para cada caso movimentado.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 p-0">
+          {casesProf.length === 0 ? (
+            <div className="py-8 text-center text-slate-500 text-sm">
+              Nenhum processo com movimentação no período.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50/80 text-slate-500 border-b">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Processo</th>
+                    <th className="px-4 py-3 font-medium text-right">Receitas (Real)</th>
+                    <th className="px-4 py-3 font-medium text-right">Custos (Real+Fixo)</th>
+                    <th className="px-4 py-3 font-medium text-right">Lucro Real</th>
+                    <th className="px-4 py-3 font-medium text-right">Margem</th>
+                    <th className="px-4 py-3 font-medium text-right">Hon. (Est.)</th>
+                    <th className="px-4 py-3 font-medium text-right">Custos (Est.)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {casesProf.map((c: any) => (
+                    <tr key={c.id} className="hover:bg-slate-50/50">
+                      <td className="px-4 py-3 font-medium text-slate-800">
+                        {c.case_number || 'S/N'}
+                        <br />
+                        <span className="text-xs text-slate-500 font-normal">{c.parties}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-emerald-600">{fmtFull(c.cIn)}</td>
+                      <td className="px-4 py-3 text-right text-red-600">
+                        {fmtFull(c.cOut + c.fix)}
+                      </td>
+                      <td
+                        className={cn(
+                          'px-4 py-3 text-right font-bold',
+                          c.prof >= 0 ? 'text-emerald-600' : 'text-red-600',
+                        )}
+                      >
+                        {fmtFull(c.prof)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-slate-700">{c.marg.toFixed(1)}%</td>
+                      <td className="px-4 py-3 text-right text-slate-500">{fmtFull(c.eF)}</td>
+                      <td className="px-4 py-3 text-right text-slate-500">{fmtFull(c.eC)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
