@@ -186,7 +186,9 @@ export default function ProcessManager() {
               organization: pb.authStore.record?.active_organization,
               user: pb.authStore.record?.id,
             })
-          } catch (e) {}
+          } catch (e) {
+            console.error('Failed to create system log:', e)
+          }
         } finally {
           setSyncingCases((prev) => prev.filter((c) => c !== id))
         }
