@@ -118,18 +118,32 @@ export default function ProcessDetail() {
       loadData()
       loadMovements(1)
     } catch (error: any) {
-      const errorMsg =
-        error?.response?.message ||
-        error?.message ||
-        'O tribunal está indisponível ou rejeitou a requisição.'
+      let errorMsg = 'O tribunal está indisponível ou rejeitou a requisição.'
+
+      if (error?.response?.message) {
+        errorMsg = error.response.message
+      } else if (error?.message) {
+        errorMsg = error.message
+      }
 
       let userMessage = errorMsg
-      if (errorMsg.includes('PJE_FORBIDDEN') || errorMsg.includes('403')) {
-        userMessage = 'Acesso negado pelo tribunal. Verifique as credenciais de monitoramento.'
-      } else if (errorMsg.includes('PJE_UNAUTHORIZED') || errorMsg.includes('401')) {
-        userMessage = 'Não autorizado. A chave de API do tribunal pode estar expirada.'
-      } else if (errorMsg.includes('PJE_BAD_REQUEST') || errorMsg.includes('400')) {
-        userMessage = 'Processo não encontrado ou requisição inválida no tribunal.'
+      const status = error?.status
+
+      if (status === 403 || errorMsg.includes('PJE_FORBIDDEN') || errorMsg.includes('403')) {
+        userMessage =
+          'Acesso negado pelo tribunal (403 Forbidden). Verifique as credenciais de monitoramento na Central de Atualizações.'
+      } else if (
+        status === 401 ||
+        errorMsg.includes('PJE_UNAUTHORIZED') ||
+        errorMsg.includes('401')
+      ) {
+        userMessage = 'Não autorizado (401). A chave de API do tribunal pode estar expirada.'
+      } else if (
+        status === 400 ||
+        errorMsg.includes('PJE_BAD_REQUEST') ||
+        errorMsg.includes('400')
+      ) {
+        userMessage = 'Requisição inválida (400) ou processo não encontrado no tribunal.'
       }
 
       toast({

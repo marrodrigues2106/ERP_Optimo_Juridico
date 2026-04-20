@@ -10,6 +10,15 @@ routerAdd(
       throw new NotFoundError('Case not found')
     }
 
+    const userOrg = e.auth?.getString('active_organization')
+    if (
+      userOrg &&
+      record.getString('organization') &&
+      record.getString('organization') !== userOrg
+    ) {
+      return e.forbiddenError('Sem permissão para acessar este processo.')
+    }
+
     if (record.getString('pje_sync_status') === 'syncing') {
       return e.json(200, { success: true, message: 'Processo já está em sincronização.' })
     }
@@ -37,16 +46,18 @@ routerAdd(
     let added = 0
 
     try {
-      let apiKey = $secrets.get('COMUNICA_PJE_KEY')
+      let apiKey = ''
+      try {
+        const config = $app.findFirstRecordByFilter('monitoring_configs', "apiKey != ''")
+        apiKey = config.getString('apiKey')
+      } catch (e) {}
+
       if (!apiKey) {
-        try {
-          const config = $app.findFirstRecordByFilter('monitoring_configs', "apiKey != ''")
-          apiKey = config.getString('apiKey')
-        } catch (e) {}
+        apiKey = $secrets.get('COMUNICA_PJE_KEY') || ''
       }
 
       if (!apiKey) {
-        throw new Error('PJE_FORBIDDEN: Chave de API não configurada. Acesso negado.')
+        throw new Error('PJE_FORBIDDEN: Chave de API não configurada na Central de Atualizações.')
       }
 
       apiKey = apiKey.trim()
@@ -161,6 +172,11 @@ routerAdd(
     if (syncStatus === 'success') {
       return e.json(200, { success: true, message: syncMessage })
     } else {
+      if (syncMessage.includes('PJE_FORBIDDEN')) {
+        return e.forbiddenError(syncMessage)
+      } else if (syncMessage.includes('PJE_UNAUTHORIZED')) {
+        return e.unauthorizedError(syncMessage)
+      }
       return e.badRequestError(syncMessage)
     }
   },
