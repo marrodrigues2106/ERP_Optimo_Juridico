@@ -263,4 +263,13 @@ export function FinanceProfitTab({ transactions = [], user }: any) {
                   dataKey="netResult"
                   stroke="var(--color-netResult)"
                   strokeWidth={2}
-        
+                  dot={{ r: 4 }}
+                />
+              </ComposedChart>
+            </ChartContainer>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
