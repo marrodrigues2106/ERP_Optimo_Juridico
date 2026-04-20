@@ -114,7 +114,8 @@ export default function ProcessManager() {
         try {
           await syncCaseDatajud(id)
           setSyncStatus((prev) => ({ ...prev, [id]: 'success' }))
-        } catch (e) {
+        } catch (error) {
+          console.error(`Failed to sync legal case with ID: ${id}`, error)
           setSyncStatus((prev) => ({ ...prev, [id]: 'error' }))
         }
       }),

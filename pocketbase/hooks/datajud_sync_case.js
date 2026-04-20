@@ -1,8 +1,14 @@
 routerAdd(
   'POST',
-  '/backend/v1/datajud/sync/{caseId}',
+  '/backend/v1/datajud/sync-case',
   (e) => {
-    const caseId = e.request.pathValue('caseId')
+    const body = e.requestInfo().body || {}
+    const caseId = body.caseId
+
+    if (!caseId) {
+      return e.badRequestError('Missing caseId in request body')
+    }
+
     let record
     try {
       record = $app.findRecordById('legal_cases', caseId)
