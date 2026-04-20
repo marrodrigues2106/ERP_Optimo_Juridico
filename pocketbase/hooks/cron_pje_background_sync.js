@@ -97,7 +97,10 @@ cronAdd('pje_worker', '* * * * *', () => {
           if (res.statusCode === 504 || res.statusCode === 503 || res.statusCode === 502) {
             syncMessage = 'PJE_TIMEOUT: Sistema PJe indisponível.'
           } else {
-            syncMessage = `PJe API Error: HTTP ${res.statusCode}`
+            syncMessage =
+              data && data.message
+                ? `PJe API Error: ${data.message}`
+                : `PJe API Error: HTTP ${res.statusCode}`
           }
           record.set('pje_sync_status', 'error')
           record.set('datajud_sync_status', 'Error')
