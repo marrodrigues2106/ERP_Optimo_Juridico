@@ -103,7 +103,12 @@ routerAdd(
         Authorization: apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`,
       }
 
-      const payload = { numeroProcesso: cleanNum }
+      const currentDate = new Date().toISOString().split('T')[0]
+      const payload = {
+        numeroProcesso: cleanNum,
+        dataDisponibilizacaoInicio: '2024-01-01',
+        dataDisponibilizacaoFim: currentDate,
+      }
 
       const res = $http.send({
         url: url,

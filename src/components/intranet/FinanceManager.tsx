@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { FileUp, Calculator, Plus } from 'lucide-react'
@@ -19,6 +20,8 @@ import { FinanceHistoryTab } from './finances/FinanceHistoryTab'
 
 export default function FinanceManager() {
   const { user } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const caseIdFilter = searchParams.get('caseId')
   const [transactions, setTransactions] = useState<any[]>([])
   const [cases, setCases] = useState<any[]>([])
   const [estimates, setEstimates] = useState<any[]>([])
@@ -54,6 +57,11 @@ export default function FinanceManager() {
     setFormOpen(true)
   }
 
+  const filteredTransactions = useMemo(() => {
+    if (!caseIdFilter) return transactions
+    return transactions.filter((t) => t.linked_lawsuit === caseIdFilter)
+  }, [transactions, caseIdFilter])
+
   return (
     <div className="space-y-8 pb-12">
       <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 border-b border-slate-200 pb-6">
@@ -62,6 +70,19 @@ export default function FinanceManager() {
           <p className="text-sm text-slate-500 mt-1">
             Acompanhe fluxo de caixa, rentabilidade e histórico.
           </p>
+          {caseIdFilter && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-md font-medium">
+                Filtrando por processo
+              </span>
+              <button
+                onClick={() => setSearchParams({})}
+                className="text-xs text-slate-500 hover:text-slate-800 underline"
+              >
+                Limpar filtro
+              </button>
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button
@@ -114,7 +135,7 @@ export default function FinanceManager() {
 
         <TabsContent value="overview" className="mt-8 outline-none">
           <FinanceOverviewTab
-            transactions={transactions}
+            transactions={filteredTransactions}
             cases={cases}
             user={user}
             onEdit={handleEdit}
@@ -123,7 +144,7 @@ export default function FinanceManager() {
         </TabsContent>
         <TabsContent value="history" className="mt-8 outline-none">
           <FinanceHistoryTab
-            transactions={transactions}
+            transactions={filteredTransactions}
             cases={cases}
             onEdit={handleEdit}
             onDelete={setDeleteTarget}
@@ -131,7 +152,7 @@ export default function FinanceManager() {
         </TabsContent>
         <TabsContent value="profit" className="mt-6">
           <FinanceProfitTab
-            transactions={transactions}
+            transactions={filteredTransactions}
             cases={cases}
             estimates={estimates}
             user={user}

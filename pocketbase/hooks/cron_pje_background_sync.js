@@ -88,7 +88,12 @@ cronAdd('pje_worker', '* * * * *', () => {
         const cleanNum = String(num).replace(/\D/g, '')
         if (cleanNum.length !== 20) throw new Error('Invalid case number')
 
-        const url = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=' + cleanNum
+        const currentDate = new Date().toISOString().split('T')[0]
+        const url =
+          'https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=' +
+          cleanNum +
+          '&dataDisponibilizacaoInicio=2024-01-01&dataDisponibilizacaoFim=' +
+          currentDate
         const headers = {
           Accept: 'application/json',
           Authorization: apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`,

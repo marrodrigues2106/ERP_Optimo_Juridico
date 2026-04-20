@@ -572,7 +572,7 @@ export default function ProcessDetail() {
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-500">Registros ({finances.length})</span>
                   <button
-                    onClick={() => navigate('/intranet/finance')}
+                    onClick={() => navigate(`/intranet/finance?caseId=${id}`)}
                     className="text-sm font-medium text-primary hover:underline"
                   >
                     Ver detalhes
