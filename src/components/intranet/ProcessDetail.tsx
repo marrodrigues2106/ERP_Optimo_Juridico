@@ -123,41 +123,55 @@ export default function ProcessDetail() {
       loadData()
       loadMovements(1)
     } catch (error: any) {
-      let errorMsg = 'O tribunal está indisponível ou rejeitou a requisição.'
+      let errorMsg: string | object = 'O tribunal está indisponível ou rejeitou a requisição.'
 
-      if (error?.response?.message) {
-        errorMsg = error.response.message
-      } else if (error?.message) {
-        errorMsg = error.message
+      try {
+        if (error?.response?.message) {
+          errorMsg =
+            typeof error.response.message === 'string'
+              ? error.response.message
+              : JSON.stringify(error.response.message)
+        } else if (error?.message) {
+          errorMsg = error.message
+        }
+      } catch (e) {
+        // ignore parsing errors
       }
 
       let userMessage = errorMsg
       const status = error?.status
 
-      if (status === 403 || errorMsg.includes('PJE_FORBIDDEN') || errorMsg.includes('403')) {
+      if (
+        status === 403 ||
+        (typeof errorMsg === 'string' &&
+          (errorMsg.includes('PJE_FORBIDDEN') || errorMsg.includes('403')))
+      ) {
         userMessage =
           'Acesso negado pelo tribunal. Por favor, verifique as configurações da API ou tente novamente mais tarde.'
       } else if (
         status === 401 ||
-        errorMsg.includes('PJE_UNAUTHORIZED') ||
-        errorMsg.includes('401')
+        (typeof errorMsg === 'string' &&
+          (errorMsg.includes('PJE_UNAUTHORIZED') || errorMsg.includes('401')))
       ) {
         userMessage = 'Não autorizado (401). A chave de API do tribunal pode estar expirada.'
       } else if (
         status === 400 ||
-        errorMsg.includes('PJE_BAD_REQUEST') ||
-        errorMsg.includes('400')
+        (typeof errorMsg === 'string' &&
+          (errorMsg.includes('PJE_BAD_REQUEST') || errorMsg.includes('400')))
       ) {
         userMessage = 'Requisição inválida (400) ou processo não encontrado no tribunal.'
       }
 
       toast({
         title: 'Falha na Sincronização',
-        description: userMessage,
+        description: String(userMessage),
         variant: 'destructive',
       })
 
-      setLegalCase((prev: any) => ({ ...prev, pje_sync_status: 'error' }))
+      setLegalCase((prev: any) => {
+        if (!prev) return prev
+        return { ...prev, pje_sync_status: 'error' }
+      })
     }
   }
 

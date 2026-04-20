@@ -88,11 +88,16 @@ routerAdd(
       if (!apiKey) apiKey = $secrets.get('COMUNICA_PJE_KEY') || ''
       apiKey = apiKey.trim()
 
+      const inlabsKey = $secrets.get('INLABS') || ''
+
       const currentDate = new Date().toISOString().split('T')[0]
-      const baseUrl =
-        apiKey && apiKey.length >= 5
-          ? 'https://comunicaapi.pje.jus.br/api/v1'
-          : 'https://comunica.pje.jus.br/api/v1'
+      let baseUrl = 'https://comunica.pje.jus.br/api/v1'
+      if (inlabsKey) {
+        baseUrl = 'https://pje.inlabs.app/api/v1'
+      } else if (apiKey && apiKey.length >= 5) {
+        baseUrl = 'https://comunicaapi.pje.jus.br/api/v1'
+      }
+
       const url = `${baseUrl}/comunicacao?numeroProcesso=${cleanNum}&dataDisponibilizacaoInicio=2024-01-01&dataDisponibilizacaoFim=${currentDate}`
 
       const headers = {
@@ -103,7 +108,9 @@ routerAdd(
         Connection: 'keep-alive',
       }
 
-      if (apiKey && apiKey.length >= 5) {
+      if (inlabsKey) {
+        headers.Authorization = `Bearer ${inlabsKey}`
+      } else if (apiKey && apiKey.length >= 5) {
         headers.Authorization = apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`
       }
 
