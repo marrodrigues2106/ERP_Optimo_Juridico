@@ -55,8 +55,6 @@ cronAdd('pje_worker', '* * * * *', () => {
       let syncMessage = ''
       let added = 0
       let httpStatus = null
-      let isProxied = false
-      let usedProxyUrl = ''
       let cloudFrontRequestId = 'unknown'
 
       try {
@@ -87,36 +85,7 @@ cronAdd('pje_worker', '* * * * *', () => {
           Authorization: apiKey.startsWith('Bearer ') ? apiKey : 'Bearer ' + apiKey,
         }
 
-        let proxyEnabled = false
-        let proxyUrl = ''
-        let proxyAuth = ''
-        try {
-          const enRecord = $app.findFirstRecordByFilter('settings', "key='pje_proxy_enabled'")
-          proxyEnabled = enRecord.getString('value') === 'true'
-          const urlRecord = $app.findFirstRecordByFilter('settings', "key='pje_proxy_url'")
-          proxyUrl = urlRecord.getString('value')
-          const authRecord = $app.findFirstRecordByFilter('settings', "key='pje_proxy_auth'")
-          proxyAuth = authRecord.getString('value')
-        } catch (e) {}
-
-        let finalUrl = url
-        if (proxyEnabled && proxyUrl) {
-          isProxied = true
-          usedProxyUrl = proxyUrl
-          if (proxyUrl.indexOf('?') !== -1 || proxyUrl.endsWith('=')) {
-            finalUrl = proxyUrl + encodeURIComponent(url)
-          } else {
-            finalUrl = url
-              .replace('https://comunicaapi.pje.jus.br/api/v1', proxyUrl)
-              .replace('https://comunica.pje.jus.br/api/v1', proxyUrl)
-          }
-          if (proxyAuth) {
-            headers['Proxy-Authorization'] = proxyAuth
-            headers['X-Proxy-Auth'] = proxyAuth
-          }
-        }
-
-        const res = $http.send({ url: finalUrl, method: 'GET', headers: headers, timeout: 60 })
+        const res = $http.send({ url: url, method: 'GET', headers: headers, timeout: 60 })
         httpStatus = res.statusCode
 
         if (res.headers) {
@@ -217,8 +186,6 @@ cronAdd('pje_worker', '* * * * *', () => {
           case: record.id,
           duration: Date.now() - startTime,
           status: syncStatus,
-          proxied: isProxied,
-          proxy_url: isProxied ? usedProxyUrl : null,
           request_id: cloudFrontRequestId,
           http_status: httpStatus,
         })
