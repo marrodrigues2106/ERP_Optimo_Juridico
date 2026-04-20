@@ -56,11 +56,13 @@ routerAdd(
         apiKey = $secrets.get('COMUNICA_PJE_KEY') || ''
       }
 
-      if (!apiKey) {
-        throw new Error('PJE_FORBIDDEN: Chave de API não configurada na Central de Atualizações.')
-      }
-
       apiKey = apiKey.trim()
+
+      if (!apiKey || apiKey.length < 5) {
+        throw new Error(
+          'PJE_FORBIDDEN: Chave de API não configurada ou em formato inválido na Central de Atualizações.',
+        )
+      }
 
       const url = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao'
       const headers = {
@@ -70,7 +72,7 @@ routerAdd(
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
         Connection: 'keep-alive',
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: apiKey.startsWith('Bearer ') ? apiKey : `Bearer ${apiKey}`,
       }
 
       const payload = {
@@ -123,7 +125,8 @@ routerAdd(
         record.set('datajud_last_sync', new Date().toISOString())
       } else {
         if (res.statusCode === 403) {
-          syncMessage = `PJE_FORBIDDEN: Acesso negado pelo tribunal (403). Response: ${JSON.stringify(data || {})}`
+          const rawResponse = res.raw ? String(res.raw) : JSON.stringify(data || {})
+          syncMessage = `PJE_FORBIDDEN: Acesso negado pelo tribunal (403). Response: ${rawResponse}`
         } else if (res.statusCode === 400) {
           syncMessage = `PJE_BAD_REQUEST: Requisição inválida ou processo não encontrado (400). Response: ${JSON.stringify(data || {})}`
         } else if (res.statusCode === 401) {
@@ -167,7 +170,9 @@ routerAdd(
       logRecord.set('duration', Date.now() - startTime)
       if (orgId) logRecord.set('organization', orgId)
       $app.saveNoValidate(logRecord)
-    } catch (e) {}
+    } catch (e) {
+      console.log('Error saving pje sync log', e)
+    }
 
     if (syncStatus === 'success') {
       return e.json(200, { success: true, message: syncMessage })

@@ -130,8 +130,7 @@ export default function ProcessDetail() {
       const status = error?.status
 
       if (status === 403 || errorMsg.includes('PJE_FORBIDDEN') || errorMsg.includes('403')) {
-        userMessage =
-          'Acesso negado pelo tribunal (403 Forbidden). Verifique as credenciais de monitoramento na Central de Atualizações.'
+        userMessage = 'Acesso negado pelo tribunal. Verifique suas credenciais de API.'
       } else if (
         status === 401 ||
         errorMsg.includes('PJE_UNAUTHORIZED') ||
