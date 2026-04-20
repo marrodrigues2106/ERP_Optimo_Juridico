@@ -197,11 +197,12 @@ export default function Dashboard() {
       pb.collection('clients').getFullList().then(setClients),
       pb
         .collection('collaborators')
-        .getFullList({ filter: 'deleted_at = "" && user != ""' })
+        .getFullList({ filter: 'deleted_at = "" && user != ""', expand: 'user' })
         .then((collabs) => {
-          setCollaborators(collabs)
+          const activeCollabs = collabs.filter((c) => c.expand?.user)
+          setCollaborators(activeCollabs)
           if (user?.id) {
-            const mine = collabs.find((c) => c.user === user.id)
+            const mine = activeCollabs.find((c) => c.user === user.id)
             if (mine) {
               setMyCollaboratorId(mine.id)
               if (!canFilterOthers) {

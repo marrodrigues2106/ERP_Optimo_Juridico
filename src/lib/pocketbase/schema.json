@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-20T16:52:40.154Z",
+  "generatedAt": "2026-04-20T17:27:25.019Z",
   "collections": [
     {
       "name": "users",
@@ -1076,12 +1076,6 @@
           "system": false
         },
         {
-          "name": "tribunais",
-          "type": "json",
-          "required": false,
-          "system": false
-        },
-        {
           "name": "sync_processos",
           "type": "bool",
           "required": false,
@@ -1126,12 +1120,6 @@
         {
           "name": "default_numero_processo",
           "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "som",
-          "type": "bool",
           "required": false,
           "system": false
         }

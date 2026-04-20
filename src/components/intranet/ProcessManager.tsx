@@ -169,40 +169,43 @@ export default function ProcessManager() {
 
     toast({
       title: 'Sincronização Simultânea',
-      description: `${casesToSync.length} processos estão sendo atualizados.`,
+      description: `${casesToSync.length} processos estão sendo atualizados concorrentemente.`,
     })
 
     setIsSyncingBatch(true)
     setSyncProgress({ total: casesToSync.length, completed: 0 })
 
-    Promise.allSettled(
-      casesToSync.map(async (id) => {
-        setSyncingCases((prev) => [...prev, id])
+    // Add all to syncing state immediately
+    setSyncingCases((prev) => Array.from(new Set([...prev, ...casesToSync])))
+
+    // Fire all requests simultaneously (concurrent)
+    const promises = casesToSync.map(async (id) => {
+      try {
+        await syncDataJudCase(id)
+      } catch (error: any) {
         try {
-          await syncDataJudCase(id)
-        } catch (error: any) {
-          try {
-            await pb.collection('system_logs').create({
-              level: 'error',
-              module: 'batch_sync',
-              message: `Falha ao sincronizar processo ${id}`,
-              details: { error: error.message || String(error) },
-              organization: pb.authStore.record?.active_organization,
-              user: pb.authStore.record?.id,
-            })
-          } catch (e) {
-            console.error('Failed to create system log:', e)
-          }
-        } finally {
-          setSyncingCases((prev) => prev.filter((c) => c !== id))
-          setSyncProgress((prev) => (prev ? { ...prev, completed: prev.completed + 1 } : null))
+          await pb.collection('system_logs').create({
+            level: 'error',
+            module: 'batch_sync',
+            message: `Falha ao sincronizar processo ${id}`,
+            details: { error: error.message || String(error) },
+            organization: pb.authStore.record?.active_organization,
+            user: pb.authStore.record?.id,
+          })
+        } catch (e) {
+          console.error('Failed to create system log:', e)
         }
-      }),
-    ).then(() => {
-      setIsSyncingBatch(false)
-      setSyncProgress(null)
-      loadData()
+      } finally {
+        setSyncingCases((prev) => prev.filter((c) => c !== id))
+        setSyncProgress((prev) => (prev ? { ...prev, completed: prev.completed + 1 } : null))
+      }
     })
+
+    await Promise.allSettled(promises)
+
+    setIsSyncingBatch(false)
+    setSyncProgress(null)
+    loadData()
   }
 
   return (

@@ -5,7 +5,8 @@ onRecordAfterDeleteSuccess((e) => {
   try {
     const collabs = $app.findRecordsByFilter('collaborators', `user = "${userId}"`, '', 1, 0)
     if (collabs && collabs.length > 0) {
-      const collabId = collabs[0].id
+      const collabRecord = collabs[0]
+      const collabId = collabRecord.id
 
       // 1. Clear responsible_collaborator from legal_cases
       const cases = $app.findRecordsByFilter(
@@ -42,10 +43,31 @@ onRecordAfterDeleteSuccess((e) => {
         $app.saveNoValidate(t)
       }
 
-      // 4. Mark collaborator as deleted
-      const collabRecord = collabs[0]
-      collabRecord.set('deleted_at', new Date().toISOString())
-      $app.saveNoValidate(collabRecord)
+      // 4. Hard delete collaborator record (Cascade Deletion)
+      $app.delete(collabRecord)
+    }
+
+    // 5. Purge user's profile settings and tracked terms
+    const termos = $app.findRecordsByFilter(
+      'termos_monitorados',
+      `usuario_id = "${userId}"`,
+      '',
+      0,
+      0,
+    )
+    for (const t of termos) {
+      $app.delete(t)
+    }
+
+    const alertas = $app.findRecordsByFilter(
+      'configuracoes_alerta',
+      `usuario_id = "${userId}"`,
+      '',
+      0,
+      0,
+    )
+    for (const a of alertas) {
+      $app.delete(a)
     }
   } catch (err) {
     console.log('Error in on_user_delete hook: ' + err)

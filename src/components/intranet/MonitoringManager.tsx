@@ -38,9 +38,6 @@ export default function MonitoringManager() {
   // DataJud Config
   const [datajudApiKey, setDatajudApiKey] = useState('')
   const [syncProcessos, setSyncProcessos] = useState(true)
-  const [som, setSom] = useState(false)
-  const [tribunais, setTribunais] = useState<string[]>([])
-  const [tribunalsList, setTribunalsList] = useState<any[]>([])
 
   // Comunica PJe Config
   const [comunicaUrl, setComunicaUrl] = useState('')
@@ -93,9 +90,6 @@ export default function MonitoringManager() {
         setPjeStatus('unknown')
       }
 
-      const tribs = await pb.collection('tribunals').getFullList({ sort: 'name' })
-      setTribunalsList(tribs)
-
       const records = await pb.collection('monitoring_configs').getFullList()
       if (records.length > 0) {
         const c = records[0]
@@ -103,15 +97,12 @@ export default function MonitoringManager() {
         setDatajudApiKey(c.apiKey || '')
         setFrequency(c.frequency || 'Daily')
         setSyncProcessos(c.sync_processos ?? true)
-        setTribunais((c.tribunais || []).map((t: string) => t.toLowerCase()))
 
         setRodouExactSearch(c.is_exact_search ?? false)
         setRodouIgnoreSignature(c.ignore_signature_match ?? true)
         setRodouExcludedDepts(c.department_ignore || '')
         setRodouSections((c.dou_sections || '1,2,3,Extra').split(',').filter(Boolean))
         setQdTerritoryId(c.territory_id || '')
-
-        setSom(c.som ?? false)
       }
 
       const settings = await pb.collection('settings').getFullList()
@@ -160,13 +151,11 @@ export default function MonitoringManager() {
         apiKey: datajudApiKey,
         frequency,
         sync_processos: syncProcessos,
-        tribunais: tribunais.map((t) => t.toLowerCase()),
         is_exact_search: rodouExactSearch,
         ignore_signature_match: rodouIgnoreSignature,
         department_ignore: rodouExcludedDepts,
         dou_sections: rodouSections.join(','),
         territory_id: qdTerritoryId,
-        som,
       }
 
       if (config?.id) await pb.collection('monitoring_configs').update(config.id, payload)
@@ -448,44 +437,12 @@ export default function MonitoringManager() {
               </div>
               <div className="flex items-center justify-between border p-3 rounded-lg bg-slate-50">
                 <div>
-                  <Label className="text-sm">Alerta Sonoro (Som)</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Reproduzir som ao encontrar atualizações.
-                  </p>
-                </div>
-                <Switch checked={som} onCheckedChange={setSom} />
-              </div>
-              <div className="flex items-center justify-between border p-3 rounded-lg bg-slate-50">
-                <div>
                   <Label className="text-sm">Auto-Sync Processos</Label>
                   <p className="text-xs text-muted-foreground">
                     Atualizar andamentos periodicamente.
                   </p>
                 </div>
                 <Switch checked={syncProcessos} onCheckedChange={setSyncProcessos} />
-              </div>
-              <div className="space-y-2 pt-2">
-                <Label>Tribunais Ativos</Label>
-                <div className="grid grid-cols-2 gap-2 border p-3 rounded-lg bg-slate-50 max-h-[150px] overflow-y-auto">
-                  {tribunalsList.map((t) => (
-                    <div key={t.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`tribunal-${t.id}`}
-                        checked={tribunais.includes(t.alias?.toLowerCase())}
-                        onCheckedChange={(c) => {
-                          if (c) {
-                            setTribunais([...tribunais, t.alias?.toLowerCase()])
-                          } else {
-                            setTribunais(tribunais.filter((x) => x !== t.alias?.toLowerCase()))
-                          }
-                        }}
-                      />
-                      <label htmlFor={`tribunal-${t.id}`} className="text-xs cursor-pointer">
-                        {t.alias?.toLowerCase()}
-                      </label>
-                    </div>
-                  ))}
-                </div>
               </div>
             </CardContent>
           </Card>
@@ -563,26 +520,31 @@ export default function MonitoringManager() {
                       Última check: {pjeLastSync ? new Date(pjeLastSync).toLocaleString() : 'N/A'}
                     </div>
                   </div>
-                  <Badge
-                    variant={
-                      pjeStatus === 'online'
-                        ? 'default'
+                  <div className="flex flex-col gap-1 items-end shrink-0">
+                    <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                      Status de Monitoramento
+                    </span>
+                    <Badge
+                      variant={
+                        pjeStatus === 'online'
+                          ? 'default'
+                          : pjeStatus === 'offline'
+                            ? 'destructive'
+                            : 'secondary'
+                      }
+                      className={
+                        pjeStatus === 'online'
+                          ? 'bg-emerald-500 hover:bg-emerald-600 shrink-0'
+                          : 'shrink-0'
+                      }
+                    >
+                      {pjeStatus === 'online'
+                        ? 'Conectado / Online'
                         : pjeStatus === 'offline'
-                          ? 'destructive'
-                          : 'secondary'
-                    }
-                    className={
-                      pjeStatus === 'online'
-                        ? 'bg-emerald-500 hover:bg-emerald-600 shrink-0'
-                        : 'shrink-0'
-                    }
-                  >
-                    {pjeStatus === 'online'
-                      ? 'Online / Conectado'
-                      : pjeStatus === 'offline'
-                        ? 'Offline / Desconectado'
-                        : 'Desconhecido'}
-                  </Badge>
+                          ? 'Desconectado / Offline'
+                          : 'Desconhecido'}
+                    </Badge>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
