@@ -254,11 +254,31 @@ routerAdd(
                 orgaoJulgador = fixEncodingStr(orgaoJulgador)
               }
 
+              let docs = []
+              if (Array.isArray(mov.documentosVinculados))
+                docs = docs.concat(mov.documentosVinculados)
+              if (Array.isArray(mov.documentos)) docs = docs.concat(mov.documentos)
+              if (mov.documento) {
+                if (Array.isArray(mov.documento)) docs = docs.concat(mov.documento)
+                else if (typeof mov.documento === 'object') docs.push(mov.documento)
+              }
+
+              const normalizedDocs = docs.map((d) => ({
+                idDocumento: d.idDocumento || d.id || d.hash,
+                id: d.id || d.idDocumento || d.hash,
+                nome: fixEncodingStr(d.nome || d.tipoDocumento || 'Documento'),
+                tipoDocumento: fixEncodingStr(d.tipoDocumento || d.nome || ''),
+                tipoId: d.tipoId || d.tipoDocumentoId || null,
+                nivelSigilo: d.nivelSigilo || null,
+                dataJuntada: d.dataJuntada || null,
+                signatarios: d.signatarios || [],
+              }))
+
               const details = {
                 codigo: codigo,
                 orgaoJulgador: orgaoJulgador,
                 classe: caseData.classe?.nome || '',
-                documentos: mov.documentosVinculados || mov.documentos || [],
+                documentos: normalizedDocs,
                 complementos: mov.complementosTabelados || mov.complementos || [],
                 protocolo: mov.protocolo || null,
                 recibo: mov.recibo || null,
@@ -274,6 +294,15 @@ routerAdd(
                 magistradoCpf: mov.magistradoCpf || null,
               }
               newMov.set('movement_details', details)
+              newMov.set(
+                'document_identifiers',
+                normalizedDocs.map((d) => ({
+                  id: d.id,
+                  nome: d.nome,
+                  tipoId: d.tipoId,
+                  nivelSigilo: d.nivelSigilo,
+                })),
+              )
 
               if (teorText) {
                 newMov.set('details', teorText)

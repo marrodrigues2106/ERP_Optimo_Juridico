@@ -439,14 +439,22 @@ const MovementItem = ({
                     <div className="min-w-0 flex-1">
                       <p
                         className="text-sm font-semibold text-slate-800 truncate"
-                        title={doc.nome || doc.tipoDocumento || 'Documento'}
+                        title={fixEncoding(doc.nome || doc.tipoDocumento || 'Documento')}
                       >
-                        {doc.nome || doc.tipoDocumento || 'Documento'}
+                        {fixEncoding(doc.nome || doc.tipoDocumento || 'Documento')}
                       </p>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
                         <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">
                           ID: {doc.idDocumento || doc.id || doc.hash || 'Sem ID'}
                         </span>
+                        {doc.nivelSigilo && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] bg-red-50 text-red-600 border-red-200 h-5 px-1.5 font-normal tracking-wide"
+                          >
+                            Sigilo: {doc.nivelSigilo}
+                          </Badge>
+                        )}
                         {doc.dataJuntada && (
                           <span className="text-[10px] text-slate-500 flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
@@ -476,14 +484,16 @@ const MovementItem = ({
                           </p>
                         )}
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0 text-xs shadow-sm bg-white"
-                      onClick={() => handleViewDoc(doc)}
-                    >
-                      Visualizar
-                    </Button>
+                    {(doc.idDocumento || doc.id || doc.hash) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 text-xs shadow-sm bg-white"
+                        onClick={() => handleViewDoc(doc)}
+                      >
+                        Visualizar
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
