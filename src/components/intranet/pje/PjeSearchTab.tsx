@@ -172,13 +172,4 @@ export function PjeSearchTab() {
                 Data: {r.dataDisponibilizacao}
               </span>
               {r.meio && <span className="bg-slate-100 px-2 py-1 rounded-md">Meio: {r.meio}</span>}
-              {r.tipoComunicacao && (
-                <span className="bg-slate-100 px-2 py-1 rounded-md">{r.tipoComunicacao}</span>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
+      
