@@ -42,7 +42,8 @@ routerAdd(
         })
 
         if (res.statusCode !== 200) {
-          let apiMessage = 'A consulta foi rejeitada pelo PJe.'
+          let apiMessage =
+            'A consulta foi rejeitada pelo PJe. Verifique se o número do processo é válido e tente novamente.'
           if (res.json && res.json.message) apiMessage = res.json.message
           errors.push({ case: caseNumberStr, error: apiMessage })
           continue
