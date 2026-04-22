@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Loader2, Search } from 'lucide-react'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 export function PjeSearchTab() {
   const [loading, setLoading] = useState(false)
@@ -66,7 +67,7 @@ export function PjeSearchTab() {
         toast({ title: 'Nenhum resultado encontrado' })
       }
     } catch (err: any) {
-      toast({ title: 'Erro na busca', description: err.message, variant: 'destructive' })
+      toast({ title: 'Erro na busca', description: getErrorMessage(err), variant: 'destructive' })
     } finally {
       setLoading(false)
     }
