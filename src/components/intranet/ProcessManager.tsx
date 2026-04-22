@@ -51,11 +51,8 @@ export default function ProcessManager() {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
-  type SyncStatus = 'pending' | 'queued' | 'syncing' | 'success' | 'error'
   const [isBatchSyncing, setIsBatchSyncing] = useState(false)
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, currentCase: '' })
-  const [syncStatuses, setSyncStatuses] = useState<Record<string, SyncStatus>>({})
-  const [syncErrors, setSyncErrors] = useState<Record<string, string>>({})
 
   const [editingMetadataCase, setEditingMetadataCase] = useState<any>(null)
 
@@ -90,7 +87,7 @@ export default function ProcessManager() {
     loadData()
   }, [loadData])
 
-  useRealtime('legal_cases', loadData)
+  useRealtime('legal_cases', loadData, !isBatchSyncing)
 
   const filteredCases = useMemo(() => {
     return cases.filter((c) => {
@@ -135,9 +132,16 @@ export default function ProcessManager() {
     setIsBatchSyncing(true)
     setBatchProgress({ current: 0, total: casesToSync.length, currentCase: '' })
 
-    const initialStatuses = { ...syncStatuses }
-    casesToSync.forEach((c) => (initialStatuses[c.id] = 'queued'))
-    setSyncStatuses(initialStatuses)
+    setCases((prev) =>
+      prev.map((p) =>
+        casesToSync.some((c) => c.id === p.id) ? { ...p, sync_status: 'in_queue' } : p,
+      ),
+    )
+    await Promise.all(
+      casesToSync.map((c) =>
+        pb.collection('legal_cases').update(c.id, { sync_status: 'in_queue' }),
+      ),
+    )
 
     let successCount = 0
     let failCount = 0
@@ -150,7 +154,8 @@ export default function ProcessManager() {
         currentCase: c.case_number || 'Sem número',
       })
 
-      setSyncStatuses((prev) => ({ ...prev, [c.id]: 'syncing' }))
+      setCases((prev) => prev.map((p) => (p.id === c.id ? { ...p, sync_status: 'syncing' } : p)))
+      await pb.collection('legal_cases').update(c.id, { sync_status: 'syncing' })
 
       try {
         const cleanNumber = (c.case_number || '').replace(/\D/g, '')
@@ -198,25 +203,33 @@ export default function ProcessManager() {
         }
 
         await pb.collection('legal_cases').update(c.id, {
+          sync_status: 'updated',
+          last_sync_attempt: new Date().toISOString(),
           metadata: {
             ...(c.metadata || {}),
             last_synced_at: new Date().toISOString(),
           },
         })
-
-        setSyncStatuses((prev) => ({ ...prev, [c.id]: 'success' }))
-        setSyncErrors((prev) => {
-          const next = { ...prev }
-          delete next[c.id]
-          return next
-        })
+        setCases((prev) =>
+          prev.map((p) =>
+            p.id === c.id
+              ? { ...p, sync_status: 'updated', last_sync_attempt: new Date().toISOString() }
+              : p,
+          ),
+        )
         successCount++
       } catch (err: any) {
         failCount++
-        const description =
-          err?.response?.message || err?.message || 'Erro inesperado na sincronização.'
-        setSyncStatuses((prev) => ({ ...prev, [c.id]: 'error' }))
-        setSyncErrors((prev) => ({ ...prev, [c.id]: description }))
+        await pb
+          .collection('legal_cases')
+          .update(c.id, { sync_status: 'error', last_sync_attempt: new Date().toISOString() })
+        setCases((prev) =>
+          prev.map((p) =>
+            p.id === c.id
+              ? { ...p, sync_status: 'error', last_sync_attempt: new Date().toISOString() }
+              : p,
+          ),
+        )
         console.error(`Error syncing case ${c.case_number}`, err)
       }
 
@@ -229,12 +242,11 @@ export default function ProcessManager() {
       title: 'Sincronização em Lote Concluída',
       description: `Sucesso: ${successCount} processos atualizados. Falha: ${failCount} processos.`,
     })
-    loadData()
   }
 
-  const getStatusBadge = (caseId: string, caseNumber: string) => {
-    if (!caseNumber) return null
-    const status = syncStatuses[caseId] || 'pending'
+  const getStatusBadge = (caseRecord: any) => {
+    if (!caseRecord.case_number) return null
+    const status = caseRecord.sync_status || 'pending'
     switch (status) {
       case 'pending':
         return (
@@ -245,7 +257,7 @@ export default function ProcessManager() {
             <Clock className="w-3 h-3 mr-1" /> Pendente
           </Badge>
         )
-      case 'queued':
+      case 'in_queue':
         return (
           <Badge className="bg-amber-100 text-amber-800 border-none text-[10px] font-normal hover:bg-amber-100">
             <Clock className="w-3 h-3 mr-1" /> Na fila
@@ -257,7 +269,7 @@ export default function ProcessManager() {
             <Loader2 className="w-3 h-3 animate-spin" /> Sincronizando
           </Badge>
         )
-      case 'success':
+      case 'updated':
         return (
           <Badge className="bg-emerald-100 text-emerald-800 border-none text-[10px] font-normal flex items-center gap-1 hover:bg-emerald-100">
             <Check className="w-3 h-3" /> Atualizado
@@ -265,10 +277,7 @@ export default function ProcessManager() {
         )
       case 'error':
         return (
-          <Badge
-            className="bg-red-100 text-red-800 border-none text-[10px] font-normal flex items-center gap-1 hover:bg-red-100 cursor-help"
-            title={syncErrors[caseId]}
-          >
+          <Badge className="bg-red-100 text-red-800 border-none text-[10px] font-normal flex items-center gap-1 hover:bg-red-100">
             <AlertTriangle className="w-3 h-3" /> Erro
           </Badge>
         )
@@ -472,7 +481,7 @@ export default function ProcessManager() {
                                 ARQUIVADO
                               </Badge>
                             )}
-                            {getStatusBadge(c.id, c.case_number)}
+                            {getStatusBadge(c)}
                           </div>
                           <span
                             className="text-slate-500 text-xs mt-0.5 truncate max-w-[300px]"

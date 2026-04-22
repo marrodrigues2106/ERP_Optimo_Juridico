@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Search, Loader2, Clock } from 'lucide-react'
+import { Search, Loader2, Clock, Bookmark } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -8,14 +8,58 @@ import { useToast } from '@/hooks/use-toast'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import pb from '@/lib/pocketbase/client'
+
+const UFS = [
+  'AC',
+  'AL',
+  'AP',
+  'AM',
+  'BA',
+  'CE',
+  'DF',
+  'ES',
+  'GO',
+  'MA',
+  'MT',
+  'MS',
+  'MG',
+  'PA',
+  'PB',
+  'PR',
+  'PE',
+  'PI',
+  'RJ',
+  'RN',
+  'RS',
+  'RO',
+  'RR',
+  'SC',
+  'SP',
+  'SE',
+  'TO',
+]
 
 export function PjeSearchTab() {
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<any[]>([])
   const { toast } = useToast()
 
-  const { register, handleSubmit } = useForm({
-    defaultValues: { numeroProcesso: '', nomeParte: '', nomeAdvogado: '', numeroOab: '' },
+  const { register, handleSubmit, watch, setValue } = useForm({
+    defaultValues: {
+      numeroProcesso: '',
+      nomeParte: '',
+      nomeAdvogado: '',
+      numeroOab: '',
+      ufOab: '',
+    },
   })
 
   const onSubmit = async (data: any) => {
@@ -23,6 +67,15 @@ export function PjeSearchTab() {
       toast({
         title: 'Erro',
         description: 'Preencha pelo menos um campo de busca.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (data.numeroOab && !data.ufOab) {
+      toast({
+        title: 'Atenção',
+        description: 'Ao buscar por OAB, é obrigatório informar a UF.',
         variant: 'destructive',
       })
       return
@@ -43,6 +96,7 @@ export function PjeSearchTab() {
       if (data.nomeParte) params.append('nomeParte', data.nomeParte)
       if (data.nomeAdvogado) params.append('nomeAdvogado', data.nomeAdvogado)
       if (data.numeroOab) params.append('numeroOab', data.numeroOab)
+      if (data.ufOab) params.append('ufOab', data.ufOab)
 
       const res = await fetch(
         `https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params.toString()}`,
@@ -52,7 +106,7 @@ export function PjeSearchTab() {
       const items = json.items || (Array.isArray(json) ? json : [])
       setResults(items)
       if (items.length === 0) {
-        toast({ title: 'Aviso', description: 'Nenhuma comunicação encontrada para este processo.' })
+        toast({ title: 'Aviso', description: 'Nenhuma comunicação encontrada.' })
       } else {
         toast({ title: 'Sucesso', description: `${items.length} comunicações encontradas.` })
       }
@@ -60,6 +114,27 @@ export function PjeSearchTab() {
       toast({ title: 'Erro na busca', description: err.message, variant: 'destructive' })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSave = async (r: any) => {
+    try {
+      await pb.collection('pje_communications').create({
+        numeroProcesso: r.numeroProcesso,
+        dataDisponibilizacao: r.dataDisponibilizacao,
+        texto: r.texto,
+        tipoComunicacao: r.tipoComunicacao,
+        siglaTribunal: r.siglaTribunal,
+        meio: r.meio,
+        numeroComunicacao: r.id?.toString() || r.hash || '',
+        destinatarios: r.destinatarios,
+        advogados: r.advogados,
+        is_saved: true,
+        organization: pb.authStore.record?.active_organization,
+      })
+      toast({ title: 'Comunicação salva com sucesso!' })
+    } catch (err: any) {
+      toast({ title: 'Erro ao salvar', description: err.message, variant: 'destructive' })
     }
   }
 
@@ -87,9 +162,26 @@ export function PjeSearchTab() {
                 <Label>Nome do Advogado</Label>
                 <Input {...register('nomeAdvogado')} placeholder="Ex: Maria Souza" />
               </div>
-              <div className="flex flex-col gap-2">
-                <Label>Número da OAB</Label>
-                <Input {...register('numeroOab')} placeholder="Ex: 123456" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label>Número da OAB</Label>
+                  <Input {...register('numeroOab')} placeholder="Ex: 123456" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>UF da OAB</Label>
+                  <Select value={watch('ufOab')} onValueChange={(val) => setValue('ufOab', val)}>
+                    <SelectTrigger className="bg-white">
+                      <SelectValue placeholder="UF" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {UFS.map((uf) => (
+                        <SelectItem key={uf} value={uf}>
+                          {uf}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
             <div className="flex justify-end">
@@ -112,7 +204,7 @@ export function PjeSearchTab() {
           <ScrollArea className="h-[600px] w-full rounded-md border p-4 bg-slate-50/50">
             <div className="flex flex-col gap-4">
               {results.map((r, i) => (
-                <Card key={i} className="overflow-hidden bg-white">
+                <Card key={i} className="overflow-hidden bg-white group">
                   <div className="border-b bg-slate-50 p-4 flex justify-between items-center gap-4">
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="bg-white">
@@ -120,11 +212,21 @@ export function PjeSearchTab() {
                       </Badge>
                       <span className="text-sm font-medium text-slate-700">{r.numeroProcesso}</span>
                     </div>
-                    <div className="text-sm text-slate-500 flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
-                      {r.dataDisponibilizacao
-                        ? new Date(r.dataDisponibilizacao).toLocaleDateString('pt-BR')
-                        : 'Data indisponível'}
+                    <div className="flex items-center gap-3">
+                      <div className="text-sm text-slate-500 flex items-center gap-1">
+                        <Clock className="w-4 h-4" />
+                        {r.dataDisponibilizacao
+                          ? new Date(r.dataDisponibilizacao).toLocaleDateString('pt-BR')
+                          : 'Data indisponível'}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSave(r)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity h-8"
+                      >
+                        <Bookmark className="w-4 h-4 mr-1.5" /> Salvar
+                      </Button>
                     </div>
                   </div>
                   <CardContent className="p-4 space-y-3">

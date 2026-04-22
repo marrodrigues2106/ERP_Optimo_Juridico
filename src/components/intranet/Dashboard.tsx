@@ -38,6 +38,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useToast } from '@/hooks/use-toast'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { AgendaWidget } from './dashboard/AgendaWidget'
+import { UnifiedSyncButton } from './UnifiedSyncButton'
 
 type FeedItem = {
   id: string
@@ -524,6 +525,7 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <UnifiedSyncButton />
             <Button
               onClick={() => setCaseModalOpen(true)}
               size="sm"

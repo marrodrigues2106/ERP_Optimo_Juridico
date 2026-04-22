@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-22T07:37:49.661Z",
+  "generatedAt": "2026-04-22T07:53:01.438Z",
   "collections": [
     {
       "name": "users",
@@ -1126,6 +1126,19 @@
         {
           "name": "observations",
           "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sync_status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["pending", "in_queue", "syncing", "updated", "error"]
+        },
+        {
+          "name": "last_sync_attempt",
+          "type": "date",
           "required": false,
           "system": false
         }
@@ -2667,6 +2680,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "is_saved",
+          "type": "bool",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [

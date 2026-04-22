@@ -30,6 +30,11 @@ routerAdd(
       })
 
       if (res.statusCode !== 200) {
+        c.set('sync_status', 'error')
+        c.set('last_sync_attempt', new Date().toISOString())
+        try {
+          $app.saveNoValidate(c)
+        } catch (_) {}
         return e.badRequestError('Processo não encontrado ou serviço PJe indisponível no momento.')
       }
 
@@ -38,6 +43,11 @@ routerAdd(
       else if (res.json && res.json.items && Array.isArray(res.json.items)) items = res.json.items
 
       if (!items || items.length === 0) {
+        c.set('sync_status', 'error')
+        c.set('last_sync_attempt', new Date().toISOString())
+        try {
+          $app.saveNoValidate(c)
+        } catch (_) {}
         return e.badRequestError('Processo não encontrado ou serviço PJe indisponível no momento.')
       }
 
@@ -60,6 +70,8 @@ routerAdd(
       }
 
       c.set('updated', new Date().toISOString())
+      c.set('sync_status', 'updated')
+      c.set('last_sync_attempt', new Date().toISOString())
 
       try {
         $app.save(c)
@@ -103,6 +115,11 @@ routerAdd(
       }
     } catch (err) {
       console.log('Error syncing case', err)
+      c.set('sync_status', 'error')
+      c.set('last_sync_attempt', new Date().toISOString())
+      try {
+        $app.saveNoValidate(c)
+      } catch (_) {}
       return e.internalServerError('Ocorreu um erro inesperado ao se comunicar com o tribunal.')
     }
 

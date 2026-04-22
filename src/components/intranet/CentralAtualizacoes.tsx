@@ -27,6 +27,8 @@ import {
   CheckSquare,
   Eye,
   FileText,
+  Bookmark,
+  Trash2,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -42,6 +44,7 @@ type UnifiedItem = {
   date: string
   isRead: boolean
   isArchived: boolean
+  isSaved?: boolean
   caseNumber?: string
   caseId?: string
   raw: any
@@ -111,6 +114,7 @@ export default function CentralAtualizacoes() {
           date: i.dataDisponibilizacao || i.created,
           isRead: !!i.is_read,
           isArchived: false,
+          isSaved: !!i.is_saved,
           caseNumber: i.numeroProcesso,
           caseId: linkedCaseId,
           raw: i,
@@ -171,12 +175,16 @@ export default function CentralAtualizacoes() {
   }, [])
 
   const processBatch = async (
-    action: 'read' | 'unread' | 'archive',
+    action: 'read' | 'unread' | 'archive' | 'save' | 'unsave' | 'delete',
     idsToProcess?: Set<string>,
   ) => {
     const targetIds = idsToProcess || selectedIds
     const itemsToProcess = items.filter((i) => targetIds.has(`${i.collection}-${i.id}`))
     if (itemsToProcess.length === 0) return
+
+    if (action === 'delete') {
+      if (!confirm('Tem certeza que deseja excluir este item definitivamente?')) return
+    }
 
     setIsProcessingBatch(true)
     setBatchProgress(0)
@@ -186,20 +194,21 @@ export default function CentralAtualizacoes() {
     let hasError = false
 
     // Optimistic update
-    setItems((prev) =>
-      prev.map((item) => {
+    setItems((prev) => {
+      if (action === 'delete') return prev.filter((i) => !targetIds.has(`${i.collection}-${i.id}`))
+      return prev.map((item) => {
         if (targetIds.has(`${item.collection}-${item.id}`)) {
           return {
             ...item,
             isRead: action === 'read' ? true : action === 'unread' ? false : item.isRead,
             isArchived: action === 'archive' ? true : item.isArchived,
+            isSaved: action === 'save' ? true : action === 'unsave' ? false : item.isSaved,
           }
         }
         return item
-      }),
-    )
+      })
+    })
 
-    // Sequential batches of 10 to avoid SQLite locked errors
     const chunkSize = 10
     for (let i = 0; i < itemsToProcess.length; i += chunkSize) {
       const chunk = itemsToProcess.slice(i, i + chunkSize)
@@ -230,6 +239,14 @@ export default function CentralAtualizacoes() {
               } else {
                 await pb.collection('pje_communications').update(item.id, { is_read: true })
               }
+            } else if (action === 'save') {
+              if (item.collection === 'pje_communications')
+                await pb.collection('pje_communications').update(item.id, { is_saved: true })
+            } else if (action === 'unsave') {
+              if (item.collection === 'pje_communications')
+                await pb.collection('pje_communications').update(item.id, { is_saved: false })
+            } else if (action === 'delete') {
+              await pb.collection(item.collection).delete(item.id)
             }
           }),
         )
@@ -250,14 +267,15 @@ export default function CentralAtualizacoes() {
     if (!hasError && targetIds.size > 1) {
       toast({ title: `Sucesso`, description: `${successCount} itens atualizados com sucesso.` })
     } else if (!hasError && targetIds.size === 1) {
-      toast({
-        title:
-          action === 'read'
-            ? 'Marcado como lido'
-            : action === 'unread'
-              ? 'Marcado como Não Lido'
-              : 'Movido para Arquivados',
-      })
+      const msgs: Record<string, string> = {
+        read: 'Marcado como lido',
+        unread: 'Marcado como Não Lido',
+        archive: 'Movido para Arquivados',
+        save: 'Comunicação salva',
+        unsave: 'Removido dos salvos',
+        delete: 'Item excluído definitivamente',
+      }
+      toast({ title: msgs[action] || 'Atualizado' })
     }
 
     if (!idsToProcess) {
@@ -346,6 +364,7 @@ export default function CentralAtualizacoes() {
           !item.isArchived &&
           (item.collection === 'gazette_publications' || item.collection === 'ocorrencias_dou')
         )
+      if (activeTab === 'salvos') return item.isSaved && item.collection === 'pje_communications'
       if (activeTab === 'arquivados') return item.isArchived
       return true
     })
@@ -480,6 +499,24 @@ export default function CentralAtualizacoes() {
               <CalendarIcon className="w-4 h-4 mr-2 text-slate-500" /> Evento
             </Button>
 
+            {item.collection === 'pje_communications' && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  processBatch(
+                    item.isSaved ? 'unsave' : 'save',
+                    new Set([`${item.collection}-${item.id}`]),
+                  )
+                }
+              >
+                <Bookmark
+                  className={cn('w-4 h-4 mr-2', item.isSaved && 'fill-current text-primary')}
+                />
+                {item.isSaved ? 'Salvo' : 'Salvar'}
+              </Button>
+            )}
+
             {(item.collection === 'pje_communications' ||
               item.collection === 'gazette_publications') && (
               <Button
@@ -506,6 +543,17 @@ export default function CentralAtualizacoes() {
                 onClick={() => handleArchive(item)}
               >
                 <Archive className="w-4 h-4 mr-2" /> Arquivar
+              </Button>
+            )}
+
+            {item.collection === 'pje_communications' && activeTab === 'salvos' && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                onClick={() => processBatch('delete', new Set([`${item.collection}-${item.id}`]))}
+              >
+                <Trash2 className="w-4 h-4 mr-2" /> Excluir
               </Button>
             )}
           </div>
@@ -556,6 +604,12 @@ export default function CentralAtualizacoes() {
                 <Landmark className="w-4 h-4 mr-3 text-emerald-500" /> DOU
               </TabsTrigger>
               <TabsTrigger
+                value="salvos"
+                className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
+              >
+                <Bookmark className="w-4 h-4 mr-3 text-indigo-500" /> Comunicações Salvas
+              </TabsTrigger>
+              <TabsTrigger
                 value="arquivados"
                 className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
               >
@@ -568,7 +622,7 @@ export default function CentralAtualizacoes() {
         <div className="flex-1 w-full min-w-0">
           <div className="bg-slate-50/50 rounded-xl p-1 border border-slate-200 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center px-4 py-3 gap-4">
             <h2 className="text-lg font-bold text-slate-800 capitalize">
-              {activeTab === 'inbox' ? 'Caixa de Entrada (Não Lidos)' : activeTab}
+              {activeTab === 'inbox' ? 'Caixa de Entrada (Não Lidos)' : activeTab.replace('-', ' ')}
             </h2>
             <div className="flex items-center gap-4">
               <span className="text-sm text-slate-500 font-medium">

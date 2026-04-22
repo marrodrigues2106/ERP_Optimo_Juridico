@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { Button } from '@/components/ui/button'
-import { Check, ExternalLink, RefreshCw } from 'lucide-react'
+import { Check, ExternalLink, RefreshCw, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 
@@ -16,6 +16,7 @@ export function PjeSavedTab() {
       const records = await pb.collection('pje_communications').getList(1, 50, {
         sort: '-created',
         expand: 'linked_case',
+        filter: 'is_saved = true',
       })
       setItems(records.items)
     } finally {
@@ -33,6 +34,12 @@ export function PjeSavedTab() {
 
   const toggleRead = async (id: string, current: boolean) => {
     await pb.collection('pje_communications').update(id, { is_read: !current })
+    loadItems()
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Deseja realmente excluir esta comunicação salva definitivamente?')) return
+    await pb.collection('pje_communications').delete(id)
     loadItems()
   }
 
@@ -96,9 +103,18 @@ export function PjeSavedTab() {
               <Button
                 variant="ghost"
                 size="sm"
+                onClick={() => handleDelete(item.id)}
+                className="ml-auto h-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4 mr-1.5" /> Excluir
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => toggleRead(item.id, item.is_read)}
                 className={cn(
-                  'ml-auto h-8',
+                  'h-8',
                   item.is_read
                     ? 'text-slate-500 hover:text-slate-800'
                     : 'text-primary hover:text-primary/80',

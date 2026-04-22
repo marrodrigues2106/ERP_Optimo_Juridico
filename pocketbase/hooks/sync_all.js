@@ -46,10 +46,20 @@ routerAdd(
             'A consulta foi rejeitada pelo PJe. Verifique se o número do processo é válido e tente novamente.'
           if (res.json && res.json.message) apiMessage = res.json.message
           errors.push({ case: caseNumberStr, error: apiMessage })
+          c.set('sync_status', 'error')
+          c.set('last_sync_attempt', new Date().toISOString())
+          try {
+            $app.saveNoValidate(c)
+          } catch (_) {}
           continue
         }
 
         if (res.statusCode === 200 && res.json) {
+          c.set('sync_status', 'updated')
+          c.set('last_sync_attempt', new Date().toISOString())
+          try {
+            $app.saveNoValidate(c)
+          } catch (_) {}
           let items = []
           if (Array.isArray(res.json)) items = res.json
           else if (res.json.items && Array.isArray(res.json.items)) items = res.json.items
@@ -170,6 +180,11 @@ routerAdd(
           }
         }
       } catch (err) {
+        c.set('sync_status', 'error')
+        c.set('last_sync_attempt', new Date().toISOString())
+        try {
+          $app.saveNoValidate(c)
+        } catch (_) {}
         $app.logger().error('Error syncing case', 'case', caseNumberDigits, 'error', String(err))
         errors.push({ case: caseNumberStr, error: String(err) })
       }
