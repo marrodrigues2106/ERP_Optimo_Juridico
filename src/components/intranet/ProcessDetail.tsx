@@ -4,6 +4,7 @@ import { getLegalCase, updateLegalCase } from '@/services/legal_cases'
 import { getPaginatedCaseMovements } from '@/services/case_movements'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
@@ -569,6 +570,12 @@ export default function ProcessDetail() {
     }
   })
 
+  useRealtime('tasks', (e) => {
+    if (e.record.linked_lawsuit === id) {
+      loadData()
+    }
+  })
+
   const loadData = async () => {
     try {
       const c = await getLegalCase(id!)
@@ -659,6 +666,10 @@ export default function ProcessDetail() {
     }
 
     setIsSyncingPje(true)
+    await updateLegalCase(id!, {
+      sync_status: 'syncing',
+      last_sync_attempt: new Date().toISOString(),
+    })
     try {
       const res = await fetch(
         `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${num}`,
@@ -740,6 +751,10 @@ export default function ProcessDetail() {
         }
       }
 
+      await updateLegalCase(id!, {
+        sync_status: 'updated',
+        last_sync_attempt: new Date().toISOString(),
+      })
       toast({
         title: 'Sincronização PJe Concluída',
         description: `${newCount} novos andamentos encontrados e metadados atualizados.`,
@@ -747,6 +762,10 @@ export default function ProcessDetail() {
       loadMovements(1)
       loadData()
     } catch (err: any) {
+      await updateLegalCase(id!, {
+        sync_status: 'error',
+        last_sync_attempt: new Date().toISOString(),
+      })
       const description =
         err?.message || 'Ocorreu um erro inesperado ao se comunicar com o tribunal.'
 
@@ -1103,12 +1122,36 @@ export default function ProcessDetail() {
                     {tasks.map((t) => (
                       <div
                         key={t.id}
-                        className="text-sm p-3 bg-slate-50 border rounded flex justify-between"
+                        className="text-sm p-3 bg-slate-50 border rounded flex items-start gap-3 hover:border-primary/40 transition-colors"
                       >
-                        <span className="font-medium text-slate-700 truncate pr-2">{t.title}</span>
-                        <span className="text-slate-400 shrink-0">
-                          {t.due_date ? new Date(t.due_date).toLocaleDateString('pt-BR') : ''}
-                        </span>
+                        <Checkbox
+                          checked={t.status === 'completed'}
+                          onCheckedChange={async () => {
+                            try {
+                              await pb
+                                .collection('tasks')
+                                .update(t.id, {
+                                  status: t.status === 'completed' ? 'todo' : 'completed',
+                                })
+                            } catch (err) {
+                              toast({ title: 'Erro ao atualizar tarefa', variant: 'destructive' })
+                            }
+                          }}
+                          className="mt-0.5"
+                        />
+                        <div className="flex-1 flex justify-between min-w-0">
+                          <span
+                            className={cn(
+                              'font-medium text-slate-700 truncate pr-2',
+                              t.status === 'completed' && 'line-through text-slate-400',
+                            )}
+                          >
+                            {t.title}
+                          </span>
+                          <span className="text-slate-400 shrink-0 text-xs mt-0.5">
+                            {t.due_date ? new Date(t.due_date).toLocaleDateString('pt-BR') : ''}
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>

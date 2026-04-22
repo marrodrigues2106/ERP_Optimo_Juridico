@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardHeader, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -47,8 +47,13 @@ export default function ProcessManager() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('Todos')
-  const [modalOpen, setModalOpen] = useState(false)
 
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(10)
+  const [sortBy, setSortBy] = useState('-created')
+  const [totalPages, setTotalPages] = useState(1)
+
+  const [modalOpen, setModalOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
   const [isBatchSyncing, setIsBatchSyncing] = useState(false)
@@ -61,47 +66,62 @@ export default function ProcessManager() {
 
   const loadData = useCallback(async () => {
     try {
+      setLoading(true)
       const orgId = pb.authStore.record?.active_organization
-      const filter = `deleted_at = ""${orgId ? ` && organization = "${orgId}"` : ''}`
 
-      const [casesData, clientsData, collabsData] = await Promise.all([
-        pb
-          .collection('legal_cases')
-          .getFullList({ filter, sort: '-created', expand: 'client,responsible_collaborator' }),
-        pb.collection('clients').getFullList({ filter }),
-        pb.collection('collaborators').getFullList({ filter }),
-      ])
+      const filterParts = [`deleted_at = ""`]
+      if (orgId) filterParts.push(`organization = "${orgId}"`)
+      if (searchTerm) {
+        const safeTerm = searchTerm.replace(/"/g, '\\"')
+        filterParts.push(`(case_number ~ "${safeTerm}" || parties ~ "${safeTerm}")`)
+      }
+      if (statusFilter !== 'Todos') {
+        filterParts.push(`lifecycle_status = "${statusFilter}"`)
+      }
 
-      setCases(casesData)
-      setClients(clientsData)
-      setCollaborators(collabsData)
+      const filterStr = filterParts.join(' && ')
+
+      const casesData = await pb.collection('legal_cases').getList(page, perPage, {
+        filter: filterStr,
+        sort: sortBy,
+        expand: 'client,responsible_collaborator',
+      })
+
+      setCases(casesData.items)
+      setTotalPages(casesData.totalPages)
+
+      if (clients.length === 0) {
+        const [clientsData, collabsData] = await Promise.all([
+          pb.collection('clients').getFullList({ filter: `deleted_at = ""` }),
+          pb.collection('collaborators').getFullList({ filter: `deleted_at = ""` }),
+        ])
+        setClients(clientsData)
+        setCollaborators(collabsData)
+      }
     } catch (err) {
       console.error(err)
       toast({ title: 'Erro ao carregar processos', variant: 'destructive' })
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [page, perPage, sortBy, searchTerm, statusFilter, toast, clients.length])
 
   useEffect(() => {
-    loadData()
+    const timer = setTimeout(() => {
+      loadData()
+    }, 300)
+    return () => clearTimeout(timer)
   }, [loadData])
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm, statusFilter, sortBy, perPage])
 
   useRealtime('legal_cases', loadData, !isBatchSyncing)
 
-  const filteredCases = useMemo(() => {
-    return cases.filter((c) => {
-      const matchSearch =
-        c.case_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.parties?.toLowerCase().includes(searchTerm.toLowerCase())
-      const matchStatus = statusFilter === 'Todos' || c.lifecycle_status === statusFilter
-      return matchSearch && matchStatus
-    })
-  }, [cases, searchTerm, statusFilter])
-
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(filteredCases.map((c) => c.id))
+      setSelectedIds(cases.map((c) => c.id))
     } else {
       setSelectedIds([])
     }
@@ -118,8 +138,8 @@ export default function ProcessManager() {
   const handleBatchSync = async () => {
     const targetCases =
       selectedIds.length > 0
-        ? filteredCases.filter((c) => selectedIds.includes(c.id))
-        : filteredCases.filter((c) => c.lifecycle_status === 'Ativo')
+        ? cases.filter((c) => selectedIds.includes(c.id))
+        : cases.filter((c) => c.lifecycle_status === 'Ativo')
 
     const casesToSync = targetCases.filter((c) => c.case_number)
 
@@ -372,8 +392,8 @@ export default function ProcessManager() {
       <Card>
         <CardHeader className="bg-slate-50/50 border-b pb-4">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <div className="relative flex-1 sm:w-72">
+            <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+              <div className="relative flex-1 sm:w-64 min-w-[200px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input
                   placeholder="Buscar por número ou parte..."
@@ -383,7 +403,7 @@ export default function ProcessManager() {
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-36 bg-white">
+                <SelectTrigger className="w-32 bg-white">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -393,11 +413,21 @@ export default function ProcessManager() {
                   <SelectItem value="Arquivado">Arquivados</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-40 bg-white">
+                  <SelectValue placeholder="Ordenar por" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="-created">Mais Recentes</SelectItem>
+                  <SelectItem value="case_number">Número</SelectItem>
+                  <SelectItem value="parties">Nome</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
               {selectedIds.length > 0 && (
-                <span className="text-sm font-medium text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-md shadow-sm">
+                <span className="text-sm font-medium text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-md shadow-sm whitespace-nowrap">
                   {selectedIds.length} selecionado(s)
                 </span>
               )}
@@ -405,14 +435,15 @@ export default function ProcessManager() {
                 onClick={handleBatchSync}
                 disabled={isBatchSyncing}
                 variant="outline"
-                className="border-primary text-primary hover:bg-primary/5"
+                className="border-primary text-primary hover:bg-primary/5 whitespace-nowrap"
               >
                 {isBatchSyncing ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <RefreshCw className="w-4 h-4 mr-2" />
                 )}
-                Sincronizar PJe
+                <span className="hidden sm:inline">Sincronizar PJe</span>
+                <span className="sm:hidden">Sinc.</span>
               </Button>
             </div>
           </div>
@@ -424,9 +455,7 @@ export default function ProcessManager() {
                 <tr>
                   <th className="px-4 py-3 w-12 text-center">
                     <Checkbox
-                      checked={
-                        filteredCases.length > 0 && selectedIds.length === filteredCases.length
-                      }
+                      checked={cases.length > 0 && selectedIds.length === cases.length}
                       onCheckedChange={handleSelectAll}
                     />
                   </th>
@@ -439,18 +468,18 @@ export default function ProcessManager() {
                 {loading ? (
                   <tr>
                     <td colSpan={4} className="py-12 text-center text-slate-400">
-                      <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 opacity-50" />
+                      <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 opacity-50" />
                       Carregando processos...
                     </td>
                   </tr>
-                ) : filteredCases.length === 0 ? (
+                ) : cases.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="py-12 text-center text-slate-400">
                       Nenhum processo encontrado.
                     </td>
                   </tr>
                 ) : (
-                  filteredCases.map((c) => (
+                  cases.map((c) => (
                     <tr
                       key={c.id}
                       className={cn(
@@ -538,6 +567,47 @@ export default function ProcessManager() {
               </tbody>
             </table>
           </div>
+
+          {cases.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t gap-4">
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <span>Mostrar</span>
+                <Select value={perPage.toString()} onValueChange={(v) => setPerPage(Number(v))}>
+                  <SelectTrigger className="w-20 h-8 text-xs bg-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span>por página</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                >
+                  Anterior
+                </Button>
+                <span className="text-sm text-slate-600 font-medium px-2">
+                  Página {page} de {totalPages || 1}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages || totalPages === 0}
+                >
+                  Próxima
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

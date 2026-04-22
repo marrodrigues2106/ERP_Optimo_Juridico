@@ -130,6 +130,7 @@ export function PjeSearchTab() {
         destinatarios: r.destinatarios,
         advogados: r.advogados,
         is_saved: true,
+        is_read: false,
         organization: pb.authStore.record?.active_organization,
       })
       toast({ title: 'Comunicação salva com sucesso!' })
