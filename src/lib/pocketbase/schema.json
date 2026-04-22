@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-22T04:29:33.550Z",
+  "generatedAt": "2026-04-22T04:31:58.818Z",
   "collections": [
     {
       "name": "users",
@@ -1551,7 +1551,8 @@
         }
       ],
       "indexes": [
-        "CREATE UNIQUE INDEX idx_case_movements_ext_id ON case_movements (external_id) WHERE external_id != ''"
+        "CREATE UNIQUE INDEX idx_case_movements_ext_id ON case_movements (external_id) WHERE external_id != ''",
+        "CREATE INDEX `idx_case_movements_case_date` ON `case_movements` (case, event_date)"
       ]
     },
     {
