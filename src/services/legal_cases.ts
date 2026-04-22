@@ -62,10 +62,9 @@ export const toggleFavoriteLegalCase = async (id: string, is_favorite: boolean) 
   return record
 }
 
-export const syncCaseDatajud = async (caseId: string) => {
-  return pb.send('/backend/v1/datajud/sync-case', {
+export const syncCasePje = async (caseId: string) => {
+  return pb.send(`/backend/v1/pje/sync/${caseId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ caseId }),
   })
 }

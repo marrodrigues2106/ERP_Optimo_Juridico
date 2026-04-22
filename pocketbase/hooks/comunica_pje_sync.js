@@ -26,9 +26,17 @@ routerAdd(
     const searchesCol = $app.findCollectionByNameOrId('searches')
     const notifCol = $app.findCollectionByNameOrId('notifications')
 
+    let baseUrl = 'https://comunicaapi.pje.jus.br/api/v1'
+    try {
+      const setting = $app.findFirstRecordByData('settings', 'key', 'baseUrl')
+      if (setting.getString('value')) {
+        baseUrl = setting.getString('value')
+      }
+    } catch (_) {}
+
     for (const f of followed) {
       const numeroProcesso = f.getString('numero_processo')
-      const url = `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${numeroProcesso.replace(/\D/g, '')}`
+      const url = `${baseUrl}/comunicacao?numeroProcesso=${numeroProcesso.replace(/\D/g, '')}`
 
       const res = $http.send({
         url: url,

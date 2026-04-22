@@ -20,7 +20,15 @@ routerAdd(
     } catch (_) {}
     if (!apiKey && $secrets.has('COMUNICA_PJE_KEY')) apiKey = $secrets.get('COMUNICA_PJE_KEY')
 
-    const url = `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${numeroProcesso.replace(/\D/g, '')}`
+    let baseUrl = 'https://comunicaapi.pje.jus.br/api/v1'
+    try {
+      const setting = $app.findFirstRecordByData('settings', 'key', 'baseUrl')
+      if (setting.getString('value')) {
+        baseUrl = setting.getString('value')
+      }
+    } catch (_) {}
+
+    const url = `${baseUrl}/comunicacao?numeroProcesso=${numeroProcesso.replace(/\D/g, '')}`
     const res = $http.send({
       url: url,
       method: 'GET',
@@ -29,6 +37,17 @@ routerAdd(
     })
 
     let processNewCount = 0
+
+    if (res.statusCode !== 200) {
+      record.set('pje_last_sync', new Date().toISOString())
+      record.set('pje_sync_status', 'error')
+      $app.save(record)
+      let errorMsg = `Erro na requisição: ${res.statusCode}`
+      if (res.statusCode === 429) errorMsg = 'Rate limit excedido (429)'
+      if (res.statusCode === 422) errorMsg = 'Parâmetros inválidos ou não encontrado (422)'
+      throw new BadRequestError(errorMsg)
+    }
+
     if (res.statusCode === 200 && res.json) {
       const items = Array.isArray(res.json.items)
         ? res.json.items

@@ -491,7 +491,7 @@ export default function Dashboard() {
           </div>
           <div className="mt-8 pt-6 border-t border-slate-200/60">
             <h3 className="text-[10px] font-bold text-slate-400 mb-4 uppercase tracking-wider">
-              Sincronização DataJud (Ativos)
+              Sincronização PJe (Ativos)
             </h3>
             <div className="space-y-3 mb-6">
               {recentCases.map((c) => (
@@ -506,18 +506,17 @@ export default function Dashboard() {
                     {c.case_number || 'Sem número'}
                   </Link>
                   <div className="flex items-center">
-                    {c.datajud_sync_status === 'Success' ? (
+                    {c.pje_sync_status === 'success' ? (
                       <CheckCircle2
                         className="w-3.5 h-3.5 text-emerald-500"
-                        title="Sincronizado (DataJud)"
+                        title="Sincronizado (PJe)"
                       />
-                    ) : c.datajud_sync_status === 'Syncing' ||
-                      c.datajud_sync_status === 'Pending' ? (
+                    ) : c.pje_sync_status === 'syncing' || c.pje_sync_status === 'pending' ? (
                       <RefreshCw
                         className="w-3.5 h-3.5 text-blue-500 animate-spin"
                         title="Sincronizando..."
                       />
-                    ) : c.datajud_sync_status === 'Error' ? (
+                    ) : c.pje_sync_status === 'error' ? (
                       <AlertTriangle
                         className="w-3.5 h-3.5 text-red-500"
                         title="Erro na sincronização"

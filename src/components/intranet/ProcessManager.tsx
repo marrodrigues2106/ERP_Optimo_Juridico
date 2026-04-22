@@ -26,7 +26,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
 import { CaseFormModal } from './cases/CaseFormModal'
 import { cn } from '@/lib/utils'
-import { syncCaseDatajud } from '@/services/legal_cases'
+import { syncCasePje } from '@/services/legal_cases'
 
 export default function ProcessManager() {
   const { toast } = useToast()
@@ -109,19 +109,32 @@ export default function ProcessManager() {
     selectedIds.forEach((id) => (initialStatus[id] = 'syncing'))
     setSyncStatus((prev) => ({ ...prev, ...initialStatus }))
 
+    let hasError = false
+
     await Promise.allSettled(
       selectedIds.map(async (id) => {
         try {
-          await syncCaseDatajud(id)
+          await syncCasePje(id)
           setSyncStatus((prev) => ({ ...prev, [id]: 'success' }))
-        } catch (error) {
+        } catch (error: any) {
           console.error(`Failed to sync legal case with ID: ${id}`, error)
           setSyncStatus((prev) => ({ ...prev, [id]: 'error' }))
+          hasError = true
+          toast({
+            title: 'Erro na Sincronização',
+            description: error.message || 'Ocorreu um erro ao sincronizar com o PJe.',
+            variant: 'destructive',
+          })
         }
       }),
     )
 
-    toast({ title: 'Sincronização simultânea concluída!' })
+    if (!hasError) {
+      toast({ title: 'Sincronização PJe concluída com sucesso!' })
+    } else {
+      toast({ title: 'Sincronização simultânea concluída com alguns erros.' })
+    }
+
     setIsBatchSyncing(false)
 
     setTimeout(() => {
@@ -215,7 +228,7 @@ export default function ProcessManager() {
                   </th>
                   <th className="px-4 py-3">Número / Partes</th>
                   <th className="px-4 py-3">Cliente</th>
-                  <th className="px-4 py-3">Status DataJud</th>
+                  <th className="px-4 py-3">Status PJe</th>
                   <th className="px-4 py-3 text-right">Ações</th>
                 </tr>
               </thead>
@@ -307,16 +320,16 @@ export default function ProcessManager() {
                             <Badge
                               variant="outline"
                               className={cn(
-                                c.datajud_sync_status === 'Success'
+                                c.pje_sync_status === 'success'
                                   ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                                  : c.datajud_sync_status === 'Error'
+                                  : c.pje_sync_status === 'error'
                                     ? 'bg-red-50 text-red-600 border-red-200'
                                     : 'bg-slate-50 text-slate-600 border-slate-200',
                               )}
                             >
-                              {c.datajud_sync_status === 'Success'
+                              {c.pje_sync_status === 'success'
                                 ? 'Sincronizado'
-                                : c.datajud_sync_status === 'Error'
+                                : c.pje_sync_status === 'error'
                                   ? 'Erro'
                                   : 'Pendente'}
                             </Badge>
