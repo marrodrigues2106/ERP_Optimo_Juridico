@@ -17,7 +17,7 @@ export interface ComunicaSearchParams {
 export const searchComunicaPJe = async (
   params: ComunicaSearchParams,
   baseUrl: string,
-  apiKey: string,
+  _apiKey: string, // Unused
   addHistory: (entry: ComunicaHistoryEntry) => void,
 ) => {
   const url = new URL(`${baseUrl}/comunicacao`)
@@ -53,7 +53,6 @@ export const searchComunicaPJe = async (
   try {
     const response = await fetch(url.toString(), {
       headers: {
-        Authorization: apiKey ? `Bearer ${apiKey}` : '',
         Accept: 'application/json',
       },
     })

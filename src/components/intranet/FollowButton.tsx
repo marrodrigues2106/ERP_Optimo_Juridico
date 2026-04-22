@@ -9,10 +9,12 @@ import { cn } from '@/lib/utils'
 export function FollowButton({
   numeroProcesso,
   siglaTribunal,
+  status,
   className,
 }: {
   numeroProcesso: string
   siglaTribunal?: string
+  status?: string
   className?: string
 }) {
   const { user } = useAuth()
@@ -21,8 +23,16 @@ export function FollowButton({
   const [recordId, setRecordId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
+  const isMandatory = status === 'Ativo'
+
   useEffect(() => {
     if (!user || !numeroProcesso) {
+      setLoading(false)
+      return
+    }
+
+    if (isMandatory) {
+      setIsFollowing(true)
       setLoading(false)
       return
     }
@@ -52,6 +62,11 @@ export function FollowButton({
     e.stopPropagation()
     e.preventDefault()
     if (!user) return
+
+    if (isMandatory) {
+      toast({ title: 'Processos ativos são monitorados automaticamente.', variant: 'default' })
+      return
+    }
 
     setLoading(true)
     try {

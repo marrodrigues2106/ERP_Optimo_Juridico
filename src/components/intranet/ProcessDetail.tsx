@@ -60,7 +60,7 @@ import { Badge } from '@/components/ui/badge'
 import { useRealtime } from '@/hooks/use-realtime'
 import { cn } from '@/lib/utils'
 import { FollowButton } from '@/components/intranet/FollowButton'
-import { SyncFollowedButton } from '@/components/intranet/SyncFollowedButton'
+import { UnifiedSyncButton } from '@/components/intranet/UnifiedSyncButton'
 
 const MovementItem = ({
   mov,
@@ -681,52 +681,6 @@ export default function ProcessDetail() {
     }
   }
 
-  const handleSync = async () => {
-    try {
-      setLegalCase((prev: any) => ({ ...prev, pje_sync_status: 'syncing' }))
-
-      const endpoint = `/backend/v1/pje/sync/${id}`
-
-      const res = await pb.send(endpoint, {
-        method: 'POST',
-      })
-
-      toast({
-        title: `Sincronização concluída com sucesso para o processo ${legalCase?.case_number || ''}`,
-        description: res?.message || 'Processo atualizado com o PJe com sucesso.',
-      })
-
-      loadData()
-      loadMovements(1)
-    } catch (error: any) {
-      let userMessage = 'Ocorreu um erro ao sincronizar com o PJe.'
-      const status = error?.status || error?.response?.status || 500
-      const errorMsg = String(error?.response?.message || error?.message || '')
-
-      if (status === 404) {
-        userMessage = 'Processo não encontrado no PJe.'
-      } else if (status === 401 || status === 403) {
-        userMessage = 'Erro de autenticação no PJe. Verifique a chave da API.'
-      } else if (status === 429) {
-        userMessage = 'Limite de requisições excedido. Tente novamente mais tarde.'
-      } else if (errorMsg && errorMsg !== 'undefined' && errorMsg !== 'null') {
-        userMessage = errorMsg
-      }
-
-      toast({
-        title: 'Falha na sincronização',
-        description: userMessage,
-        variant: 'destructive',
-      })
-
-      setLegalCase((prev: any) => {
-        if (!prev) return prev
-        return { ...prev, pje_sync_status: 'error' }
-      })
-      loadData()
-    }
-  }
-
   const handleAddMovement = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
     if (!newMovement.trim()) return
@@ -822,7 +776,10 @@ export default function ProcessDetail() {
                         {legalCase.case_number || 'Sem número'}
                       </Badge>
                       {legalCase.case_number && (
-                        <FollowButton numeroProcesso={legalCase.case_number} />
+                        <FollowButton
+                          numeroProcesso={legalCase.case_number}
+                          status={legalCase.lifecycle_status}
+                        />
                       )}
                     </div>
                     <Badge variant="outline" className="text-slate-500">
@@ -846,60 +803,17 @@ export default function ProcessDetail() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <SyncFollowedButton />
+                <UnifiedSyncButton
+                  caseId={id}
+                  label="Sincronizar PJe"
+                  onComplete={() => {
+                    loadData()
+                    loadMovements(1)
+                  }}
+                />
                 <Badge className="bg-slate-600 hover:bg-slate-700 text-white font-medium uppercase px-3 py-1">
                   {legalCase.lifecycle_status || 'ATIVO'}
                 </Badge>
-                <div className="flex flex-col items-end gap-1">
-                  <Button
-                    variant="outline"
-                    onClick={handleSync}
-                    disabled={
-                      legalCase?.pje_sync_status === 'syncing' ||
-                      legalCase?.pje_sync_status === 'pending'
-                    }
-                    className={cn(
-                      'shadow-sm transition-all',
-                      legalCase?.pje_sync_status === 'error' &&
-                        'border-red-300 text-red-600 bg-red-50 hover:bg-red-100 hover:text-red-700',
-                      legalCase?.pje_sync_status === 'success' &&
-                        'border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100',
-                    )}
-                    title={
-                      legalCase?.pje_sync_status === 'error'
-                        ? 'Falha na última sincronização'
-                        : legalCase?.pje_sync_status === 'success'
-                          ? 'Sincronizado com sucesso'
-                          : 'Sincronizar PJe'
-                    }
-                  >
-                    {legalCase?.pje_sync_status === 'success' ? (
-                      <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" />
-                    ) : (
-                      <RefreshCw
-                        className={cn(
-                          'w-4 h-4 mr-2',
-                          (legalCase?.pje_sync_status === 'syncing' ||
-                            legalCase?.pje_sync_status === 'pending') &&
-                            'animate-spin text-blue-500',
-                        )}
-                      />
-                    )}
-                    {legalCase?.pje_sync_status === 'syncing'
-                      ? 'Sincronizando PJe...'
-                      : legalCase?.pje_sync_status === 'pending'
-                        ? 'Na Fila PJe...'
-                        : legalCase?.pje_sync_status === 'success'
-                          ? 'PJe Sincronizado'
-                          : 'Sincronizar PJe'}
-                  </Button>
-                  {(legalCase?.pje_sync_status === 'syncing' ||
-                    legalCase?.pje_sync_status === 'pending') && (
-                    <div className="w-full bg-slate-100 rounded-full h-1.5 mt-1 overflow-hidden">
-                      <div className="bg-blue-500 h-1.5 rounded-full animate-[pulse_2s_ease-in-out_infinite] w-full" />
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-slate-100">

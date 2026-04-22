@@ -26,7 +26,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
 import { CaseFormModal } from './cases/CaseFormModal'
 import { cn } from '@/lib/utils'
-import { syncCasePje } from '@/services/legal_cases'
+import { UnifiedSyncButton } from '@/components/intranet/UnifiedSyncButton'
 
 export default function ProcessManager() {
   const { toast } = useToast()
@@ -101,59 +101,6 @@ export default function ProcessManager() {
     }
   }
 
-  const handleBatchSync = async () => {
-    if (selectedIds.length === 0) return
-
-    setIsBatchSyncing(true)
-    const initialStatus: any = {}
-    selectedIds.forEach((id) => (initialStatus[id] = 'syncing'))
-    setSyncStatus((prev) => ({ ...prev, ...initialStatus }))
-
-    let hasError = false
-
-    await Promise.allSettled(
-      selectedIds.map(async (id) => {
-        try {
-          await syncCasePje(id)
-          setSyncStatus((prev) => ({ ...prev, [id]: 'success' }))
-          toast({
-            title: `Sincronização concluída`,
-            description: `Processo sincronizado com o PJe com sucesso.`,
-          })
-        } catch (error: any) {
-          console.error(`Failed to sync legal case with ID: ${id}`, error)
-          setSyncStatus((prev) => ({ ...prev, [id]: 'error' }))
-          hasError = true
-          toast({
-            title: 'Falha na sincronização',
-            description: error.message || 'Ocorreu um erro ao sincronizar com o PJe.',
-            variant: 'destructive',
-          })
-        }
-      }),
-    )
-
-    if (!hasError) {
-      toast({ title: 'Sincronização PJe concluída com sucesso!' })
-    } else {
-      toast({ title: 'Sincronização simultânea concluída com alguns erros.' })
-    }
-
-    setIsBatchSyncing(false)
-
-    setTimeout(() => {
-      setSyncStatus((prev) => {
-        const next = { ...prev }
-        selectedIds.forEach((id) => {
-          if (next[id] === 'success') delete next[id]
-        })
-        return next
-      })
-      setSelectedIds([])
-      loadData()
-    }, 4000)
-  }
-
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-fade-in-up">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-6">
@@ -194,26 +141,23 @@ export default function ProcessManager() {
               </Select>
             </div>
 
-            {selectedIds.length > 0 && (
+            {selectedIds.length > 0 ? (
               <div className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
                 <span className="text-sm font-medium text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-md shadow-sm">
                   {selectedIds.length} selecionado(s)
                 </span>
-                <Button
+                <UnifiedSyncButton
+                  caseIds={selectedIds}
+                  label="Atualizar Lote"
                   variant="default"
-                  size="sm"
-                  className="shadow-sm"
-                  onClick={handleBatchSync}
-                  disabled={isBatchSyncing}
-                >
-                  {isBatchSyncing ? (
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Play className="w-4 h-4 mr-2" />
-                  )}
-                  Atualizar Lote
-                </Button>
+                  onComplete={() => {
+                    setSelectedIds([])
+                    loadData()
+                  }}
+                />
               </div>
+            ) : (
+              <UnifiedSyncButton label="Sincronizar Todos Monitorados" />
             )}
           </div>
         </CardHeader>
