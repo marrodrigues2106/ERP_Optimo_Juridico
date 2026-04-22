@@ -73,7 +73,9 @@ cronAdd('pje_sync', '0 * * * *', () => {
         mov.set('event_date', evtDate)
         mov.set('description', `Comunicação PJe: ${item.tipoComunicacao || 'Atualização'}`)
         mov.set('source', 'PJe')
-        mov.set('details', item.texto || '')
+        mov.set('details', item.texto || item.conteudo || '')
+        mov.set('external_id', String(commId))
+        mov.set('movement_details', item)
         mov.set('organization', c.getString('organization'))
         $app.save(mov)
 

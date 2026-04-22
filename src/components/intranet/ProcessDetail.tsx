@@ -80,6 +80,9 @@ const MovementItem = ({
 
   const isDecision =
     /decisão|despacho|sentença|julgamento|acórdão|liminar/i.test(mov.description || '') ||
+    /decisão|despacho|sentença|julgamento|acórdão|liminar/i.test(
+      mov.movement_details?.tipoComunicacao || '',
+    ) ||
     String(mov.movement_details?.codigo) === '3' ||
     String(mov.movement_details?.codigo) === '193'
 
@@ -173,6 +176,8 @@ const MovementItem = ({
     mov.movement_details?.magistradoNome ||
     mov.movement_details?.magistradoCpf ||
     mov.movement_details?.orgaoJulgador ||
+    mov.movement_details?.tipoComunicacao ||
+    mov.movement_details?.meio ||
     (mov.movement_details?.complementos && mov.movement_details.complementos.length > 0)
 
   const renderNestedObject = (obj: any): React.ReactNode => {
@@ -219,7 +224,7 @@ const MovementItem = ({
               <span
                 className={`text-sm font-bold ${isDecision ? 'text-amber-900' : 'text-slate-700'}`}
               >
-                {new Date(mov.event_date).toLocaleString('pt-BR', {
+                {new Date(mov.event_date || mov.created).toLocaleString('pt-BR', {
                   dateStyle: 'short',
                   timeStyle: 'short',
                 })}
@@ -357,6 +362,24 @@ const MovementItem = ({
                       <div>
                         <span className="font-semibold text-slate-800">Órgão Julgador:</span>{' '}
                         {fixEncoding(mov.movement_details.orgaoJulgador)}
+                      </div>
+                    )}
+                    {mov.movement_details?.tipoComunicacao && (
+                      <div>
+                        <span className="font-semibold text-slate-800">Tipo de Comunicação:</span>{' '}
+                        {fixEncoding(mov.movement_details.tipoComunicacao)}
+                      </div>
+                    )}
+                    {mov.movement_details?.meio && (
+                      <div>
+                        <span className="font-semibold text-slate-800">Meio:</span>{' '}
+                        {fixEncoding(mov.movement_details.meio)}
+                      </div>
+                    )}
+                    {mov.movement_details?.siglaTribunal && (
+                      <div>
+                        <span className="font-semibold text-slate-800">Tribunal:</span>{' '}
+                        {mov.movement_details.siglaTribunal}
                       </div>
                     )}
                     {mov.movement_details?.magistradoNome && (

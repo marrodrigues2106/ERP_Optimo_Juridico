@@ -63,6 +63,33 @@ routerAdd(
             try {
               $app.save(record)
               newCount++
+
+              try {
+                const movCol = $app.findCollectionByNameOrId('case_movements')
+                const mov = new Record(movCol)
+                mov.set('case', c.id)
+
+                let evtDate = dataDisp
+                if (!evtDate || evtDate.length < 10) evtDate = new Date().toISOString()
+                mov.set('event_date', evtDate)
+
+                mov.set('description', `Comunicação PJe: ${item.tipoComunicacao || 'Atualização'}`)
+                mov.set('source', 'PJe')
+                mov.set('details', item.texto || item.conteudo || '')
+                mov.set('external_id', numeroCom)
+                mov.set('movement_details', item)
+                mov.set('organization', c.getString('organization'))
+
+                $app.save(mov)
+              } catch (movErr) {
+                $app
+                  .logger()
+                  .error(
+                    'Error saving case movement for pje communication',
+                    'error',
+                    String(movErr),
+                  )
+              }
             } catch (saveErr) {
               $app
                 .logger()
