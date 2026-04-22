@@ -35,7 +35,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 
 type UnifiedItem = {
   id: string
-  collection: 'results' | 'gazette_publications' | 'ocorrencias_dou'
+  collection: 'pje_communications' | 'results' | 'gazette_publications' | 'ocorrencias_dou'
   type: 'PJe' | 'DOU' | 'Processo Novo' | 'Ocorrência'
   title: string
   description: string
@@ -71,7 +71,7 @@ export default function CentralAtualizacoes() {
     isProcessingBatchRef.current = isProcessingBatch
   }, [isProcessingBatch])
 
-  useRealtime('results', () => {
+  useRealtime('pje_communications', () => {
     if (!isProcessingBatchRef.current) loadData()
   })
   useRealtime('gazette_publications', () => {
@@ -85,7 +85,9 @@ export default function CentralAtualizacoes() {
     setLoading(true)
     try {
       const [pjeRes, douPub, douOcc, casesRes] = await Promise.all([
-        pb.collection('results').getList(1, 500, { sort: '-created' }),
+        pb
+          .collection('pje_communications')
+          .getList(1, 500, { sort: '-created', expand: 'linked_case' }),
         pb.collection('gazette_publications').getList(1, 500, { sort: '-created' }),
         pb.collection('ocorrencias_dou').getList(1, 500, { sort: '-created' }),
         pb.collection('legal_cases').getFullList({ fields: 'id,case_number' }),
@@ -97,20 +99,20 @@ export default function CentralAtualizacoes() {
       })
 
       const mappedPje: UnifiedItem[] = pjeRes.items.map((i) => {
-        const numClean = i.numero_processo ? i.numero_processo.replace(/\D/g, '') : ''
+        const numClean = i.numeroProcesso ? i.numeroProcesso.replace(/\D/g, '') : ''
         const isNew = numClean && !casesMap.has(numClean)
-        const linkedCase = casesMap.get(numClean)
+        const linkedCaseId = i.linked_case || casesMap.get(numClean)?.id
         return {
           id: i.id,
-          collection: 'results',
+          collection: 'pje_communications',
           type: isNew ? 'Processo Novo' : 'PJe',
-          title: `Processo: ${i.numero_processo || 'N/A'} - ${i.sigla_tribunal || ''}`,
-          description: i.texto || '',
-          date: i.data_disponibilizacao || i.created,
+          title: `Processo: ${i.numeroProcesso || 'N/A'} - ${i.siglaTribunal || ''}`,
+          description: `${i.tipoComunicacao ? `[${i.tipoComunicacao}] ` : ''}${i.texto || ''}`,
+          date: i.dataDisponibilizacao || i.created,
           isRead: !!i.is_read,
-          isArchived: !!i.is_archived,
-          caseNumber: i.numero_processo,
-          caseId: linkedCase ? linkedCase.id : undefined,
+          isArchived: false,
+          caseNumber: i.numeroProcesso,
+          caseId: linkedCaseId,
           raw: i,
         }
       })
@@ -202,8 +204,8 @@ export default function CentralAtualizacoes() {
         await Promise.all(
           chunk.map(async (item) => {
             if (action === 'read') {
-              if (item.collection === 'results')
-                await pb.collection('results').update(item.id, { is_read: true })
+              if (item.collection === 'pje_communications')
+                await pb.collection('pje_communications').update(item.id, { is_read: true })
               else if (item.collection === 'gazette_publications')
                 await pb.collection('gazette_publications').update(item.id, { is_read: true })
               else if (item.collection === 'ocorrencias_dou')
@@ -211,7 +213,11 @@ export default function CentralAtualizacoes() {
                   .collection('ocorrencias_dou')
                   .update(item.id, { status_alerta: 'visualizado' })
             } else if (action === 'archive') {
-              await pb.collection(item.collection).update(item.id, { is_archived: true })
+              if (item.collection !== 'pje_communications') {
+                await pb.collection(item.collection).update(item.id, { is_archived: true })
+              } else {
+                await pb.collection('pje_communications').update(item.id, { is_read: true })
+              }
             }
           }),
         )
@@ -443,13 +449,18 @@ export default function CentralAtualizacoes() {
               <CalendarIcon className="w-4 h-4 mr-2 text-slate-500" /> Evento
             </Button>
 
-            {(item.collection === 'results' || item.collection === 'gazette_publications') && (
+            {(item.collection === 'pje_communications' ||
+              item.collection === 'gazette_publications') && (
               <Button
                 size="sm"
                 variant="secondary"
                 onClick={async () => {
                   if (!item.isRead) await handleMarkAsRead(item)
-                  navigate(`/intranet/comunicacoes/${item.id}`)
+                  if (item.collection === 'pje_communications') {
+                    navigate(`/intranet/pje-comunica?id=${item.id}`)
+                  } else {
+                    navigate(`/intranet/comunicacoes/${item.id}`)
+                  }
                 }}
               >
                 <Eye className="w-4 h-4 mr-2" /> Ver Detalhes

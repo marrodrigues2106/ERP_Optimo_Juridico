@@ -876,6 +876,10 @@ export default function Dashboard() {
         editingCase={null}
         clients={clients}
         collaborators={collaborators}
+        onSuccess={() => {
+          debouncedLoadCaseCount()
+          debouncedLoadFeed()
+        }}
       />
 
       <Dialog open={taskModalOpen} onOpenChange={setTaskModalOpen}>

@@ -543,6 +543,7 @@ export default function ProcessDetail() {
   const [finances, setFinances] = useState<any[]>([])
   const [newMovement, setNewMovement] = useState('')
   const [activeTab, setActiveTab] = useState('andamento')
+  const [isSyncingPje, setIsSyncingPje] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -642,6 +643,66 @@ export default function ProcessDetail() {
     }
   }
 
+  const handlePjeSync = async () => {
+    if (!legalCase?.case_number)
+      return toast({ title: 'Número do processo não informado', variant: 'destructive' })
+    const num = legalCase.case_number.replace(/\D/g, '')
+    if (num.length !== 20)
+      return toast({
+        title: 'CNJ Inválido',
+        description: 'O número do processo deve ter 20 dígitos.',
+        variant: 'destructive',
+      })
+
+    setIsSyncingPje(true)
+    try {
+      const res = await fetch(
+        `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${num}`,
+      )
+      if (!res.ok) throw new Error('Falha ao comunicar com o PJe')
+      const data = await res.json()
+      const items = data.items || (Array.isArray(data) ? data : [])
+
+      let newMovementsCount = 0
+      for (const item of items) {
+        const extId = item.id?.toString() || item.hash || ''
+        if (!extId) continue
+
+        try {
+          await pb.collection('case_movements').create({
+            case: id,
+            event_date: item.dataDisponibilizacao
+              ? new Date(item.dataDisponibilizacao).toISOString()
+              : new Date().toISOString(),
+            description: item.tipoComunicacao || 'Comunicação PJe',
+            details: item.texto || '',
+            source: 'PJe',
+            external_id: `pje-${extId}`,
+            movement_details: item,
+            organization: pb.authStore.record?.active_organization,
+          })
+          newMovementsCount++
+        } catch (err) {
+          // Ignore duplicate external_id errors
+        }
+      }
+
+      toast({
+        title: 'Sincronização PJe Concluída',
+        description: `${newMovementsCount} novos andamentos encontrados.`,
+      })
+      loadMovements(1)
+    } catch (err: any) {
+      toast({
+        title: 'Erro na Sincronização PJe',
+        description: err.message,
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSyncingPje(false)
+    }
+  }
+
   const handleAddEvent = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
@@ -710,6 +771,20 @@ export default function ProcessDetail() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePjeSync}
+                  disabled={isSyncingPje || !legalCase.case_number}
+                  className="bg-white shadow-sm"
+                >
+                  {isSyncingPje ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                  )}
+                  Sincronizar PJe
+                </Button>
                 <Badge className="bg-slate-600 hover:bg-slate-700 text-white font-medium uppercase px-3 py-1">
                   {legalCase.lifecycle_status || 'ATIVO'}
                 </Badge>
