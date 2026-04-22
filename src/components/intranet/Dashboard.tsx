@@ -14,6 +14,7 @@ import {
   Trash2,
   RefreshCw,
   AlertTriangle,
+  Scale,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import pb from '@/lib/pocketbase/client'
@@ -40,7 +41,7 @@ import { AgendaWidget } from './dashboard/AgendaWidget'
 
 type FeedItem = {
   id: string
-  source: 'gazette' | 'dou' | 'movement'
+  source: 'gazette' | 'dou' | 'movement' | 'pje'
   title: string
   description: string
   date: string
@@ -107,7 +108,7 @@ export default function Dashboard() {
 
   const loadFeed = async () => {
     const orgId = pb.authStore.record?.active_organization
-    const [gUnread, gRead, dUnread, dRead, mUnread, mRead] = await Promise.all([
+    const [gUnread, gRead, dUnread, dRead, mUnread, mRead, pUnread, pRead] = await Promise.all([
       pb
         .collection('gazette_publications')
         .getFullList({ filter: 'is_read = false', sort: '-created' }),
@@ -130,15 +131,27 @@ export default function Dashboard() {
         sort: '-event_date',
         expand: 'case',
       }),
+      pb.collection('pje_communications').getFullList({
+        filter: `is_read = false${orgId ? ` && organization = "${orgId}"` : ''}`,
+        sort: '-created',
+        expand: 'linked_case',
+      }),
+      pb.collection('pje_communications').getList(1, 20, {
+        filter: `is_read = true${orgId ? ` && organization = "${orgId}"` : ''}`,
+        sort: '-updated',
+        expand: 'linked_case',
+      }),
     ])
 
     const mapItems = (items: any[], source: any, isRead: boolean): FeedItem[] =>
       items.map((i) => {
-        const tags = [i.orgao || i.sigla_tribunal || i.source || 'Tribunal']
+        const tags = [i.orgao || i.sigla_tribunal || i.siglaTribunal || i.source || 'Tribunal']
         if (source === 'movement') {
           if (i.movement_details?.avisosPendentes) tags.push('Aviso Pendente')
           if (i.movement_details?.teorComunicacao || i.movement_details?.ciencia)
             tags.push('Comunicação')
+        } else if (source === 'pje' && i.tipoComunicacao) {
+          tags.push(i.tipoComunicacao)
         }
 
         return {
@@ -149,13 +162,20 @@ export default function Dashboard() {
               ? 'Diário Oficial'
               : source === 'dou'
                 ? 'Ocorrência DOU'
-                : `Movimentação: ${i.expand?.case?.case_number || 'Processo'}`,
-          description: i.texto_normalizado || i.trecho_encontrado || i.description || '',
-          date: i.data_publicacao || i.data_deteccao || i.event_date || i.created,
+                : source === 'pje'
+                  ? `PJe: ${i.numeroProcesso}`
+                  : `Movimentação: ${i.expand?.case?.case_number || 'Processo'}`,
+          description: i.texto_normalizado || i.trecho_encontrado || i.texto || i.description || '',
+          date:
+            i.data_publicacao ||
+            i.data_deteccao ||
+            i.dataDisponibilizacao ||
+            i.event_date ||
+            i.created,
           isRead,
           tags,
           raw: i,
-          lawsuitId: source === 'movement' ? i.case : undefined,
+          lawsuitId: source === 'movement' ? i.case : source === 'pje' ? i.linked_case : undefined,
         }
       })
 
@@ -166,6 +186,8 @@ export default function Dashboard() {
       ...mapItems(dRead.items, 'dou', true),
       ...mapItems(mUnread, 'movement', false),
       ...mapItems(mRead.items, 'movement', true),
+      ...mapItems(pUnread, 'pje', false),
+      ...mapItems(pRead.items, 'pje', true),
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
     setFeedItems(all)
@@ -232,6 +254,7 @@ export default function Dashboard() {
   useRealtime('gazette_publications', debouncedLoadFeed, !isProcessingBatch)
   useRealtime('ocorrencias_dou', debouncedLoadFeed, !isProcessingBatch)
   useRealtime('case_movements', debouncedLoadFeed, !isProcessingBatch)
+  useRealtime('pje_communications', debouncedLoadFeed, !isProcessingBatch)
 
   const toggleTask = async (id: string, currentStatus: string) => {
     try {
@@ -290,6 +313,9 @@ export default function Dashboard() {
           .update(item.id, { status_alerta: item.isRead ? 'pendente' : 'visualizado' })
       else if (item.source === 'movement')
         await pb.collection('case_movements').update(item.id, { notified_client: !item.isRead })
+      else if (item.source === 'pje')
+        await pb.collection('pje_communications').update(item.id, { is_read: !item.isRead })
+
       toast({ title: item.isRead ? 'Marcado como não lido' : 'Marcado como lido' })
       debouncedLoadFeed()
     } catch (e) {
@@ -360,6 +386,9 @@ export default function Dashboard() {
                 await pb
                   .collection('case_movements')
                   .update(item.id, { notified_client: markAsRead })
+              else if (item.source === 'pje')
+                await pb.collection('pje_communications').update(item.id, { is_read: markAsRead })
+
               success = true
             } catch (err) {
               lastError = err
@@ -614,6 +643,13 @@ export default function Dashboard() {
                           className={cn(
                             'w-5 h-5',
                             item.isRead ? 'text-slate-400' : 'text-emerald-500',
+                          )}
+                        />
+                      ) : item.source === 'pje' ? (
+                        <Scale
+                          className={cn(
+                            'w-5 h-5',
+                            item.isRead ? 'text-slate-400' : 'text-indigo-500',
                           )}
                         />
                       ) : (

@@ -29,6 +29,7 @@ import DouSearch from '@/components/intranet/DouSearch'
 import GlobalSearch from '@/components/intranet/GlobalSearch'
 import CentralAtualizacoes from '@/components/intranet/CentralAtualizacoes'
 import PublicAgenda from '@/pages/PublicAgenda'
+import { PjeComunica } from '@/components/intranet/PjeComunica'
 
 function App() {
   return (
@@ -63,6 +64,7 @@ function App() {
                 element={<Navigate to="/intranet/busca-dou" replace />}
               />
               <Route path="busca-dou" element={<DouSearch />} />
+              <Route path="pje-comunica" element={<PjeComunica />} />
               <Route path="search" element={<GlobalSearch />} />
               <Route path="processos" element={<ProcessManager />} />
               <Route path="processos/:id" element={<ProcessDetail />} />

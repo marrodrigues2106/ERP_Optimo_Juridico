@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-22T05:27:05.789Z",
+  "generatedAt": "2026-04-22T05:34:35.796Z",
   "collections": [
     {
       "name": "users",
@@ -2568,6 +2568,112 @@
         }
       ],
       "indexes": []
+    },
+    {
+      "name": "pje_communications",
+      "type": "base",
+      "apiRules": {
+        "list": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "view": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "create": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "update": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "delete": "(@request.auth.id != '') && organization = @request.auth.active_organization"
+      },
+      "fields": [
+        {
+          "name": "numeroProcesso",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "dataDisponibilizacao",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "texto",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "tipoComunicacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "siglaTribunal",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "meio",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "numeroComunicacao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "destinatarios",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "advogados",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_read",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "linked_case",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "legal_cases"
+        },
+        {
+          "name": "organization",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "organizations"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_pje_com_numero ON pje_communications (numeroComunicacao) WHERE numeroComunicacao != ''",
+        "CREATE INDEX idx_pje_com_processo ON pje_communications (numeroProcesso)",
+        "CREATE INDEX idx_pje_com_data ON pje_communications (dataDisponibilizacao)"
+      ]
     }
   ]
 }
