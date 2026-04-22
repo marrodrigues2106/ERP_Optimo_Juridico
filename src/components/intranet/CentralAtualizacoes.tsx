@@ -170,7 +170,10 @@ export default function CentralAtualizacoes() {
     loadData()
   }, [])
 
-  const processBatch = async (action: 'read' | 'archive', idsToProcess?: Set<string>) => {
+  const processBatch = async (
+    action: 'read' | 'unread' | 'archive',
+    idsToProcess?: Set<string>,
+  ) => {
     const targetIds = idsToProcess || selectedIds
     const itemsToProcess = items.filter((i) => targetIds.has(`${i.collection}-${i.id}`))
     if (itemsToProcess.length === 0) return
@@ -188,7 +191,7 @@ export default function CentralAtualizacoes() {
         if (targetIds.has(`${item.collection}-${item.id}`)) {
           return {
             ...item,
-            isRead: action === 'read' ? true : item.isRead,
+            isRead: action === 'read' ? true : action === 'unread' ? false : item.isRead,
             isArchived: action === 'archive' ? true : item.isArchived,
           }
         }
@@ -212,6 +215,15 @@ export default function CentralAtualizacoes() {
                 await pb
                   .collection('ocorrencias_dou')
                   .update(item.id, { status_alerta: 'visualizado' })
+            } else if (action === 'unread') {
+              if (item.collection === 'pje_communications')
+                await pb.collection('pje_communications').update(item.id, { is_read: false })
+              else if (item.collection === 'gazette_publications')
+                await pb.collection('gazette_publications').update(item.id, { is_read: false })
+              else if (item.collection === 'ocorrencias_dou')
+                await pb
+                  .collection('ocorrencias_dou')
+                  .update(item.id, { status_alerta: 'pendente' })
             } else if (action === 'archive') {
               if (item.collection !== 'pje_communications') {
                 await pb.collection(item.collection).update(item.id, { is_archived: true })
@@ -238,7 +250,14 @@ export default function CentralAtualizacoes() {
     if (!hasError && targetIds.size > 1) {
       toast({ title: `Sucesso`, description: `${successCount} itens atualizados com sucesso.` })
     } else if (!hasError && targetIds.size === 1) {
-      toast({ title: action === 'read' ? 'Marcado como lido' : 'Movido para Arquivados' })
+      toast({
+        title:
+          action === 'read'
+            ? 'Marcado como lido'
+            : action === 'unread'
+              ? 'Marcado como Não Lido'
+              : 'Movido para Arquivados',
+      })
     }
 
     if (!idsToProcess) {
@@ -416,7 +435,7 @@ export default function CentralAtualizacoes() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-2 pt-4 border-t border-slate-100">
-            {!item.isRead && item.type !== 'Processo Novo' && (
+            {!item.isRead && item.type !== 'Processo Novo' ? (
               <Button
                 size="sm"
                 variant="default"
@@ -425,7 +444,15 @@ export default function CentralAtualizacoes() {
               >
                 <CheckCircle2 className="w-4 h-4 mr-2" /> Marcar como Lido
               </Button>
-            )}
+            ) : item.isRead && item.type !== 'Processo Novo' ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => processBatch('unread', new Set([`${item.collection}-${item.id}`]))}
+              >
+                Marcar como Não Lido
+              </Button>
+            ) : null}
 
             <Button
               size="sm"
@@ -790,7 +817,15 @@ export default function CentralAtualizacoes() {
             className="bg-primary text-white"
             disabled={isProcessingBatch}
           >
-            <CheckCircle2 className="w-4 h-4 mr-2" /> Marcar Lidos
+            <CheckCircle2 className="w-4 h-4 mr-2" /> Lidos
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => processBatch('unread')}
+            disabled={isProcessingBatch}
+          >
+            Não Lidos
           </Button>
           <Button
             size="sm"

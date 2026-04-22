@@ -9,11 +9,23 @@ import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { Camera, Save, Loader2, Building2 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Activity } from 'lucide-react'
 
 export default function ProfileManager() {
   const { user } = useAuth()
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [alertConfig, setAlertConfig] = useState<any>({ frequencia: 'daily', ativo: true })
+  const [savingAlert, setSavingAlert] = useState(false)
 
   const [fullName, setFullName] = useState(user?.fullName || user?.name || '')
   const [email] = useState(user?.email || '')
@@ -39,7 +51,39 @@ export default function ProfileManager() {
         })
         .catch(console.error)
     }
+    if (user?.id) {
+      pb.collection('configuracoes_alerta')
+        .getFirstListItem(`usuario_id="${user.id}"`)
+        .then((res) => setAlertConfig(res))
+        .catch(() => setAlertConfig({ frequencia: 'daily', ativo: true }))
+    }
   }, [user])
+
+  const handleSaveAlert = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSavingAlert(true)
+    try {
+      if (alertConfig.id) {
+        await pb.collection('configuracoes_alerta').update(alertConfig.id, {
+          frequencia: alertConfig.frequencia,
+          ativo: alertConfig.ativo,
+        })
+      } else {
+        const res = await pb.collection('configuracoes_alerta').create({
+          usuario_id: user.id,
+          frequencia: alertConfig.frequencia,
+          ativo: alertConfig.ativo,
+          tipo_notificacao: 'app',
+        })
+        setAlertConfig(res)
+      }
+      toast({ title: 'Monitoramento atualizado!' })
+    } catch (err) {
+      toast({ title: 'Erro ao salvar', variant: 'destructive' })
+    } finally {
+      setSavingAlert(false)
+    }
+  }
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -85,6 +129,9 @@ export default function ProfileManager() {
               Organização
             </TabsTrigger>
           )}
+          <TabsTrigger value="monitoramento" className="text-base px-4 py-2 font-medium">
+            Monitoramento
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="perfil">
@@ -214,6 +261,68 @@ export default function ProfileManager() {
             </Card>
           </TabsContent>
         )}
+
+        <TabsContent value="monitoramento">
+          <Card className="max-w-2xl border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <Activity className="w-6 h-6 text-primary" /> Automação PJe
+              </CardTitle>
+              <CardDescription className="text-base">
+                Configure a frequência de sincronização automática dos seus processos ativos.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSaveAlert} className="space-y-6">
+                <div className="flex items-center justify-between border-b pb-6">
+                  <div className="space-y-1">
+                    <Label className="text-base font-semibold">Monitoramento Ativo</Label>
+                    <p className="text-sm text-slate-500">
+                      Habilite para que o sistema busque novos andamentos automaticamente.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={alertConfig.ativo}
+                    onCheckedChange={(checked) =>
+                      setAlertConfig({ ...alertConfig, ativo: checked })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Frequência de Atualização</Label>
+                  <Select
+                    value={alertConfig.frequencia}
+                    onValueChange={(val) => setAlertConfig({ ...alertConfig, frequencia: val })}
+                    disabled={!alertConfig.ativo}
+                  >
+                    <SelectTrigger className="w-full text-base py-6">
+                      <SelectValue placeholder="Selecione a frequência" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hourly">De hora em hora</SelectItem>
+                      <SelectItem value="daily">Diário</SelectItem>
+                      <SelectItem value="weekly">Semanal</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={savingAlert}
+                  className="py-6 px-8 text-base font-bold"
+                >
+                  {savingAlert ? (
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="w-5 h-5 mr-2" />
+                  )}
+                  Salvar Preferências
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   )

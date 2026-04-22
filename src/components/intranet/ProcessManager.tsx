@@ -125,43 +125,13 @@ export default function ProcessManager() {
         currentCase: c.case_number || 'Sem número',
       })
 
-      const num = c.case_number.replace(/\D/g, '')
-      if (num.length === 20) {
-        try {
-          const res = await fetch(
-            `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${num}`,
-          )
-          if (res.ok) {
-            const data = await res.json()
-            const items = data.items || (Array.isArray(data) ? data : [])
-            for (const item of items) {
-              const extId = item.id?.toString() || item.hash || ''
-              if (!extId) continue
-              try {
-                await pb.collection('case_movements').create({
-                  case: c.id,
-                  event_date: item.dataDisponibilizacao
-                    ? new Date(item.dataDisponibilizacao).toISOString()
-                    : new Date().toISOString(),
-                  description: item.tipoComunicacao || 'Comunicação PJe',
-                  details: item.texto || '',
-                  source: 'PJe',
-                  external_id: `pje-${extId}`,
-                  movement_details: item,
-                  organization: pb.authStore.record?.active_organization,
-                })
-              } catch (err) {
-                // Ignore duplicate external_id errors
-              }
-            }
-            successCount++
-          }
-        } catch (err) {
-          console.error(`Error syncing case ${c.case_number}`, err)
-        }
+      try {
+        await pb.send(`/backend/v1/sync/case/${c.id}`, { method: 'POST' })
+        successCount++
+      } catch (err) {
+        console.error(`Error syncing case ${c.case_number}`, err)
       }
 
-      // Delay to avoid API rate limits (sequential queue)
       await new Promise((resolve) => setTimeout(resolve, 800))
     }
 
@@ -169,7 +139,7 @@ export default function ProcessManager() {
     setSelectedIds([])
     toast({
       title: 'Sincronização em Lote Concluída',
-      description: `${successCount} processos verificados no PJe.`,
+      description: `${successCount} processos sincronizados com sucesso.`,
     })
     loadData()
   }
@@ -184,12 +154,23 @@ export default function ProcessManager() {
       .map((t) => t.trim())
       .filter((t) => t)
 
+    const distributionDateStr = fd.get('distribution_date') as string
+    const distribution_date = distributionDateStr
+      ? new Date(distributionDateStr).toISOString()
+      : editingMetadataCase.metadata?.distribution_date || editingMetadataCase.distribution_date
+
     const payload = {
+      case_number: fd.get('case_number'),
       parties: fd.get('parties'),
       court: fd.get('court'),
       description: fd.get('description'),
       observations: fd.get('observations'),
       tags,
+      distribution_date,
+      metadata: {
+        ...editingMetadataCase.metadata,
+        distribution_date,
+      },
     }
 
     try {
@@ -424,12 +405,27 @@ export default function ProcessManager() {
           {editingMetadataCase && (
             <form onSubmit={handleSaveMetadata} className="space-y-4 mt-6">
               <div>
+                <Label>Número do Processo</Label>
+                <Input name="case_number" defaultValue={editingMetadataCase.case_number} />
+              </div>
+              <div>
                 <Label>Partes</Label>
                 <Input name="parties" defaultValue={editingMetadataCase.parties} />
               </div>
               <div>
                 <Label>Tribunal</Label>
                 <Input name="court" defaultValue={editingMetadataCase.court} />
+              </div>
+              <div>
+                <Label>Data de Distribuição</Label>
+                <Input
+                  type="date"
+                  name="distribution_date"
+                  defaultValue={
+                    editingMetadataCase.metadata?.distribution_date?.substring(0, 10) ||
+                    editingMetadataCase.distribution_date?.substring(0, 10)
+                  }
+                />
               </div>
               <div>
                 <Label>Descrição</Label>

@@ -29,6 +29,42 @@ routerAdd(
 
       if (res.statusCode === 200 && res.json && res.json.items) {
         const items = res.json.items
+
+        // Metadata update
+        let updatedCase = false
+        let currentParties = c.getString('parties')
+        let currentCourt = c.getString('court')
+
+        if (items.length > 0) {
+          if (!currentCourt || currentCourt.toLowerCase() === 'none' || currentCourt === '') {
+            const court = items[0].siglaTribunal
+            if (court) {
+              c.set('court', court.toLowerCase())
+              c.set('court_alias', court.toLowerCase())
+              updatedCase = true
+            }
+          }
+          if (!currentParties || currentParties.length < 5) {
+            const allParties = new Set()
+            items.forEach((item) => {
+              if (item.destinatarios && Array.isArray(item.destinatarios)) {
+                item.destinatarios.forEach((d) => {
+                  if (d.nome) allParties.add(d.nome)
+                })
+              }
+            })
+            if (allParties.size > 0) {
+              c.set('parties', Array.from(allParties).join(' x '))
+              updatedCase = true
+            }
+          }
+          if (updatedCase) {
+            try {
+              $app.save(c)
+            } catch (e) {}
+          }
+        }
+
         for (const item of items) {
           const numeroCom = String(item.id || item.numeroComunicacao || '')
           if (!numeroCom) continue
