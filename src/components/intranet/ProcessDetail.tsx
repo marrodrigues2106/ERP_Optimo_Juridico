@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getLegalCase } from '@/services/legal_cases'
+import { getLegalCase, updateLegalCase } from '@/services/legal_cases'
 import { getPaginatedCaseMovements } from '@/services/case_movements'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
@@ -648,8 +648,8 @@ export default function ProcessDetail() {
     if (!legalCase?.case_number)
       return toast({ title: 'Número do processo não informado', variant: 'destructive' })
 
-    const digitsOnly = legalCase.case_number.replace(/\D/g, '')
-    if (digitsOnly.length !== 20) {
+    const num = legalCase.case_number.replace(/\D/g, '')
+    if (num.length !== 20) {
       return toast({
         title: 'Número inválido',
         description:
@@ -660,19 +660,88 @@ export default function ProcessDetail() {
 
     setIsSyncingPje(true)
     try {
-      const res = await pb.send(`/backend/v1/sync/case/${id}`, { method: 'GET' })
+      const res = await fetch(
+        `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${num}`,
+      )
+      if (!res.ok) {
+        throw new Error('Processo não encontrado ou serviço PJe indisponível no momento.')
+      }
+      const data = await res.json()
+      const items = data.items || (Array.isArray(data) ? data : [])
+
+      if (!Array.isArray(items) || items.length === 0) {
+        throw new Error('Processo não encontrado ou serviço PJe indisponível no momento.')
+      }
+
+      const court = items[0].siglaTribunal || ''
+      const allParties = new Set<string>()
+      items.forEach((item: any) => {
+        if (Array.isArray(item.destinatarios)) {
+          item.destinatarios.forEach((d: any) => {
+            if (d.nome) allParties.add(d.nome)
+          })
+        }
+      })
+
+      const updates: any = {}
+      if (court) {
+        updates.court = court.toLowerCase()
+        updates.court_alias = court.toLowerCase()
+      }
+      if (allParties.size > 0) {
+        updates.parties = Array.from(allParties).join(' x ')
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await updateLegalCase(id!, updates)
+      }
+
+      const existingMovements = await pb.collection('case_movements').getFullList({
+        filter: `case = "${id}" && source = "PJe" && deleted_at = ""`,
+        fields: 'external_id',
+      })
+      const existingExternalIds = new Set(
+        existingMovements.map((m) => m.external_id).filter(Boolean),
+      )
+
+      let newCount = 0
+      for (const item of items) {
+        const extId = item.id?.toString() || item.hash || ''
+        const fullExtId = extId ? `pje-${extId}` : ''
+
+        if (fullExtId && existingExternalIds.has(fullExtId)) {
+          continue
+        }
+
+        try {
+          await pb.collection('case_movements').create({
+            case: id,
+            event_date: item.dataDisponibilizacao
+              ? new Date(item.dataDisponibilizacao).toISOString()
+              : new Date().toISOString(),
+            description: item.tipoComunicacao || 'Comunicação PJe',
+            details: item.texto || '',
+            source: 'PJe',
+            external_id: fullExtId || undefined,
+            movement_details: item,
+            organization: pb.authStore.record?.active_organization,
+          })
+          newCount++
+          if (fullExtId) existingExternalIds.add(fullExtId)
+        } catch (err) {
+          console.error('Failed to create movement', err)
+        }
+      }
 
       toast({
         title: 'Sincronização PJe Concluída',
-        description: `${res.new_communications} novos andamentos encontrados e metadados atualizados.`,
+        description: `${newCount} novos andamentos encontrados e metadados atualizados.`,
       })
       loadMovements(1)
       loadData()
     } catch (err: any) {
       const description =
-        err?.response?.message ||
-        err?.message ||
-        'Ocorreu um erro inesperado ao se comunicar com o tribunal.'
+        err?.message || 'Ocorreu um erro inesperado ao se comunicar com o tribunal.'
 
       toast({
         title: 'Erro na Sincronização',
