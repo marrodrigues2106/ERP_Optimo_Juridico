@@ -659,7 +659,7 @@ export default function ProcessDetail() {
 
     setIsSyncingPje(true)
     try {
-      const res = await pb.send(`/backend/v1/sync/case/${id}`, { method: 'POST' })
+      const res = await pb.send(`/backend/v1/sync/case/${id}`, { method: 'GET' })
 
       toast({
         title: 'Sincronização PJe Concluída',
@@ -668,12 +668,8 @@ export default function ProcessDetail() {
       loadMovements(1)
       loadData()
     } catch (err: any) {
-      let description =
+      const description =
         getErrorMessage(err) || 'Ocorreu um erro inesperado ao se comunicar com o tribunal.'
-      if (err?.status === 400) {
-        description =
-          'A consulta foi rejeitada pelo PJe. Verifique se o número do processo é válido e tente novamente.'
-      }
 
       toast({
         title: 'Erro na Sincronização',

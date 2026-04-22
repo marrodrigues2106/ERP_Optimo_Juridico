@@ -1,5 +1,5 @@
 routerAdd(
-  'POST',
+  'GET',
   '/backend/v1/sync/case/{caseId}',
   (e) => {
     const caseId = e.request.pathValue('caseId')
@@ -66,7 +66,10 @@ routerAdd(
         )
       }
 
-      const items = res.json && res.json.items ? res.json.items : []
+      let items = []
+      if (res.json && Array.isArray(res.json)) items = res.json
+      else if (res.json && res.json.items && Array.isArray(res.json.items)) items = res.json.items
+      else if (res.json && res.json.data && Array.isArray(res.json.data)) items = res.json.data
 
       // Metadata update
       let updatedCase = false
@@ -104,73 +107,78 @@ routerAdd(
       }
 
       for (const item of items) {
-        const numeroCom = String(item.id || item.numeroComunicacao || '')
-        if (!numeroCom) continue
+        const numeroCom = String(
+          item.id ||
+            item.numeroComunicacao ||
+            item.hash ||
+            `${caseNumber}-${item.dataDisponibilizacao}`,
+        )
+        if (!numeroCom || numeroCom === 'undefined') continue
 
+        const numProc =
+          item.numeroProcesso || item.numeroprocesso || item.numero_processo || caseNumberStr
+        const dataDisp = item.dataDisponibilizacao || item.data_disponibilizacao || ''
+
+        let pjeRec
         try {
-          $app.findFirstRecordByData('pje_communications', 'numeroComunicacao', numeroCom)
-          continue
+          pjeRec = $app.findFirstRecordByData('pje_communications', 'numeroComunicacao', numeroCom)
         } catch (_) {
           const pjeCol = $app.findCollectionByNameOrId('pje_communications')
-          const record = new Record(pjeCol)
+          pjeRec = new Record(pjeCol)
+        }
 
-          const numProc =
-            item.numeroProcesso || item.numeroprocesso || item.numero_processo || caseNumberStr
-          const dataDisp = item.dataDisponibilizacao || item.data_disponibilizacao || ''
+        pjeRec.set('numeroProcesso', numProc)
+        if (dataDisp) {
+          pjeRec.set('dataDisponibilizacao', dataDisp)
+        }
+        pjeRec.set('texto', item.texto || item.conteudo || '')
+        pjeRec.set('tipoComunicacao', item.tipoComunicacao || '')
+        pjeRec.set('siglaTribunal', item.siglaTribunal || '')
+        pjeRec.set('meio', item.meio || '')
+        pjeRec.set('numeroComunicacao', numeroCom)
 
-          record.set('numeroProcesso', numProc)
-          if (dataDisp) {
-            record.set('dataDisponibilizacao', dataDisp)
-          }
-          record.set('texto', item.texto || item.conteudo || '')
-          record.set('tipoComunicacao', item.tipoComunicacao || '')
-          record.set('siglaTribunal', item.siglaTribunal || '')
-          record.set('meio', item.meio || '')
-          record.set('numeroComunicacao', numeroCom)
+        if (item.destinatarios) pjeRec.set('destinatarios', item.destinatarios)
+        if (item.advogados) pjeRec.set('advogados', item.advogados)
 
-          if (item.destinatarios) record.set('destinatarios', item.destinatarios)
-          if (item.advogados) record.set('advogados', item.advogados)
+        pjeRec.set('linked_case', c.id)
+        pjeRec.set('organization', c.getString('organization'))
 
-          record.set('linked_case', c.id)
-          record.set('organization', c.getString('organization'))
+        try {
+          const isNewPje = !pjeRec.id
+          $app.save(pjeRec)
+          if (isNewPje) newCount++
 
+          let movRec
           try {
-            $app.save(record)
-            newCount++
-
-            try {
-              const movCol = $app.findCollectionByNameOrId('case_movements')
-              const mov = new Record(movCol)
-              mov.set('case', c.id)
-
-              let evtDate = dataDisp
-              if (!evtDate || evtDate.length < 10) evtDate = new Date().toISOString()
-              mov.set('event_date', evtDate)
-
-              mov.set('description', `Comunicação PJe: ${item.tipoComunicacao || 'Atualização'}`)
-              mov.set('source', 'PJe')
-              mov.set('details', item.texto || item.conteudo || '')
-              mov.set('external_id', numeroCom)
-              mov.set('movement_details', item)
-              mov.set('organization', c.getString('organization'))
-
-              $app.save(mov)
-            } catch (movErr) {
-              $app
-                .logger()
-                .error('Error saving case movement for pje communication', 'error', String(movErr))
-            }
-          } catch (saveErr) {
-            $app
-              .logger()
-              .error(
-                'Error saving pje communication',
-                'numeroCom',
-                numeroCom,
-                'error',
-                String(saveErr),
-              )
+            movRec = $app.findFirstRecordByData('case_movements', 'external_id', numeroCom)
+          } catch (_) {
+            const movCol = $app.findCollectionByNameOrId('case_movements')
+            movRec = new Record(movCol)
+            movRec.set('case', c.id)
           }
+
+          let evtDate = dataDisp
+          if (!evtDate || evtDate.length < 10) evtDate = new Date().toISOString()
+          movRec.set('event_date', evtDate)
+
+          movRec.set('description', `Comunicação PJe: ${item.tipoComunicacao || 'Atualização'}`)
+          movRec.set('source', 'PJe')
+          movRec.set('details', item.texto || item.conteudo || '')
+          movRec.set('external_id', numeroCom)
+          movRec.set('movement_details', item)
+          movRec.set('organization', c.getString('organization'))
+
+          $app.save(movRec)
+        } catch (saveErr) {
+          $app
+            .logger()
+            .error(
+              'Error saving pje communication',
+              'numeroCom',
+              numeroCom,
+              'error',
+              String(saveErr),
+            )
         }
       }
     } catch (err) {
