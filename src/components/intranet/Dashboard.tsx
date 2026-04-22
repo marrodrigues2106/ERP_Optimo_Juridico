@@ -154,7 +154,7 @@ export default function Dashboard() {
               : source === 'dou'
                 ? 'Ocorrência DOU'
                 : source === 'comunica'
-                  ? `Comunicação DataJud: ${i.numero_processo || 'Processo'}`
+                  ? `Comunicação PJe: ${i.numero_processo || 'Processo'}`
                   : `Movimentação: ${i.expand?.case?.case_number || 'Processo'}`,
           description:
             source === 'comunica'

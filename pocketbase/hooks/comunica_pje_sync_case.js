@@ -7,11 +7,18 @@ routerAdd(
     try {
       record = $app.findRecordById('legal_cases', caseId)
     } catch (_) {
-      throw new NotFoundError('Case not found')
+      return e.notFoundError('Case not found')
     }
 
     const numeroProcesso = record.getString('case_number')
-    if (!numeroProcesso) throw new BadRequestError('Case has no number')
+    if (!numeroProcesso) return e.badRequestError('Case has no number')
+
+    record.set('pje_sync_status', 'syncing')
+    try {
+      $app.saveNoValidate(record)
+    } catch (_) {}
+
+    const startTime = Date.now()
 
     let apiKey = ''
     try {
@@ -41,11 +48,35 @@ routerAdd(
     if (res.statusCode !== 200) {
       record.set('pje_last_sync', new Date().toISOString())
       record.set('pje_sync_status', 'error')
-      $app.save(record)
+      try {
+        $app.saveNoValidate(record)
+      } catch (_) {}
+
       let errorMsg = `Erro na requisição: ${res.statusCode}`
       if (res.statusCode === 429) errorMsg = 'Rate limit excedido (429)'
       if (res.statusCode === 422) errorMsg = 'Parâmetros inválidos ou não encontrado (422)'
-      throw new BadRequestError(errorMsg)
+      if (res.statusCode === 404) errorMsg = 'Processo não encontrado no PJe (404)'
+      if (res.statusCode === 401 || res.statusCode === 403)
+        errorMsg = 'Erro de autenticação no PJe. Verifique a chave da API.'
+
+      try {
+        const logsCol = $app.findCollectionByNameOrId('system_logs')
+        const logRecord = new Record(logsCol)
+        logRecord.set('level', 'error')
+        logRecord.set('module', 'comunica_pje_sync')
+        logRecord.set('message', errorMsg)
+        logRecord.set('details', {
+          numero_processo: numeroProcesso,
+          case_id: record.id,
+          duration_ms: Date.now() - startTime,
+          status: 'Error',
+        })
+        const orgId = record.getString('organization')
+        if (orgId) logRecord.set('organization', orgId)
+        $app.saveNoValidate(logRecord)
+      } catch (_) {}
+
+      return e.badRequestError(errorMsg)
     }
 
     if (res.statusCode === 200 && res.json) {
@@ -55,16 +86,18 @@ routerAdd(
           ? res.json
           : []
       const resultsCol = $app.findCollectionByNameOrId('results')
-
       const searchesCol = $app.findCollectionByNameOrId('searches')
-      const searchRec = new Record(searchesCol)
+
+      let searchRec = new Record(searchesCol)
       searchRec.set('term', `numeroProcesso:${numeroProcesso}`)
       searchRec.set('search_type', 'comunica_pje_case')
       searchRec.set('status', 'success')
       searchRec.set('business_status', 'completed')
       searchRec.set('results_count', items.length)
       searchRec.set('message', 'Single case sync')
-      $app.save(searchRec)
+      try {
+        $app.saveNoValidate(searchRec)
+      } catch (_) {}
 
       for (const item of items) {
         const hash = item.hash || item.numeroComunicacao || item.id
@@ -89,7 +122,10 @@ routerAdd(
           r.set('hash_comunicacao', hash)
           r.set('status_comunicacao', item.status)
           r.set('raw_json', item)
-          $app.save(r)
+
+          try {
+            $app.saveNoValidate(r)
+          } catch (err) {}
           processNewCount++
 
           try {
@@ -103,8 +139,19 @@ routerAdd(
             m.set('description', item.tipoComunicacao || 'Comunicação PJe')
             m.set('source', 'PJe')
             m.set('details', item.texto)
-            m.set('external_id', hash)
-            $app.save(m)
+            m.set('external_id', 'pje_' + hash)
+            const orgId = record.getString('organization')
+            if (orgId) m.set('organization', orgId)
+
+            m.set('movement_details', {
+              texto: item.texto,
+              orgaoJulgador: item.nomeOrgao,
+              meio: item.meio,
+              tipoDocumento: item.tipoDocumento,
+              link: item.link,
+            })
+
+            $app.saveNoValidate(m)
           } catch (e) {}
         }
       }
@@ -112,9 +159,35 @@ routerAdd(
 
     record.set('pje_last_sync', new Date().toISOString())
     record.set('pje_sync_status', 'success')
-    $app.save(record)
+    try {
+      $app.saveNoValidate(record)
+    } catch (_) {}
 
-    return e.json(200, { message: 'Sync completed', newCount: processNewCount })
+    try {
+      const logsCol = $app.findCollectionByNameOrId('system_logs')
+      const logRecord = new Record(logsCol)
+      logRecord.set('level', 'info')
+      logRecord.set('module', 'comunica_pje_sync')
+      logRecord.set(
+        'message',
+        `Sincronização PJe concluída. ${processNewCount} novas comunicações.`,
+      )
+      logRecord.set('details', {
+        numero_processo: numeroProcesso,
+        case_id: record.id,
+        duration_ms: Date.now() - startTime,
+        status: 'Success',
+        added_movements: processNewCount,
+      })
+      const orgId = record.getString('organization')
+      if (orgId) logRecord.set('organization', orgId)
+      $app.saveNoValidate(logRecord)
+    } catch (_) {}
+
+    return e.json(200, {
+      message: `Sincronização concluída. ${processNewCount} novas comunicações.`,
+      newCount: processNewCount,
+    })
   },
   $apis.requireAuth(),
 )

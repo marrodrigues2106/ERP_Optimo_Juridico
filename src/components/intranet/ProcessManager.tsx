@@ -116,12 +116,16 @@ export default function ProcessManager() {
         try {
           await syncCasePje(id)
           setSyncStatus((prev) => ({ ...prev, [id]: 'success' }))
+          toast({
+            title: `Sincronização concluída`,
+            description: `Processo sincronizado com o PJe com sucesso.`,
+          })
         } catch (error: any) {
           console.error(`Failed to sync legal case with ID: ${id}`, error)
           setSyncStatus((prev) => ({ ...prev, [id]: 'error' }))
           hasError = true
           toast({
-            title: 'Erro na Sincronização',
+            title: 'Falha na sincronização',
             description: error.message || 'Ocorreu um erro ao sincronizar com o PJe.',
             variant: 'destructive',
           })
