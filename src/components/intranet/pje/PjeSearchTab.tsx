@@ -1,175 +1,148 @@
 import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { Search, Loader2, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Loader2, Search } from 'lucide-react'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 
 export function PjeSearchTab() {
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<any[]>([])
   const { toast } = useToast()
 
-  const ufs = [
-    'AC',
-    'AL',
-    'AP',
-    'AM',
-    'BA',
-    'CE',
-    'DF',
-    'ES',
-    'GO',
-    'MA',
-    'MT',
-    'MS',
-    'PA',
-    'PB',
-    'PR',
-    'PE',
-    'PI',
-    'RJ',
-    'RN',
-    'RS',
-    'RO',
-    'RR',
-    'SC',
-    'SP',
-    'SE',
-    'TO',
-  ]
+  const { register, handleSubmit } = useForm({
+    defaultValues: { numeroProcesso: '' },
+  })
 
-  const handleSearch = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setLoading(true)
-    const fd = new FormData(e.currentTarget)
-    const params = new URLSearchParams()
-    for (const [k, v] of fd.entries()) {
-      if (v) {
-        if (k === 'numeroProcesso') {
-          params.append(k, v.toString().replace(/\D/g, ''))
-        } else {
-          params.append(k, v.toString())
-        }
-      }
-    }
-
-    try {
-      const res = await fetch(
-        `https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params.toString()}`,
-      )
-      if (!res.ok) {
-        throw new Error('Network response was not ok')
-      }
-      const data = await res.json()
-      const items = data.items || data.data || (Array.isArray(data) ? data : [])
-      setResults(items)
-      if (items.length === 0) {
-        toast({ title: 'Nenhum resultado encontrado' })
-      }
-    } catch (err: any) {
+  const onSubmit = async (data: any) => {
+    if (!data.numeroProcesso) return
+    const num = data.numeroProcesso.replace(/\D/g, '')
+    if (num.length !== 20) {
       toast({
-        title: 'Erro na busca',
-        description: 'Serviço do PJe indisponível no momento',
+        title: 'Erro',
+        description: 'Número de processo inválido. O CNJ deve ter 20 dígitos.',
         variant: 'destructive',
       })
+      return
+    }
+
+    setLoading(true)
+    try {
+      const res = await fetch(
+        `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${num}`,
+      )
+      if (!res.ok) throw new Error('Serviço indisponível no momento.')
+      const json = await res.json()
+      const items = json.items || (Array.isArray(json) ? json : [])
+      setResults(items)
+      if (items.length === 0) {
+        toast({ title: 'Aviso', description: 'Nenhuma comunicação encontrada para este processo.' })
+      } else {
+        toast({ title: 'Sucesso', description: `${items.length} comunicações encontradas.` })
+      }
+    } catch (err: any) {
+      toast({ title: 'Erro na busca', description: err.message, variant: 'destructive' })
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      <form
-        onSubmit={handleSearch}
-        className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 bg-white p-6 rounded-xl border border-slate-200 shadow-sm"
-      >
-        <div className="space-y-2">
-          <Label>Nº OAB</Label>
-          <Input name="numeroOab" placeholder="Ex: 12345" />
-        </div>
-        <div className="space-y-2">
-          <Label>UF OAB</Label>
-          <Select name="ufOab">
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione..." />
-            </SelectTrigger>
-            <SelectContent>
-              {ufs.map((uf) => (
-                <SelectItem key={uf} value={uf}>
-                  {uf}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>Nome da Parte</Label>
-          <Input name="nomeParte" placeholder="Nome completo ou parcial..." />
-        </div>
-        <div className="space-y-2">
-          <Label>Número do Processo</Label>
-          <Input name="numeroProcesso" placeholder="0000000-00.0000..." />
-        </div>
-        <div className="space-y-2">
-          <Label>Data Início</Label>
-          <Input type="date" name="dataDisponibilizacaoInicio" />
-        </div>
-        <div className="space-y-2">
-          <Label>Data Fim</Label>
-          <Input type="date" name="dataDisponibilizacaoFim" />
-        </div>
-        <div className="space-y-2">
-          <Label>Sigla Tribunal</Label>
-          <Input name="siglaTribunal" placeholder="Ex: TRF1" />
-        </div>
-        <div className="space-y-2">
-          <Label>Nº Comunicação</Label>
-          <Input name="numeroComunicacao" placeholder="Ex: 1234567" />
-        </div>
-        <div className="space-y-2">
-          <Label>Nome do Advogado</Label>
-          <Input name="nomeAdvogado" placeholder="Nome completo" />
-        </div>
-        <div className="space-y-2">
-          <Label>Meio</Label>
-          <Input name="meio" placeholder="E (Eletrônico), D (Diário)..." maxLength={1} />
-        </div>
-        <div className="flex items-end lg:col-span-4">
-          <Button type="submit" className="w-full md:w-auto ml-auto" disabled={loading}>
-            {loading ? (
-              <Loader2 className="animate-spin w-4 h-4 mr-2" />
-            ) : (
-              <Search className="w-4 h-4 mr-2" />
-            )}{' '}
-            Buscar
-          </Button>
-        </div>
-      </form>
-
-      <div className="space-y-4">
-        {results.map((r, i) => (
-          <div
-            key={i}
-            className="p-5 border border-slate-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow"
-          >
-            <div className="flex justify-between items-start mb-3">
-              <h4 className="font-bold text-primary text-lg">{r.numeroProcesso}</h4>
-              <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-1 rounded font-bold uppercase tracking-wider">
-                {r.siglaTribunal}
-              </span>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Consulta de Comunicações PJe</CardTitle>
+          <CardDescription>
+            Consulte comunicações e intimações diretamente na base nacional do PJe
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 max-w-xl">
+            <div className="flex flex-col gap-2">
+              <Label>Número do Processo (CNJ)</Label>
+              <div className="flex gap-2">
+                <Input
+                  {...register('numeroProcesso')}
+                  placeholder="0000000-00.0000.0.00.0000"
+                  className="flex-1"
+                />
+                <Button type="submit" disabled={loading}>
+                  {loading ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Search className="w-4 h-4 mr-2" />
+                  )}
+                  Buscar
+                </Button>
+              </div>
             </div>
-            <p className="text-sm text-slate-700 leading-relaxed mb-4">{r.texto || r.conteudo}</p>
-            <div className="flex flex-wrap gap-2 text-xs font-medium text-slate-500">
-              <span className="bg-slate-100 px-2 py-1 rounded-md">
-                Data: {r.dataDisponibilizacao}
-              </span>
-              {r.meio && <span className="bg-slate-100 px-2 py-1 rounded-md">Meio: {r.meio}</span>}
-      
+          </form>
+        </CardContent>
+      </Card>
+
+      {results.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium">Resultados ({results.length})</h3>
+          <ScrollArea className="h-[600px] w-full rounded-md border p-4 bg-slate-50/50">
+            <div className="flex flex-col gap-4">
+              {results.map((r, i) => (
+                <Card key={i} className="overflow-hidden bg-white">
+                  <div className="border-b bg-slate-50 p-4 flex justify-between items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="bg-white">
+                        {r.siglaTribunal || 'Tribunal'}
+                      </Badge>
+                      <span className="text-sm font-medium text-slate-700">{r.numeroProcesso}</span>
+                    </div>
+                    <div className="text-sm text-slate-500 flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      {r.dataDisponibilizacao
+                        ? new Date(r.dataDisponibilizacao).toLocaleDateString('pt-BR')
+                        : 'Data indisponível'}
+                    </div>
+                  </div>
+                  <CardContent className="p-4 space-y-3">
+                    <div>
+                      <h4 className="font-semibold text-slate-900">
+                        {r.tipoComunicacao || 'Comunicação'}
+                      </h4>
+                      {r.nomeOrgao && <p className="text-sm text-slate-600">{r.nomeOrgao}</p>}
+                    </div>
+
+                    {r.texto && (
+                      <div className="text-sm text-slate-700 bg-slate-50 p-4 rounded-md border border-slate-100 whitespace-pre-wrap max-h-[300px] overflow-y-auto">
+                        {r.texto}
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {r.meio && (
+                        <Badge variant="secondary" className="text-xs font-normal">
+                          Meio: {r.meio}
+                        </Badge>
+                      )}
+                      {Array.isArray(r.destinatarios) &&
+                        r.destinatarios.map((d: any, idx: number) => (
+                          <Badge
+                            key={idx}
+                            variant="secondary"
+                            className="bg-blue-50 text-blue-700 text-xs font-normal hover:bg-blue-100"
+                          >
+                            Destinatário: {d.nome || 'Desconhecido'}
+                          </Badge>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
+    </div>
+  )
+}
