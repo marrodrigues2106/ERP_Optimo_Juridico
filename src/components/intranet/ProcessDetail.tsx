@@ -649,10 +649,11 @@ export default function ProcessDetail() {
       return toast({ title: 'Número do processo não informado', variant: 'destructive' })
 
     const digitsOnly = legalCase.case_number.replace(/\D/g, '')
-    if (digitsOnly.length < 10) {
+    if (digitsOnly.length !== 20) {
       return toast({
         title: 'Número inválido',
-        description: 'O número do processo deve conter pelo menos 10 dígitos numéricos.',
+        description:
+          'O número do processo deve conter exatamente 20 dígitos numéricos (Padrão CNJ).',
         variant: 'destructive',
       })
     }
@@ -669,7 +670,9 @@ export default function ProcessDetail() {
       loadData()
     } catch (err: any) {
       const description =
-        getErrorMessage(err) || 'Ocorreu um erro inesperado ao se comunicar com o tribunal.'
+        err?.response?.message ||
+        err?.message ||
+        'Ocorreu um erro inesperado ao se comunicar com o tribunal.'
 
       toast({
         title: 'Erro na Sincronização',

@@ -1,31 +1,57 @@
 routerAdd(
-  'GET',
+  'POST',
   '/backend/v1/sync/all',
   (e) => {
     const orgId =
       e.auth?.getString('active_organization') || e.auth?.getString('organizations') || ''
+
+    const body = e.requestInfo().body || {}
+    const caseIds = Array.isArray(body.caseIds) ? body.caseIds : []
 
     let filter = "lifecycle_status = 'Ativo' && case_number != ''"
     if (orgId) {
       filter += ` && organization = '${orgId}'`
     }
 
-    const cases = $app.findRecordsByFilter('legal_cases', filter, '-updated', 100, 0)
+    let cases = $app.findRecordsByFilter('legal_cases', filter, '-updated', 1000, 0)
+
+    if (caseIds.length > 0) {
+      cases = cases.filter((c) => caseIds.includes(c.id))
+    }
 
     let newCount = 0
+    let errors = []
 
     for (const c of cases) {
       let caseNumberStr = c.getString('case_number')
-      let caseNumber = caseNumberStr.replace(/\D/g, '')
-      if (caseNumber.length < 10) continue
+      let caseNumberDigits = caseNumberStr.replace(/\D/g, '')
+      if (caseNumberDigits.length !== 20) {
+        errors.push({
+          case: caseNumberStr,
+          error: 'Número de processo inválido (requer 20 dígitos).',
+        })
+        continue
+      }
+
+      const cnjMasked = caseNumberDigits.replace(
+        /^(\d{7})(\d{2})(\d{4})(\d{1})(\d{2})(\d{4})$/,
+        '$1-$2.$3.$4.$5.$6',
+      )
 
       try {
         const res = $http.send({
-          url: `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${caseNumber}`,
+          url: `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${cnjMasked}`,
           method: 'GET',
           headers: { Accept: 'application/json' },
           timeout: 15,
         })
+
+        if (res.statusCode !== 200) {
+          let apiMessage = 'Consulta rejeitada pelo PJe.'
+          if (res.json && res.json.message) apiMessage = res.json.message
+          errors.push({ case: caseNumberStr, error: apiMessage })
+          continue
+        }
 
         if (res.statusCode === 200 && res.json) {
           let items = []
@@ -148,11 +174,12 @@ routerAdd(
           }
         }
       } catch (err) {
-        $app.logger().error('Error syncing case', 'case', caseNumber, 'error', String(err))
+        $app.logger().error('Error syncing case', 'case', cnjMasked, 'error', String(err))
+        errors.push({ case: caseNumberStr, error: String(err) })
       }
     }
 
-    return e.json(200, { success: true, new_communications: newCount })
+    return e.json(200, { success: true, new_communications: newCount, errors })
   },
   $apis.requireAuth(),
 )

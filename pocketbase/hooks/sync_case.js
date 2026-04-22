@@ -12,18 +12,23 @@ routerAdd(
     }
 
     let caseNumberStr = c.getString('case_number') || ''
-    let caseNumber = caseNumberStr.replace(/\D/g, '')
-    if (caseNumber.length < 10) {
+    let caseNumberDigits = caseNumberStr.replace(/\D/g, '')
+    if (caseNumberDigits.length !== 20) {
       return e.badRequestError(
-        'Número de processo inválido. Verifique o número informado no cadastro.',
+        'Número de processo inválido. O número deve conter exatamente 20 dígitos (Padrão CNJ).',
       )
     }
+
+    const cnjMasked = caseNumberDigits.replace(
+      /^(\d{7})(\d{2})(\d{4})(\d{1})(\d{2})(\d{4})$/,
+      '$1-$2.$3.$4.$5.$6',
+    )
 
     let newCount = 0
 
     try {
       const res = $http.send({
-        url: `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${caseNumber}`,
+        url: `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${cnjMasked}`,
         method: 'GET',
         headers: { Accept: 'application/json' },
         timeout: 15,
@@ -31,11 +36,15 @@ routerAdd(
 
       if (res.statusCode !== 200) {
         let responseBody = ''
+        let apiMessage = ''
         try {
           if (res.json) {
             responseBody = JSON.stringify(res.json)
+            if (res.json.message) apiMessage = res.json.message
           } else if (res.body) {
             responseBody = new TextDecoder().decode(res.body)
+            const parsed = JSON.parse(responseBody)
+            if (parsed.message) apiMessage = parsed.message
           }
         } catch (decErr) {}
 
@@ -44,7 +53,7 @@ routerAdd(
           const logRec = new Record(logCol)
           logRec.set('level', 'error')
           logRec.set('module', 'pje_sync')
-          logRec.set('message', `Falha ao consultar API PJe para o processo ${caseNumber}`)
+          logRec.set('message', `Falha ao consultar API PJe para o processo ${cnjMasked}`)
           logRec.set('details', {
             statusCode: res.statusCode,
             body: responseBody,
@@ -62,7 +71,8 @@ routerAdd(
           )
         }
         return e.badRequestError(
-          'A consulta foi rejeitada pelo PJe. Verifique se o número do processo é válido e tente novamente.',
+          apiMessage ||
+            'A consulta foi rejeitada pelo PJe. Verifique se o número do processo é válido e tente novamente.',
         )
       }
 
@@ -187,14 +197,14 @@ routerAdd(
         const logRec = new Record(logCol)
         logRec.set('level', 'error')
         logRec.set('module', 'pje_sync')
-        logRec.set('message', `Exceção ao sincronizar processo ${caseNumber}`)
+        logRec.set('message', `Exceção ao sincronizar processo ${cnjMasked}`)
         logRec.set('details', { error: String(err) })
         logRec.set('organization', c.getString('organization'))
         if (e.auth) logRec.set('user', e.auth.id)
         $app.save(logRec)
       } catch (logErr) {}
 
-      $app.logger().error('Error syncing case', 'case', caseNumber, 'error', String(err))
+      $app.logger().error('Error syncing case', 'case', cnjMasked, 'error', String(err))
       return e.internalServerError(
         'Ocorreu um erro interno de rede ao sincronizar o processo. Tente novamente mais tarde.',
       )

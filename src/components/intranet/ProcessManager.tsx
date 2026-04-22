@@ -129,17 +129,27 @@ export default function ProcessManager() {
       setSyncingIds((prev) => new Set(prev).add(c.id))
 
       try {
-        await pb.send(`/backend/v1/sync/case/${c.id}`, { method: 'POST' })
-        successCount++
-      } catch (err: any) {
-        if (err?.status === 400) {
+        const res = await pb.send(`/backend/v1/sync/all`, {
+          method: 'POST',
+          body: JSON.stringify({ caseIds: [c.id] }),
+        })
+        if (res.errors && res.errors.length > 0) {
           toast({
             title: `Erro no processo ${c.case_number}`,
-            description:
-              'A consulta foi rejeitada pelo PJe. Verifique se o número do processo é válido e tente novamente.',
+            description: res.errors[0].error,
             variant: 'destructive',
           })
+        } else {
+          successCount++
         }
+      } catch (err: any) {
+        const description =
+          err?.response?.message || err?.message || 'Erro inesperado na sincronização.'
+        toast({
+          title: `Erro no processo ${c.case_number}`,
+          description,
+          variant: 'destructive',
+        })
         console.error(`Error syncing case ${c.case_number}`, err)
       } finally {
         setSyncingIds((prev) => {
@@ -281,7 +291,7 @@ export default function ProcessManager() {
                   ) : (
                     <RefreshCw className="w-4 h-4 mr-2" />
                   )}
-                  Sincronizar PJe Lote
+                  Sincronizar Selecionados
                 </Button>
               </div>
             )}
