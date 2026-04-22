@@ -1,5 +1,6 @@
 import { format } from 'date-fns'
 import { useNavigate } from 'react-router-dom'
+import { FollowButton } from '@/components/intranet/FollowButton'
 
 export default function ConsultaTable({
   data,
@@ -39,7 +40,13 @@ export default function ConsultaTable({
                     : '-'}
                 </td>
                 <td className="px-6 py-5 font-mono text-primary font-bold align-top break-words">
-                  {item.numeroProcesso || item.numero_processo}
+                  <div className="flex items-center gap-2">
+                    {item.numeroProcesso || item.numero_processo}
+                    <FollowButton
+                      numeroProcesso={item.numeroProcesso || item.numero_processo}
+                      siglaTribunal={item.siglaTribunal || item.sigla_tribunal}
+                    />
+                  </div>
                 </td>
                 <td className="px-6 py-5 align-top">
                   <div className="flex flex-col gap-3">

@@ -59,6 +59,8 @@ import pb from '@/lib/pocketbase/client'
 import { Badge } from '@/components/ui/badge'
 import { useRealtime } from '@/hooks/use-realtime'
 import { cn } from '@/lib/utils'
+import { FollowButton } from '@/components/intranet/FollowButton'
+import { SyncFollowedButton } from '@/components/intranet/SyncFollowedButton'
 
 const MovementItem = ({
   mov,
@@ -684,7 +686,12 @@ export default function ProcessDetail() {
     try {
       setLegalCase((prev: any) => ({ ...prev, datajud_sync_status: 'Syncing' }))
 
-      const res = await pb.send(`/backend/v1/datajud/sync/${id}`, {
+      const isCnjFormat = /^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/.test(
+        legalCase?.case_number || '',
+      )
+      const endpoint = isCnjFormat ? `/backend/v1/pje/sync/${id}` : `/backend/v1/datajud/sync/${id}`
+
+      const res = await pb.send(endpoint, {
         method: 'POST',
       })
 
@@ -811,12 +818,17 @@ export default function ProcessDetail() {
                     </h1>
                   </div>
                   <div className="flex items-center gap-3 mt-2 flex-wrap">
-                    <Badge
-                      variant="secondary"
-                      className="bg-slate-100 text-slate-600 hover:bg-slate-200 text-sm font-medium py-1 px-3"
-                    >
-                      {legalCase.case_number || 'Sem número'}
-                    </Badge>
+                    <div className="flex items-center gap-1">
+                      <Badge
+                        variant="secondary"
+                        className="bg-slate-100 text-slate-600 hover:bg-slate-200 text-sm font-medium py-1 px-3"
+                      >
+                        {legalCase.case_number || 'Sem número'}
+                      </Badge>
+                      {legalCase.case_number && (
+                        <FollowButton numeroProcesso={legalCase.case_number} />
+                      )}
+                    </div>
                     <Badge variant="outline" className="text-slate-500">
                       {legalCase.court || 'Tribunal não informado'}
                     </Badge>
@@ -838,6 +850,7 @@ export default function ProcessDetail() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                <SyncFollowedButton />
                 <Badge className="bg-slate-600 hover:bg-slate-700 text-white font-medium uppercase px-3 py-1">
                   {legalCase.lifecycle_status || 'ATIVO'}
                 </Badge>
@@ -882,7 +895,11 @@ export default function ProcessDetail() {
                         ? 'Na Fila...'
                         : legalCase?.datajud_sync_status === 'Success'
                           ? 'Sincronizado'
-                          : 'Sincronizar DataJud'}
+                          : /^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/.test(
+                                legalCase?.case_number || '',
+                              )
+                            ? 'Sincronizar PJe'
+                            : 'Sincronizar DataJud'}
                   </Button>
                   {(legalCase?.datajud_sync_status === 'Syncing' ||
                     legalCase?.datajud_sync_status === 'Pending') && (
