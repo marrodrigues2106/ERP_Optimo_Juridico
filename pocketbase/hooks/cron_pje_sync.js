@@ -13,12 +13,20 @@ cronAdd('pje_sync', '0 * * * *', () => {
       const numeroProcesso = numeroProcessoRaw.replace(/\D/g, '')
       if (!numeroProcesso || numeroProcesso.length < 10) continue
 
-      const res = $http.send({
-        url: `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${numeroProcessoRaw}`,
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-        timeout: 10,
-      })
+      let res
+      try {
+        res = $http.send({
+          url: `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${numeroProcesso}`,
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          timeout: 15,
+        })
+      } catch (err) {
+        $app
+          .logger()
+          .error('Network error calling PJe API', 'case', numeroProcesso, 'error', String(err))
+        continue
+      }
 
       if (res.statusCode !== 200 || !res.json) continue
 

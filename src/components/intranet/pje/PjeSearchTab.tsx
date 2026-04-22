@@ -117,8 +117,20 @@ export function PjeSearchTab() {
           <Label>Sigla Tribunal</Label>
           <Input name="siglaTribunal" placeholder="Ex: TRF1" />
         </div>
-        <div className="flex items-end">
-          <Button type="submit" className="w-full" disabled={loading}>
+        <div className="space-y-2">
+          <Label>Nº Comunicação</Label>
+          <Input name="numeroComunicacao" placeholder="Ex: 1234567" />
+        </div>
+        <div className="space-y-2">
+          <Label>Nome do Advogado</Label>
+          <Input name="nomeAdvogado" placeholder="Nome completo" />
+        </div>
+        <div className="space-y-2">
+          <Label>Meio</Label>
+          <Input name="meio" placeholder="E (Eletrônico), D (Diário)..." maxLength={1} />
+        </div>
+        <div className="flex items-end lg:col-span-4">
+          <Button type="submit" className="w-full md:w-auto ml-auto" disabled={loading}>
             {loading ? (
               <Loader2 className="animate-spin w-4 h-4 mr-2" />
             ) : (

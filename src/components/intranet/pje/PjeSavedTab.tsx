@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import pb from '@/lib/pocketbase/client'
+import { useRealtime } from '@/hooks/use-realtime'
 import { Button } from '@/components/ui/button'
 import { Check, ExternalLink, RefreshCw } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -25,6 +26,10 @@ export function PjeSavedTab() {
   useEffect(() => {
     loadItems()
   }, [])
+
+  useRealtime('pje_communications', () => {
+    loadItems()
+  })
 
   const toggleRead = async (id: string, current: boolean) => {
     await pb.collection('pje_communications').update(id, { is_read: !current })

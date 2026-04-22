@@ -20,8 +20,11 @@ routerAdd(
     ]
 
     keys.forEach((k) => {
-      const val = q.get(k)
+      let val = q.get(k)
       if (val) {
+        if (k === 'numeroProcesso') {
+          val = val.replace(/\D/g, '')
+        }
         queryString += `${encodeURIComponent(k)}=${encodeURIComponent(val)}&`
       }
     })

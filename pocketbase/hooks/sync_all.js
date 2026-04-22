@@ -24,14 +24,23 @@ routerAdd(
           url: `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${caseNumber}`,
           method: 'GET',
           headers: { Accept: 'application/json' },
-          timeout: 10,
+          timeout: 15,
         })
 
-        if (res.statusCode === 200 && res.json && res.json.items) {
-          const items = res.json.items
+        if (res.statusCode === 200 && res.json) {
+          let items = []
+          if (Array.isArray(res.json)) items = res.json
+          else if (res.json.items && Array.isArray(res.json.items)) items = res.json.items
+          else if (res.json.data && Array.isArray(res.json.data)) items = res.json.data
+
           for (const item of items) {
-            const numeroCom = String(item.id || item.numeroComunicacao || '')
-            if (!numeroCom) continue
+            const numeroCom = String(
+              item.id ||
+                item.numeroComunicacao ||
+                item.hash ||
+                `${caseNumber}-${item.dataDisponibilizacao}`,
+            )
+            if (!numeroCom || numeroCom === 'undefined') continue
 
             try {
               $app.findFirstRecordByData('pje_communications', 'numeroComunicacao', numeroCom)
