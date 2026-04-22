@@ -133,12 +133,6 @@ export default function Layout() {
         items: [
           { title: 'Central de Atualizações', url: '/intranet/atualizacoes', icon: Activity },
           { title: 'Busca DOU', url: '/intranet/busca-dou', icon: BookOpen },
-          {
-            title: 'Comunica PJe',
-            url: '/intranet/comunicacoes',
-            exact: true,
-            icon: MessageSquare,
-          },
         ],
       },
       {

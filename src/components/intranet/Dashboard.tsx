@@ -40,7 +40,7 @@ import { AgendaWidget } from './dashboard/AgendaWidget'
 
 type FeedItem = {
   id: string
-  source: 'gazette' | 'dou' | 'movement' | 'comunica'
+  source: 'gazette' | 'dou' | 'movement'
   title: string
   description: string
   date: string
@@ -107,7 +107,7 @@ export default function Dashboard() {
 
   const loadFeed = async () => {
     const orgId = pb.authStore.record?.active_organization
-    const [gUnread, gRead, dUnread, dRead, mUnread, mRead, cUnread, cRead] = await Promise.all([
+    const [gUnread, gRead, dUnread, dRead, mUnread, mRead] = await Promise.all([
       pb
         .collection('gazette_publications')
         .getFullList({ filter: 'is_read = false', sort: '-created' }),
@@ -130,8 +130,6 @@ export default function Dashboard() {
         sort: '-event_date',
         expand: 'case',
       }),
-      pb.collection('results').getFullList({ filter: 'is_read = false', sort: '-created' }),
-      pb.collection('results').getList(1, 20, { filter: 'is_read = true', sort: '-updated' }),
     ])
 
     const mapItems = (items: any[], source: any, isRead: boolean): FeedItem[] =>
@@ -141,8 +139,6 @@ export default function Dashboard() {
           if (i.movement_details?.avisosPendentes) tags.push('Aviso Pendente')
           if (i.movement_details?.teorComunicacao || i.movement_details?.ciencia)
             tags.push('Comunicação')
-        } else if (source === 'comunica') {
-          tags.push('Nova Comunicação')
         }
 
         return {
@@ -153,19 +149,9 @@ export default function Dashboard() {
               ? 'Diário Oficial'
               : source === 'dou'
                 ? 'Ocorrência DOU'
-                : source === 'comunica'
-                  ? `Comunicação PJe: ${i.numero_processo || 'Processo'}`
-                  : `Movimentação: ${i.expand?.case?.case_number || 'Processo'}`,
-          description:
-            source === 'comunica'
-              ? i.texto
-              : i.texto_normalizado || i.trecho_encontrado || i.description || '',
-          date:
-            i.data_publicacao ||
-            i.data_deteccao ||
-            i.event_date ||
-            i.data_disponibilizacao ||
-            i.created,
+                : `Movimentação: ${i.expand?.case?.case_number || 'Processo'}`,
+          description: i.texto_normalizado || i.trecho_encontrado || i.description || '',
+          date: i.data_publicacao || i.data_deteccao || i.event_date || i.created,
           isRead,
           tags,
           raw: i,
@@ -180,8 +166,6 @@ export default function Dashboard() {
       ...mapItems(dRead.items, 'dou', true),
       ...mapItems(mUnread, 'movement', false),
       ...mapItems(mRead.items, 'movement', true),
-      ...mapItems(cUnread, 'comunica', false),
-      ...mapItems(cRead.items, 'comunica', true),
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
     setFeedItems(all)
@@ -248,7 +232,6 @@ export default function Dashboard() {
   useRealtime('gazette_publications', debouncedLoadFeed, !isProcessingBatch)
   useRealtime('ocorrencias_dou', debouncedLoadFeed, !isProcessingBatch)
   useRealtime('case_movements', debouncedLoadFeed, !isProcessingBatch)
-  useRealtime('results', debouncedLoadFeed, !isProcessingBatch)
 
   const toggleTask = async (id: string, currentStatus: string) => {
     try {
@@ -307,8 +290,6 @@ export default function Dashboard() {
           .update(item.id, { status_alerta: item.isRead ? 'pendente' : 'visualizado' })
       else if (item.source === 'movement')
         await pb.collection('case_movements').update(item.id, { notified_client: !item.isRead })
-      else if (item.source === 'comunica')
-        await pb.collection('results').update(item.id, { is_read: !item.isRead })
       toast({ title: item.isRead ? 'Marcado como não lido' : 'Marcado como lido' })
       debouncedLoadFeed()
     } catch (e) {
@@ -379,8 +360,6 @@ export default function Dashboard() {
                 await pb
                   .collection('case_movements')
                   .update(item.id, { notified_client: markAsRead })
-              else if (item.source === 'comunica')
-                await pb.collection('results').update(item.id, { is_read: markAsRead })
               success = true
             } catch (err) {
               lastError = err
@@ -637,13 +616,6 @@ export default function Dashboard() {
                             item.isRead ? 'text-slate-400' : 'text-emerald-500',
                           )}
                         />
-                      ) : item.source === 'comunica' ? (
-                        <Bell
-                          className={cn(
-                            'w-5 h-5',
-                            item.isRead ? 'text-slate-400' : 'text-purple-500',
-                          )}
-                        />
                       ) : (
                         <Activity
                           className={cn(
@@ -668,16 +640,9 @@ export default function Dashboard() {
                             >
                               {item.title}
                             </Link>
-                          ) : item.source === 'comunica' ? (
-                            <Link
-                              to={`/intranet/comunicacoes/${item.id}`}
-                              className="text-primary hover:underline"
-                            >
-                              {item.title}
-                            </Link>
                           ) : (
                             item.title
-                          )}
+                          )}{' '}
                         </h4>
                         <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
                           {new Date(item.date).toLocaleDateString('pt-BR')}

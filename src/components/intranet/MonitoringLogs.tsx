@@ -35,48 +35,21 @@ export function MonitoringLogs() {
       pjeFilters.push(`(organization = "${user.active_organization}" || organization = "")`)
     }
 
-    if (filterModule !== 'all' && filterModule !== 'PJe Sync') {
+    if (filterModule !== 'all') {
       sysFilters.push(`module = "${filterModule}"`)
-      pjeFilters.push(`id = "none"`)
-    } else if (filterModule === 'PJe Sync') {
-      sysFilters.push(`module = "PJe Sync"`)
     }
 
     if (filterLevel !== 'all') {
       sysFilters.push(`level = "${filterLevel}"`)
-      if (filterLevel === 'error') pjeFilters.push(`status = "failed"`)
-      else if (filterLevel === 'info') pjeFilters.push(`status = "success"`)
-      else pjeFilters.push(`id = "none"`)
     }
 
     try {
-      const [sysRes, pjeRes] = await Promise.all([
-        pb
-          .collection('system_logs')
-          .getList(1, 100, { sort: '-created', filter: sysFilters.join(' && '), expand: 'user' }),
-        pb
-          .collection('pje_sync_logs')
-          .getList(1, 100, { sort: '-created', filter: pjeFilters.join(' && '), expand: 'case' }),
-      ])
+      const sysRes = await pb
+        .collection('system_logs')
+        .getList(1, 100, { sort: '-created', filter: sysFilters.join(' && '), expand: 'user' })
 
-      const combined = [
-        ...sysRes.items.map((i) => ({ ...i, _type: 'system_log' })),
-        ...pjeRes.items.map((i) => ({
-          ...i,
-          _type: 'pje_sync_log',
-          module: 'PJe Sync',
-          level: i.status === 'failed' ? 'error' : 'info',
-          message: `Sincronização PJe: ${i.status === 'failed' ? 'Falha' : 'Sucesso'} ${i.message ? `- ${i.message}` : ''}`,
-          details: {
-            duration_ms: i.duration,
-            case_id: i.case,
-            case_number: i.expand?.case?.case_number,
-            message: i.message,
-            status: i.status,
-            raw_record: i,
-          },
-        })),
-      ]
+      const combined = sysRes.items
+        .map((i) => ({ ...i, _type: 'system_log' }))
         .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime())
         .slice(0, 100)
 
@@ -91,9 +64,6 @@ export function MonitoringLogs() {
   }, [user?.active_organization, filterModule, filterLevel])
 
   useRealtime('system_logs', () => {
-    loadData()
-  })
-  useRealtime('pje_sync_logs', () => {
     loadData()
   })
 
@@ -115,7 +85,6 @@ export function MonitoringLogs() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os Módulos</SelectItem>
-                  <SelectItem value="PJe Sync">PJe Sync</SelectItem>
                   <SelectItem value="DOU Ingestion">DOU Ingestion</SelectItem>
                   <SelectItem value="Audit">Auditoria</SelectItem>
                 </SelectContent>

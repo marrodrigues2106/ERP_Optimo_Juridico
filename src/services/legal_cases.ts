@@ -61,10 +61,3 @@ export const toggleFavoriteLegalCase = async (id: string, is_favorite: boolean) 
   await logAudit('legal_cases', record.id, 'update', { is_favorite })
   return record
 }
-
-export const syncCasePje = async (caseId: string) => {
-  return pb.send(`/backend/v1/pje/sync/${caseId}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-  })
-}

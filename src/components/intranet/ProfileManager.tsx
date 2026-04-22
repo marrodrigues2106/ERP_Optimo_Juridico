@@ -9,7 +9,6 @@ import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { Camera, Save, Loader2, Building2 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import MonitoringManager from './MonitoringManager'
 
 export default function ProfileManager() {
   const { user } = useAuth()
@@ -86,9 +85,6 @@ export default function ProfileManager() {
               Organização
             </TabsTrigger>
           )}
-          <TabsTrigger value="monitoramento" className="text-base px-4 py-2 font-medium">
-            Monitoramento
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="perfil">
@@ -218,10 +214,6 @@ export default function ProfileManager() {
             </Card>
           </TabsContent>
         )}
-
-        <TabsContent value="monitoramento" className="space-y-8 animate-fade-in">
-          <MonitoringManager />
-        </TabsContent>
       </Tabs>
     </div>
   )

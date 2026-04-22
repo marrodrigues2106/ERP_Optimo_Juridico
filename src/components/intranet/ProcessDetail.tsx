@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { getLegalCase } from '@/services/legal_cases'
 import { getPaginatedCaseMovements } from '@/services/case_movements'
-import { fetchDocumentContent } from '@/services/datajud'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -59,8 +58,6 @@ import pb from '@/lib/pocketbase/client'
 import { Badge } from '@/components/ui/badge'
 import { useRealtime } from '@/hooks/use-realtime'
 import { cn } from '@/lib/utils'
-import { FollowButton } from '@/components/intranet/FollowButton'
-import { UnifiedSyncButton } from '@/components/intranet/UnifiedSyncButton'
 
 const MovementItem = ({
   mov,
@@ -198,34 +195,6 @@ const MovementItem = ({
         ))}
       </ul>
     )
-  }
-
-  const handleViewDoc = async (doc: any) => {
-    setViewingDoc(doc)
-    setLoadingDoc(true)
-    setDocError('')
-    setDocContent(null)
-
-    const docId = doc.idDocumento || doc.id || doc.hash
-    if (!docId) {
-      setDocError('ID do documento não encontrado.')
-      setLoadingDoc(false)
-      return
-    }
-
-    try {
-      const tribunal = mov.movement_details?.orgaoJulgador || ''
-      const res = await fetchDocumentContent(docId, tribunal)
-      if (res && res.success && res.data) {
-        setDocContent(res.data)
-      } else {
-        setDocError('Formato de resposta inválido ou documento não disponível no momento.')
-      }
-    } catch (err: any) {
-      setDocError('Documento não disponível no tribunal ou erro na busca.')
-    } finally {
-      setLoadingDoc(false)
-    }
   }
 
   return (
@@ -486,16 +455,6 @@ const MovementItem = ({
                           </p>
                         )}
                     </div>
-                    {(doc.idDocumento || doc.id || doc.hash) && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="shrink-0 text-xs shadow-sm bg-white"
-                        onClick={() => handleViewDoc(doc)}
-                      >
-                        Visualizar
-                      </Button>
-                    )}
                   </div>
                 ))}
               </div>
@@ -542,63 +501,6 @@ const MovementItem = ({
           )}
         </div>
       </Card>
-
-      <Sheet open={!!viewingDoc} onOpenChange={(open) => !open && setViewingDoc(null)}>
-        <SheetContent className="sm:max-w-xl md:max-w-2xl lg:max-w-4xl w-full h-full flex flex-col gap-0 p-0">
-          <SheetHeader className="p-6 border-b border-slate-100 shrink-0">
-            <SheetTitle className="flex items-center gap-2 text-slate-800">
-              <FileText className="w-5 h-5 text-primary" />
-              {viewingDoc?.nome || viewingDoc?.tipoDocumento || 'Visualizador de Documento'}
-            </SheetTitle>
-            <SheetDescription className="flex items-center gap-4 mt-1 font-mono text-xs">
-              <span>
-                ID: {viewingDoc?.idDocumento || viewingDoc?.id || viewingDoc?.hash || 'N/A'}
-              </span>
-              {caseNumber && <span>Processo: {caseNumber}</span>}
-              <span className="hidden sm:inline-block text-slate-400">Processo ID: {recordId}</span>
-            </SheetDescription>
-          </SheetHeader>
-
-          <div className="flex-1 overflow-hidden relative bg-slate-50 p-6">
-            {loadingDoc && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-10 backdrop-blur-sm">
-                <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
-                <p className="text-sm text-slate-500 font-medium">
-                  Buscando documento no tribunal...
-                </p>
-              </div>
-            )}
-
-            {docError && !loadingDoc && (
-              <div className="h-full flex flex-col items-center justify-center text-slate-500 bg-white border border-slate-200 rounded-lg shadow-sm">
-                <AlertTriangle className="w-10 h-10 text-red-400 mb-4" />
-                <p className="text-center max-w-md">{docError}</p>
-              </div>
-            )}
-
-            {docContent && !loadingDoc && (
-              <div className="h-full w-full rounded-lg overflow-hidden border border-slate-200 shadow-sm bg-white">
-                {docContent.tipo === 'pdf' || docContent.tipo === 'binary' ? (
-                  <iframe
-                    src={
-                      docContent.conteudo.startsWith('data:')
-                        ? docContent.conteudo
-                        : `data:application/pdf;base64,${docContent.conteudo}`
-                    }
-                    className="w-full h-full border-0"
-                    title="Documento PDF"
-                  />
-                ) : (
-                  <div
-                    className="w-full h-full overflow-auto prose prose-sm max-w-none text-slate-800 p-6 custom-scrollbar"
-                    dangerouslySetInnerHTML={{ __html: docContent.conteudo }}
-                  />
-                )}
-              </div>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
     </div>
   )
 }
@@ -630,13 +532,6 @@ export default function ProcessDetail() {
     if (e.record.id === id) {
       setLegalCase((prev: any) => {
         if (!prev) return prev
-        const wasSyncing = prev.pje_sync_status === 'syncing' || prev.pje_sync_status === 'pending'
-        const isFinished =
-          e.record.pje_sync_status === 'success' || e.record.pje_sync_status === 'error'
-        if (wasSyncing && isFinished) {
-          loadMovements(1)
-          loadData()
-        }
         return { ...prev, ...e.record }
       })
     }
@@ -775,12 +670,6 @@ export default function ProcessDetail() {
                       >
                         {legalCase.case_number || 'Sem número'}
                       </Badge>
-                      {legalCase.case_number && (
-                        <FollowButton
-                          numeroProcesso={legalCase.case_number}
-                          status={legalCase.lifecycle_status}
-                        />
-                      )}
                     </div>
                     <Badge variant="outline" className="text-slate-500">
                       {legalCase.court || 'Tribunal não informado'}
@@ -794,23 +683,10 @@ export default function ProcessDetail() {
                         {legalCase.court_organ}
                       </Badge>
                     )}
-                    {legalCase.pje_last_sync && (
-                      <Badge variant="outline" className="text-slate-500 font-normal">
-                        Última sync PJe: {new Date(legalCase.pje_last_sync).toLocaleString('pt-BR')}
-                      </Badge>
-                    )}
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <UnifiedSyncButton
-                  caseId={id}
-                  label="Sincronizar PJe"
-                  onComplete={() => {
-                    loadData()
-                    loadMovements(1)
-                  }}
-                />
                 <Badge className="bg-slate-600 hover:bg-slate-700 text-white font-medium uppercase px-3 py-1">
                   {legalCase.lifecycle_status || 'ATIVO'}
                 </Badge>
