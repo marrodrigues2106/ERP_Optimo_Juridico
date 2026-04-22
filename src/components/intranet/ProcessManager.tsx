@@ -12,7 +12,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Search, Plus, RefreshCw, ChevronRight, Loader2, Edit, Trash2 } from 'lucide-react'
+import {
+  Search,
+  Plus,
+  RefreshCw,
+  ChevronRight,
+  Loader2,
+  Edit,
+  Trash2,
+  AlertTriangle,
+} from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -43,6 +52,7 @@ export default function ProcessManager() {
   const [isBatchSyncing, setIsBatchSyncing] = useState(false)
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, currentCase: '' })
   const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set())
+  const [syncErrors, setSyncErrors] = useState<Record<string, string>>({})
 
   const [editingMetadataCase, setEditingMetadataCase] = useState<any>(null)
 
@@ -129,27 +139,23 @@ export default function ProcessManager() {
       setSyncingIds((prev) => new Set(prev).add(c.id))
 
       try {
-        const res = await pb.send(`/backend/v1/sync/all`, {
-          method: 'POST',
-          body: JSON.stringify({ caseIds: [c.id] }),
+        const res = await pb.send(`/backend/v1/sync/all?caseIds=${c.id}`, {
+          method: 'GET',
         })
         if (res.errors && res.errors.length > 0) {
-          toast({
-            title: `Erro no processo ${c.case_number}`,
-            description: res.errors[0].error,
-            variant: 'destructive',
-          })
+          setSyncErrors((prev) => ({ ...prev, [c.id]: res.errors[0].error }))
         } else {
+          setSyncErrors((prev) => {
+            const next = { ...prev }
+            delete next[c.id]
+            return next
+          })
           successCount++
         }
       } catch (err: any) {
         const description =
           err?.response?.message || err?.message || 'Erro inesperado na sincronização.'
-        toast({
-          title: `Erro no processo ${c.case_number}`,
-          description,
-          variant: 'destructive',
-        })
+        setSyncErrors((prev) => ({ ...prev, [c.id]: description }))
         console.error(`Error syncing case ${c.case_number}`, err)
       } finally {
         setSyncingIds((prev) => {
@@ -346,7 +352,7 @@ export default function ProcessManager() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <Link
                               to={`/intranet/processos/${c.id}`}
                               className="font-bold text-primary hover:underline"
@@ -364,6 +370,16 @@ export default function ProcessManager() {
                             {syncingIds.has(c.id) && (
                               <Badge className="bg-indigo-100 text-indigo-800 border-none text-[10px] px-2 flex items-center gap-1">
                                 <Loader2 className="w-3 h-3 animate-spin" /> Sincronizando...
+                              </Badge>
+                            )}
+                            {syncErrors[c.id] && (
+                              <Badge
+                                className="bg-red-100 text-red-800 border-none text-[10px] px-2 py-0.5 flex items-center gap-1"
+                                title={syncErrors[c.id]}
+                              >
+                                <AlertTriangle className="w-3 h-3" /> Erro:{' '}
+                                {syncErrors[c.id].substring(0, 30)}
+                                {syncErrors[c.id].length > 30 ? '...' : ''}
                               </Badge>
                             )}
                           </div>

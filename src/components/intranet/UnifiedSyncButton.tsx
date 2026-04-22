@@ -19,9 +19,9 @@ export function UnifiedSyncButton({ className, caseId }: UnifiedSyncButtonProps)
     setIsSyncing(true)
     try {
       if (caseId) {
-        await pb.send(`/backend/v1/sync/case/${caseId}`, { method: 'POST' })
+        await pb.send(`/backend/v1/sync/case/${caseId}`, { method: 'GET' })
       } else {
-        await pb.send('/backend/v1/sync/all', { method: 'POST' })
+        await pb.send('/backend/v1/sync/all', { method: 'GET' })
       }
       toast({ title: 'Sincronização concluída com sucesso.' })
     } catch (error) {

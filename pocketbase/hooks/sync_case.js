@@ -19,16 +19,11 @@ routerAdd(
       )
     }
 
-    const cnjMasked = caseNumberDigits.replace(
-      /^(\d{7})(\d{2})(\d{4})(\d{1})(\d{2})(\d{4})$/,
-      '$1-$2.$3.$4.$5.$6',
-    )
-
     let newCount = 0
 
     try {
       const res = $http.send({
-        url: `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${cnjMasked}`,
+        url: `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${caseNumberDigits}`,
         method: 'GET',
         headers: { Accept: 'application/json' },
         timeout: 15,
@@ -53,7 +48,7 @@ routerAdd(
           const logRec = new Record(logCol)
           logRec.set('level', 'error')
           logRec.set('module', 'pje_sync')
-          logRec.set('message', `Falha ao consultar API PJe para o processo ${cnjMasked}`)
+          logRec.set('message', `Falha ao consultar API PJe para o processo ${caseNumberDigits}`)
           logRec.set('details', {
             statusCode: res.statusCode,
             body: responseBody,
@@ -121,7 +116,7 @@ routerAdd(
           item.id ||
             item.numeroComunicacao ||
             item.hash ||
-            `${caseNumber}-${item.dataDisponibilizacao}`,
+            `${caseNumberStr}-${item.dataDisponibilizacao}`,
         )
         if (!numeroCom || numeroCom === 'undefined') continue
 
@@ -197,14 +192,14 @@ routerAdd(
         const logRec = new Record(logCol)
         logRec.set('level', 'error')
         logRec.set('module', 'pje_sync')
-        logRec.set('message', `Exceção ao sincronizar processo ${cnjMasked}`)
+        logRec.set('message', `Exceção ao sincronizar processo ${caseNumberDigits}`)
         logRec.set('details', { error: String(err) })
         logRec.set('organization', c.getString('organization'))
         if (e.auth) logRec.set('user', e.auth.id)
         $app.save(logRec)
       } catch (logErr) {}
 
-      $app.logger().error('Error syncing case', 'case', cnjMasked, 'error', String(err))
+      $app.logger().error('Error syncing case', 'case', caseNumberDigits, 'error', String(err))
       return e.internalServerError(
         'Ocorreu um erro interno de rede ao sincronizar o processo. Tente novamente mais tarde.',
       )

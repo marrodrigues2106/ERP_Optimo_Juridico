@@ -1,12 +1,12 @@
 routerAdd(
-  'POST',
+  'GET',
   '/backend/v1/sync/all',
   (e) => {
     const orgId =
       e.auth?.getString('active_organization') || e.auth?.getString('organizations') || ''
 
-    const body = e.requestInfo().body || {}
-    const caseIds = Array.isArray(body.caseIds) ? body.caseIds : []
+    const caseIdsStr = e.request.url.query().get('caseIds') || ''
+    const caseIds = caseIdsStr ? caseIdsStr.split(',') : []
 
     let filter = "lifecycle_status = 'Ativo' && case_number != ''"
     if (orgId) {
@@ -33,21 +33,16 @@ routerAdd(
         continue
       }
 
-      const cnjMasked = caseNumberDigits.replace(
-        /^(\d{7})(\d{2})(\d{4})(\d{1})(\d{2})(\d{4})$/,
-        '$1-$2.$3.$4.$5.$6',
-      )
-
       try {
         const res = $http.send({
-          url: `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${cnjMasked}`,
+          url: `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${caseNumberDigits}`,
           method: 'GET',
           headers: { Accept: 'application/json' },
           timeout: 15,
         })
 
         if (res.statusCode !== 200) {
-          let apiMessage = 'Consulta rejeitada pelo PJe.'
+          let apiMessage = 'A consulta foi rejeitada pelo PJe.'
           if (res.json && res.json.message) apiMessage = res.json.message
           errors.push({ case: caseNumberStr, error: apiMessage })
           continue
@@ -98,7 +93,7 @@ routerAdd(
               item.id ||
                 item.numeroComunicacao ||
                 item.hash ||
-                `${caseNumber}-${item.dataDisponibilizacao}`,
+                `${caseNumberStr}-${item.dataDisponibilizacao}`,
             )
             if (!numeroCom || numeroCom === 'undefined') continue
 
@@ -174,7 +169,7 @@ routerAdd(
           }
         }
       } catch (err) {
-        $app.logger().error('Error syncing case', 'case', cnjMasked, 'error', String(err))
+        $app.logger().error('Error syncing case', 'case', caseNumberDigits, 'error', String(err))
         errors.push({ case: caseNumberStr, error: String(err) })
       }
     }
