@@ -907,7 +907,7 @@ export default function ProcessDetail() {
                     value="andamento"
                     className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent py-3 whitespace-nowrap"
                   >
-                    Ocorrência Processual
+                    Histórico
                   </TabsTrigger>
                   <TabsTrigger
                     value="tarefa"

@@ -148,7 +148,7 @@ export default function ProcessManager() {
                 </span>
                 <UnifiedSyncButton
                   caseIds={selectedIds}
-                  label="Atualizar Lote"
+                  label="Sincronizar Lote"
                   variant="default"
                   onComplete={() => {
                     setSelectedIds([])
