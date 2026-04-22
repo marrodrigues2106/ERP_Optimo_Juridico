@@ -15,16 +15,14 @@ export function PjeSearchTab() {
   const { toast } = useToast()
 
   const { register, handleSubmit } = useForm({
-    defaultValues: { numeroProcesso: '' },
+    defaultValues: { numeroProcesso: '', nomeParte: '', nomeAdvogado: '', numeroOab: '' },
   })
 
   const onSubmit = async (data: any) => {
-    if (!data.numeroProcesso) return
-    const num = data.numeroProcesso.replace(/\D/g, '')
-    if (num.length !== 20) {
+    if (!data.numeroProcesso && !data.nomeParte && !data.nomeAdvogado && !data.numeroOab) {
       toast({
         title: 'Erro',
-        description: 'Número de processo inválido. O CNJ deve ter 20 dígitos.',
+        description: 'Preencha pelo menos um campo de busca.',
         variant: 'destructive',
       })
       return
@@ -32,8 +30,22 @@ export function PjeSearchTab() {
 
     setLoading(true)
     try {
+      const params = new URLSearchParams()
+
+      if (data.numeroProcesso) {
+        const num = data.numeroProcesso.replace(/\D/g, '')
+        if (num.length !== 20) {
+          throw new Error('Número de processo inválido. O CNJ deve ter 20 dígitos.')
+        }
+        params.append('numeroProcesso', num)
+      }
+
+      if (data.nomeParte) params.append('nomeParte', data.nomeParte)
+      if (data.nomeAdvogado) params.append('nomeAdvogado', data.nomeAdvogado)
+      if (data.numeroOab) params.append('numeroOab', data.numeroOab)
+
       const res = await fetch(
-        `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${num}`,
+        `https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params.toString()}`,
       )
       if (!res.ok) throw new Error('Serviço indisponível no momento.')
       const json = await res.json()
@@ -61,24 +73,34 @@ export function PjeSearchTab() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 max-w-xl">
-            <div className="flex flex-col gap-2">
-              <Label>Número do Processo (CNJ)</Label>
-              <div className="flex gap-2">
-                <Input
-                  {...register('numeroProcesso')}
-                  placeholder="0000000-00.0000.0.00.0000"
-                  className="flex-1"
-                />
-                <Button type="submit" disabled={loading}>
-                  {loading ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Search className="w-4 h-4 mr-2" />
-                  )}
-                  Buscar
-                </Button>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <Label>Número do Processo (CNJ)</Label>
+                <Input {...register('numeroProcesso')} placeholder="0000000-00.0000.0.00.0000" />
               </div>
+              <div className="flex flex-col gap-2">
+                <Label>Nome da Parte</Label>
+                <Input {...register('nomeParte')} placeholder="Ex: João da Silva" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label>Nome do Advogado</Label>
+                <Input {...register('nomeAdvogado')} placeholder="Ex: Maria Souza" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label>Número da OAB</Label>
+                <Input {...register('numeroOab')} placeholder="Ex: 123456" />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button type="submit" disabled={loading}>
+                {loading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4 mr-2" />
+                )}
+                Buscar Comunicações
+              </Button>
             </div>
           </form>
         </CardContent>

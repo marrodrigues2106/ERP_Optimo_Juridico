@@ -337,11 +337,15 @@ export default function CentralAtualizacoes() {
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
-      if (activeTab === 'inbox')
-        return !item.isRead && !item.isArchived && item.type !== 'Processo Novo'
-      if (activeTab === 'pje') return item.isRead && !item.isArchived && item.type === 'PJe'
-      if (activeTab === 'dou') return item.isRead && !item.isArchived && item.type === 'DOU'
-      if (activeTab === 'novos') return item.type === 'Processo Novo' && !item.isArchived
+      if (activeTab === 'inbox') return !item.isRead && !item.isArchived
+      if (activeTab === 'pje')
+        return item.isRead && !item.isArchived && item.collection === 'pje_communications'
+      if (activeTab === 'dou')
+        return (
+          item.isRead &&
+          !item.isArchived &&
+          (item.collection === 'gazette_publications' || item.collection === 'ocorrencias_dou')
+        )
       if (activeTab === 'arquivados') return item.isArchived
       return true
     })
@@ -536,33 +540,20 @@ export default function CentralAtualizacoes() {
                 <BookOpen className="w-4 h-4 mr-3 text-slate-400 data-[state=active]:text-primary" />
                 Caixa de Entrada
                 <span className="ml-auto bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full font-bold">
-                  {
-                    items.filter((i) => !i.isRead && !i.isArchived && i.type !== 'Processo Novo')
-                      .length
-                  }
+                  {items.filter((i) => !i.isRead && !i.isArchived).length}
                 </span>
               </TabsTrigger>
               <TabsTrigger
                 value="pje"
                 className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
               >
-                <Activity className="w-4 h-4 mr-3 text-blue-500" /> Lidos - PJe
+                <Activity className="w-4 h-4 mr-3 text-blue-500" /> PJe
               </TabsTrigger>
               <TabsTrigger
                 value="dou"
                 className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
               >
-                <Landmark className="w-4 h-4 mr-3 text-emerald-500" /> Lidos - DOU
-              </TabsTrigger>
-              <TabsTrigger
-                value="novos"
-                className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
-              >
-                <FileText className="w-4 h-4 mr-3 text-primary" />
-                Novos Processos
-                <span className="ml-auto bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full font-bold">
-                  {items.filter((i) => i.type === 'Processo Novo' && !i.isArchived).length}
-                </span>
+                <Landmark className="w-4 h-4 mr-3 text-emerald-500" /> DOU
               </TabsTrigger>
               <TabsTrigger
                 value="arquivados"
@@ -577,11 +568,7 @@ export default function CentralAtualizacoes() {
         <div className="flex-1 w-full min-w-0">
           <div className="bg-slate-50/50 rounded-xl p-1 border border-slate-200 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center px-4 py-3 gap-4">
             <h2 className="text-lg font-bold text-slate-800 capitalize">
-              {activeTab === 'inbox'
-                ? 'Caixa de Entrada (Não Lidos)'
-                : activeTab === 'novos'
-                  ? 'Novos Processos Encontrados'
-                  : activeTab}
+              {activeTab === 'inbox' ? 'Caixa de Entrada (Não Lidos)' : activeTab}
             </h2>
             <div className="flex items-center gap-4">
               <span className="text-sm text-slate-500 font-medium">

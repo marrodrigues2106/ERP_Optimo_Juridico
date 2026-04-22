@@ -119,10 +119,16 @@ export default function ProcessManager() {
   }
 
   const handleBatchSync = async () => {
-    const casesToSync = filteredCases.filter((c) => selectedIds.includes(c.id) && c.case_number)
+    const targetCases =
+      selectedIds.length > 0
+        ? filteredCases.filter((c) => selectedIds.includes(c.id))
+        : filteredCases.filter((c) => c.lifecycle_status === 'Ativo')
+
+    const casesToSync = targetCases.filter((c) => c.case_number)
+
     if (casesToSync.length === 0)
       return toast({
-        title: 'Nenhum processo válido selecionado para sincronizar',
+        title: 'Nenhum processo válido encontrado para sincronizar',
         variant: 'destructive',
       })
 
@@ -236,7 +242,7 @@ export default function ProcessManager() {
             variant="outline"
             className="text-[10px] text-slate-500 font-normal bg-slate-50/50"
           >
-            <Clock className="w-3 h-3 mr-1" /> Pendente de atualização
+            <Clock className="w-3 h-3 mr-1" /> Pendente
           </Badge>
         )
       case 'queued':
@@ -380,21 +386,26 @@ export default function ProcessManager() {
               </Select>
             </div>
 
-            {selectedIds.length > 0 && (
-              <div className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
+            <div className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
+              {selectedIds.length > 0 && (
                 <span className="text-sm font-medium text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-md shadow-sm">
                   {selectedIds.length} selecionado(s)
                 </span>
-                <Button onClick={handleBatchSync} disabled={isBatchSyncing}>
-                  {isBatchSyncing ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                  )}
-                  Sincronizar Selecionados
-                </Button>
-              </div>
-            )}
+              )}
+              <Button
+                onClick={handleBatchSync}
+                disabled={isBatchSyncing}
+                variant="outline"
+                className="border-primary text-primary hover:bg-primary/5"
+              >
+                {isBatchSyncing ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                )}
+                Sincronizar PJe
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
