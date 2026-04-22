@@ -33,6 +33,40 @@ routerAdd(
           else if (res.json.items && Array.isArray(res.json.items)) items = res.json.items
           else if (res.json.data && Array.isArray(res.json.data)) items = res.json.data
 
+          let updatedCase = false
+          let currentParties = c.getString('parties')
+          let currentCourt = c.getString('court')
+
+          if (items.length > 0) {
+            if (!currentCourt || currentCourt.toLowerCase() === 'none' || currentCourt === '') {
+              const court = items[0].siglaTribunal
+              if (court) {
+                c.set('court', court.toLowerCase())
+                c.set('court_alias', court.toLowerCase())
+                updatedCase = true
+              }
+            }
+            if (!currentParties || currentParties.length < 5) {
+              const allParties = new Set()
+              items.forEach((item) => {
+                if (item.destinatarios && Array.isArray(item.destinatarios)) {
+                  item.destinatarios.forEach((d) => {
+                    if (d.nome) allParties.add(d.nome)
+                  })
+                }
+              })
+              if (allParties.size > 0) {
+                c.set('parties', Array.from(allParties).join(' x '))
+                updatedCase = true
+              }
+            }
+            if (updatedCase) {
+              try {
+                $app.save(c)
+              } catch (err) {}
+            }
+          }
+
           for (const item of items) {
             const numeroCom = String(
               item.id ||
@@ -72,6 +106,36 @@ routerAdd(
               try {
                 $app.save(record)
                 newCount++
+
+                try {
+                  const movCol = $app.findCollectionByNameOrId('case_movements')
+                  const mov = new Record(movCol)
+                  mov.set('case', c.id)
+
+                  let evtDate = dataDisp
+                  if (!evtDate || evtDate.length < 10) evtDate = new Date().toISOString()
+                  mov.set('event_date', evtDate)
+
+                  mov.set(
+                    'description',
+                    `Comunicação PJe: ${item.tipoComunicacao || 'Atualização'}`,
+                  )
+                  mov.set('source', 'PJe')
+                  mov.set('details', item.texto || item.conteudo || '')
+                  mov.set('external_id', numeroCom)
+                  mov.set('movement_details', item)
+                  mov.set('organization', c.getString('organization'))
+
+                  $app.save(mov)
+                } catch (movErr) {
+                  $app
+                    .logger()
+                    .error(
+                      'Error saving case movement for pje communication',
+                      'error',
+                      String(movErr),
+                    )
+                }
               } catch (saveErr) {
                 $app
                   .logger()

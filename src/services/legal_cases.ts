@@ -52,6 +52,10 @@ export const updateLegalCase = async (id: string, data: any) => {
 }
 
 export const deleteLegalCase = async (id: string) => {
+  const caseRecord = await getLegalCase(id)
+  if (caseRecord.lifecycle_status !== 'Arquivado') {
+    throw new Error('Apenas processos com status "Arquivado" podem ser excluídos.')
+  }
   await pb.collection('legal_cases').delete(id)
   await logAudit('legal_cases', id, 'delete')
 }

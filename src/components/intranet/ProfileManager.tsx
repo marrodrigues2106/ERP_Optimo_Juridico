@@ -130,7 +130,7 @@ export default function ProfileManager() {
             </TabsTrigger>
           )}
           <TabsTrigger value="monitoramento" className="text-base px-4 py-2 font-medium">
-            Monitoramento
+            Monitoramento PJe
           </TabsTrigger>
         </TabsList>
 

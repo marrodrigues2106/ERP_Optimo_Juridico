@@ -42,6 +42,7 @@ export default function ProcessManager() {
 
   const [isBatchSyncing, setIsBatchSyncing] = useState(false)
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, currentCase: '' })
+  const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set())
 
   const [editingMetadataCase, setEditingMetadataCase] = useState<any>(null)
 
@@ -125,11 +126,27 @@ export default function ProcessManager() {
         currentCase: c.case_number || 'Sem número',
       })
 
+      setSyncingIds((prev) => new Set(prev).add(c.id))
+
       try {
         await pb.send(`/backend/v1/sync/case/${c.id}`, { method: 'POST' })
         successCount++
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.status === 400) {
+          toast({
+            title: `Erro no processo ${c.case_number}`,
+            description:
+              'A consulta foi rejeitada pelo PJe. Verifique se o número do processo é válido e tente novamente.',
+            variant: 'destructive',
+          })
+        }
         console.error(`Error syncing case ${c.case_number}`, err)
+      } finally {
+        setSyncingIds((prev) => {
+          const next = new Set(prev)
+          next.delete(c.id)
+          return next
+        })
       }
 
       await new Promise((resolve) => setTimeout(resolve, 800))
@@ -332,6 +349,11 @@ export default function ProcessManager() {
                                 className="text-[10px] h-5 bg-slate-200 text-slate-600"
                               >
                                 ARQUIVADO
+                              </Badge>
+                            )}
+                            {syncingIds.has(c.id) && (
+                              <Badge className="bg-indigo-100 text-indigo-800 border-none text-[10px] px-2 flex items-center gap-1">
+                                <Loader2 className="w-3 h-3 animate-spin" /> Sincronizando...
                               </Badge>
                             )}
                           </div>

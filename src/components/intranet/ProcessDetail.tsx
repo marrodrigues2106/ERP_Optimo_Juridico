@@ -668,10 +668,16 @@ export default function ProcessDetail() {
       loadMovements(1)
       loadData()
     } catch (err: any) {
-      const message = getErrorMessage(err)
+      let description =
+        getErrorMessage(err) || 'Ocorreu um erro inesperado ao se comunicar com o tribunal.'
+      if (err?.status === 400) {
+        description =
+          'A consulta foi rejeitada pelo PJe. Verifique se o número do processo é válido e tente novamente.'
+      }
+
       toast({
         title: 'Erro na Sincronização',
-        description: message || 'Ocorreu um erro inesperado ao se comunicar com o tribunal.',
+        description,
         variant: 'destructive',
       })
     } finally {
