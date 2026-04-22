@@ -16,10 +16,11 @@ export interface ComunicaSearchParams {
 
 export const searchComunicaPJe = async (
   params: ComunicaSearchParams,
-  baseUrl: string,
+  _baseUrl: string,
   _apiKey: string, // Unused
   addHistory: (entry: ComunicaHistoryEntry) => void,
 ) => {
+  const baseUrl = 'https://comunicaapi.pje.jus.br/api/v1'
   const url = new URL(`${baseUrl}/comunicacao`)
 
   if (params.numeroProcesso)

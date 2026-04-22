@@ -62,13 +62,7 @@ routerAdd(
     const notifCol = $app.findCollectionByNameOrId('notifications')
     const movementsCol = $app.findCollectionByNameOrId('case_movements')
 
-    let baseUrl = 'https://comunicaapi.pje.jus.br/api/v1'
-    try {
-      const setting = $app.findFirstRecordByData('settings', 'key', 'baseUrl')
-      if (setting.getString('value')) {
-        baseUrl = setting.getString('value')
-      }
-    } catch (_) {}
+    const baseUrl = 'https://comunicaapi.pje.jus.br/api/v1'
 
     for (const c of targetCases) {
       c.set('pje_sync_status', 'syncing')
@@ -127,10 +121,18 @@ routerAdd(
             if (!hash) continue
 
             let isNew = false
+            let existingMov = null
             try {
-              $app.findFirstRecordByData('case_movements', 'external_id', 'pje_' + hash)
+              existingMov = $app.findFirstRecordByData(
+                'case_movements',
+                'external_id',
+                'pje_' + hash,
+              )
             } catch (_) {
               isNew = true
+            }
+
+            if (isNew) {
               try {
                 const r = new Record(resultsCol)
                 if (searchRec.id) r.set('search_id', searchRec.id)
@@ -156,10 +158,16 @@ routerAdd(
               } catch (err) {}
             }
 
-            if (currentCase && isNew) {
+            if (currentCase) {
               try {
-                const m = new Record(movementsCol)
-                m.set('case', currentCase.id)
+                const m = isNew ? new Record(movementsCol) : existingMov
+                if (isNew) {
+                  m.set('case', currentCase.id)
+                  m.set('external_id', 'pje_' + hash)
+                  const orgId = currentCase.getString('organization')
+                  if (orgId) m.set('organization', orgId)
+                }
+
                 m.set(
                   'event_date',
                   item.data_disponibilizacao ||
@@ -169,9 +177,6 @@ routerAdd(
                 m.set('description', item.tipoComunicacao || 'Comunicação PJe')
                 m.set('source', 'PJe')
                 m.set('details', item.texto || item.teor || '')
-                m.set('external_id', 'pje_' + hash)
-                const orgId = currentCase.getString('organization')
-                if (orgId) m.set('organization', orgId)
 
                 m.set('movement_details', {
                   texto: item.texto || item.teor,
@@ -183,7 +188,7 @@ routerAdd(
                 })
 
                 $app.saveNoValidate(m)
-                processNewCount++
+                if (isNew) processNewCount++
               } catch (err) {}
             }
           }
