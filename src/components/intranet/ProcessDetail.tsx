@@ -58,6 +58,7 @@ import pb from '@/lib/pocketbase/client'
 import { Badge } from '@/components/ui/badge'
 import { useRealtime } from '@/hooks/use-realtime'
 import { cn } from '@/lib/utils'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 const MovementItem = ({
   mov,
@@ -647,6 +648,15 @@ export default function ProcessDetail() {
     if (!legalCase?.case_number)
       return toast({ title: 'Número do processo não informado', variant: 'destructive' })
 
+    const digitsOnly = legalCase.case_number.replace(/\D/g, '')
+    if (digitsOnly.length < 10) {
+      return toast({
+        title: 'Número inválido',
+        description: 'O número do processo deve conter pelo menos 10 dígitos numéricos.',
+        variant: 'destructive',
+      })
+    }
+
     setIsSyncingPje(true)
     try {
       const res = await pb.send(`/backend/v1/sync/case/${id}`, { method: 'POST' })
@@ -658,9 +668,10 @@ export default function ProcessDetail() {
       loadMovements(1)
       loadData()
     } catch (err: any) {
+      const message = getErrorMessage(err)
       toast({
-        title: 'Erro na Sincronização PJe',
-        description: err.message,
+        title: 'Erro na Sincronização',
+        description: message || 'Ocorreu um erro inesperado ao se comunicar com o tribunal.',
         variant: 'destructive',
       })
     } finally {
