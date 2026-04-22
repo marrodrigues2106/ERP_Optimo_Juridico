@@ -127,6 +127,7 @@ export default function ProcessManager() {
     setBatchProgress({ current: 0, total: casesToSync.length, currentCase: '' })
 
     let successCount = 0
+    let failCount = 0
 
     for (let i = 0; i < casesToSync.length; i++) {
       const c = casesToSync[i]
@@ -139,20 +140,67 @@ export default function ProcessManager() {
       setSyncingIds((prev) => new Set(prev).add(c.id))
 
       try {
-        const res = await pb.send(`/backend/v1/sync/all?caseIds=${c.id}`, {
-          method: 'GET',
-        })
-        if (res.errors && res.errors.length > 0) {
-          setSyncErrors((prev) => ({ ...prev, [c.id]: res.errors[0].error }))
-        } else {
-          setSyncErrors((prev) => {
-            const next = { ...prev }
-            delete next[c.id]
-            return next
-          })
-          successCount++
+        const cleanNumber = (c.case_number || '').replace(/\D/g, '')
+        if (cleanNumber.length !== 20) {
+          throw new Error('Número do processo deve ter 20 dígitos')
         }
+
+        const response = await fetch(
+          `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${cleanNumber}`,
+          {
+            method: 'GET',
+            headers: {
+              Accept: 'application/json',
+            },
+          },
+        )
+
+        if (!response.ok) {
+          throw new Error(`Erro na API do PJe (${response.status})`)
+        }
+
+        const data = await response.json()
+        const items = data.items || []
+
+        if (items.length > 0) {
+          for (const item of items) {
+            const externalId = `pje_${item.id || item.numeroComunicacao || item.hash}`
+            try {
+              await pb.collection('case_movements').create({
+                case: c.id,
+                event_date: item.dataDisponibilizacao || new Date().toISOString(),
+                description: item.tipoComunicacao || 'Comunicação PJe',
+                source: 'PJe',
+                external_id: externalId,
+                details: item.texto || '',
+                organization: c.organization,
+                movement_details: item,
+              })
+            } catch (err: any) {
+              // Ignore unique constraint errors for already saved movements
+              if (err?.response?.data?.external_id?.code !== 'validation_not_unique') {
+                console.warn(`Failed to save movement ${externalId}:`, err)
+              }
+            }
+          }
+        }
+
+        // Update metadata.last_synced_at
+        await pb.collection('legal_cases').update(c.id, {
+          metadata: {
+            ...(c.metadata || {}),
+            last_synced_at: new Date().toISOString(),
+          },
+        })
+
+        setSyncErrors((prev) => {
+          const next = { ...prev }
+          delete next[c.id]
+          return next
+        })
+        successCount++
       } catch (err: any) {
+        failCount++
         const description =
           err?.response?.message || err?.message || 'Erro inesperado na sincronização.'
         setSyncErrors((prev) => ({ ...prev, [c.id]: description }))
@@ -165,14 +213,15 @@ export default function ProcessManager() {
         })
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 800))
+      // Small delay to be polite to the PJe API
+      await new Promise((resolve) => setTimeout(resolve, 1000))
     }
 
     setIsBatchSyncing(false)
     setSelectedIds([])
     toast({
       title: 'Sincronização em Lote Concluída',
-      description: `${successCount} processos sincronizados com sucesso.`,
+      description: `Sucesso: ${successCount} processos atualizados. Falha: ${failCount} processos.`,
     })
     loadData()
   }
