@@ -714,12 +714,19 @@ export default function ProcessDetail() {
         }
 
         try {
+          const rawDate = item.dataDisponibilizacao || item.data_disponibilizacao
+          let parsedDate = new Date()
+          if (rawDate) {
+            const tempDate = new Date(rawDate)
+            if (!isNaN(tempDate.getTime())) {
+              parsedDate = tempDate
+            }
+          }
+
           await pb.collection('case_movements').create({
             case: id,
-            event_date: item.dataDisponibilizacao
-              ? new Date(item.dataDisponibilizacao).toISOString()
-              : new Date().toISOString(),
-            description: item.tipoComunicacao || 'Comunicação PJe',
+            event_date: parsedDate.toISOString(),
+            description: item.tipoComunicacao || item.tipo_comunicacao || 'Comunicação PJe',
             details: item.texto || '',
             source: 'PJe',
             external_id: fullExtId || undefined,
