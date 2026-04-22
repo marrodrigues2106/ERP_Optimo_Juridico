@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import {
   Select,
@@ -12,7 +11,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Loader2, Search } from 'lucide-react'
-import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 export function PjeSearchTab() {
   const [loading, setLoading] = useState(false)
@@ -54,20 +52,34 @@ export function PjeSearchTab() {
     const fd = new FormData(e.currentTarget)
     const params = new URLSearchParams()
     for (const [k, v] of fd.entries()) {
-      if (v) params.append(k, v.toString())
+      if (v) {
+        if (k === 'numeroProcesso') {
+          params.append(k, v.toString().replace(/\D/g, ''))
+        } else {
+          params.append(k, v.toString())
+        }
+      }
     }
 
     try {
-      const res = await pb.send(`/backend/v1/pje-comunica/search?${params.toString()}`, {
-        method: 'GET',
-      })
-      const items = res.items || res.data || (Array.isArray(res) ? res : [])
+      const res = await fetch(
+        `https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params.toString()}`,
+      )
+      if (!res.ok) {
+        throw new Error('Network response was not ok')
+      }
+      const data = await res.json()
+      const items = data.items || data.data || (Array.isArray(data) ? data : [])
       setResults(items)
       if (items.length === 0) {
         toast({ title: 'Nenhum resultado encontrado' })
       }
     } catch (err: any) {
-      toast({ title: 'Erro na busca', description: getErrorMessage(err), variant: 'destructive' })
+      toast({
+        title: 'Erro na busca',
+        description: 'Serviço do PJe indisponível no momento',
+        variant: 'destructive',
+      })
     } finally {
       setLoading(false)
     }
