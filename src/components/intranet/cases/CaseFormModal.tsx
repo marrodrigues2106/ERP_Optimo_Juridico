@@ -39,6 +39,7 @@ import { cn } from '@/lib/utils'
 
 const formSchema = z
   .object({
+    title: z.string().min(1, 'O título é obrigatório'),
     type: z.enum(['Processo', 'Serviço Jurídico']),
     case_number: z.string().optional(),
     parties: z.string().min(1, 'As partes são obrigatórias'),
@@ -101,6 +102,7 @@ export function CaseFormModal({
   const [showTagSuggestions, setShowTagSuggestions] = useState(false)
   const [openClientCombo, setOpenClientCombo] = useState(false)
   const [openCollabCombo, setOpenCollabCombo] = useState(false)
+  const [openCourtCombo, setOpenCourtCombo] = useState(false)
 
   useEffect(() => {
     pb.collection('tribunals').getFullList({ sort: 'name' }).then(setTribunals).catch(console.error)
@@ -125,6 +127,7 @@ export function CaseFormModal({
     control,
     watch,
     setValue,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm<CaseFormValues>({
     resolver: zodResolver(formSchema),
@@ -135,6 +138,7 @@ export function CaseFormModal({
     if (open) {
       if (editingCase) {
         reset({
+          title: editingCase.title || editingCase.parties || '',
           type: editingCase.type,
           case_number: editingCase.case_number || '',
           parties: editingCase.parties || '',
@@ -161,6 +165,7 @@ export function CaseFormModal({
         })
       } else {
         reset({
+          title: '',
           type: 'Processo',
           lifecycle_status: 'Ativo',
           tags: [],
@@ -208,11 +213,39 @@ export function CaseFormModal({
         return
       }
 
-      // Extract court
-      const court = items[0].siglaTribunal || ''
+      // Extract court and additional metadata
+      const item = items[0]
+      const court = item.siglaTribunal || ''
       if (court) {
         setValue('court', court.toLowerCase())
         setValue('court_alias', court.toLowerCase())
+      }
+
+      if (item.orgaoJulgador) {
+        setValue('court_organ', item.orgaoJulgador)
+      }
+
+      const classe = item.classe || item.classeProcessual || ''
+      if (classe) {
+        setValue('action_class', classe)
+      }
+
+      const assunto = item.assunto || (item.assuntos ? item.assuntos.join(', ') : '')
+      if (assunto) {
+        setValue('subject', assunto)
+      }
+
+      const currentDesc = getValues('description') || ''
+      let newDesc = currentDesc
+      if (classe && !newDesc.includes(classe))
+        newDesc += (newDesc ? '\n' : '') + `Classe: ${classe}`
+      if (assunto && !newDesc.includes(assunto))
+        newDesc += (newDesc ? '\n' : '') + `Assunto: ${assunto}`
+      setValue('description', newDesc)
+
+      const distDate = item.dataAjuizamento || item.dataAutuacao
+      if (distDate) {
+        setValue('distribution_date', distDate.substring(0, 10))
       }
 
       // Extract parties
@@ -253,6 +286,7 @@ export function CaseFormModal({
 
   const onSubmit = async (data: CaseFormValues) => {
     const payload = {
+      title: data.title,
       type: data.type,
       case_number: data.type === 'Serviço Jurídico' ? '' : data.case_number,
       parties: data.parties,
@@ -365,6 +399,16 @@ export function CaseFormModal({
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 mt-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
             <div className="col-span-1 md:col-span-2">
+              <Label>Título / Identificação do Caso *</Label>
+              <Input
+                {...register('title')}
+                placeholder="Ex: Ação Indenizatória - Cliente X"
+                className="font-medium text-lg"
+              />
+              {errors.title && <p className="text-xs text-red-500 mt-1">{errors.title.message}</p>}
+            </div>
+
+            <div className="col-span-1 md:col-span-2">
               <Label>Tipo</Label>
               <Controller
                 name="type"
@@ -430,15 +474,15 @@ export function CaseFormModal({
             </div>
 
             <div className="col-span-1">
-              <Label>Tribunal (Alias)</Label>
+              <Label>Tribunal</Label>
               <Controller
                 name="court"
                 control={control}
                 render={({ field }) => {
-                  const currentCourt = field.value || 'none'
+                  const currentCourt = field.value || ''
                   const courtOptions = [...tribunals]
                   if (
-                    currentCourt !== 'none' &&
+                    currentCourt &&
                     !courtOptions.find((t) => t.alias?.toLowerCase() === currentCourt.toLowerCase())
                   ) {
                     courtOptions.push({
@@ -449,42 +493,79 @@ export function CaseFormModal({
                   }
 
                   return (
-                    <Select
-                      onValueChange={(val) => {
-                        if (val === 'none') {
-                          field.onChange('')
-                          setValue('court_alias', '')
-                        } else {
-                          field.onChange(val)
-                          setValue('court_alias', val)
-                        }
-                      }}
-                      value={currentCourt}
-                      disabled={selectedType === 'Serviço Jurídico'}
-                    >
-                      <SelectTrigger
-                        className={
-                          selectedType === 'Serviço Jurídico' ? 'opacity-50 uppercase' : 'uppercase'
-                        }
+                    <Popover open={openCourtCombo} onOpenChange={setOpenCourtCombo}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={openCourtCombo}
+                          className={cn(
+                            'w-full justify-between font-normal px-3 uppercase',
+                            selectedType === 'Serviço Jurídico' && 'opacity-50 pointer-events-none',
+                          )}
+                          disabled={selectedType === 'Serviço Jurídico'}
+                        >
+                          <span className="truncate pr-4">
+                            {currentCourt ? currentCourt : 'Selecione o tribunal...'}
+                          </span>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-[var(--radix-popover-trigger-width)] p-0"
+                        align="start"
                       >
-                        <SelectValue placeholder="Selecione o tribunal" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Selecione...</SelectItem>
-                        {courtOptions.map((t) => (
-                          <SelectItem
-                            key={t.id || t.alias}
-                            value={t.alias?.toLowerCase()}
-                            className="uppercase"
-                          >
-                            {t.alias?.toLowerCase()}{' '}
-                            {t.name && t.name.toLowerCase() !== t.alias?.toLowerCase()
-                              ? `- ${t.name}`
-                              : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                        <Command>
+                          <CommandInput placeholder="Buscar tribunal..." />
+                          <CommandList>
+                            <CommandEmpty>Nenhum tribunal encontrado.</CommandEmpty>
+                            <CommandGroup>
+                              <CommandItem
+                                value="none"
+                                onSelect={() => {
+                                  field.onChange('')
+                                  setValue('court_alias', '')
+                                  setOpenCourtCombo(false)
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    'mr-2 h-4 w-4',
+                                    !currentCourt ? 'opacity-100' : 'opacity-0',
+                                  )}
+                                />
+                                Nenhum tribunal
+                              </CommandItem>
+                              {courtOptions.map((t) => (
+                                <CommandItem
+                                  key={t.id || t.alias}
+                                  value={`${t.alias} ${t.name}`}
+                                  onSelect={() => {
+                                    field.onChange(t.alias?.toLowerCase())
+                                    setValue('court_alias', t.alias?.toLowerCase())
+                                    setOpenCourtCombo(false)
+                                  }}
+                                  className="uppercase"
+                                >
+                                  <Check
+                                    className={cn(
+                                      'mr-2 h-4 w-4',
+                                      currentCourt === t.alias?.toLowerCase()
+                                        ? 'opacity-100'
+                                        : 'opacity-0',
+                                    )}
+                                  />
+                                  {t.alias?.toLowerCase()}{' '}
+                                  {t.name && t.name.toLowerCase() !== t.alias?.toLowerCase()
+                                    ? `- ${t.name}`
+                                    : ''}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   )
                 }}
               />

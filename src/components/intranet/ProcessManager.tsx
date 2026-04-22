@@ -49,8 +49,15 @@ export default function ProcessManager() {
   const [statusFilter, setStatusFilter] = useState('Todos')
 
   const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(10)
+  const [perPage, setPerPage] = useState(() => {
+    const saved = sessionStorage.getItem('process_manager_per_page')
+    return saved ? Number(saved) : 10
+  })
   const [sortBy, setSortBy] = useState('-created')
+
+  useEffect(() => {
+    sessionStorage.setItem('process_manager_per_page', perPage.toString())
+  }, [perPage])
   const [totalPages, setTotalPages] = useState(1)
 
   const [modalOpen, setModalOpen] = useState(false)
@@ -73,7 +80,9 @@ export default function ProcessManager() {
       if (orgId) filterParts.push(`organization = "${orgId}"`)
       if (searchTerm) {
         const safeTerm = searchTerm.replace(/"/g, '\\"')
-        filterParts.push(`(case_number ~ "${safeTerm}" || parties ~ "${safeTerm}")`)
+        filterParts.push(
+          `(case_number ~ "${safeTerm}" || parties ~ "${safeTerm}" || title ~ "${safeTerm}" || client.name ~ "${safeTerm}" || client.fullName ~ "${safeTerm}")`,
+        )
       }
       if (statusFilter !== 'Todos') {
         filterParts.push(`lifecycle_status = "${statusFilter}"`)
@@ -322,6 +331,7 @@ export default function ProcessManager() {
       : editingMetadataCase.metadata?.distribution_date || editingMetadataCase.distribution_date
 
     const payload = {
+      title: fd.get('title'),
       case_number: fd.get('case_number'),
       parties: fd.get('parties'),
       court: fd.get('court'),
@@ -459,7 +469,7 @@ export default function ProcessManager() {
                       onCheckedChange={handleSelectAll}
                     />
                   </th>
-                  <th className="px-4 py-3">Número / Partes</th>
+                  <th className="px-4 py-3">Título / Número</th>
                   <th className="px-4 py-3">Cliente</th>
                   <th className="px-4 py-3 text-right">Ações</th>
                 </tr>
@@ -495,12 +505,12 @@ export default function ProcessManager() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-col">
-                          <div className="flex flex-wrap items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
                             <Link
                               to={`/intranet/processos/${c.id}`}
-                              className="font-bold text-primary hover:underline"
+                              className="font-bold text-base text-primary hover:underline"
                             >
-                              {c.case_number || 'Sem número / Serviço'}
+                              {c.title || c.parties || 'Sem título'}
                             </Link>
                             {c.lifecycle_status === 'Arquivado' && (
                               <Badge
@@ -512,8 +522,11 @@ export default function ProcessManager() {
                             )}
                             {getStatusBadge(c)}
                           </div>
+                          <span className="text-slate-600 text-sm font-medium">
+                            {c.case_number || 'Sem número / Serviço'}
+                          </span>
                           <span
-                            className="text-slate-500 text-xs mt-0.5 truncate max-w-[300px]"
+                            className="text-slate-400 text-xs mt-0.5 truncate max-w-[300px]"
                             title={c.parties}
                           >
                             {c.parties}
@@ -622,6 +635,14 @@ export default function ProcessManager() {
           </SheetHeader>
           {editingMetadataCase && (
             <form onSubmit={handleSaveMetadata} className="space-y-4 mt-6">
+              <div>
+                <Label>Título</Label>
+                <Input
+                  name="title"
+                  defaultValue={editingMetadataCase.title}
+                  className="font-medium"
+                />
+              </div>
               <div>
                 <Label>Número do Processo</Label>
                 <Input name="case_number" defaultValue={editingMetadataCase.case_number} />

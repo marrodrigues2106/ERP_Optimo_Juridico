@@ -1128,11 +1128,9 @@ export default function ProcessDetail() {
                           checked={t.status === 'completed'}
                           onCheckedChange={async () => {
                             try {
-                              await pb
-                                .collection('tasks')
-                                .update(t.id, {
-                                  status: t.status === 'completed' ? 'todo' : 'completed',
-                                })
+                              await pb.collection('tasks').update(t.id, {
+                                status: t.status === 'completed' ? 'todo' : 'completed',
+                              })
                             } catch (err) {
                               toast({ title: 'Erro ao atualizar tarefa', variant: 'destructive' })
                             }
