@@ -491,45 +491,6 @@ export default function Dashboard() {
           </div>
           <div className="mt-8 pt-6 border-t border-slate-200/60">
             <h3 className="text-[10px] font-bold text-slate-400 mb-4 uppercase tracking-wider">
-              Sincronização PJe (Ativos)
-            </h3>
-            <div className="space-y-3 mb-6">
-              {recentCases.map((c) => (
-                <div
-                  key={c.id}
-                  className="flex justify-between items-center text-sm border-b border-slate-100 pb-2 last:border-0 last:pb-0"
-                >
-                  <Link
-                    to={`/intranet/processos/${c.id}`}
-                    className="text-slate-600 hover:text-primary truncate pr-2 max-w-[160px]"
-                  >
-                    {c.case_number || 'Sem número'}
-                  </Link>
-                  <div className="flex items-center">
-                    {c.pje_sync_status === 'success' ? (
-                      <CheckCircle2
-                        className="w-3.5 h-3.5 text-emerald-500"
-                        title="Sincronizado (PJe)"
-                      />
-                    ) : c.pje_sync_status === 'syncing' || c.pje_sync_status === 'pending' ? (
-                      <RefreshCw
-                        className="w-3.5 h-3.5 text-blue-500 animate-spin"
-                        title="Sincronizando..."
-                      />
-                    ) : c.pje_sync_status === 'error' ? (
-                      <AlertTriangle
-                        className="w-3.5 h-3.5 text-red-500"
-                        title="Erro na sincronização"
-                      />
-                    ) : (
-                      <span className="w-2 h-2 rounded-full bg-slate-300" title="Pendente"></span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <h3 className="text-[10px] font-bold text-slate-400 mb-4 uppercase tracking-wider">
               Estatísticas
             </h3>
             <div className="space-y-3">

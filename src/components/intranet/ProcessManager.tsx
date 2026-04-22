@@ -176,21 +176,20 @@ export default function ProcessManager() {
                   </th>
                   <th className="px-4 py-3">Número / Partes</th>
                   <th className="px-4 py-3">Cliente</th>
-                  <th className="px-4 py-3">Status PJe</th>
                   <th className="px-4 py-3 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="py-12 text-center text-slate-400">
+                    <td colSpan={4} className="py-12 text-center text-slate-400">
                       <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 opacity-50" />
                       Carregando processos...
                     </td>
                   </tr>
                 ) : filteredCases.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-12 text-center text-slate-400">
+                    <td colSpan={4} className="py-12 text-center text-slate-400">
                       Nenhum processo encontrado.
                     </td>
                   </tr>
@@ -241,47 +240,6 @@ export default function ProcessManager() {
                               <span className="text-slate-400 italic">Não vinculado</span>
                             )}
                           </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          {rowSync === 'syncing' ? (
-                            <Badge
-                              variant="outline"
-                              className="bg-blue-50 text-blue-600 border-blue-200"
-                            >
-                              <RefreshCw className="w-3 h-3 mr-1 animate-spin" /> Sincronizando
-                            </Badge>
-                          ) : rowSync === 'success' ? (
-                            <Badge
-                              variant="outline"
-                              className="bg-emerald-50 text-emerald-600 border-emerald-200"
-                            >
-                              <CheckCircle2 className="w-3 h-3 mr-1" /> Atualizado
-                            </Badge>
-                          ) : rowSync === 'error' ? (
-                            <Badge
-                              variant="outline"
-                              className="bg-red-50 text-red-600 border-red-200"
-                            >
-                              <AlertCircle className="w-3 h-3 mr-1" /> Falha
-                            </Badge>
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                c.pje_sync_status === 'success'
-                                  ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                                  : c.pje_sync_status === 'error'
-                                    ? 'bg-red-50 text-red-600 border-red-200'
-                                    : 'bg-slate-50 text-slate-600 border-slate-200',
-                              )}
-                            >
-                              {c.pje_sync_status === 'success'
-                                ? 'Sincronizado'
-                                : c.pje_sync_status === 'error'
-                                  ? 'Erro'
-                                  : 'Pendente'}
-                            </Badge>
-                          )}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <Button variant="ghost" size="sm" asChild>

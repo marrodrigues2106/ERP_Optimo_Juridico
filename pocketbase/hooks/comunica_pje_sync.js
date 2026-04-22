@@ -95,8 +95,10 @@ routerAdd(
         $app.saveNoValidate(searchRec)
       } catch (_) {}
 
+      const today = new Date().toISOString().split('T')[0]
+
       while (hasMore) {
-        const url = `${baseUrl}/comunicacao?numeroProcesso=${numeroProcesso.replace(/\D/g, '')}&pagina=${page}&itensPorPagina=100`
+        const url = `${baseUrl}/comunicacao?numeroProcesso=${numeroProcesso.replace(/\D/g, '')}&dataDisponibilizacaoInicio=1900-01-01&dataDisponibilizacaoFim=${today}&pagina=${page}&itensPorPagina=100`
 
         const res = $http.send({
           url: url,

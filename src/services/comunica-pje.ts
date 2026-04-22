@@ -31,10 +31,14 @@ export const searchComunicaPJe = async (
   if (params.siglaTribunal && params.siglaTribunal !== 'ALL')
     url.searchParams.append('siglaTribunal', params.siglaTribunal)
   if (params.meio && params.meio !== 'ALL') url.searchParams.append('meio', params.meio)
-  if (params.dataDisponibilizacaoInicio)
-    url.searchParams.append('dataDisponibilizacaoInicio', params.dataDisponibilizacaoInicio)
-  if (params.dataDisponibilizacaoFim)
-    url.searchParams.append('dataDisponibilizacaoFim', params.dataDisponibilizacaoFim)
+  const defaultInicio = '1900-01-01'
+  const defaultFim = new Date().toISOString().split('T')[0]
+
+  url.searchParams.append(
+    'dataDisponibilizacaoInicio',
+    params.dataDisponibilizacaoInicio || defaultInicio,
+  )
+  url.searchParams.append('dataDisponibilizacaoFim', params.dataDisponibilizacaoFim || defaultFim)
 
   const termString =
     Object.entries(params)
