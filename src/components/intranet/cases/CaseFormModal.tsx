@@ -174,12 +174,15 @@ export function CaseFormModal({
     }
   }, [open, editingCase, reset])
 
-  const handleDataJudSearch = async () => {
-    const num = watch('case_number')
-    if (!num) {
+  const [pjeMovements, setPjeMovements] = useState<any[]>([])
+
+  const handlePjeSearch = async () => {
+    const rawNum = watch('case_number')
+    const num = rawNum?.replace(/\D/g, '')
+    if (!num || num.length !== 20) {
       toast({
         title: 'Aviso',
-        description: 'Digite o número CNJ primeiro.',
+        description: 'Digite um número CNJ válido com 20 dígitos primeiro.',
         variant: 'destructive',
       })
       return
@@ -187,49 +190,60 @@ export function CaseFormModal({
 
     setIsSearching(true)
     try {
-      const res = await pb.send('/backend/v1/datajud/autofill', {
-        method: 'POST',
-        body: JSON.stringify({ number: num }),
-      })
+      const res = await fetch(
+        `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${num}`,
+      )
+      if (!res.ok) {
+        throw new Error('Processo não encontrado ou serviço PJe indisponível no momento.')
+      }
+      const data = await res.json()
 
-      if (res.success && res.data) {
-        if (res.data.alias) {
-          setValue('court', res.data.alias)
-          setValue('court_alias', res.data.alias)
-        } else if (res.data.court) {
-          setValue('court', res.data.court)
-        }
-        if (res.data.courtOrgan) setValue('court_organ', res.data.courtOrgan)
-        if (res.data.parties) setValue('parties', res.data.parties)
-        if (res.data.subject) setValue('subject', res.data.subject)
-        if (res.data.class) setValue('action_class', res.data.class)
-        if (res.data.processType) setValue('process_type', res.data.processType)
-        if (res.data.status) setValue('status', res.data.status)
-        if (res.data.distributionDate) {
-          try {
-            setValue('distribution_date', res.data.distributionDate.substring(0, 10))
-          } catch (err) {
-            // Ignorar
-          }
-        }
-        toast({ title: 'Sucesso', description: 'Dados preenchidos via DataJud.' })
-      } else {
+      const items = data.items || (Array.isArray(data) ? data : [])
+      if (!Array.isArray(items) || items.length === 0) {
         toast({
           title: 'Atenção',
-          description:
-            res.error ||
-            'Não foi possível localizar os dados do processo via DataJud. Por favor, preencha manualmente.',
+          description: 'Processo não encontrado ou serviço PJe indisponível no momento.',
           variant: 'destructive',
         })
+        return
       }
+
+      // Extract court
+      const court = items[0].siglaTribunal || ''
+      if (court) {
+        setValue('court', court.toLowerCase())
+        setValue('court_alias', court.toLowerCase())
+      }
+
+      // Extract parties
+      const allParties = new Set<string>()
+      items.forEach((item: any) => {
+        if (Array.isArray(item.destinatarios)) {
+          item.destinatarios.forEach((d: any) => {
+            if (d.nome) allParties.add(d.nome)
+          })
+        }
+      })
+      if (allParties.size > 0) {
+        setValue('parties', Array.from(allParties).join(' x '))
+      }
+
+      // Store movements
+      const parsedMovements = items.map((item: any) => ({
+        event_date: item.dataDisponibilizacao,
+        description: item.tipoComunicacao || 'Comunicação PJe',
+        details: item.texto || '',
+        source: 'PJe',
+        external_id: item.id?.toString() || item.hash || '',
+        movement_details: item,
+      }))
+
+      setPjeMovements(parsedMovements)
+      toast({ title: 'Sucesso', description: 'Dados preenchidos via PJe.' })
     } catch (e: any) {
-      const msg =
-        e.response?.error ||
-        e.message ||
-        'Não foi possível localizar os dados do processo via DataJud. Por favor, preencha manualmente.'
       toast({
         title: 'Atenção',
-        description: msg,
+        description: 'Processo não encontrado ou serviço PJe indisponível no momento.',
         variant: 'destructive',
       })
     } finally {
@@ -277,13 +291,39 @@ export function CaseFormModal({
     }
 
     try {
+      let caseId = ''
       if (editingCase) {
-        await updateLegalCase(editingCase.id, payload)
+        const record = await updateLegalCase(editingCase.id, payload)
+        caseId = record.id
         toast({ title: 'Caso atualizado com sucesso' })
       } else {
-        await createLegalCase(payload)
+        const record = await createLegalCase(payload)
+        caseId = record.id
         toast({ title: 'Caso criado com sucesso' })
       }
+
+      if (pjeMovements.length > 0 && caseId) {
+        for (const mov of pjeMovements) {
+          try {
+            await pb.collection('case_movements').create({
+              case: caseId,
+              event_date: mov.event_date
+                ? new Date(mov.event_date).toISOString()
+                : new Date().toISOString(),
+              description: mov.description,
+              details: mov.details,
+              source: 'PJe',
+              external_id: mov.external_id ? `pje-${mov.external_id}` : undefined,
+              movement_details: mov.movement_details,
+              organization: pb.authStore.record?.active_organization,
+            })
+          } catch (err) {
+            // Ignore individual movement creation errors (e.g. duplicate external_id)
+            console.error('Failed to create movement', err)
+          }
+        }
+      }
+
       onSuccess()
       onOpenChange(false)
     } catch (e: any) {
@@ -305,7 +345,7 @@ export function CaseFormModal({
       const justNumbers = currentCaseNumber.replace(/\D/g, '')
       if (justNumbers.length === 20 && !isSearching) {
         const timeout = setTimeout(() => {
-          handleDataJudSearch()
+          handlePjeSearch()
         }, 1000)
         return () => clearTimeout(timeout)
       }
@@ -319,7 +359,7 @@ export function CaseFormModal({
         <DialogHeader>
           <DialogTitle>{editingCase ? 'Editar Registro' : 'Novo Registro de Caso'}</DialogTitle>
           <DialogDescription>
-            Preencha os dados manualmente ou busque no DataJud pelo CNJ.
+            Preencha os dados manualmente ou busque no PJe pelo CNJ.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 mt-2">
@@ -367,7 +407,7 @@ export function CaseFormModal({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleDataJudSearch}
+                  onClick={handlePjeSearch}
                   disabled={isSearching}
                   className="w-full sm:w-auto"
                 >
@@ -376,7 +416,7 @@ export function CaseFormModal({
                   ) : (
                     <Search className="w-4 h-4 mr-2" />
                   )}
-                  Autopreencher DataJud
+                  Autopreencher PJe
                 </Button>
               )}
             </div>
