@@ -21,6 +21,8 @@ import {
   Edit,
   Trash2,
   AlertTriangle,
+  Check,
+  Clock,
 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
@@ -49,9 +51,10 @@ export default function ProcessManager() {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
+  type SyncStatus = 'pending' | 'queued' | 'syncing' | 'success' | 'error'
   const [isBatchSyncing, setIsBatchSyncing] = useState(false)
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, currentCase: '' })
-  const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set())
+  const [syncStatuses, setSyncStatuses] = useState<Record<string, SyncStatus>>({})
   const [syncErrors, setSyncErrors] = useState<Record<string, string>>({})
 
   const [editingMetadataCase, setEditingMetadataCase] = useState<any>(null)
@@ -126,6 +129,10 @@ export default function ProcessManager() {
     setIsBatchSyncing(true)
     setBatchProgress({ current: 0, total: casesToSync.length, currentCase: '' })
 
+    const initialStatuses = { ...syncStatuses }
+    casesToSync.forEach((c) => (initialStatuses[c.id] = 'queued'))
+    setSyncStatuses(initialStatuses)
+
     let successCount = 0
     let failCount = 0
 
@@ -137,7 +144,7 @@ export default function ProcessManager() {
         currentCase: c.case_number || 'Sem número',
       })
 
-      setSyncingIds((prev) => new Set(prev).add(c.id))
+      setSyncStatuses((prev) => ({ ...prev, [c.id]: 'syncing' }))
 
       try {
         const cleanNumber = (c.case_number || '').replace(/\D/g, '')
@@ -177,7 +184,6 @@ export default function ProcessManager() {
                 movement_details: item,
               })
             } catch (err: any) {
-              // Ignore unique constraint errors for already saved movements
               if (err?.response?.data?.external_id?.code !== 'validation_not_unique') {
                 console.warn(`Failed to save movement ${externalId}:`, err)
               }
@@ -185,7 +191,6 @@ export default function ProcessManager() {
           }
         }
 
-        // Update metadata.last_synced_at
         await pb.collection('legal_cases').update(c.id, {
           metadata: {
             ...(c.metadata || {}),
@@ -193,6 +198,7 @@ export default function ProcessManager() {
           },
         })
 
+        setSyncStatuses((prev) => ({ ...prev, [c.id]: 'success' }))
         setSyncErrors((prev) => {
           const next = { ...prev }
           delete next[c.id]
@@ -203,17 +209,11 @@ export default function ProcessManager() {
         failCount++
         const description =
           err?.response?.message || err?.message || 'Erro inesperado na sincronização.'
+        setSyncStatuses((prev) => ({ ...prev, [c.id]: 'error' }))
         setSyncErrors((prev) => ({ ...prev, [c.id]: description }))
         console.error(`Error syncing case ${c.case_number}`, err)
-      } finally {
-        setSyncingIds((prev) => {
-          const next = new Set(prev)
-          next.delete(c.id)
-          return next
-        })
       }
 
-      // Small delay to be polite to the PJe API
       await new Promise((resolve) => setTimeout(resolve, 1000))
     }
 
@@ -224,6 +224,51 @@ export default function ProcessManager() {
       description: `Sucesso: ${successCount} processos atualizados. Falha: ${failCount} processos.`,
     })
     loadData()
+  }
+
+  const getStatusBadge = (caseId: string, caseNumber: string) => {
+    if (!caseNumber) return null
+    const status = syncStatuses[caseId] || 'pending'
+    switch (status) {
+      case 'pending':
+        return (
+          <Badge
+            variant="outline"
+            className="text-[10px] text-slate-500 font-normal bg-slate-50/50"
+          >
+            <Clock className="w-3 h-3 mr-1" /> Pendente de atualização
+          </Badge>
+        )
+      case 'queued':
+        return (
+          <Badge className="bg-amber-100 text-amber-800 border-none text-[10px] font-normal hover:bg-amber-100">
+            <Clock className="w-3 h-3 mr-1" /> Na fila
+          </Badge>
+        )
+      case 'syncing':
+        return (
+          <Badge className="bg-indigo-100 text-indigo-800 border-none text-[10px] font-normal flex items-center gap-1 hover:bg-indigo-100">
+            <Loader2 className="w-3 h-3 animate-spin" /> Sincronizando
+          </Badge>
+        )
+      case 'success':
+        return (
+          <Badge className="bg-emerald-100 text-emerald-800 border-none text-[10px] font-normal flex items-center gap-1 hover:bg-emerald-100">
+            <Check className="w-3 h-3" /> Atualizado
+          </Badge>
+        )
+      case 'error':
+        return (
+          <Badge
+            className="bg-red-100 text-red-800 border-none text-[10px] font-normal flex items-center gap-1 hover:bg-red-100 cursor-help"
+            title={syncErrors[caseId]}
+          >
+            <AlertTriangle className="w-3 h-3" /> Erro
+          </Badge>
+        )
+      default:
+        return null
+    }
   }
 
   const handleSaveMetadata = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -416,21 +461,7 @@ export default function ProcessManager() {
                                 ARQUIVADO
                               </Badge>
                             )}
-                            {syncingIds.has(c.id) && (
-                              <Badge className="bg-indigo-100 text-indigo-800 border-none text-[10px] px-2 flex items-center gap-1">
-                                <Loader2 className="w-3 h-3 animate-spin" /> Sincronizando...
-                              </Badge>
-                            )}
-                            {syncErrors[c.id] && (
-                              <Badge
-                                className="bg-red-100 text-red-800 border-none text-[10px] px-2 py-0.5 flex items-center gap-1"
-                                title={syncErrors[c.id]}
-                              >
-                                <AlertTriangle className="w-3 h-3" /> Erro:{' '}
-                                {syncErrors[c.id].substring(0, 30)}
-                                {syncErrors[c.id].length > 30 ? '...' : ''}
-                              </Badge>
-                            )}
+                            {getStatusBadge(c.id, c.case_number)}
                           </div>
                           <span
                             className="text-slate-500 text-xs mt-0.5 truncate max-w-[300px]"

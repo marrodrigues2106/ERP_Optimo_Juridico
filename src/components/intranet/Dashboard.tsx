@@ -72,9 +72,6 @@ export default function Dashboard() {
   const [caseCount, setCaseCount] = useState(0)
   const [recentCases, setRecentCases] = useState<any[]>([])
 
-  const [isSyncingAll, setIsSyncingAll] = useState(false)
-  const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0, currentCase: '' })
-
   const [feedPage, setFeedPage] = useState(1)
   const [isProcessingBatch, setIsProcessingBatch] = useState(false)
   const [feedPerPage, setFeedPerPage] = useState(() => {
@@ -351,66 +348,6 @@ export default function Dashboard() {
     else setSelectedFeedItems((prev) => prev.filter((i) => i !== id))
   }
 
-  const handleSyncAllPje = async () => {
-    try {
-      setIsSyncingAll(true)
-
-      const orgId = pb.authStore.record?.active_organization
-      let filter = 'lifecycle_status = "Ativo" && case_number != "" && deleted_at = ""'
-      if (orgId) filter += ` && organization = "${orgId}"`
-
-      const cases = await pb.collection('legal_cases').getFullList({ filter })
-
-      if (cases.length === 0) {
-        toast({
-          title: 'Aviso',
-          description: 'Nenhum processo ativo com número preenchido encontrado.',
-        })
-        return
-      }
-
-      setSyncProgress({ current: 0, total: cases.length, currentCase: '' })
-
-      let successCount = 0
-      let newComms = 0
-      let failCount = 0
-
-      for (let i = 0; i < cases.length; i++) {
-        const c = cases[i]
-        setSyncProgress({
-          current: i + 1,
-          total: cases.length,
-          currentCase: c.case_number || 'Sem número',
-        })
-
-        try {
-          const res = await pb.send(`/backend/v1/sync/case/${c.id}`, { method: 'GET' })
-          successCount++
-          if (res.new_communications) newComms += res.new_communications
-        } catch (err: any) {
-          console.error(`Error syncing case ${c.case_number}:`, err)
-          failCount++
-        }
-      }
-
-      toast({
-        title: 'Sincronização Concluída',
-        description: `${successCount} processos verificados. ${newComms} novas comunicações.${failCount > 0 ? ` (${failCount} falhas)` : ''}`,
-      })
-      debouncedLoadCaseCount()
-      debouncedLoadFeed()
-    } catch (err) {
-      toast({
-        title: 'Erro na Sincronização',
-        description: getErrorMessage(err),
-        variant: 'destructive',
-      })
-    } finally {
-      setIsSyncingAll(false)
-      setSyncProgress({ current: 0, total: 0, currentCase: '' })
-    }
-  }
-
   const handleBulkAction = async (markAsRead: boolean) => {
     if (selectedFeedItems.length === 0) return
     setIsProcessingBatch(true)
@@ -587,28 +524,6 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {isSyncingAll ? (
-              <div className="flex items-center gap-3 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
-                <RefreshCw className="w-4 h-4 text-primary animate-spin" />
-                <div className="text-xs">
-                  <div className="font-semibold text-slate-700">
-                    Sincronizando PJe ({syncProgress.current}/{syncProgress.total})
-                  </div>
-                  <div className="text-slate-500 truncate max-w-[150px]">
-                    {syncProgress.currentCase}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSyncAllPje}
-                className="hidden sm:flex shadow-sm bg-white"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" /> Sincronizar PJe
-              </Button>
-            )}
             <Button
               onClick={() => setCaseModalOpen(true)}
               size="sm"
