@@ -15,9 +15,7 @@ routerAdd('GET', '/backend/v1/datajud/health', (e) => {
       } catch (err) {}
     }
 
-    const apiKey = cfg
-      ? cfg.get('apiKey')
-      : 'cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=='
+    const apiKey = (cfg ? cfg.getString('apiKey') : '') || $secrets.get('DATAJUD_API_KEY') || ''
 
     const callDataJud = (key, bodyStr) => {
       const url = `https://api-publica.datajud.cnj.jus.br/api_publica_stj/_search`

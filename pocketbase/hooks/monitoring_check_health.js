@@ -11,34 +11,74 @@ routerAdd(
     let scrapingConnected = false
     let douOnline = false
 
-    // 1. PJe Portal Check
+    // 1 & 3. Comunica PJe Check (Replaces legacy portal check)
     try {
+      let comunicaUrl = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao'
+      let comunicaKey = $secrets.get('COMUNICA_PJE_KEY') || ''
+
+      try {
+        const settingsUrl = $app.findRecordsByFilter(
+          'settings',
+          "key = 'comunica_pje_url'",
+          '',
+          1,
+          0,
+        )
+        if (settingsUrl.length > 0 && settingsUrl[0].getString('value')) {
+          comunicaUrl = settingsUrl[0].getString('value')
+        }
+        const settingsKey = $app.findRecordsByFilter(
+          'settings',
+          "key = 'comunica_pje_key'",
+          '',
+          1,
+          0,
+        )
+        if (settingsKey.length > 0 && settingsKey[0].getString('value')) {
+          comunicaKey = settingsKey[0].getString('value')
+        }
+      } catch (err) {}
+
+      const headers = { Accept: 'application/json' }
+      if (comunicaKey) {
+        headers['Authorization'] = comunicaKey.startsWith('Bearer')
+          ? comunicaKey
+          : 'Bearer ' + comunicaKey
+      }
+
       const pjeRes = $http.send({
-        url: 'https://pje.cnj.jus.br/pje/login.seam',
+        url: comunicaUrl,
         method: 'GET',
+        headers: headers,
         timeout: 15,
       })
+
       if (pjeRes.statusCode >= 200 && pjeRes.statusCode < 400) {
         pjeOnline = true
+        scrapingConnected = true
+      } else if (pjeRes.statusCode === 401 || pjeRes.statusCode === 403) {
+        throw new Error(
+          `Authentication Error: Invalid or expired API Key (HTTP ${pjeRes.statusCode})`,
+        )
       } else {
-        throw new Error(`HTTP ${pjeRes.statusCode}`)
+        throw new Error(`HTTP Error: ${pjeRes.statusCode}`)
       }
     } catch (err) {
       try {
         const logCol = $app.findCollectionByNameOrId('system_logs')
         const log = new Record(logCol)
         log.set('level', 'error')
-        log.set('module', 'PJe Monitoring')
-        log.set('message', 'PJe portal check failed: ' + String(err))
+        log.set('module', 'pje-sync')
+        log.set('message', 'Comunica PJe API check failed: ' + String(err))
         $app.save(log)
       } catch (_) {}
     }
 
     // 2. DataJud Check
     try {
-      const apiKey = config.getString('apiKey') || $secrets.get('DATAJUD_API_KEY')
+      const apiKey = config.getString('apiKey') || $secrets.get('DATAJUD_API_KEY') || ''
       const djRes = $http.send({
-        url: 'https://api-publica.datajud.cnj.jus.br/api_publica_tjrj/_search',
+        url: 'https://api-publica.datajud.cnj.jus.br/api_publica_stj/_search',
         method: 'POST',
         headers: {
           Authorization: 'APIKey ' + apiKey,
@@ -47,52 +87,32 @@ routerAdd(
         body: JSON.stringify({ size: 1, query: { match_all: {} } }),
         timeout: 15,
       })
+
       if (djRes.statusCode >= 200 && djRes.statusCode < 400) {
         datajudOnline = true
+        config.set('datajudLastError', '')
+      } else if (djRes.statusCode === 401 || djRes.statusCode === 403) {
+        config.set(
+          'datajudLastError',
+          `Authentication Error: Invalid API Key (HTTP ${djRes.statusCode})`,
+        )
+        throw new Error(`Authentication Error: Invalid API Key (HTTP ${djRes.statusCode})`)
       } else {
-        throw new Error(`HTTP ${djRes.statusCode}`)
+        config.set('datajudLastError', `HTTP Error: ${djRes.statusCode}`)
+        throw new Error(`HTTP Error: ${djRes.statusCode}`)
       }
     } catch (err) {
       try {
         const logCol = $app.findCollectionByNameOrId('system_logs')
         const log = new Record(logCol)
         log.set('level', 'error')
-        log.set('module', 'PJe Monitoring')
+        log.set('module', 'datajud-health')
         log.set('message', 'DataJud API check failed: ' + String(err))
         $app.save(log)
       } catch (_) {}
-    }
-
-    // 3. Comunica PJe Check (Real service URL)
-    try {
-      let comunicaUrl = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao'
-      try {
-        const settings = $app.findRecordsByFilter('settings', "key = 'comunica_pje_url'", '', 1, 0)
-        if (settings.length > 0 && settings[0].getString('value')) {
-          comunicaUrl = settings[0].getString('value')
-        }
-      } catch (err) {}
-
-      const scrapeRes = $http.send({
-        url: comunicaUrl,
-        method: 'GET',
-        timeout: 15,
-      })
-
-      if (scrapeRes.statusCode > 0) {
-        scrapingConnected = true
-      } else {
-        throw new Error(`Connection failed, status: ${scrapeRes.statusCode}`)
+      if (!config.getString('datajudLastError')) {
+        config.set('datajudLastError', 'Network/Timeout Error: ' + String(err))
       }
-    } catch (err) {
-      try {
-        const logCol = $app.findCollectionByNameOrId('system_logs')
-        const log = new Record(logCol)
-        log.set('level', 'error')
-        log.set('module', 'PJe Monitoring')
-        log.set('message', 'Comunica PJe service check failed: ' + String(err))
-        $app.save(log)
-      } catch (_) {}
     }
 
     // 4. IN.GOV (DOU) Check
@@ -152,13 +172,16 @@ routerAdd(
     config.set('douLatency', douLatency)
     config.set('douError', douErrorMsg)
 
-    if (pjeOnline && datajudOnline && scrapingConnected && douOnline) {
+    if (pjeOnline && datajudOnline && douOnline) {
       try {
         const logCol = $app.findCollectionByNameOrId('system_logs')
         const log = new Record(logCol)
         log.set('level', 'info')
-        log.set('module', 'PJe Monitoring')
-        log.set('message', 'All PJe, DataJud and DOU monitoring checks passed successfully.')
+        log.set('module', 'monitoring-health')
+        log.set(
+          'message',
+          'All Comunica PJe, DataJud and DOU monitoring checks passed successfully.',
+        )
         $app.save(log)
       } catch (_) {}
     }

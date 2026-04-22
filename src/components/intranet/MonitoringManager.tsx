@@ -538,43 +538,11 @@ export default function MonitoringManager() {
               </Button>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                <div className="flex flex-col p-4 border rounded-lg bg-slate-50 relative overflow-hidden">
-                  <div className="font-semibold text-sm mb-1">Portal PJe</div>
-                  <div className="text-xs text-muted-foreground mb-3">
-                    Última verificação:
-                    <br />
-                    {config?.updated ? new Date(config.updated).toLocaleString() : 'N/A'}
-                  </div>
-                  <div className="mt-auto flex items-center gap-2">
-                    <div className="relative flex h-3 w-3">
-                      {pjeStatus === 'online' ? (
-                        <>
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                        </>
-                      )}
-                    </div>
-                    <Badge
-                      variant={pjeStatus === 'online' ? 'default' : 'destructive'}
-                      className={
-                        pjeStatus === 'online' ? 'bg-emerald-500 hover:bg-emerald-600' : ''
-                      }
-                    >
-                      {pjeStatus === 'online' ? 'Online' : 'Offline'}
-                    </Badge>
-                  </div>
-                </div>
-
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="flex flex-col p-4 border rounded-lg bg-slate-50 relative overflow-hidden">
                   <div className="font-semibold text-sm mb-1">Comunica PJe</div>
                   <div className="text-xs text-muted-foreground mb-3">
-                    Conexão com Serviço
+                    Conexão com Serviço API
                     <br />
                     {config?.updated ? new Date(config.updated).toLocaleString() : 'N/A'}
                   </div>
