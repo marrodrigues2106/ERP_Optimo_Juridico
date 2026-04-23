@@ -57,6 +57,33 @@ onRecordAfterCreateSuccess((e) => {
           movement.set('notified_client', true)
           $app.saveNoValidate(movement)
 
+          // Also notify responsible user
+          try {
+            const respCollabId = legalCase.get('responsible_collaborator')
+            if (respCollabId) {
+              const collab = $app.findRecordById('collaborators', respCollabId)
+              const userId = collab.get('user')
+              if (userId) {
+                const user = $app.findRecordById('users', userId)
+                const userEmail = user.get('email')
+                if (userEmail) {
+                  const alertMsg = new mailer.Message({
+                    from: {
+                      address: $app.settings().meta.senderAddress || 'no-reply@example.com',
+                      name: 'Central de Alertas',
+                    },
+                    to: [{ address: userEmail }],
+                    subject: `Alerta Processual: ${legalCase.get('case_number') || ''}`,
+                    html: `<p>Olá ${user.get('name')},</p><p>Nova movimentação no processo: ${movement.get('description')}</p>`,
+                  })
+                  $app.newMailClient().send(alertMsg)
+                }
+              }
+            }
+          } catch (uErr) {
+            console.error('Failed to notify responsible user:', uErr)
+          }
+
           // Log interaction automatically
           try {
             const interaction = new Record($app.findCollectionByNameOrId('crm_interactions'))

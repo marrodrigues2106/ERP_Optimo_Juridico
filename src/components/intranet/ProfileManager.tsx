@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/hooks/use-auth'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
-import { Camera, Save, Loader2, Building2 } from 'lucide-react'
+import { Camera, Save, Loader2, Building2, Mail } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
@@ -36,6 +36,16 @@ export default function ProfileManager() {
 
   const [orgData, setOrgData] = useState({ name: '', cnpj: '', address: '', email: '' })
   const [savingOrg, setSavingOrg] = useState(false)
+
+  const [emailConfig, setEmailConfig] = useState({
+    imap_host: user?.imap_host || '',
+    imap_port: user?.imap_port || '',
+    smtp_host: user?.smtp_host || '',
+    smtp_port: user?.smtp_port || '',
+    email_user: user?.email_user || '',
+    email_password: '',
+  })
+  const [savingEmail, setSavingEmail] = useState(false)
 
   useEffect(() => {
     if (user?.active_organization) {
@@ -114,6 +124,42 @@ export default function ProfileManager() {
     }
   }
 
+  const handleSaveEmail = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSavingEmail(true)
+    try {
+      const dataToSave = { ...emailConfig }
+      if (!dataToSave.email_password) {
+        delete (dataToSave as any).email_password
+      }
+      await pb.collection('users').update(user.id, dataToSave)
+      toast({ title: 'Configurações de e-mail atualizadas!' })
+    } catch (err) {
+      toast({ title: 'Erro ao salvar configurações', variant: 'destructive' })
+    } finally {
+      setSavingEmail(false)
+    }
+  }
+
+  const handleTestEmail = async () => {
+    setSavingEmail(true)
+    try {
+      const res = await pb.send('/backend/v1/email/test', {
+        method: 'POST',
+        body: JSON.stringify(emailConfig),
+      })
+      if (res.success) {
+        toast({ title: 'Conexão bem sucedida!' })
+      } else {
+        toast({ title: 'Falha na conexão', variant: 'destructive' })
+      }
+    } catch (err) {
+      toast({ title: 'Erro ao testar conexão', variant: 'destructive' })
+    } finally {
+      setSavingEmail(false)
+    }
+  }
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
       <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900 mb-6">
@@ -131,6 +177,9 @@ export default function ProfileManager() {
           )}
           <TabsTrigger value="monitoramento" className="text-base px-4 py-2 font-medium">
             Monitoramento PJe
+          </TabsTrigger>
+          <TabsTrigger value="email" className="text-base px-4 py-2 font-medium">
+            E-mail Externo
           </TabsTrigger>
         </TabsList>
 
@@ -261,6 +310,108 @@ export default function ProfileManager() {
             </Card>
           </TabsContent>
         )}
+
+        <TabsContent value="email">
+          <Card className="max-w-3xl border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <Mail className="w-6 h-6 text-primary" /> E-mail Externo
+              </CardTitle>
+              <CardDescription className="text-base">
+                Configure os dados IMAP e SMTP da sua conta de e-mail corporativa.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSaveEmail} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <Label className="text-base">Servidor IMAP (Recebimento)</Label>
+                    <Input
+                      value={emailConfig.imap_host}
+                      onChange={(e) =>
+                        setEmailConfig({ ...emailConfig, imap_host: e.target.value })
+                      }
+                      placeholder="imap.dominio.com.br"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-base">Porta IMAP</Label>
+                    <Input
+                      type="number"
+                      value={emailConfig.imap_port}
+                      onChange={(e) =>
+                        setEmailConfig({ ...emailConfig, imap_port: e.target.value })
+                      }
+                      placeholder="993"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-base">Servidor SMTP (Envio)</Label>
+                    <Input
+                      value={emailConfig.smtp_host}
+                      onChange={(e) =>
+                        setEmailConfig({ ...emailConfig, smtp_host: e.target.value })
+                      }
+                      placeholder="smtp.dominio.com.br"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-base">Porta SMTP</Label>
+                    <Input
+                      type="number"
+                      value={emailConfig.smtp_port}
+                      onChange={(e) =>
+                        setEmailConfig({ ...emailConfig, smtp_port: e.target.value })
+                      }
+                      placeholder="465 ou 587"
+                    />
+                  </div>
+                  <div className="space-y-3 md:col-span-2">
+                    <Label className="text-base">Usuário (E-mail)</Label>
+                    <Input
+                      type="email"
+                      value={emailConfig.email_user}
+                      onChange={(e) =>
+                        setEmailConfig({ ...emailConfig, email_user: e.target.value })
+                      }
+                      placeholder="seu.nome@escritorio.com.br"
+                    />
+                  </div>
+                  <div className="space-y-3 md:col-span-2">
+                    <Label className="text-base">Senha do E-mail</Label>
+                    <Input
+                      type="password"
+                      value={emailConfig.email_password}
+                      onChange={(e) =>
+                        setEmailConfig({ ...emailConfig, email_password: e.target.value })
+                      }
+                      placeholder="••••••••"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-4 pt-4 border-t border-slate-100">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleTestEmail}
+                    disabled={savingEmail}
+                  >
+                    Testar Conexão
+                  </Button>
+                  <Button type="submit" disabled={savingEmail} className="font-bold">
+                    {savingEmail ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4 mr-2" />
+                    )}
+                    Salvar Configurações
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="monitoramento">
           <Card className="max-w-2xl border-slate-200 shadow-sm">

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-23T01:26:17.382Z",
+  "generatedAt": "2026-04-23T01:44:06.982Z",
   "collections": [
     {
       "name": "users",
@@ -132,6 +132,42 @@
         {
           "name": "ical_token",
           "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "imap_host",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "imap_port",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "smtp_host",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "smtp_port",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "email_user",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "email_password",
+          "type": "password",
           "required": false,
           "system": false
         }
@@ -2605,6 +2641,13 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "client",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clients"
         }
       ],
       "indexes": []

@@ -12,6 +12,7 @@ import { AuthProvider } from './hooks/use-auth'
 import { Toaster } from '@/components/ui/toaster'
 
 import Dashboard from '@/components/intranet/Dashboard'
+import WebmailManager from '@/components/intranet/WebmailManager'
 import BlogManager from '@/components/intranet/BlogManager'
 import ProcessManager from '@/components/intranet/ProcessManager'
 import ProcessDetail from '@/components/intranet/ProcessDetail'
@@ -66,6 +67,7 @@ function App() {
               <Route path="busca-dou" element={<DouSearch />} />
               <Route path="pje-comunica" element={<PjeComunica />} />
               <Route path="search" element={<GlobalSearch />} />
+              <Route path="webmail" element={<WebmailManager />} />
               <Route path="processos" element={<ProcessManager />} />
               <Route path="processos/:id" element={<ProcessDetail />} />
               <Route path="clientes/:id" element={<ClientDetail />} />

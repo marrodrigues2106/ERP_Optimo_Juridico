@@ -71,6 +71,9 @@ type UnifiedItem = {
   caseNumber?: string
   caseTitle?: string
   caseId?: string
+  clientId?: string
+  clientName?: string
+  clientPhone?: string
   raw: any
 }
 
@@ -97,7 +100,49 @@ export default function CentralAtualizacoes() {
   const [manualDialogOpen, setManualDialogOpen] = useState(false)
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
   const [shareMessage, setShareMessage] = useState('')
+  const [shareTemplate, setShareTemplate] = useState('custom')
+  const [shareClientId, setShareClientId] = useState('')
+  const [sharePhone, setSharePhone] = useState('')
+  const [shareClients, setShareClients] = useState<any[]>([])
   const [selectedItem, setSelectedItem] = useState<UnifiedItem | null>(null)
+
+  useEffect(() => {
+    if (shareDialogOpen && shareClients.length === 0) {
+      pb.collection('clients')
+        .getFullList({ filter: 'deleted_at=""', sort: 'name' })
+        .then(setShareClients)
+        .catch(console.error)
+    }
+  }, [shareDialogOpen])
+
+  const handleClientSelect = (cId: string) => {
+    setShareClientId(cId)
+    const c = shareClients.find((x) => x.id === cId)
+    if (c) {
+      setSharePhone(c.phone || '')
+      if (shareTemplate === 'aniversario') {
+        setShareMessage(
+          `Olá ${c.name}, o escritório Moraes Rodrigues Advocacia passa por aqui para desejar um feliz aniversário antecipado! Muita saúde e conquistas.`,
+        )
+      }
+    }
+  }
+
+  const handleTemplateChange = (tpl: string) => {
+    setShareTemplate(tpl)
+    if (tpl === 'aniversario') {
+      const c = shareClients.find((x) => x.id === shareClientId)
+      setShareMessage(
+        `Olá ${c?.name || ''}, o escritório Moraes Rodrigues Advocacia passa por aqui para desejar um feliz aniversário antecipado! Muita saúde e conquistas.`,
+      )
+    } else if (tpl === 'financeiro') {
+      setShareMessage(`Olá,\n\nInformamos sobre a seguinte movimentação financeira pendente.`)
+    } else if (tpl === 'processual') {
+      setShareMessage(`Olá,\n\nHá uma atualização no seu processo.`)
+    } else {
+      setShareMessage(`Olá, `)
+    }
+  }
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isProcessingBatch, setIsProcessingBatch] = useState(false)
@@ -130,6 +175,9 @@ export default function CentralAtualizacoes() {
   useRealtime('finances', () => {
     if (!isProcessingBatchRef.current) loadData()
   })
+  useRealtime('notifications', () => {
+    if (!isProcessingBatchRef.current) loadData()
+  })
 
   const loadData = async () => {
     setLoading(true)
@@ -137,7 +185,7 @@ export default function CentralAtualizacoes() {
       const orgId = pb.authStore.record?.active_organization
       const orgFilter = orgId ? ` && organization = "${orgId}"` : ''
 
-      const [pjeRes, douPub, douOcc, moveRes, tasksRes, agendaRes, finRes, casesRes] =
+      const [pjeRes, douPub, douOcc, moveRes, tasksRes, agendaRes, finRes, notifRes, casesRes] =
         await Promise.all([
           pb
             .collection('pje_communications')
@@ -164,7 +212,14 @@ export default function CentralAtualizacoes() {
             sort: 'date',
             expand: 'linked_lawsuit',
           }),
-          pb.collection('legal_cases').getFullList({ fields: 'id,case_number,title' }),
+          pb.collection('notifications').getList(1, 50, {
+            filter: `user_id = "${pb.authStore.record?.id}"`,
+            sort: '-created',
+            expand: 'client',
+          }),
+          pb
+            .collection('legal_cases')
+            .getFullList({ fields: 'id,case_number,title,client', expand: 'client' }),
         ])
 
       const casesMap = new Map()
@@ -298,6 +353,25 @@ export default function CentralAtualizacoes() {
         raw: i,
       }))
 
+      const mappedNotifs: UnifiedItem[] = notifRes.items.map((i) => ({
+        id: i.id,
+        collection: 'notifications',
+        type: i.message.toLowerCase().includes('aniversário')
+          ? 'Aniversário'
+          : ('Notificação' as any),
+        title: i.message.toLowerCase().includes('aniversário')
+          ? 'Alerta de Aniversário'
+          : 'Notificação do Sistema',
+        description: i.message,
+        date: i.created,
+        isRead: !!i.is_read,
+        isArchived: false,
+        clientId: i.client,
+        clientName: i.expand?.client?.name,
+        clientPhone: i.expand?.client?.phone,
+        raw: i,
+      }))
+
       const all = [
         ...mappedPje,
         ...mappedDouPub,
@@ -306,6 +380,7 @@ export default function CentralAtualizacoes() {
         ...mappedTasks,
         ...mappedAgenda,
         ...mappedFinances,
+        ...mappedNotifs,
       ]
       all.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
@@ -373,6 +448,8 @@ export default function CentralAtualizacoes() {
                   .update(item.id, { status_alerta: 'visualizado' })
               else if (item.collection === 'case_movements')
                 await pb.collection('case_movements').update(item.id, { notified_client: true })
+              else if (item.collection === 'notifications')
+                await pb.collection('notifications').update(item.id, { is_read: true })
             } else if (action === 'unread') {
               if (item.collection === 'pje_communications')
                 await pb.collection('pje_communications').update(item.id, { is_read: false })
@@ -545,19 +622,26 @@ export default function CentralAtualizacoes() {
   }
 
   const handleShareWhatsApp = (item: UnifiedItem) => {
-    const dateFormatted = item.date ? format(new Date(item.date), 'dd/MM/yyyy HH:mm') : '-'
-    let processInfo = ''
-    if (item.caseTitle || item.caseNumber) {
-      const parts = []
-      if (item.caseTitle) parts.push(`*${item.caseTitle}*`)
-      if (item.caseNumber) parts.push(item.caseNumber)
-      processInfo = `\n*Processo:* ${parts.join(' - ')}\n`
+    let tpl = 'custom'
+    let msg = ''
+
+    if (item.type === 'Aniversário') {
+      tpl = 'aniversario'
+      msg = `Olá ${item.clientName || ''}, o escritório Moraes Rodrigues Advocacia passa por aqui para desejar um feliz aniversário antecipado! Muita saúde e conquistas.`
+    } else if (item.type === 'Financeiro') {
+      tpl = 'financeiro'
+      msg = `Olá,\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${item.title}\n${item.description}`
+    } else if (['Movimentação', 'PJe', 'DOU', 'Processo Novo'].includes(item.type)) {
+      tpl = 'processual'
+      msg = `Olá,\n\nHá uma nova atualização no seu processo *${item.caseNumber || item.caseTitle || ''}*:\n\n${item.description?.replace(/<[^>]*>?/gm, '').trim()}`
+    } else {
+      msg = `Olá,\n\n*${item.type}:* ${item.title}\n${item.description?.replace(/<[^>]*>?/gm, '').trim()}`
     }
 
-    const cleanDesc = item.description ? item.description.replace(/<[^>]*>?/gm, '').trim() : ''
-
-    const msg = `Olá,\n\n*${item.type}:* ${item.title}\n${cleanDesc}\n\n*Data:* ${dateFormatted}\n${processInfo}`
+    setShareTemplate(tpl)
     setShareMessage(msg)
+    setShareClientId(item.clientId || '')
+    setSharePhone(item.clientPhone || '')
     setShareDialogOpen(true)
   }
 
@@ -629,6 +713,8 @@ export default function CentralAtualizacoes() {
               {item.type === 'Tarefa' && <CheckSquare className="w-4 h-4 text-amber-500" />}
               {item.type === 'Agenda' && <CalendarIcon className="w-4 h-4 text-amber-500" />}
               {item.type === 'Financeiro' && <Wallet className="w-4 h-4 text-emerald-500" />}
+              {item.type === 'Aniversário' && <CalendarIcon className="w-4 h-4 text-pink-500" />}
+              {item.type === 'Notificação' && <Activity className="w-4 h-4 text-slate-500" />}
               {item.type}
               {item.treatmentStatus && item.treatmentStatus !== 'pending' && (
                 <Badge
@@ -863,6 +949,17 @@ export default function CentralAtualizacoes() {
                 onClick={() => handleCompleteTask(item)}
               >
                 <CheckCircle2 className="w-4 h-4 mr-2" /> Concluir
+              </Button>
+            )}
+
+            {item.type === 'Aniversário' && (
+              <Button
+                size="sm"
+                variant="default"
+                className="bg-[#25D366] text-white hover:bg-[#1ebd5a]"
+                onClick={() => handleShareWhatsApp(item)}
+              >
+                <MessageCircle className="w-4 h-4 mr-2" /> Enviar Parabéns
               </Button>
             )}
 
@@ -1184,15 +1281,56 @@ export default function CentralAtualizacoes() {
       </Dialog>
 
       <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Compartilhar no WhatsApp</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-4">
             <div className="space-y-2">
+              <Label>Template de Mensagem</Label>
+              <Select value={shareTemplate} onValueChange={handleTemplateChange}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                  <SelectItem value="processual">Atualização Processual</SelectItem>
+                  <SelectItem value="financeiro">Cobrança / Financeiro</SelectItem>
+                  <SelectItem value="aniversario">Aniversário</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Cliente</Label>
+                <Select value={shareClientId} onValueChange={handleClientSelect}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {shareClients.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Telefone (WhatsApp)</Label>
+                <Input
+                  value={sharePhone}
+                  onChange={(e) => setSharePhone(e.target.value)}
+                  placeholder="(00) 00000-0000"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <Label>Mensagem</Label>
               <textarea
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm min-h-[250px]"
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm min-h-[150px]"
                 value={shareMessage}
                 onChange={(e) => setShareMessage(e.target.value)}
               />
@@ -1204,7 +1342,11 @@ export default function CentralAtualizacoes() {
               <Button
                 className="bg-[#25D366] text-white hover:bg-[#1ebd5a]"
                 onClick={() => {
-                  const url = `https://web.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`
+                  let num = sharePhone.replace(/\D/g, '')
+                  if (num && !num.startsWith('55')) num = '55' + num
+                  const url = num
+                    ? `https://wa.me/${num}?text=${encodeURIComponent(shareMessage)}`
+                    : `https://web.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`
                   window.open(url, '_blank')
                   setShareDialogOpen(false)
                 }}
