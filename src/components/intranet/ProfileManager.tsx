@@ -141,7 +141,7 @@ export default function ProfileManager() {
         email_encryption: emailConfig.email_encryption,
       }
 
-      const res = await pb.send('/backend/v1/email_test', {
+      const res = await pb.send('/backend/v1/email/test', {
         method: 'POST',
         body: JSON.stringify(testConfig),
       })
