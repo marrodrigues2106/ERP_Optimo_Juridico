@@ -59,22 +59,15 @@ export default function WebmailManager() {
   const observerTarget = useRef<HTMLDivElement>(null)
 
   const getFolderIcon = (id: string) => {
-    switch (id) {
-      case 'INBOX':
-        return <Inbox className="w-4 h-4" />
-      case 'Sent':
-        return <SendIcon className="w-4 h-4" />
-      case 'Drafts':
-        return <FileEdit className="w-4 h-4" />
-      case 'Spam':
-        return <AlertOctagon className="w-4 h-4" />
-      case 'Trash':
-        return <Trash className="w-4 h-4" />
-      case 'Archive':
-        return <Archive className="w-4 h-4" />
-      default:
-        return <FolderOpen className="w-4 h-4" />
-    }
+    const upperId = id.toUpperCase()
+    if (upperId === 'INBOX') return <Inbox className="w-4 h-4" />
+    if (upperId.includes('SENT')) return <SendIcon className="w-4 h-4" />
+    if (upperId.includes('DRAFT')) return <FileEdit className="w-4 h-4" />
+    if (upperId.includes('SPAM') || upperId.includes('JUNK'))
+      return <AlertOctagon className="w-4 h-4" />
+    if (upperId.includes('TRASH') || upperId.includes('BIN')) return <Trash className="w-4 h-4" />
+    if (upperId.includes('ARCHIVE')) return <Archive className="w-4 h-4" />
+    return <FolderOpen className="w-4 h-4" />
   }
 
   const loadFolders = async () => {
@@ -130,7 +123,7 @@ export default function WebmailManager() {
       let msg = 'Erro ao conectar ao servidor de e-mail.'
       if (err.status === 400 || isAuthError) {
         msg =
-          'Falha na autenticação. Verifique se a senha, usuário e portas estão corretos nas configurações de e-mail.'
+          'Falha na conexão IMAP. Verifique se a senha, usuário e portas estão corretos nas configurações de e-mail.'
       } else if (isTimeout) {
         msg = 'Tempo de conexão esgotado. Verifique se os servidores IMAP/SMTP estão acessíveis.'
       } else if (isNotFound) {
@@ -185,7 +178,8 @@ export default function WebmailManager() {
             return msg
           })
           .filter((msg) => {
-            if (action === 'trash' && activeFolder !== 'Trash') return !messageIds.includes(msg.id)
+            if (action === 'trash' && !activeFolder.toUpperCase().includes('TRASH'))
+              return !messageIds.includes(msg.id)
             return true
           }),
       )
