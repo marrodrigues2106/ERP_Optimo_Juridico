@@ -24,42 +24,48 @@ routerAdd(
       throw new BadRequestError('Falha na validação dos campos de conexão.', errors)
     }
 
-    if (imap_port !== 993 && imap_port !== 143) {
-      throw new BadRequestError('Porta IMAP inválida', {
-        imap_port: new ValidationError('invalid', 'Use 993 (SSL/TLS) ou 143 (STARTTLS)'),
-      })
-    }
+    const bridgeUrl = $secrets.get('EMAIL_BRIDGE_URL') || 'https://email-bridge.goskip.app'
 
-    if (smtp_port !== 465 && smtp_port !== 587 && smtp_port !== 25) {
-      throw new BadRequestError('Porta SMTP inválida', {
-        smtp_port: new ValidationError('invalid', 'Use 465 (SSL/TLS) ou 587 (STARTTLS)'),
+    let res
+    try {
+      res = $http.send({
+        url: bridgeUrl + '/api/test',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imap_host: body.imap_host,
+          imap_port: imap_port,
+          smtp_host: body.smtp_host,
+          smtp_port: smtp_port,
+          user: body.email_user,
+          password: body.email_password,
+          encryption: body.email_encryption || 'ssl_tls',
+        }),
+        timeout: 30,
       })
-    }
-
-    // Handshake de conexão real
-    // Devido ao isolamento do JS VM e a falta de sockets TCP raw no contexto atual,
-    // a falha de conexão (Timeout ou Refused) é tratada simulando um erro claro caso o host não resolva corretamente
-    if (body.imap_host.toLowerCase().includes('fail')) {
-      throw new BadRequestError('Falha na conexão IMAP', {
-        imap_host: new ValidationError(
-          'connection_failed',
-          'Não foi possível conectar ao servidor IMAP (Timeout ou conexão recusada).',
+    } catch (err) {
+      $app.logger().error('Email bridge transport error (test)', 'error', err.message)
+      throw new BadRequestError('Serviço de e-mail temporariamente indisponível.', {
+        bridge: new ValidationError(
+          'bridge_unreachable',
+          'Não foi possível conectar ao bridge de e-mail.',
         ),
       })
     }
 
-    if (body.smtp_host.toLowerCase().includes('fail')) {
-      throw new BadRequestError('Falha na conexão SMTP', {
-        smtp_host: new ValidationError(
+    if (res.statusCode !== 200) {
+      $app.logger().error('Email bridge error (test)', 'status', res.statusCode)
+      throw new BadRequestError('Falha na conexão IMAP/SMTP', {
+        connection: new ValidationError(
           'connection_failed',
-          'Não foi possível conectar ao servidor SMTP (Timeout ou conexão recusada).',
+          res.json?.error || 'Erro ao conectar com o servidor IMAP/SMTP através do bridge.',
         ),
       })
     }
 
     return e.json(200, {
       success: true,
-      message: `Conexão IMAP/SMTP validada com sucesso usando ${body.email_encryption || 'ssl_tls'}.`,
+      message: `Conexão IMAP/SMTP validada com sucesso.`,
     })
   },
   $apis.requireAuth(),

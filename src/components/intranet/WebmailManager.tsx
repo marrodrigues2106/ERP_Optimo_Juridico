@@ -357,13 +357,24 @@ export default function WebmailManager() {
               <div className="p-6">
                 <div className="flex justify-between items-start mb-6 border-b pb-4">
                   <div>
-                    <div className="text-base font-bold text-slate-900">{selectedEmail.from}</div>
-                    <div className="text-sm text-slate-500">para {selectedEmail.to || 'mim'}</div>
+                    <div className="text-base font-bold text-slate-900">
+                      {typeof selectedEmail.from === 'string'
+                        ? selectedEmail.from
+                        : `${selectedEmail.from?.name || ''} <${selectedEmail.from?.address || ''}>`}
+                    </div>
+                    <div className="text-sm text-slate-500">
+                      para{' '}
+                      {typeof selectedEmail.to === 'string'
+                        ? selectedEmail.to
+                        : selectedEmail.to?.name || selectedEmail.to?.address || 'mim'}
+                    </div>
                   </div>
                   <div className="text-sm text-slate-500 font-medium">
-                    {format(new Date(selectedEmail.date), "dd 'de' MMM 'de' yyyy 'às' HH:mm", {
-                      locale: ptBR,
-                    })}
+                    {selectedEmail.date
+                      ? format(new Date(selectedEmail.date), "dd 'de' MMM 'de' yyyy 'às' HH:mm", {
+                          locale: ptBR,
+                        })
+                      : ''}
                   </div>
                 </div>
                 <div
@@ -452,8 +463,15 @@ export default function WebmailManager() {
                             'w-32 md:w-48 shrink-0 truncate',
                             !email.read ? 'font-bold text-slate-900' : 'font-medium text-slate-700',
                           )}
+                          title={
+                            typeof email.from === 'string'
+                              ? email.from
+                              : email.from?.name || email.from?.address || ''
+                          }
                         >
-                          {email.from.split('<')[0] || email.from.split('@')[0]}
+                          {typeof email.from === 'string'
+                            ? email.from.split('<')[0] || email.from.split('@')[0]
+                            : email.from?.name || email.from?.address || 'Desconhecido'}
                         </div>
                         <div className="flex-1 min-w-0 truncate flex flex-col md:flex-row md:items-center">
                           <span
@@ -464,10 +482,10 @@ export default function WebmailManager() {
                                 : 'font-semibold text-slate-800',
                             )}
                           >
-                            {email.subject}
+                            {email.subject || '(Sem assunto)'}
                           </span>
                           <span className="text-slate-500 truncate text-sm hidden md:inline">
-                            - {email.snippet}
+                            - {email.snippet || ''}
                           </span>
                         </div>
                         <div
@@ -476,7 +494,7 @@ export default function WebmailManager() {
                             !email.read ? 'text-blue-600' : 'text-slate-500',
                           )}
                         >
-                          {format(new Date(email.date), 'dd/MM/yyyy')}
+                          {email.date ? format(new Date(email.date), 'dd/MM/yyyy') : ''}
                         </div>
 
                         <div className="hidden group-hover:flex items-center gap-1 absolute right-2 bg-slate-50 pl-2">
@@ -541,7 +559,13 @@ export default function WebmailManager() {
                 name="to"
                 required
                 placeholder="cliente@exemplo.com"
-                defaultValue={selectedEmail && activeFolder === 'INBOX' ? selectedEmail.from : ''}
+                defaultValue={
+                  selectedEmail && activeFolder === 'INBOX'
+                    ? typeof selectedEmail.from === 'string'
+                      ? selectedEmail.from
+                      : selectedEmail.from?.address || ''
+                    : ''
+                }
               />
             </div>
             <div className="space-y-2">
@@ -550,7 +574,9 @@ export default function WebmailManager() {
                 name="subject"
                 required
                 defaultValue={
-                  selectedEmail && activeFolder === 'INBOX' ? `Re: ${selectedEmail.subject}` : ''
+                  selectedEmail && activeFolder === 'INBOX'
+                    ? `Re: ${selectedEmail.subject || ''}`
+                    : ''
                 }
               />
             </div>
