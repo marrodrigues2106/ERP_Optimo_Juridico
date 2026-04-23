@@ -1,20 +1,12 @@
 import { useState, useEffect } from 'react'
 import pb from '@/lib/pocketbase/client'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import {
-  Loader2,
-  Scale,
-  Users,
-  Bell,
-  Clock,
-  Calendar as CalendarIcon,
-  ArrowRight,
-  AlertTriangle,
-  BarChart2,
-} from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Loader2, Scale, Users, Bell, Clock, BarChart2 } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import { format, addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { AgendaWidget } from './dashboard/AgendaWidget'
+import { TasksWidget } from './dashboard/TasksWidget'
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -23,9 +15,9 @@ export default function Dashboard() {
     unreadAlerts: 0,
     upcomingDeadlines: 0,
   })
-  const [deadlines, setDeadlines] = useState<any[]>([])
-  const [alerts, setAlerts] = useState<any[]>([])
+  const [communications, setCommunications] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const navigate = useNavigate()
 
   useEffect(() => {
     const load = async () => {
@@ -36,56 +28,60 @@ export default function Dashboard() {
         const todayStr = format(new Date(), 'yyyy-MM-dd')
         const maxDateStr = format(addDays(new Date(), 2), 'yyyy-MM-dd')
 
-        const [cases, clients, pje, dou, tasks] = await Promise.all([
+        const [cases, clients, pje, dou, tasks, movements] = await Promise.all([
           pb
             .collection('legal_cases')
             .getList(1, 1, { filter: `${baseFilter} && lifecycle_status="Ativo"` }),
           pb
             .collection('clients')
             .getList(1, 1, { filter: `${baseFilter} && classification="Ativo"` }),
-          pb
-            .collection('pje_communications')
-            .getList(1, 5, {
-              filter: `${baseFilter} && is_read=false`,
-              sort: '-dataDisponibilizacao',
-            }),
+          pb.collection('pje_communications').getList(1, 15, {
+            filter: baseFilter,
+            sort: '-dataDisponibilizacao',
+            expand: 'linked_case',
+          }),
           pb
             .collection('gazette_publications')
-            .getList(1, 5, { filter: `${baseFilter} && is_read=false`, sort: '-data_publicacao' }),
-          pb.collection('tasks').getList(1, 5, {
+            .getList(1, 1, { filter: `${baseFilter} && is_read=false` }),
+          pb.collection('tasks').getList(1, 1, {
             filter: `${baseFilter} && status!="completed" && due_date >= "${todayStr} 00:00:00" && due_date <= "${maxDateStr} 23:59:59"`,
-            sort: 'due_date',
+          }),
+          pb.collection('case_movements').getList(1, 15, {
+            filter: baseFilter,
+            sort: '-event_date',
+            expand: 'case',
           }),
         ])
 
         setStats({
           activeCases: cases.totalItems,
           totalClients: clients.totalItems,
-          unreadAlerts: pje.totalItems + dou.totalItems,
+          unreadAlerts: pje.items.filter((i: any) => !i.is_read).length + dou.totalItems,
           upcomingDeadlines: tasks.totalItems,
         })
-        setDeadlines(tasks.items)
 
-        const combinedAlerts = [
-          ...pje.items.map((i) => ({
-            ...i,
-            source: 'PJe',
-            date: i.dataDisponibilizacao,
-            text: i.texto || i.tipoComunicacao,
-            id: i.id,
+        const combined = [
+          ...movements.items.map((m: any) => ({
+            id: m.id,
+            date: m.event_date,
+            description: m.description,
+            case_number: m.expand?.case?.case_number || m.expand?.case?.parties || 'Sem processo',
+            case_id: m.case,
+            source: m.source,
           })),
-          ...dou.items.map((i) => ({
-            ...i,
-            source: 'DOU',
-            date: i.data_publicacao,
-            text: i.texto_normalizado || i.resumo,
-            id: i.id,
+          ...pje.items.map((p: any) => ({
+            id: p.id,
+            date: p.dataDisponibilizacao,
+            description: p.texto || p.tipoComunicacao,
+            case_number: p.numeroProcesso || p.expand?.linked_case?.case_number || 'Sem processo',
+            case_id: p.linked_case,
+            source: p.siglaTribunal || 'PJe',
           })),
         ]
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-          .slice(0, 5)
+          .slice(0, 15)
 
-        setAlerts(combinedAlerts)
+        setCommunications(combined)
       } catch (e) {
         console.error(e)
       } finally {
@@ -158,94 +154,61 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarIcon className="w-5 h-5 text-amber-500" /> Prazos Urgentes
-              </CardTitle>
-              <CardDescription>Vencendo nas próximas 48 horas.</CardDescription>
-            </div>
-            <Link
-              to="/intranet/agenda"
-              className="text-sm text-primary hover:underline flex items-center"
-            >
-              Agenda <ArrowRight className="w-4 h-4 ml-1" />
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {deadlines.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">
-                Nenhum prazo urgente no momento.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {deadlines.map((d) => (
-                  <div
-                    key={d.id}
-                    className="flex justify-between items-start border-b border-slate-100 pb-3 last:border-0"
-                  >
-                    <div>
-                      <p className="font-medium text-sm text-slate-800">{d.title}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                        {d.description || 'Sem descrição'}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1 flex flex-col h-[600px]">
+          <Card className="flex-1 flex flex-col bg-white border-slate-200 shadow-sm overflow-hidden">
+            <CardHeader className="bg-white border-b py-3 flex flex-row items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <Bell className="w-5 h-5 text-primary" />
+                <CardTitle className="text-lg text-slate-800">Comunicações Processuais</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0 flex-1 overflow-y-auto">
+              {communications.length === 0 ? (
+                <div className="text-center py-12 flex flex-col items-center justify-center h-full">
+                  <Bell className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                  <p className="text-slate-500 text-sm">Nenhuma comunicação recente.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {communications.map((c) => (
+                    <div
+                      key={c.id}
+                      onClick={() => c.case_id && navigate(`/intranet/processos/${c.case_id}`)}
+                      className={`p-4 transition-colors hover:bg-slate-50 ${c.case_id ? 'cursor-pointer' : ''}`}
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                          {c.source}
+                        </span>
+                        <span className="text-xs text-muted-foreground font-medium">
+                          {c.date ? format(new Date(c.date), 'dd/MM/yyyy', { locale: ptBR }) : ''}
+                        </span>
+                      </div>
+                      <p
+                        className="text-sm font-bold text-slate-800 mt-2 line-clamp-1"
+                        title={c.case_number}
+                      >
+                        {c.case_number}
+                      </p>
+                      <p className="text-xs text-slate-600 mt-1 line-clamp-2 leading-relaxed">
+                        {c.description}
                       </p>
                     </div>
-                    <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded-full whitespace-nowrap">
-                      {d.due_date
-                        ? format(new Date(d.due_date), 'dd/MM HH:mm', { locale: ptBR })
-                        : 'S/ Data'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-red-500" /> Alertas Recentes
-              </CardTitle>
-              <CardDescription>Últimas publicações e intimações.</CardDescription>
-            </div>
-            <Link
-              to="/intranet/atualizacoes"
-              className="text-sm text-primary hover:underline flex items-center"
-            >
-              Central <ArrowRight className="w-4 h-4 ml-1" />
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {alerts.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">
-                Tudo em dia! Nenhum alerta pendente.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {alerts.map((a) => (
-                  <div
-                    key={a.id}
-                    className="flex flex-col border-b border-slate-100 pb-3 last:border-0"
-                  >
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                        {a.source}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {a.date ? format(new Date(a.date), 'dd/MM/yyyy', { locale: ptBR }) : ''}
-                      </span>
-                    </div>
-                    <p className="text-sm text-slate-700 line-clamp-2">{a.text}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <div className="lg:col-span-1 flex flex-col h-[600px]">
+          <AgendaWidget />
+        </div>
+
+        <div className="lg:col-span-1 flex flex-col h-[600px]">
+          <TasksWidget />
+        </div>
       </div>
     </div>
   )

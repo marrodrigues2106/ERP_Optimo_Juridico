@@ -1,25 +1,31 @@
+// @deps imapflow@1.0.161
 routerAdd(
   'POST',
   '/backend/v1/email/test',
-  (e) => {
-    const body = e.requestInfo().body || {}
+  async (e) => {
+    const { ImapFlow } = require('imapflow')
 
-    const imapHost = (body.imap_host || '').trim()
-    const smtpHost = (body.smtp_host || '').trim()
-    const emailUser = (body.email_user || '').trim()
-    const emailPass = (body.email_password || '').trim()
-    const encryption = body.email_encryption
-
-    if (!imapHost || !smtpHost || !emailUser || !emailPass) {
-      return e.badRequestError(
-        'Credenciais de e-mail incompletas ou incorretas. Por favor, configure seu perfil.',
-      )
+    const body = e.requestInfo().body
+    if (!body || !body.imap_host || !body.email_user || !body.email_password) {
+      return e.json(400, { success: false, message: 'Dados de conexão incompletos.' })
     }
 
-    // Log simulated test
-    $app.logger().info('Simulated email test', 'user', emailUser, 'encryption', encryption)
+    const client = new ImapFlow({
+      host: body.imap_host,
+      port: body.imap_port || 993,
+      secure: body.email_encryption === 'ssl_tls',
+      auth: { user: body.email_user, pass: body.email_password },
+      logger: false,
+    })
 
-    return e.json(200, { success: true, message: `Conexão (${encryption}) simulada com sucesso.` })
+    try {
+      await client.connect()
+      await client.logout()
+      return e.json(200, { success: true, message: 'Conexão IMAP bem-sucedida.' })
+    } catch (err) {
+      console.error('IMAP Test Error:', err)
+      return e.json(400, { success: false, message: 'Falha na conexão: ' + err.message })
+    }
   },
   $apis.requireAuth(),
 )

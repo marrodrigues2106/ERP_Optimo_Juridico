@@ -1,19 +1,23 @@
+// @deps nodemailer@6.9.14
 routerAdd(
   'POST',
   '/backend/v1/email/send',
-  (e) => {
-    const body = e.requestInfo().body || {}
+  async (e) => {
+    const nodemailer = require('nodemailer')
+
     const user = e.auth
     if (!user) return e.unauthorizedError('Unauthorized')
 
+    const body = e.requestInfo().body
+
     const smtpHost = user.getString('smtp_host')
+    const smtpPort = user.getInt('smtp_port') || 465
     const emailUser = user.getString('email_user')
     const encryptedPass = user.getString('email_encrypted_password')
+    const encryption = user.getString('email_encryption') || 'ssl_tls'
 
     if (!smtpHost || !emailUser || !encryptedPass) {
-      return e.badRequestError(
-        'Credenciais de e-mail incompletas ou incorretas. Por favor, configure seu perfil.',
-      )
+      return e.badRequestError('Credenciais SMTP incompletas. Por favor, configure seu perfil.')
     }
 
     let key = $secrets.get('EMAIL_ENC_KEY') || ''
@@ -21,22 +25,35 @@ routerAdd(
       key = (key + '00000000000000000000000000000000').substring(0, 32)
     }
 
+    let password = ''
     try {
-      const dec = $security.decrypt(encryptedPass, key)
-      if (!dec) throw new Error('Invalid password')
+      password = $security.decrypt(encryptedPass, key)
+      if (!password) throw new Error('Invalid password')
     } catch (err) {
       return e.badRequestError(
-        'Credenciais de e-mail incompletas ou incorretas. Por favor, configure seu perfil.',
+        'Erro ao descriptografar a senha do e-mail. Verifique suas credenciais.',
       )
     }
 
-    if (!body.to || !body.subject || !body.body) {
-      return e.badRequestError('Campos de e-mail incompletos.')
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: encryption === 'ssl_tls',
+      auth: { user: emailUser, pass: password },
+    })
+
+    try {
+      await transporter.sendMail({
+        from: emailUser,
+        to: body.to,
+        subject: body.subject,
+        html: body.body,
+      })
+      return e.json(200, { success: true })
+    } catch (err) {
+      console.error('SMTP Error:', err)
+      return e.badRequestError('Erro ao enviar e-mail: ' + err.message)
     }
-
-    $app.logger().info('Simulated email send', 'to', body.to, 'subject', body.subject)
-
-    return e.json(200, { success: true, message: 'E-mail enviado com sucesso (Simulado)' })
   },
   $apis.requireAuth(),
 )
