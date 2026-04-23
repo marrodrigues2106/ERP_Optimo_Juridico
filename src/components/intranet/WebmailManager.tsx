@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
@@ -78,7 +79,7 @@ export default function WebmailManager() {
 
   const loadFolders = async () => {
     try {
-      const res = await pb.send('/backend/v1/email/folders', { method: 'GET' })
+      const res = await pb.send('/backend/v1/email_folders', { method: 'POST' })
       setFolders(res)
     } catch (err) {
       console.error(err)
@@ -104,10 +105,10 @@ export default function WebmailManager() {
         await loadFolders()
       }
 
-      const res = await pb.send(
-        `/backend/v1/email/inbox?folder=${folderId}&page=${pageNum}&limit=20&status=${status}`,
-        { method: 'GET' },
-      )
+      const res = await pb.send('/backend/v1/email_inbox', {
+        method: 'POST',
+        body: JSON.stringify({ folder: folderId, page: pageNum, limit: 20, status }),
+      })
 
       if (append) {
         setEmails((prev) => [...prev, ...res.items])
@@ -119,10 +120,22 @@ export default function WebmailManager() {
       setPage(res.page)
       setActiveFolder(folderId)
     } catch (err: any) {
-      const msg =
-        err.status === 400
-          ? 'Credenciais de e-mail incompletas ou incorretas. Por favor, configure seu perfil.'
-          : err.message || 'Erro ao conectar ao servidor de e-mail.'
+      const isAuthError =
+        err.message?.toLowerCase().includes('auth') ||
+        err.message?.toLowerCase().includes('login') ||
+        err.status === 401
+      const isTimeout = err.message?.toLowerCase().includes('timeout') || err.status === 504
+
+      let msg = 'Erro ao conectar ao servidor de e-mail.'
+      if (err.status === 400 || isAuthError) {
+        msg =
+          'Falha na autenticação. Verifique se a senha, usuário e portas estão corretos nas configurações de e-mail.'
+      } else if (isTimeout) {
+        msg = 'Tempo de conexão esgotado. Verifique se os servidores IMAP/SMTP estão acessíveis.'
+      } else if (err.message) {
+        msg = err.message
+      }
+
       setErrorMsg(msg)
       if (!append) {
         toast({ title: 'Erro de sincronização', description: msg, variant: 'destructive' })
@@ -154,7 +167,7 @@ export default function WebmailManager() {
 
   const handleAction = async (action: string, messageIds: string[]) => {
     try {
-      await pb.send('/backend/v1/email/action', {
+      await pb.send('/backend/v1/email_action', {
         method: 'POST',
         body: JSON.stringify({ action, messageIds }),
       })
@@ -206,7 +219,7 @@ export default function WebmailManager() {
     setSending(true)
     const fd = new FormData(e.currentTarget)
     try {
-      await pb.send('/backend/v1/email/send', {
+      await pb.send('/backend/v1/email_send', {
         method: 'POST',
         body: JSON.stringify({
           to: fd.get('to'),
@@ -271,25 +284,33 @@ export default function WebmailManager() {
           <div className="font-semibold text-slate-500 mb-2 px-2 text-sm uppercase tracking-wider">
             Pastas
           </div>
-          {folders.map((f) => (
-            <Button
-              key={f.id}
-              variant={activeFolder === f.id ? 'secondary' : 'ghost'}
-              className="w-full justify-start font-medium"
-              onClick={() => {
-                setActiveFolder(f.id)
-                setSidebarOpen(false)
-              }}
-            >
-              {getFolderIcon(f.id)}
-              <span className="ml-3 flex-1 text-left truncate">{f.name}</span>
-              {f.unread > 0 && (
-                <span className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full">
-                  {f.unread}
-                </span>
-              )}
-            </Button>
-          ))}
+          {folders.length === 0 && loading ? (
+            <div className="space-y-2 px-2">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ) : (
+            folders.map((f) => (
+              <Button
+                key={f.id}
+                variant={activeFolder === f.id ? 'secondary' : 'ghost'}
+                className="w-full justify-start font-medium"
+                onClick={() => {
+                  setActiveFolder(f.id)
+                  setSidebarOpen(false)
+                }}
+              >
+                {getFolderIcon(f.id)}
+                <span className="ml-3 flex-1 text-left truncate">{f.name}</span>
+                {f.unread > 0 && (
+                  <span className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full">
+                    {f.unread}
+                  </span>
+                )}
+              </Button>
+            ))
+          )}
         </div>
 
         <div className="flex-1 min-w-0 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden relative">
@@ -387,9 +408,20 @@ export default function WebmailManager() {
                     </p>
                   </div>
                 ) : loading && emails.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full p-8 text-slate-500">
-                    <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
-                    <p className="text-lg font-medium">Sincronizando...</p>
+                  <div className="p-4 space-y-4">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div
+                        key={i}
+                        className="flex items-center gap-4 border-b border-slate-100 pb-4"
+                      >
+                        <Skeleton className="h-6 w-32 md:w-48 shrink-0" />
+                        <div className="flex-1 space-y-2">
+                          <Skeleton className="h-4 w-3/4" />
+                          <Skeleton className="h-4 w-1/2 hidden md:block" />
+                        </div>
+                        <Skeleton className="h-4 w-24 shrink-0" />
+                      </div>
+                    ))}
                   </div>
                 ) : errorMsg ? (
                   <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-red-50/30">
