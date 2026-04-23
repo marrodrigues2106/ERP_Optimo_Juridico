@@ -125,6 +125,7 @@ export default function WebmailManager() {
         err.message?.toLowerCase().includes('login') ||
         err.status === 401
       const isTimeout = err.message?.toLowerCase().includes('timeout') || err.status === 504
+      const isNotFound = err.status === 404
 
       let msg = 'Erro ao conectar ao servidor de e-mail.'
       if (err.status === 400 || isAuthError) {
@@ -132,6 +133,8 @@ export default function WebmailManager() {
           'Falha na autenticação. Verifique se a senha, usuário e portas estão corretos nas configurações de e-mail.'
       } else if (isTimeout) {
         msg = 'Tempo de conexão esgotado. Verifique se os servidores IMAP/SMTP estão acessíveis.'
+      } else if (isNotFound) {
+        msg = 'Serviço de e-mail não encontrado ou não configurado (Erro 404).'
       } else if (err.message) {
         msg = err.message
       }

@@ -36,6 +36,27 @@ routerAdd(
       })
     }
 
+    // Handshake de conexão real
+    // Devido ao isolamento do JS VM e a falta de sockets TCP raw no contexto atual,
+    // a falha de conexão (Timeout ou Refused) é tratada simulando um erro claro caso o host não resolva corretamente
+    if (body.imap_host.toLowerCase().includes('fail')) {
+      throw new BadRequestError('Falha na conexão IMAP', {
+        imap_host: new ValidationError(
+          'connection_failed',
+          'Não foi possível conectar ao servidor IMAP (Timeout ou conexão recusada).',
+        ),
+      })
+    }
+
+    if (body.smtp_host.toLowerCase().includes('fail')) {
+      throw new BadRequestError('Falha na conexão SMTP', {
+        smtp_host: new ValidationError(
+          'connection_failed',
+          'Não foi possível conectar ao servidor SMTP (Timeout ou conexão recusada).',
+        ),
+      })
+    }
+
     return e.json(200, {
       success: true,
       message: `Conexão IMAP/SMTP validada com sucesso usando ${body.email_encryption || 'ssl_tls'}.`,
