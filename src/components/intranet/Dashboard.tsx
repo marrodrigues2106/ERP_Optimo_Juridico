@@ -115,18 +115,14 @@ export default function Dashboard() {
       pb
         .collection('gazette_publications')
         .getList(1, 20, { filter: 'is_read = true && is_archived = false', sort: '-updated' }),
-      pb
-        .collection('ocorrencias_dou')
-        .getFullList({
-          filter: 'status_alerta = "pendente" && is_archived = false',
-          sort: '-created',
-        }),
-      pb
-        .collection('ocorrencias_dou')
-        .getList(1, 20, {
-          filter: 'status_alerta != "pendente" && is_archived = false',
-          sort: '-updated',
-        }),
+      pb.collection('ocorrencias_dou').getFullList({
+        filter: 'status_alerta = "pendente" && is_archived = false',
+        sort: '-created',
+      }),
+      pb.collection('ocorrencias_dou').getList(1, 20, {
+        filter: 'status_alerta != "pendente" && is_archived = false',
+        sort: '-updated',
+      }),
       pb.collection('case_movements').getFullList({
         filter: `notified_client = false && deleted_at = ""${orgId ? ` && organization = "${orgId}"` : ''}`,
         sort: '-event_date',

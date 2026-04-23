@@ -35,6 +35,7 @@ import {
   XCircle,
   Wallet,
   ListTodo,
+  MessageCircle,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -68,6 +69,7 @@ type UnifiedItem = {
   isSaved?: boolean
   treatmentStatus?: string
   caseNumber?: string
+  caseTitle?: string
   caseId?: string
   raw: any
 }
@@ -93,6 +95,8 @@ export default function CentralAtualizacoes() {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   const [eventDialogOpen, setEventDialogOpen] = useState(false)
   const [manualDialogOpen, setManualDialogOpen] = useState(false)
+  const [shareDialogOpen, setShareDialogOpen] = useState(false)
+  const [shareMessage, setShareMessage] = useState('')
   const [selectedItem, setSelectedItem] = useState<UnifiedItem | null>(null)
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -140,46 +144,40 @@ export default function CentralAtualizacoes() {
             .getList(1, 150, { sort: '-created', expand: 'linked_case' }),
           pb.collection('gazette_publications').getList(1, 150, { sort: '-created' }),
           pb.collection('ocorrencias_dou').getList(1, 150, { sort: '-created' }),
-          pb
-            .collection('case_movements')
-            .getList(1, 50, {
-              filter: `notified_client = false && deleted_at = ""${orgFilter}`,
-              sort: '-event_date',
-              expand: 'case',
-            }),
-          pb
-            .collection('tasks')
-            .getList(1, 50, {
-              filter: `status = "todo" && deleted_at = ""${orgFilter}`,
-              sort: 'due_date',
-              expand: 'linked_lawsuit',
-            }),
-          pb
-            .collection('agenda_events')
-            .getList(1, 50, {
-              filter: `start_date >= "${new Date().toISOString().split('T')[0]} 00:00:00" && deleted_at = ""${orgFilter}`,
-              sort: 'start_date',
-              expand: 'linked_lawsuit',
-            }),
-          pb
-            .collection('finances')
-            .getList(1, 50, {
-              filter: `status != "pago" && status != "recebida" && status != "realizada" && deleted_at = ""${orgFilter}`,
-              sort: 'date',
-              expand: 'linked_lawsuit',
-            }),
-          pb.collection('legal_cases').getFullList({ fields: 'id,case_number' }),
+          pb.collection('case_movements').getList(1, 50, {
+            filter: `notified_client = false && deleted_at = ""${orgFilter}`,
+            sort: '-event_date',
+            expand: 'case',
+          }),
+          pb.collection('tasks').getList(1, 50, {
+            filter: `status = "todo" && deleted_at = ""${orgFilter}`,
+            sort: 'due_date',
+            expand: 'linked_lawsuit',
+          }),
+          pb.collection('agenda_events').getList(1, 50, {
+            filter: `start_date >= "${new Date().toISOString().split('T')[0]} 00:00:00" && deleted_at = ""${orgFilter}`,
+            sort: 'start_date',
+            expand: 'linked_lawsuit',
+          }),
+          pb.collection('finances').getList(1, 50, {
+            filter: `status != "pago" && status != "recebida" && status != "realizada" && deleted_at = ""${orgFilter}`,
+            sort: 'date',
+            expand: 'linked_lawsuit',
+          }),
+          pb.collection('legal_cases').getFullList({ fields: 'id,case_number,title' }),
         ])
 
       const casesMap = new Map()
       casesRes.forEach((c) => {
         if (c.case_number) casesMap.set(c.case_number.replace(/\D/g, ''), c)
+        casesMap.set(c.id, c)
       })
 
       const mappedPje: UnifiedItem[] = pjeRes.items.map((i) => {
         const numClean = i.numeroProcesso ? i.numeroProcesso.replace(/\D/g, '') : ''
         const isNew = numClean && !casesMap.has(numClean)
         const linkedCaseId = i.linked_case || casesMap.get(numClean)?.id
+        const caseObj = linkedCaseId ? casesMap.get(linkedCaseId) : null
         return {
           id: i.id,
           collection: 'pje_communications',
@@ -191,7 +189,8 @@ export default function CentralAtualizacoes() {
           isArchived: !!i.is_archived,
           isSaved: !!i.is_saved,
           treatmentStatus: i.treatment_status,
-          caseNumber: i.numeroProcesso,
+          caseNumber: caseObj?.case_number || i.numeroProcesso,
+          caseTitle: caseObj?.title,
           caseId: linkedCaseId,
           raw: i,
         }
@@ -217,7 +216,8 @@ export default function CentralAtualizacoes() {
           isRead: !!i.is_read,
           isArchived: !!i.is_archived,
           treatmentStatus: i.treatment_status,
-          caseNumber: primaryNum,
+          caseNumber: linkedCase?.case_number || primaryNum,
+          caseTitle: linkedCase?.title,
           caseId: linkedCase ? linkedCase.id : undefined,
           raw: i,
         }
@@ -245,7 +245,8 @@ export default function CentralAtualizacoes() {
         isRead: !!i.notified_client,
         isArchived: false,
         caseId: i.case,
-        caseNumber: i.expand?.case?.case_number,
+        caseNumber: casesMap.get(i.case)?.case_number || i.expand?.case?.case_number,
+        caseTitle: casesMap.get(i.case)?.title || i.expand?.case?.title,
         raw: i,
       }))
 
@@ -259,7 +260,9 @@ export default function CentralAtualizacoes() {
         isRead: false,
         isArchived: false,
         caseId: i.linked_lawsuit,
-        caseNumber: i.expand?.linked_lawsuit?.case_number,
+        caseNumber:
+          casesMap.get(i.linked_lawsuit)?.case_number || i.expand?.linked_lawsuit?.case_number,
+        caseTitle: casesMap.get(i.linked_lawsuit)?.title || i.expand?.linked_lawsuit?.title,
         raw: i,
       }))
 
@@ -273,7 +276,9 @@ export default function CentralAtualizacoes() {
         isRead: false,
         isArchived: false,
         caseId: i.linked_lawsuit,
-        caseNumber: i.expand?.linked_lawsuit?.case_number,
+        caseNumber:
+          casesMap.get(i.linked_lawsuit)?.case_number || i.expand?.linked_lawsuit?.case_number,
+        caseTitle: casesMap.get(i.linked_lawsuit)?.title || i.expand?.linked_lawsuit?.title,
         raw: i,
       }))
 
@@ -287,7 +292,9 @@ export default function CentralAtualizacoes() {
         isRead: false,
         isArchived: false,
         caseId: i.linked_lawsuit,
-        caseNumber: i.expand?.linked_lawsuit?.case_number,
+        caseNumber:
+          casesMap.get(i.linked_lawsuit)?.case_number || i.expand?.linked_lawsuit?.case_number,
+        caseTitle: casesMap.get(i.linked_lawsuit)?.title || i.expand?.linked_lawsuit?.title,
         raw: i,
       }))
 
@@ -534,6 +541,34 @@ export default function CentralAtualizacoes() {
       if (selectedItem) await recordTreatment(selectedItem, 'manual_recorded')
     } catch (err) {
       toast({ title: 'Erro ao registrar andamento', variant: 'destructive' })
+    }
+  }
+
+  const handleShareWhatsApp = (item: UnifiedItem) => {
+    const dateFormatted = item.date ? format(new Date(item.date), 'dd/MM/yyyy HH:mm') : '-'
+    let processInfo = ''
+    if (item.caseTitle || item.caseNumber) {
+      const parts = []
+      if (item.caseTitle) parts.push(`*${item.caseTitle}*`)
+      if (item.caseNumber) parts.push(item.caseNumber)
+      processInfo = `\n*Processo:* ${parts.join(' - ')}\n`
+    }
+
+    const cleanDesc = item.description ? item.description.replace(/<[^>]*>?/gm, '').trim() : ''
+
+    const msg = `Olá,\n\n*${item.type}:* ${item.title}\n${cleanDesc}\n\n*Data:* ${dateFormatted}\n${processInfo}`
+    setShareMessage(msg)
+    setShareDialogOpen(true)
+  }
+
+  const handleCompleteTask = async (item: UnifiedItem) => {
+    try {
+      await pb.collection('tasks').update(item.id, { status: 'completed' })
+      toast({ title: 'Tarefa concluída com sucesso!' })
+      // Removal will happen automatically via useRealtime('tasks')
+    } catch (e) {
+      console.error(e)
+      toast({ title: 'Erro ao concluir tarefa', variant: 'destructive' })
     }
   }
 
@@ -819,6 +854,26 @@ export default function CentralAtualizacoes() {
                 <Trash2 className="w-4 h-4 mr-2" /> Excluir
               </Button>
             )}
+
+            {item.type === 'Tarefa' && !item.isArchived && (
+              <Button
+                size="sm"
+                variant="default"
+                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                onClick={() => handleCompleteTask(item)}
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" /> Concluir
+              </Button>
+            )}
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+              onClick={() => handleShareWhatsApp(item)}
+            >
+              <MessageCircle className="w-4 h-4 mr-2" /> Compartilhar
+            </Button>
           </div>
         </div>
       </Card>
@@ -1125,6 +1180,39 @@ export default function CentralAtualizacoes() {
               <Button type="submit">Salvar Registro</Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Compartilhar no WhatsApp</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Mensagem</Label>
+              <textarea
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm min-h-[250px]"
+                value={shareMessage}
+                onChange={(e) => setShareMessage(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShareDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                className="bg-[#25D366] text-white hover:bg-[#1ebd5a]"
+                onClick={() => {
+                  const url = `https://web.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`
+                  window.open(url, '_blank')
+                  setShareDialogOpen(false)
+                }}
+              >
+                <MessageCircle className="w-4 h-4 mr-2" /> Enviar
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

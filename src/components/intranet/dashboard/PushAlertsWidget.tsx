@@ -2,18 +2,22 @@ import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Bell, Plus, CheckSquare, Square, Mail, MailOpen } from 'lucide-react'
+import { Bell, Plus, CheckSquare, Square, Mail, MailOpen, MessageCircle } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { EventFormModal } from '../cases/EventFormModal'
 import { cn } from '@/lib/utils'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 
 export function PushAlertsWidget() {
   const [alerts, setAlerts] = useState<any[]>([])
   const [selectedAlerts, setSelectedAlerts] = useState<Set<string>>(new Set())
   const [eventModalOpen, setEventModalOpen] = useState(false)
   const [selectedEventAlert, setSelectedEventAlert] = useState<any>(null)
+  const [shareModalOpen, setShareModalOpen] = useState(false)
+  const [shareMessage, setShareMessage] = useState('')
   const navigate = useNavigate()
 
   const loadAlerts = async () => {
@@ -43,6 +47,7 @@ export function PushAlertsWidget() {
           raw: g,
           lawsuitId: g.numero_processo?.[0] ? null : null, // Future connection directly
           caseNumber: g.numero_processo?.[0] || '',
+          caseTitle: '',
         })),
         ...followUps.items.map((f) => ({
           id: f.id,
@@ -56,6 +61,7 @@ export function PushAlertsWidget() {
           lawsuitId: f.expand?.linked_case?.id,
           caseNumber:
             f.expand?.linked_case?.case_number || f.expand?.linked_case?.parties || 'Processo',
+          caseTitle: f.expand?.linked_case?.title || '',
         })),
         ...movements.items.map((m) => ({
           id: m.id,
@@ -68,6 +74,7 @@ export function PushAlertsWidget() {
           raw: m,
           lawsuitId: m.case,
           caseNumber: m.expand?.case?.case_number || m.expand?.case?.parties || 'Acessar Processo',
+          caseTitle: m.expand?.case?.title || '',
         })),
       ]
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -101,6 +108,29 @@ export function PushAlertsWidget() {
     e.stopPropagation()
     setSelectedEventAlert(a)
     setEventModalOpen(true)
+  }
+
+  const openShare = (e: React.MouseEvent, a: any) => {
+    e.stopPropagation()
+    const dateFormatted = a.date
+      ? new Date(a.date).toLocaleDateString('pt-BR') +
+        ' às ' +
+        new Date(a.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      : '-'
+
+    let processInfo = ''
+    if (a.caseTitle || a.caseNumber) {
+      const parts = []
+      if (a.caseTitle) parts.push(`*${a.caseTitle}*`)
+      if (a.caseNumber) parts.push(a.caseNumber)
+      processInfo = `\n*Processo:* ${parts.join(' - ')}\n`
+    }
+
+    const cleanDesc = a.desc ? a.desc.replace(/<[^>]*>?/gm, '').trim() : ''
+
+    const msg = `Olá,\n\n*${a.category}:* ${a.title}\n${cleanDesc}\n\n*Data:* ${dateFormatted}\n${processInfo}`
+    setShareMessage(msg)
+    setShareModalOpen(true)
   }
 
   const toggleSelection = (id: string) => {
@@ -293,14 +323,22 @@ export function PushAlertsWidget() {
                           })}
                         </span>
                       </div>
-                      <div className="flex flex-col items-end gap-2 shrink-0">
+                      <div className="flex flex-col items-end gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button
                           variant="secondary"
                           size="sm"
-                          className="h-7 text-xs bg-white shadow-sm opacity-0 group-hover:opacity-100 transition-opacity border-slate-200 text-slate-700 hover:bg-slate-100"
+                          className="h-7 text-xs bg-white shadow-sm border-slate-200 text-slate-700 hover:bg-slate-100 w-full justify-start"
                           onClick={(e) => openEvent(e, a)}
                         >
                           <Plus className="w-3 h-3 mr-1" /> Evento
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 w-full justify-start"
+                          onClick={(e) => openShare(e, a)}
+                        >
+                          <MessageCircle className="w-3 h-3 mr-1" /> WhatsApp
                         </Button>
                       </div>
                     </div>
@@ -324,6 +362,39 @@ export function PushAlertsWidget() {
           setSelectedEventAlert(null)
         }}
       />
+
+      <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Compartilhar no WhatsApp</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Mensagem</Label>
+              <textarea
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm min-h-[250px]"
+                value={shareMessage}
+                onChange={(e) => setShareMessage(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShareModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                className="bg-[#25D366] text-white hover:bg-[#1ebd5a]"
+                onClick={() => {
+                  const url = `https://web.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`
+                  window.open(url, '_blank')
+                  setShareModalOpen(false)
+                }}
+              >
+                <MessageCircle className="w-4 h-4 mr-2" /> Enviar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
