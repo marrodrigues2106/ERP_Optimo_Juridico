@@ -139,7 +139,7 @@ export default function ProfileManager() {
       } as any
 
       if (emailConfig.email_password.trim()) {
-        dataToSave.email_password = emailConfig.email_password.trim()
+        dataToSave.email_encrypted_password = emailConfig.email_password.trim()
       }
 
       await pb.collection('users').update(user.id, dataToSave)

@@ -8,20 +8,34 @@ routerAdd(
 
     const smtpHost = user.getString('smtp_host')
     const emailUser = user.getString('email_user')
-    const emailPass = user.getString('email_password')
+    const encryptedPass = user.getString('email_encrypted_password')
 
-    if (!smtpHost || !emailUser || !emailPass) {
-      return e.badRequestError('Credenciais SMTP incompletas.')
+    if (!smtpHost || !emailUser || !encryptedPass) {
+      return e.badRequestError(
+        'Credenciais de e-mail incompletas ou incorretas. Por favor, configure seu perfil.',
+      )
+    }
+
+    let key = $secrets.get('EMAIL_ENC_KEY') || ''
+    if (key.length < 32) {
+      key = (key + '00000000000000000000000000000000').substring(0, 32)
+    }
+
+    try {
+      const dec = $security.decrypt(encryptedPass, key)
+      if (!dec) throw new Error('Invalid password')
+    } catch (err) {
+      return e.badRequestError(
+        'Credenciais de e-mail incompletas ou incorretas. Por favor, configure seu perfil.',
+      )
     }
 
     if (!body.to || !body.subject || !body.body) {
       return e.badRequestError('Campos de e-mail incompletos.')
     }
 
-    // Log the simulated email send
     $app.logger().info('Simulated email send', 'to', body.to, 'subject', body.subject)
 
-    // Simulate successful email sending
     return e.json(200, { success: true, message: 'E-mail enviado com sucesso (Simulado)' })
   },
   $apis.requireAuth(),
