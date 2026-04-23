@@ -19,13 +19,25 @@ export default function WebmailManager() {
   const [selectedEmail, setSelectedEmail] = useState<any>(null)
   const [sending, setSending] = useState(false)
 
+  const [settingsMissing, setSettingsMissing] = useState(false)
+
   const loadEmails = async () => {
     setLoading(true)
     try {
+      const user = pb.authStore.record
+      if (!user?.imap_host || !user?.email_user || !user?.email_password) {
+        setSettingsMissing(true)
+        setLoading(false)
+        return
+      }
+      setSettingsMissing(false)
       const res = await pb.send('/backend/v1/email/inbox', { method: 'GET' })
       setEmails(res)
     } catch (err) {
-      toast({ title: 'Erro ao carregar e-mails', variant: 'destructive' })
+      toast({
+        title: 'Erro ao carregar e-mails. Verifique suas configurações no perfil.',
+        variant: 'destructive',
+      })
     } finally {
       setLoading(false)
     }
@@ -163,7 +175,16 @@ export default function WebmailManager() {
       </div>
 
       <Card className="border-slate-200 shadow-sm overflow-hidden">
-        {loading && emails.length === 0 ? (
+        {settingsMissing ? (
+          <div className="text-center py-16 bg-slate-50/50">
+            <Mail className="w-12 h-12 text-slate-300 mx-auto mb-4 opacity-50" />
+            <p className="text-lg font-medium text-slate-600">Configurações de E-mail Ausentes</p>
+            <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">
+              Para acessar sua caixa postal, você precisa configurar suas credenciais (IMAP/SMTP,
+              Usuário e Senha) na página do seu perfil.
+            </p>
+          </div>
+        ) : loading && emails.length === 0 ? (
           <div className="text-center py-12 text-slate-500">Sincronizando e-mails...</div>
         ) : emails.length === 0 ? (
           <div className="text-center py-16 bg-slate-50/50">

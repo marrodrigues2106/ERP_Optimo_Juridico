@@ -120,27 +120,48 @@ export default function CentralAtualizacoes() {
     const c = shareClients.find((x) => x.id === cId)
     if (c) {
       setSharePhone(c.phone || '')
+      const cName = c.fullName || c.name || ''
       if (shareTemplate === 'aniversario') {
         setShareMessage(
-          `Olá ${c.name}, o escritório Moraes Rodrigues Advocacia passa por aqui para desejar um feliz aniversário antecipado! Muita saúde e conquistas.`,
+          `Olá, ${cName}. O escritório Moraes Rodrigues Advocacia gostaria de parabeniza-lo e lhe desejar muita saúde e anos de vida nesta data especial do seu aniversário. Att. Equipe Moraes Rodrigues Advocacia`,
         )
+      } else if (shareTemplate === 'processual' && selectedItem) {
+        const dateStr = selectedItem.date ? format(new Date(selectedItem.date), 'dd/MM/yyyy') : ''
+        const desc = selectedItem.description?.replace(/<[^>]*>?/gm, '').trim() || ''
+        setShareMessage(
+          `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação no processo ${selectedItem.caseNumber || selectedItem.caseTitle || ''}:\n\nData: ${dateStr}\nAndamento: ${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`,
+        )
+      } else if (shareTemplate === 'financeiro' && selectedItem) {
+        setShareMessage(
+          `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${selectedItem.title}\n${selectedItem.description?.replace(/<[^>]*>?/gm, '').trim()}\n\nAtt. Equipe Moraes Rodrigues Advocacia`,
+        )
+      } else {
+        setShareMessage(`Olá, ${cName}.`)
       }
     }
   }
 
   const handleTemplateChange = (tpl: string) => {
     setShareTemplate(tpl)
+    const c = shareClients.find((x) => x.id === shareClientId)
+    const cName = c?.fullName || c?.name || selectedItem?.clientName || ''
+
     if (tpl === 'aniversario') {
-      const c = shareClients.find((x) => x.id === shareClientId)
       setShareMessage(
-        `Olá ${c?.name || ''}, o escritório Moraes Rodrigues Advocacia passa por aqui para desejar um feliz aniversário antecipado! Muita saúde e conquistas.`,
+        `Olá, ${cName}. O escritório Moraes Rodrigues Advocacia gostaria de parabeniza-lo e lhe desejar muita saúde e anos de vida nesta data especial do seu aniversário. Att. Equipe Moraes Rodrigues Advocacia`,
       )
-    } else if (tpl === 'financeiro') {
-      setShareMessage(`Olá,\n\nInformamos sobre a seguinte movimentação financeira pendente.`)
-    } else if (tpl === 'processual') {
-      setShareMessage(`Olá,\n\nHá uma atualização no seu processo.`)
+    } else if (tpl === 'processual' && selectedItem) {
+      const dateStr = selectedItem.date ? format(new Date(selectedItem.date), 'dd/MM/yyyy') : ''
+      const desc = selectedItem.description?.replace(/<[^>]*>?/gm, '').trim() || ''
+      setShareMessage(
+        `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação no processo ${selectedItem.caseNumber || selectedItem.caseTitle || ''}:\n\nData: ${dateStr}\nAndamento: ${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`,
+      )
+    } else if (tpl === 'financeiro' && selectedItem) {
+      setShareMessage(
+        `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${selectedItem.title}\n${selectedItem.description?.replace(/<[^>]*>?/gm, '').trim()}\n\nAtt. Equipe Moraes Rodrigues Advocacia`,
+      )
     } else {
-      setShareMessage(`Olá, `)
+      setShareMessage(`Olá, ${cName}.`)
     }
   }
 
@@ -195,22 +216,22 @@ export default function CentralAtualizacoes() {
           pb.collection('case_movements').getList(1, 50, {
             filter: `notified_client = false && deleted_at = ""${orgFilter}`,
             sort: '-event_date',
-            expand: 'case',
+            expand: 'case.client',
           }),
           pb.collection('tasks').getList(1, 50, {
             filter: `status = "todo" && deleted_at = ""${orgFilter}`,
             sort: 'due_date',
-            expand: 'linked_lawsuit',
+            expand: 'linked_lawsuit.client',
           }),
           pb.collection('agenda_events').getList(1, 50, {
             filter: `start_date >= "${new Date().toISOString().split('T')[0]} 00:00:00" && deleted_at = ""${orgFilter}`,
             sort: 'start_date',
-            expand: 'linked_lawsuit',
+            expand: 'linked_lawsuit.client',
           }),
           pb.collection('finances').getList(1, 50, {
             filter: `status != "pago" && status != "recebida" && status != "realizada" && deleted_at = ""${orgFilter}`,
             sort: 'date',
-            expand: 'linked_lawsuit',
+            expand: 'linked_lawsuit.client',
           }),
           pb.collection('notifications').getList(1, 50, {
             filter: `user_id = "${pb.authStore.record?.id}"`,
@@ -219,7 +240,11 @@ export default function CentralAtualizacoes() {
           }),
           pb
             .collection('legal_cases')
-            .getFullList({ fields: 'id,case_number,title,client', expand: 'client' }),
+            .getFullList({
+              fields:
+                'id,case_number,title,client,expand.client.name,expand.client.fullName,expand.client.phone',
+              expand: 'client',
+            }),
         ])
 
       const casesMap = new Map()
@@ -233,6 +258,7 @@ export default function CentralAtualizacoes() {
         const isNew = numClean && !casesMap.has(numClean)
         const linkedCaseId = i.linked_case || casesMap.get(numClean)?.id
         const caseObj = linkedCaseId ? casesMap.get(linkedCaseId) : null
+        const clientObj = caseObj?.expand?.client
         return {
           id: i.id,
           collection: 'pje_communications',
@@ -247,6 +273,9 @@ export default function CentralAtualizacoes() {
           caseNumber: caseObj?.case_number || i.numeroProcesso,
           caseTitle: caseObj?.title,
           caseId: linkedCaseId,
+          clientId: caseObj?.client,
+          clientName: clientObj?.fullName || clientObj?.name,
+          clientPhone: clientObj?.phone,
           raw: i,
         }
       })
@@ -260,6 +289,7 @@ export default function CentralAtualizacoes() {
         let numClean = primaryNum.replace(/\D/g, '')
         const isNew = numClean && !casesMap.has(numClean)
         const linkedCase = casesMap.get(numClean)
+        const clientObj = linkedCase?.expand?.client
 
         return {
           id: i.id,
@@ -274,6 +304,9 @@ export default function CentralAtualizacoes() {
           caseNumber: linkedCase?.case_number || primaryNum,
           caseTitle: linkedCase?.title,
           caseId: linkedCase ? linkedCase.id : undefined,
+          clientId: linkedCase?.client,
+          clientName: clientObj?.fullName || clientObj?.name,
+          clientPhone: clientObj?.phone,
           raw: i,
         }
       })
@@ -290,68 +323,93 @@ export default function CentralAtualizacoes() {
         raw: i,
       }))
 
-      const mappedMovements: UnifiedItem[] = moveRes.items.map((i) => ({
-        id: i.id,
-        collection: 'case_movements',
-        type: 'Movimentação',
-        title: `Movimentação: ${i.expand?.case?.case_number || 'Processo'}`,
-        description: i.description || '',
-        date: i.event_date || i.created,
-        isRead: !!i.notified_client,
-        isArchived: false,
-        caseId: i.case,
-        caseNumber: casesMap.get(i.case)?.case_number || i.expand?.case?.case_number,
-        caseTitle: casesMap.get(i.case)?.title || i.expand?.case?.title,
-        raw: i,
-      }))
+      const mappedMovements: UnifiedItem[] = moveRes.items.map((i) => {
+        const cObj = casesMap.get(i.case) || i.expand?.case
+        const clientObj = cObj?.expand?.client
+        return {
+          id: i.id,
+          collection: 'case_movements',
+          type: 'Movimentação',
+          title: `Movimentação: ${cObj?.case_number || 'Processo'}`,
+          description: i.description || '',
+          date: i.event_date || i.created,
+          isRead: !!i.notified_client,
+          isArchived: false,
+          caseId: i.case,
+          caseNumber: cObj?.case_number,
+          caseTitle: cObj?.title,
+          clientId: cObj?.client,
+          clientName: clientObj?.fullName || clientObj?.name,
+          clientPhone: clientObj?.phone,
+          raw: i,
+        }
+      })
 
-      const mappedTasks: UnifiedItem[] = tasksRes.items.map((i) => ({
-        id: i.id,
-        collection: 'tasks',
-        type: 'Tarefa',
-        title: `Tarefa Pendente: ${i.title}`,
-        description: i.description || '',
-        date: i.due_date || i.created,
-        isRead: false,
-        isArchived: false,
-        caseId: i.linked_lawsuit,
-        caseNumber:
-          casesMap.get(i.linked_lawsuit)?.case_number || i.expand?.linked_lawsuit?.case_number,
-        caseTitle: casesMap.get(i.linked_lawsuit)?.title || i.expand?.linked_lawsuit?.title,
-        raw: i,
-      }))
+      const mappedTasks: UnifiedItem[] = tasksRes.items.map((i) => {
+        const cObj = casesMap.get(i.linked_lawsuit) || i.expand?.linked_lawsuit
+        const clientObj = cObj?.expand?.client
+        return {
+          id: i.id,
+          collection: 'tasks',
+          type: 'Tarefa',
+          title: `Tarefa Pendente: ${i.title}`,
+          description: i.description || '',
+          date: i.due_date || i.created,
+          isRead: false,
+          isArchived: false,
+          caseId: i.linked_lawsuit,
+          caseNumber: cObj?.case_number,
+          caseTitle: cObj?.title,
+          clientId: cObj?.client,
+          clientName: clientObj?.fullName || clientObj?.name,
+          clientPhone: clientObj?.phone,
+          raw: i,
+        }
+      })
 
-      const mappedAgenda: UnifiedItem[] = agendaRes.items.map((i) => ({
-        id: i.id,
-        collection: 'agenda_events',
-        type: 'Agenda',
-        title: `Agenda: ${i.title}`,
-        description: i.description || '',
-        date: i.start_date || i.created,
-        isRead: false,
-        isArchived: false,
-        caseId: i.linked_lawsuit,
-        caseNumber:
-          casesMap.get(i.linked_lawsuit)?.case_number || i.expand?.linked_lawsuit?.case_number,
-        caseTitle: casesMap.get(i.linked_lawsuit)?.title || i.expand?.linked_lawsuit?.title,
-        raw: i,
-      }))
+      const mappedAgenda: UnifiedItem[] = agendaRes.items.map((i) => {
+        const cObj = casesMap.get(i.linked_lawsuit) || i.expand?.linked_lawsuit
+        const clientObj = cObj?.expand?.client
+        return {
+          id: i.id,
+          collection: 'agenda_events',
+          type: 'Agenda',
+          title: `Agenda: ${i.title}`,
+          description: i.description || '',
+          date: i.start_date || i.created,
+          isRead: false,
+          isArchived: false,
+          caseId: i.linked_lawsuit,
+          caseNumber: cObj?.case_number,
+          caseTitle: cObj?.title,
+          clientId: cObj?.client,
+          clientName: clientObj?.fullName || clientObj?.name,
+          clientPhone: clientObj?.phone,
+          raw: i,
+        }
+      })
 
-      const mappedFinances: UnifiedItem[] = finRes.items.map((i) => ({
-        id: i.id,
-        collection: 'finances',
-        type: 'Financeiro',
-        title: `Financeiro: ${i.description}`,
-        description: `Valor: R$ ${i.amount} - Tipo: ${i.type === 'inflow' ? 'Receita' : 'Despesa'}`,
-        date: i.date || i.created,
-        isRead: false,
-        isArchived: false,
-        caseId: i.linked_lawsuit,
-        caseNumber:
-          casesMap.get(i.linked_lawsuit)?.case_number || i.expand?.linked_lawsuit?.case_number,
-        caseTitle: casesMap.get(i.linked_lawsuit)?.title || i.expand?.linked_lawsuit?.title,
-        raw: i,
-      }))
+      const mappedFinances: UnifiedItem[] = finRes.items.map((i) => {
+        const cObj = casesMap.get(i.linked_lawsuit) || i.expand?.linked_lawsuit
+        const clientObj = cObj?.expand?.client
+        return {
+          id: i.id,
+          collection: 'finances',
+          type: 'Financeiro',
+          title: `Financeiro: ${i.description}`,
+          description: `Valor: R$ ${i.amount} - Tipo: ${i.type === 'inflow' ? 'Receita' : 'Despesa'}`,
+          date: i.date || i.created,
+          isRead: false,
+          isArchived: false,
+          caseId: i.linked_lawsuit,
+          caseNumber: cObj?.case_number,
+          caseTitle: cObj?.title,
+          clientId: cObj?.client,
+          clientName: clientObj?.fullName || clientObj?.name,
+          clientPhone: clientObj?.phone,
+          raw: i,
+        }
+      })
 
       const mappedNotifs: UnifiedItem[] = notifRes.items.map((i) => ({
         id: i.id,
@@ -367,7 +425,7 @@ export default function CentralAtualizacoes() {
         isRead: !!i.is_read,
         isArchived: false,
         clientId: i.client,
-        clientName: i.expand?.client?.name,
+        clientName: i.expand?.client?.fullName || i.expand?.client?.name,
         clientPhone: i.expand?.client?.phone,
         raw: i,
       }))
@@ -622,20 +680,25 @@ export default function CentralAtualizacoes() {
   }
 
   const handleShareWhatsApp = (item: UnifiedItem) => {
+    setSelectedItem(item)
     let tpl = 'custom'
     let msg = ''
 
+    const clientName = item.clientName || ''
+
     if (item.type === 'Aniversário') {
       tpl = 'aniversario'
-      msg = `Olá ${item.clientName || ''}, o escritório Moraes Rodrigues Advocacia passa por aqui para desejar um feliz aniversário antecipado! Muita saúde e conquistas.`
+      msg = `Olá, ${clientName}. O escritório Moraes Rodrigues Advocacia gostaria de parabeniza-lo e lhe desejar muita saúde e anos de vida nesta data especial do seu aniversário. Att. Equipe Moraes Rodrigues Advocacia`
     } else if (item.type === 'Financeiro') {
       tpl = 'financeiro'
-      msg = `Olá,\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${item.title}\n${item.description}`
+      msg = `Olá, ${clientName}.\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${item.title}\n${item.description?.replace(/<[^>]*>?/gm, '').trim()}\n\nAtt. Equipe Moraes Rodrigues Advocacia`
     } else if (['Movimentação', 'PJe', 'DOU', 'Processo Novo'].includes(item.type)) {
       tpl = 'processual'
-      msg = `Olá,\n\nHá uma nova atualização no seu processo *${item.caseNumber || item.caseTitle || ''}*:\n\n${item.description?.replace(/<[^>]*>?/gm, '').trim()}`
+      const dateStr = item.date ? format(new Date(item.date), 'dd/MM/yyyy') : ''
+      const desc = item.description?.replace(/<[^>]*>?/gm, '').trim() || ''
+      msg = `Olá, ${clientName}.\n\nInformamos sobre a seguinte movimentação no processo ${item.caseNumber || item.caseTitle || ''}:\n\nData: ${dateStr}\nAndamento: ${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`
     } else {
-      msg = `Olá,\n\n*${item.type}:* ${item.title}\n${item.description?.replace(/<[^>]*>?/gm, '').trim()}`
+      msg = `Olá, ${clientName}.\n\n*${item.type}:* ${item.title}\n${item.description?.replace(/<[^>]*>?/gm, '').trim()}\n\nAtt. Equipe Moraes Rodrigues Advocacia`
     }
 
     setShareTemplate(tpl)
@@ -1345,7 +1408,7 @@ export default function CentralAtualizacoes() {
                   let num = sharePhone.replace(/\D/g, '')
                   if (num && !num.startsWith('55')) num = '55' + num
                   const url = num
-                    ? `https://wa.me/${num}?text=${encodeURIComponent(shareMessage)}`
+                    ? `https://web.whatsapp.com/send?phone=${num}&text=${encodeURIComponent(shareMessage)}`
                     : `https://web.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`
                   window.open(url, '_blank')
                   setShareDialogOpen(false)

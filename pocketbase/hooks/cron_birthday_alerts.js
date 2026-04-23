@@ -10,11 +10,14 @@ cronAdd('birthday_alerts', '0 8 * * *', () => {
     const bdayStr = client.getString('birthDate')
     if (!bdayStr) return
     const bday = new Date(bdayStr)
+
+    // Check if the birthday is exactly 3 days from today
     if (bday.getMonth() + 1 === targetMonth && bday.getDate() === targetDay) {
       const users = $app.findRecordsByFilter(
         'users',
         `active_organization = '${client.getString('organization')}'`,
       )
+
       users.forEach((user) => {
         try {
           const notif = new Record($app.findCollectionByNameOrId('notifications'))
@@ -24,7 +27,7 @@ cronAdd('birthday_alerts', '0 8 * * *', () => {
           notif.set('is_read', false)
           $app.save(notif)
         } catch (err) {
-          console.error(err)
+          $app.logger().error('Error saving birthday notification', 'error', err.message)
         }
       })
     }
