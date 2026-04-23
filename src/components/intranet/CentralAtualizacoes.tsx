@@ -866,27 +866,6 @@ export default function CentralAtualizacoes() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-2 pt-4 border-t border-slate-100">
-            {['PJe', 'DOU', 'Processo Novo', 'Ocorrência', 'Movimentação'].includes(item.type) &&
-            !item.isRead ? (
-              <Button
-                size="sm"
-                variant="default"
-                onClick={() => handleMarkAsRead(item)}
-                className="bg-primary text-white"
-              >
-                <CheckCircle2 className="w-4 h-4 mr-2" /> Marcar como Lido
-              </Button>
-            ) : ['PJe', 'DOU', 'Processo Novo', 'Ocorrência', 'Movimentação'].includes(item.type) &&
-              item.isRead ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => processBatch('unread', new Set([`${item.collection}-${item.id}`]))}
-              >
-                Marcar como Não Lido
-              </Button>
-            ) : null}
-
             {(item.collection === 'pje_communications' ||
               item.collection === 'gazette_publications') &&
               !item.isArchived && (
@@ -996,31 +975,6 @@ export default function CentralAtualizacoes() {
               </Button>
             )}
 
-            {!item.isArchived &&
-              ['pje_communications', 'gazette_publications', 'ocorrencias_dou'].includes(
-                item.collection,
-              ) && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="ml-auto text-slate-400 hover:text-slate-600"
-                  onClick={() => handleArchive(item)}
-                >
-                  <Archive className="w-4 h-4 mr-2" /> Arquivar
-                </Button>
-              )}
-
-            {item.collection === 'pje_communications' && activeTab === 'salvos' && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                onClick={() => processBatch('delete', new Set([`${item.collection}-${item.id}`]))}
-              >
-                <Trash2 className="w-4 h-4 mr-2" /> Excluir
-              </Button>
-            )}
-
             {item.type === 'Tarefa' && !item.isArchived && (
               <Button
                 size="sm"
@@ -1127,44 +1081,118 @@ export default function CentralAtualizacoes() {
         </div>
 
         <div className="flex-1 w-full min-w-0">
-          <div className="bg-slate-50/50 rounded-xl p-1 border border-slate-200 mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center px-4 py-3 gap-4">
-            <h2 className="text-lg font-bold text-slate-800 capitalize">
-              {activeTab === 'inbox' ? 'Caixa de Entrada (Não Lidos)' : activeTab.replace('-', ' ')}
-            </h2>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-slate-500 font-medium">
-                {filteredItems.length} itens
-              </span>
-              {filteredItems.length > 0 && (
-                <div className="flex items-center gap-2 px-2">
-                  <Checkbox
-                    id="select-all"
-                    checked={
-                      paginatedItems.length > 0 &&
-                      paginatedItems.every((i) => selectedIds.has(`${i.collection}-${i.id}`))
-                    }
-                    onCheckedChange={(checked) => {
-                      const newSet = new Set(selectedIds)
-                      if (checked)
-                        paginatedItems.forEach((i) => newSet.add(`${i.collection}-${i.id}`))
-                      else paginatedItems.forEach((i) => newSet.delete(`${i.collection}-${i.id}`))
-                      setSelectedIds(newSet)
-                    }}
-                  />
-                  <Label
-                    htmlFor="select-all"
-                    className="text-sm font-medium cursor-pointer text-slate-600"
+          <div className="bg-white rounded-xl p-1 border border-slate-200 shadow-sm mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center px-4 py-3 gap-4 sticky top-0 z-20">
+            {selectedIds.size > 0 ? (
+              <div className="flex items-center gap-2 w-full">
+                <Checkbox
+                  id="select-all"
+                  checked={
+                    paginatedItems.length > 0 &&
+                    paginatedItems.every((i) => selectedIds.has(`${i.collection}-${i.id}`))
+                  }
+                  onCheckedChange={(checked) => {
+                    const newSet = new Set(selectedIds)
+                    if (checked)
+                      paginatedItems.forEach((i) => newSet.add(`${i.collection}-${i.id}`))
+                    else paginatedItems.forEach((i) => newSet.delete(`${i.collection}-${i.id}`))
+                    setSelectedIds(newSet)
+                  }}
+                />
+                <span className="text-sm font-medium text-slate-700 ml-2">
+                  {selectedIds.size} selecionado(s)
+                </span>
+                <div className="h-6 w-px bg-slate-200 mx-2 hidden sm:block" />
+                <div className="flex flex-wrap items-center gap-2 flex-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => processBatch('read')}
+                    disabled={isProcessingBatch}
                   >
-                    Selecionar Página
-                  </Label>
+                    <CheckCircle2 className="w-4 h-4 mr-2" /> Lidos
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => processBatch('unread')}
+                    disabled={isProcessingBatch}
+                  >
+                    Não Lidos
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => processBatch('archive')}
+                    disabled={isProcessingBatch}
+                  >
+                    <Archive className="w-4 h-4 mr-2" /> Arquivar
+                  </Button>
+                  {activeTab === 'salvos' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 ml-auto"
+                      onClick={() => processBatch('delete')}
+                      disabled={isProcessingBatch}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" /> Excluir
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSelectedIds(new Set())}
+                    disabled={isProcessingBatch}
+                    className="ml-auto sm:ml-0"
+                  >
+                    Cancelar
+                  </Button>
                 </div>
-              )}
-              {activeTab === 'inbox' && filteredItems.length > 0 && (
-                <Button size="sm" variant="outline" onClick={handleMarkAllAsRead}>
-                  <CheckCircle2 className="w-4 h-4 mr-2" /> Marcar todos como lidos
-                </Button>
-              )}
-            </div>
+              </div>
+            ) : (
+              <>
+                <h2 className="text-lg font-bold text-slate-800 capitalize">
+                  {activeTab === 'inbox'
+                    ? 'Caixa de Entrada (Não Lidos)'
+                    : activeTab.replace('-', ' ')}
+                </h2>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-slate-500 font-medium">
+                    {filteredItems.length} itens
+                  </span>
+                  {filteredItems.length > 0 && (
+                    <div className="flex items-center gap-2 px-2">
+                      <Checkbox
+                        id="select-all"
+                        checked={
+                          paginatedItems.length > 0 &&
+                          paginatedItems.every((i) => selectedIds.has(`${i.collection}-${i.id}`))
+                        }
+                        onCheckedChange={(checked) => {
+                          const newSet = new Set(selectedIds)
+                          if (checked)
+                            paginatedItems.forEach((i) => newSet.add(`${i.collection}-${i.id}`))
+                          else
+                            paginatedItems.forEach((i) => newSet.delete(`${i.collection}-${i.id}`))
+                          setSelectedIds(newSet)
+                        }}
+                      />
+                      <Label
+                        htmlFor="select-all"
+                        className="text-sm font-medium cursor-pointer text-slate-600"
+                      >
+                        Selecionar Página
+                      </Label>
+                    </div>
+                  )}
+                  {activeTab === 'inbox' && filteredItems.length > 0 && (
+                    <Button size="sm" variant="outline" onClick={handleMarkAllAsRead}>
+                      <CheckCircle2 className="w-4 h-4 mr-2" /> Marcar todos como lidos
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           {loading && items.length === 0 ? (
@@ -1458,48 +1486,6 @@ export default function CentralAtualizacoes() {
           </div>
         </DialogContent>
       </Dialog>
-
-      {selectedIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white rounded-full shadow-xl border border-slate-200 px-6 py-3 flex items-center gap-4 z-50 animate-fade-in-up">
-          <span className="text-sm font-medium text-slate-700 whitespace-nowrap">
-            {selectedIds.size} {selectedIds.size === 1 ? 'item selecionado' : 'itens selecionados'}
-          </span>
-          <div className="h-6 w-px bg-slate-200 mx-2" />
-          <Button
-            size="sm"
-            variant="default"
-            onClick={() => processBatch('read')}
-            className="bg-primary text-white"
-            disabled={isProcessingBatch}
-          >
-            <CheckCircle2 className="w-4 h-4 mr-2" /> Lidos
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => processBatch('unread')}
-            disabled={isProcessingBatch}
-          >
-            Não Lidos
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => processBatch('archive')}
-            disabled={isProcessingBatch}
-          >
-            <Archive className="w-4 h-4 mr-2" /> Arquivar
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setSelectedIds(new Set())}
-            disabled={isProcessingBatch}
-          >
-            Cancelar
-          </Button>
-        </div>
-      )}
     </div>
   )
 }
