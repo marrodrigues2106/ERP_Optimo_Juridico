@@ -131,7 +131,7 @@ export default function Layout() {
       {
         label: 'Comunicações',
         items: [
-          { title: 'Central de Atualizações', url: '/intranet/atualizacoes', icon: Activity },
+          { title: 'Central de Alertas', url: '/intranet/atualizacoes', icon: Activity },
           { title: 'Busca DOU', url: '/intranet/busca-dou', icon: BookOpen },
           { title: 'Comunica PJe', url: '/intranet/pje-comunica', icon: MessageSquare },
         ],

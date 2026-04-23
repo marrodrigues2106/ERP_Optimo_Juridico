@@ -29,22 +29,44 @@ import {
   FileText,
   Bookmark,
   Trash2,
+  MoreVertical,
+  FileEdit,
+  Check,
+  XCircle,
+  Wallet,
+  ListTodo,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
 
 type UnifiedItem = {
   id: string
-  collection: 'pje_communications' | 'results' | 'gazette_publications' | 'ocorrencias_dou'
-  type: 'PJe' | 'DOU' | 'Processo Novo' | 'Ocorrência'
+  collection: string
+  type:
+    | 'PJe'
+    | 'DOU'
+    | 'Processo Novo'
+    | 'Ocorrência'
+    | 'Movimentação'
+    | 'Tarefa'
+    | 'Agenda'
+    | 'Financeiro'
   title: string
   description: string
   date: string
   isRead: boolean
   isArchived: boolean
   isSaved?: boolean
+  treatmentStatus?: string
   caseNumber?: string
   caseId?: string
   raw: any
@@ -58,10 +80,19 @@ export default function CentralAtualizacoes() {
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('inbox')
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
+
+  const [itemsPerPage, setItemsPerPage] = useState(() => {
+    const stored = localStorage.getItem('alert_center_per_page')
+    return stored ? Number(stored) : 10
+  })
+
+  useEffect(() => {
+    localStorage.setItem('alert_center_per_page', itemsPerPage.toString())
+  }, [itemsPerPage])
 
   const [taskDialogOpen, setTaskDialogOpen] = useState(false)
   const [eventDialogOpen, setEventDialogOpen] = useState(false)
+  const [manualDialogOpen, setManualDialogOpen] = useState(false)
   const [selectedItem, setSelectedItem] = useState<UnifiedItem | null>(null)
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -83,18 +114,62 @@ export default function CentralAtualizacoes() {
   useRealtime('ocorrencias_dou', () => {
     if (!isProcessingBatchRef.current) loadData()
   })
+  useRealtime('case_movements', () => {
+    if (!isProcessingBatchRef.current) loadData()
+  })
+  useRealtime('tasks', () => {
+    if (!isProcessingBatchRef.current) loadData()
+  })
+  useRealtime('agenda_events', () => {
+    if (!isProcessingBatchRef.current) loadData()
+  })
+  useRealtime('finances', () => {
+    if (!isProcessingBatchRef.current) loadData()
+  })
 
   const loadData = async () => {
     setLoading(true)
     try {
-      const [pjeRes, douPub, douOcc, casesRes] = await Promise.all([
-        pb
-          .collection('pje_communications')
-          .getList(1, 500, { sort: '-created', expand: 'linked_case' }),
-        pb.collection('gazette_publications').getList(1, 500, { sort: '-created' }),
-        pb.collection('ocorrencias_dou').getList(1, 500, { sort: '-created' }),
-        pb.collection('legal_cases').getFullList({ fields: 'id,case_number' }),
-      ])
+      const orgId = pb.authStore.record?.active_organization
+      const orgFilter = orgId ? ` && organization = "${orgId}"` : ''
+
+      const [pjeRes, douPub, douOcc, moveRes, tasksRes, agendaRes, finRes, casesRes] =
+        await Promise.all([
+          pb
+            .collection('pje_communications')
+            .getList(1, 150, { sort: '-created', expand: 'linked_case' }),
+          pb.collection('gazette_publications').getList(1, 150, { sort: '-created' }),
+          pb.collection('ocorrencias_dou').getList(1, 150, { sort: '-created' }),
+          pb
+            .collection('case_movements')
+            .getList(1, 50, {
+              filter: `notified_client = false && deleted_at = ""${orgFilter}`,
+              sort: '-event_date',
+              expand: 'case',
+            }),
+          pb
+            .collection('tasks')
+            .getList(1, 50, {
+              filter: `status = "todo" && deleted_at = ""${orgFilter}`,
+              sort: 'due_date',
+              expand: 'linked_lawsuit',
+            }),
+          pb
+            .collection('agenda_events')
+            .getList(1, 50, {
+              filter: `start_date >= "${new Date().toISOString().split('T')[0]} 00:00:00" && deleted_at = ""${orgFilter}`,
+              sort: 'start_date',
+              expand: 'linked_lawsuit',
+            }),
+          pb
+            .collection('finances')
+            .getList(1, 50, {
+              filter: `status != "pago" && status != "recebida" && status != "realizada" && deleted_at = ""${orgFilter}`,
+              sort: 'date',
+              expand: 'linked_lawsuit',
+            }),
+          pb.collection('legal_cases').getFullList({ fields: 'id,case_number' }),
+        ])
 
       const casesMap = new Map()
       casesRes.forEach((c) => {
@@ -113,8 +188,9 @@ export default function CentralAtualizacoes() {
           description: `${i.tipoComunicacao ? `[${i.tipoComunicacao}] ` : ''}${i.texto || ''}`,
           date: i.dataDisponibilizacao || i.created,
           isRead: !!i.is_read,
-          isArchived: false,
+          isArchived: !!i.is_archived,
           isSaved: !!i.is_saved,
+          treatmentStatus: i.treatment_status,
           caseNumber: i.numeroProcesso,
           caseId: linkedCaseId,
           raw: i,
@@ -140,6 +216,7 @@ export default function CentralAtualizacoes() {
           date: i.data_publicacao || i.created,
           isRead: !!i.is_read,
           isArchived: !!i.is_archived,
+          treatmentStatus: i.treatment_status,
           caseNumber: primaryNum,
           caseId: linkedCase ? linkedCase.id : undefined,
           raw: i,
@@ -158,7 +235,71 @@ export default function CentralAtualizacoes() {
         raw: i,
       }))
 
-      const all = [...mappedPje, ...mappedDouPub, ...mappedDouOcc]
+      const mappedMovements: UnifiedItem[] = moveRes.items.map((i) => ({
+        id: i.id,
+        collection: 'case_movements',
+        type: 'Movimentação',
+        title: `Movimentação: ${i.expand?.case?.case_number || 'Processo'}`,
+        description: i.description || '',
+        date: i.event_date || i.created,
+        isRead: !!i.notified_client,
+        isArchived: false,
+        caseId: i.case,
+        caseNumber: i.expand?.case?.case_number,
+        raw: i,
+      }))
+
+      const mappedTasks: UnifiedItem[] = tasksRes.items.map((i) => ({
+        id: i.id,
+        collection: 'tasks',
+        type: 'Tarefa',
+        title: `Tarefa Pendente: ${i.title}`,
+        description: i.description || '',
+        date: i.due_date || i.created,
+        isRead: false,
+        isArchived: false,
+        caseId: i.linked_lawsuit,
+        caseNumber: i.expand?.linked_lawsuit?.case_number,
+        raw: i,
+      }))
+
+      const mappedAgenda: UnifiedItem[] = agendaRes.items.map((i) => ({
+        id: i.id,
+        collection: 'agenda_events',
+        type: 'Agenda',
+        title: `Agenda: ${i.title}`,
+        description: i.description || '',
+        date: i.start_date || i.created,
+        isRead: false,
+        isArchived: false,
+        caseId: i.linked_lawsuit,
+        caseNumber: i.expand?.linked_lawsuit?.case_number,
+        raw: i,
+      }))
+
+      const mappedFinances: UnifiedItem[] = finRes.items.map((i) => ({
+        id: i.id,
+        collection: 'finances',
+        type: 'Financeiro',
+        title: `Financeiro: ${i.description}`,
+        description: `Valor: R$ ${i.amount} - Tipo: ${i.type === 'inflow' ? 'Receita' : 'Despesa'}`,
+        date: i.date || i.created,
+        isRead: false,
+        isArchived: false,
+        caseId: i.linked_lawsuit,
+        caseNumber: i.expand?.linked_lawsuit?.case_number,
+        raw: i,
+      }))
+
+      const all = [
+        ...mappedPje,
+        ...mappedDouPub,
+        ...mappedDouOcc,
+        ...mappedMovements,
+        ...mappedTasks,
+        ...mappedAgenda,
+        ...mappedFinances,
+      ]
       all.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
       setItems(all)
@@ -193,7 +334,6 @@ export default function CentralAtualizacoes() {
     let successCount = 0
     let hasError = false
 
-    // Optimistic update
     setItems((prev) => {
       if (action === 'delete') return prev.filter((i) => !targetIds.has(`${i.collection}-${i.id}`))
       return prev.map((item) => {
@@ -224,6 +364,8 @@ export default function CentralAtualizacoes() {
                 await pb
                   .collection('ocorrencias_dou')
                   .update(item.id, { status_alerta: 'visualizado' })
+              else if (item.collection === 'case_movements')
+                await pb.collection('case_movements').update(item.id, { notified_client: true })
             } else if (action === 'unread') {
               if (item.collection === 'pje_communications')
                 await pb.collection('pje_communications').update(item.id, { is_read: false })
@@ -233,11 +375,15 @@ export default function CentralAtualizacoes() {
                 await pb
                   .collection('ocorrencias_dou')
                   .update(item.id, { status_alerta: 'pendente' })
+              else if (item.collection === 'case_movements')
+                await pb.collection('case_movements').update(item.id, { notified_client: false })
             } else if (action === 'archive') {
-              if (item.collection !== 'pje_communications') {
+              if (
+                ['gazette_publications', 'ocorrencias_dou', 'pje_communications'].includes(
+                  item.collection,
+                )
+              ) {
                 await pb.collection(item.collection).update(item.id, { is_archived: true })
-              } else {
-                await pb.collection('pje_communications').update(item.id, { is_read: true })
               }
             } else if (action === 'save') {
               if (item.collection === 'pje_communications')
@@ -278,9 +424,7 @@ export default function CentralAtualizacoes() {
       toast({ title: msgs[action] || 'Atualizado' })
     }
 
-    if (!idsToProcess) {
-      setSelectedIds(new Set())
-    }
+    if (!idsToProcess) setSelectedIds(new Set())
 
     setTimeout(async () => {
       setIsProcessingBatch(false)
@@ -288,21 +432,43 @@ export default function CentralAtualizacoes() {
     }, 500)
   }
 
-  const handleMarkAsRead = (item: UnifiedItem) => {
-    processBatch('read', new Set([`${item.collection}-${item.id}`]))
+  const recordTreatment = async (item: UnifiedItem, type: string) => {
+    try {
+      if (item.collection === 'pje_communications' || item.collection === 'gazette_publications') {
+        const isArchived = type === 'discarded' || type === 'concluded' ? true : item.isArchived
+        await pb.collection(item.collection).update(item.id, {
+          treatment_status: type,
+          is_archived: isArchived,
+          treatment_type: type,
+          is_read: true,
+        })
+      }
+
+      await pb.collection('system_logs').create({
+        level: 'info',
+        module: 'Audit',
+        message: `Alerta tratado: ${type}`,
+        details: { item_id: item.id, collection: item.collection, type },
+        user: pb.authStore.record?.id || null,
+        organization: pb.authStore.record?.active_organization || null,
+      })
+
+      await loadData()
+    } catch (e) {
+      console.error(e)
+    }
   }
 
-  const handleArchive = (item: UnifiedItem) => {
+  const handleMarkAsRead = (item: UnifiedItem) =>
+    processBatch('read', new Set([`${item.collection}-${item.id}`]))
+  const handleArchive = (item: UnifiedItem) =>
     processBatch('archive', new Set([`${item.collection}-${item.id}`]))
-  }
 
   const handleMarkAllAsRead = () => {
     const unreadIds = new Set(
       filteredItems.filter((i) => !i.isRead).map((i) => `${i.collection}-${i.id}`),
     )
-    if (unreadIds.size > 0) {
-      processBatch('read', unreadIds)
-    }
+    if (unreadIds.size > 0) processBatch('read', unreadIds)
   }
 
   const handleCreateTaskSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -322,6 +488,7 @@ export default function CentralAtualizacoes() {
       })
       toast({ title: 'Tarefa criada com sucesso!' })
       setTaskDialogOpen(false)
+      if (selectedItem) await recordTreatment(selectedItem, 'task_created')
     } catch (err) {
       toast({ title: 'Erro ao criar tarefa', variant: 'destructive' })
     }
@@ -343,8 +510,30 @@ export default function CentralAtualizacoes() {
       })
       toast({ title: 'Evento criado com sucesso!' })
       setEventDialogOpen(false)
+      if (selectedItem) await recordTreatment(selectedItem, 'event_created')
     } catch (err) {
       toast({ title: 'Erro ao criar evento', variant: 'destructive' })
+    }
+  }
+
+  const handleCreateManualSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    try {
+      await pb.collection('case_movements').create({
+        description: fd.get('description'),
+        event_date: fd.get('event_date')
+          ? new Date(`${fd.get('event_date')}T12:00:00Z`).toISOString()
+          : new Date().toISOString(),
+        source: 'Manual',
+        case: selectedItem?.caseId || null,
+        organization: pb.authStore.record?.active_organization,
+      })
+      toast({ title: 'Andamento registrado com sucesso!' })
+      setManualDialogOpen(false)
+      if (selectedItem) await recordTreatment(selectedItem, 'manual_recorded')
+    } catch (err) {
+      toast({ title: 'Erro ao registrar andamento', variant: 'destructive' })
     }
   }
 
@@ -356,14 +545,20 @@ export default function CentralAtualizacoes() {
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       if (activeTab === 'inbox') return !item.isRead && !item.isArchived
-      if (activeTab === 'pje')
-        return item.isRead && !item.isArchived && item.collection === 'pje_communications'
-      if (activeTab === 'dou')
+      if (activeTab === 'comunicacoes')
         return (
-          item.isRead &&
           !item.isArchived &&
-          (item.collection === 'gazette_publications' || item.collection === 'ocorrencias_dou')
+          (item.collection === 'pje_communications' ||
+            item.collection === 'gazette_publications' ||
+            item.collection === 'ocorrencias_dou')
         )
+      if (activeTab === 'movimentacoes')
+        return !item.isArchived && item.collection === 'case_movements'
+      if (activeTab === 'tarefas')
+        return (
+          !item.isArchived && (item.collection === 'tasks' || item.collection === 'agenda_events')
+        )
+      if (activeTab === 'financeiro') return !item.isArchived && item.collection === 'finances'
       if (activeTab === 'salvos') return item.isSaved && item.collection === 'pje_communications'
       if (activeTab === 'arquivados') return item.isArchived
       return true
@@ -395,7 +590,19 @@ export default function CentralAtualizacoes() {
               {item.type === 'PJe' && <Activity className="w-4 h-4 text-blue-500" />}
               {item.type === 'Processo Novo' && <FileText className="w-4 h-4 text-primary" />}
               {item.type === 'Ocorrência' && <Activity className="w-4 h-4 text-amber-500" />}
+              {item.type === 'Movimentação' && <FileText className="w-4 h-4 text-indigo-500" />}
+              {item.type === 'Tarefa' && <CheckSquare className="w-4 h-4 text-amber-500" />}
+              {item.type === 'Agenda' && <CalendarIcon className="w-4 h-4 text-amber-500" />}
+              {item.type === 'Financeiro' && <Wallet className="w-4 h-4 text-emerald-500" />}
               {item.type}
+              {item.treatmentStatus && item.treatmentStatus !== 'pending' && (
+                <Badge
+                  variant="outline"
+                  className="ml-2 bg-slate-50 text-slate-600 border-slate-200"
+                >
+                  Tratado: {item.treatmentStatus.replace('_', ' ')}
+                </Badge>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
@@ -458,7 +665,8 @@ export default function CentralAtualizacoes() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-2 pt-4 border-t border-slate-100">
-            {!item.isRead && item.type !== 'Processo Novo' ? (
+            {['PJe', 'DOU', 'Processo Novo', 'Ocorrência', 'Movimentação'].includes(item.type) &&
+            !item.isRead ? (
               <Button
                 size="sm"
                 variant="default"
@@ -467,7 +675,8 @@ export default function CentralAtualizacoes() {
               >
                 <CheckCircle2 className="w-4 h-4 mr-2" /> Marcar como Lido
               </Button>
-            ) : item.isRead && item.type !== 'Processo Novo' ? (
+            ) : ['PJe', 'DOU', 'Processo Novo', 'Ocorrência', 'Movimentação'].includes(item.type) &&
+              item.isRead ? (
               <Button
                 size="sm"
                 variant="outline"
@@ -477,27 +686,80 @@ export default function CentralAtualizacoes() {
               </Button>
             ) : null}
 
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setSelectedItem(item)
-                setTaskDialogOpen(true)
-              }}
-            >
-              <CheckSquare className="w-4 h-4 mr-2 text-slate-500" /> Tarefa
-            </Button>
+            {(item.collection === 'pje_communications' ||
+              item.collection === 'gazette_publications') &&
+              !item.isArchived && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="bg-slate-800 text-white hover:bg-slate-700"
+                    >
+                      Tratar Alerta <MoreVertical className="w-4 h-4 ml-2" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setSelectedItem(item)
+                        setTaskDialogOpen(true)
+                      }}
+                    >
+                      <CheckSquare className="w-4 h-4 mr-2 text-slate-500" /> Incluir Tarefa
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setSelectedItem(item)
+                        setEventDialogOpen(true)
+                      }}
+                    >
+                      <CalendarIcon className="w-4 h-4 mr-2 text-slate-500" /> Incluir Compromisso
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (!item.caseId) {
+                          toast({
+                            title: 'Aviso',
+                            description:
+                              'Vincule o processo primeiro para adicionar um andamento manual.',
+                            variant: 'destructive',
+                          })
+                          return
+                        }
+                        setSelectedItem(item)
+                        setManualDialogOpen(true)
+                      }}
+                    >
+                      <FileEdit className="w-4 h-4 mr-2 text-slate-500" /> Registro Manual
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => recordTreatment(item, 'concluded')}>
+                      <Check className="w-4 h-4 mr-2 text-emerald-500" /> Concluir
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => recordTreatment(item, 'discarded')}>
+                      <XCircle className="w-4 h-4 mr-2 text-red-500" /> Descartar (Arquivar)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
 
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setSelectedItem(item)
-                setEventDialogOpen(true)
-              }}
-            >
-              <CalendarIcon className="w-4 h-4 mr-2 text-slate-500" /> Evento
-            </Button>
+            {['Tarefa', 'Agenda', 'Financeiro', 'Movimentação'].includes(item.type) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  if (item.type === 'Tarefa' || item.type === 'Agenda') navigate('/intranet/agenda')
+                  if (item.type === 'Financeiro') navigate('/intranet/finance')
+                  if (item.type === 'Movimentação')
+                    navigate(
+                      item.caseId ? `/intranet/processos/${item.caseId}` : '/intranet/processos',
+                    )
+                }}
+              >
+                Acessar
+              </Button>
+            )}
 
             {item.collection === 'pje_communications' && (
               <Button
@@ -524,27 +786,28 @@ export default function CentralAtualizacoes() {
                 variant="secondary"
                 onClick={async () => {
                   if (!item.isRead) await handleMarkAsRead(item)
-                  if (item.collection === 'pje_communications') {
+                  if (item.collection === 'pje_communications')
                     navigate(`/intranet/pje-comunica?id=${item.id}`)
-                  } else {
-                    navigate(`/intranet/comunicacoes/${item.id}`)
-                  }
+                  else navigate(`/intranet/comunicacoes/${item.id}`)
                 }}
               >
                 <Eye className="w-4 h-4 mr-2" /> Ver Detalhes
               </Button>
             )}
 
-            {!item.isArchived && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="ml-auto text-slate-400 hover:text-slate-600"
-                onClick={() => handleArchive(item)}
-              >
-                <Archive className="w-4 h-4 mr-2" /> Arquivar
-              </Button>
-            )}
+            {!item.isArchived &&
+              ['pje_communications', 'gazette_publications', 'ocorrencias_dou'].includes(
+                item.collection,
+              ) && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="ml-auto text-slate-400 hover:text-slate-600"
+                  onClick={() => handleArchive(item)}
+                >
+                  <Archive className="w-4 h-4 mr-2" /> Arquivar
+                </Button>
+              )}
 
             {item.collection === 'pje_communications' && activeTab === 'salvos' && (
               <Button
@@ -565,10 +828,10 @@ export default function CentralAtualizacoes() {
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-fade-in-up pb-12">
       <div className="flex flex-col gap-2 border-b border-slate-200 pb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-primary">Central de Atualizações</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-primary">Central de Alertas</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Inbox inteligente para gerenciar intimações do PJe, publicações do DOU e novos processos
-          identificados.
+          Inbox integrado para gerenciar comunicações, tarefas, agenda e finanças pendentes com
+          ações rápidas de tratamento.
         </p>
       </div>
 
@@ -585,29 +848,41 @@ export default function CentralAtualizacoes() {
                 value="inbox"
                 className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
               >
-                <BookOpen className="w-4 h-4 mr-3 text-slate-400 data-[state=active]:text-primary" />
+                <BookOpen className="w-4 h-4 mr-3 text-slate-400 data-[state=active]:text-primary" />{' '}
                 Caixa de Entrada
                 <span className="ml-auto bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full font-bold">
                   {items.filter((i) => !i.isRead && !i.isArchived).length}
                 </span>
               </TabsTrigger>
               <TabsTrigger
-                value="pje"
+                value="comunicacoes"
                 className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
               >
-                <Activity className="w-4 h-4 mr-3 text-blue-500" /> PJe
+                <Activity className="w-4 h-4 mr-3 text-blue-500" /> Comunicações
               </TabsTrigger>
               <TabsTrigger
-                value="dou"
+                value="movimentacoes"
                 className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
               >
-                <Landmark className="w-4 h-4 mr-3 text-emerald-500" /> DOU
+                <FileText className="w-4 h-4 mr-3 text-indigo-500" /> Movimentações
+              </TabsTrigger>
+              <TabsTrigger
+                value="tarefas"
+                className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
+              >
+                <ListTodo className="w-4 h-4 mr-3 text-amber-500" /> Tarefas & Agenda
+              </TabsTrigger>
+              <TabsTrigger
+                value="financeiro"
+                className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
+              >
+                <Wallet className="w-4 h-4 mr-3 text-emerald-500" /> Financeiro
               </TabsTrigger>
               <TabsTrigger
                 value="salvos"
                 className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
               >
-                <Bookmark className="w-4 h-4 mr-3 text-indigo-500" /> Comunicações Salvas
+                <Bookmark className="w-4 h-4 mr-3 text-primary" /> Salvos
               </TabsTrigger>
               <TabsTrigger
                 value="arquivados"
@@ -638,11 +913,9 @@ export default function CentralAtualizacoes() {
                     }
                     onCheckedChange={(checked) => {
                       const newSet = new Set(selectedIds)
-                      if (checked) {
+                      if (checked)
                         paginatedItems.forEach((i) => newSet.add(`${i.collection}-${i.id}`))
-                      } else {
-                        paginatedItems.forEach((i) => newSet.delete(`${i.collection}-${i.id}`))
-                      }
+                      else paginatedItems.forEach((i) => newSet.delete(`${i.collection}-${i.id}`))
                       setSelectedIds(newSet)
                     }}
                   />
@@ -744,7 +1017,7 @@ export default function CentralAtualizacoes() {
               <Label>Descrição / Contexto</Label>
               <textarea
                 name="description"
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[80px]"
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm min-h-[80px]"
                 defaultValue={selectedItem?.description?.replace(/<[^>]*>?/gm, '').trim()}
               />
             </div>
@@ -792,7 +1065,7 @@ export default function CentralAtualizacoes() {
               <Label>Descrição / Contexto</Label>
               <textarea
                 name="description"
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[80px]"
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm min-h-[80px]"
                 defaultValue={selectedItem?.description?.replace(/<[^>]*>?/gm, '').trim()}
               />
             </div>
@@ -819,6 +1092,37 @@ export default function CentralAtualizacoes() {
             </div>
             <div className="pt-4 flex justify-end">
               <Button type="submit">Criar Evento</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={manualDialogOpen} onOpenChange={setManualDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registro Manual de Andamento</DialogTitle>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleCreateManualSubmit}>
+            <div>
+              <Label>Descrição</Label>
+              <textarea
+                name="description"
+                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm min-h-[80px]"
+                defaultValue={selectedItem?.description?.replace(/<[^>]*>?/gm, '').trim()}
+                required
+              />
+            </div>
+            <div>
+              <Label>Data do Evento</Label>
+              <Input
+                name="event_date"
+                type="date"
+                required
+                defaultValue={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+            <div className="pt-4 flex justify-end">
+              <Button type="submit">Salvar Registro</Button>
             </div>
           </form>
         </DialogContent>

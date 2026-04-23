@@ -19,6 +19,7 @@ export function PushAlertsWidget() {
   const loadAlerts = async () => {
     try {
       const gazettes = await pb.collection('gazette_publications').getList(1, 15, {
+        filter: 'is_archived = false',
         sort: '-created',
       })
       const followUps = await pb.collection('crm_interactions').getList(1, 15, {

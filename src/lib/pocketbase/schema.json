@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-22T20:27:10.561Z",
+  "generatedAt": "2026-04-23T00:39:32.812Z",
   "collections": [
     {
       "name": "users",
@@ -1439,6 +1439,26 @@
           "type": "bool",
           "required": false,
           "system": false
+        },
+        {
+          "name": "treatment_status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": [
+            "pending",
+            "task_created",
+            "event_created",
+            "manual_recorded",
+            "concluded",
+            "discarded"
+          ]
+        },
+        {
+          "name": "treatment_type",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -2691,6 +2711,32 @@
         {
           "name": "is_saved",
           "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_archived",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "treatment_status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": [
+            "pending",
+            "task_created",
+            "event_created",
+            "manual_recorded",
+            "concluded",
+            "discarded"
+          ]
+        },
+        {
+          "name": "treatment_type",
+          "type": "text",
           "required": false,
           "system": false
         }

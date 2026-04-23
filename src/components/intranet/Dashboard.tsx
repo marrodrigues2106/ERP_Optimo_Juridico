@@ -75,7 +75,7 @@ export default function Dashboard() {
   const [feedPage, setFeedPage] = useState(1)
   const [isProcessingBatch, setIsProcessingBatch] = useState(false)
   const [feedPerPage, setFeedPerPage] = useState(() => {
-    const stored = sessionStorage.getItem('dashboard_feed_per_page')
+    const stored = localStorage.getItem('dashboard_feed_per_page')
     return stored ? Number(stored) : 10
   })
 
@@ -83,7 +83,7 @@ export default function Dashboard() {
     isAdmin || user?.role === 'manager' || user?.role === 'admin' || user?.isAdmin
 
   useEffect(() => {
-    sessionStorage.setItem('dashboard_feed_per_page', feedPerPage.toString())
+    localStorage.setItem('dashboard_feed_per_page', feedPerPage.toString())
   }, [feedPerPage])
 
   const loadTasks = async () => {
@@ -111,16 +111,22 @@ export default function Dashboard() {
     const [gUnread, gRead, dUnread, dRead, mUnread, mRead, pUnread, pRead] = await Promise.all([
       pb
         .collection('gazette_publications')
-        .getFullList({ filter: 'is_read = false', sort: '-created' }),
+        .getFullList({ filter: 'is_read = false && is_archived = false', sort: '-created' }),
       pb
         .collection('gazette_publications')
-        .getList(1, 20, { filter: 'is_read = true', sort: '-updated' }),
+        .getList(1, 20, { filter: 'is_read = true && is_archived = false', sort: '-updated' }),
       pb
         .collection('ocorrencias_dou')
-        .getFullList({ filter: 'status_alerta = "pendente"', sort: '-created' }),
+        .getFullList({
+          filter: 'status_alerta = "pendente" && is_archived = false',
+          sort: '-created',
+        }),
       pb
         .collection('ocorrencias_dou')
-        .getList(1, 20, { filter: 'status_alerta != "pendente"', sort: '-updated' }),
+        .getList(1, 20, {
+          filter: 'status_alerta != "pendente" && is_archived = false',
+          sort: '-updated',
+        }),
       pb.collection('case_movements').getFullList({
         filter: `notified_client = false && deleted_at = ""${orgId ? ` && organization = "${orgId}"` : ''}`,
         sort: '-event_date',
@@ -132,12 +138,12 @@ export default function Dashboard() {
         expand: 'case',
       }),
       pb.collection('pje_communications').getFullList({
-        filter: `is_read = false${orgId ? ` && organization = "${orgId}"` : ''}`,
+        filter: `is_read = false && is_archived = false${orgId ? ` && organization = "${orgId}"` : ''}`,
         sort: '-created',
         expand: 'linked_case',
       }),
       pb.collection('pje_communications').getList(1, 20, {
-        filter: `is_read = true${orgId ? ` && organization = "${orgId}"` : ''}`,
+        filter: `is_read = true && is_archived = false${orgId ? ` && organization = "${orgId}"` : ''}`,
         sort: '-updated',
         expand: 'linked_case',
       }),
