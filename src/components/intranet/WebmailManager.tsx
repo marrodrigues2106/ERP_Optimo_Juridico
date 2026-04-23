@@ -25,7 +25,9 @@ export default function WebmailManager() {
     setLoading(true)
     try {
       const user = pb.authStore.record
-      if (!user?.imap_host || !user?.email_user || !user?.email_password) {
+      // email_password is a password field in PocketBase, so it is never returned in the user record.
+      // We only check for imap_host and email_user to determine if settings are present.
+      if (!user?.imap_host || !user?.email_user) {
         setSettingsMissing(true)
         setLoading(false)
         return

@@ -39,9 +39,9 @@ export default function ProfileManager() {
 
   const [emailConfig, setEmailConfig] = useState({
     imap_host: user?.imap_host || '',
-    imap_port: user?.imap_port || '',
+    imap_port: user?.imap_port?.toString() || '',
     smtp_host: user?.smtp_host || '',
-    smtp_port: user?.smtp_port || '',
+    smtp_port: user?.smtp_port?.toString() || '',
     email_user: user?.email_user || '',
     email_password: '',
   })
@@ -129,14 +129,17 @@ export default function ProfileManager() {
     setSavingEmail(true)
     try {
       const dataToSave = {
-        ...emailConfig,
         imap_host: emailConfig.imap_host.trim(),
+        imap_port: parseInt(emailConfig.imap_port.toString(), 10) || 0,
         smtp_host: emailConfig.smtp_host.trim(),
+        smtp_port: parseInt(emailConfig.smtp_port.toString(), 10) || 0,
         email_user: emailConfig.email_user.trim(),
+      } as any
+
+      if (emailConfig.email_password.trim()) {
+        dataToSave.email_password = emailConfig.email_password.trim()
       }
-      if (!dataToSave.email_password) {
-        delete (dataToSave as any).email_password
-      }
+
       await pb.collection('users').update(user.id, dataToSave)
       toast({ title: 'Configurações de e-mail atualizadas!' })
     } catch (err) {
@@ -147,7 +150,7 @@ export default function ProfileManager() {
   }
 
   const handleTestEmail = async () => {
-    if (!emailConfig.email_password) {
+    if (!emailConfig.email_password.trim()) {
       toast({
         title: 'Senha obrigatória',
         description: 'Por favor, insira a senha do e-mail para testar a conexão.',
@@ -158,10 +161,12 @@ export default function ProfileManager() {
     setSavingEmail(true)
     try {
       const testConfig = {
-        ...emailConfig,
         imap_host: emailConfig.imap_host.trim(),
+        imap_port: parseInt(emailConfig.imap_port.toString(), 10) || 0,
         smtp_host: emailConfig.smtp_host.trim(),
+        smtp_port: parseInt(emailConfig.smtp_port.toString(), 10) || 0,
         email_user: emailConfig.email_user.trim(),
+        email_password: emailConfig.email_password.trim(),
       }
       const res = await pb.send('/backend/v1/email/test', {
         method: 'POST',
@@ -170,10 +175,10 @@ export default function ProfileManager() {
       if (res.success) {
         toast({ title: 'Conexão bem sucedida!' })
       } else {
-        toast({ title: 'Falha na conexão', variant: 'destructive' })
+        toast({ title: 'Falha na conexão', description: res.message, variant: 'destructive' })
       }
-    } catch (err) {
-      toast({ title: 'Erro ao testar conexão', variant: 'destructive' })
+    } catch (err: any) {
+      toast({ title: 'Erro ao testar conexão', description: err.message, variant: 'destructive' })
     } finally {
       setSavingEmail(false)
     }
@@ -404,7 +409,7 @@ export default function ProfileManager() {
                       onChange={(e) =>
                         setEmailConfig({ ...emailConfig, email_password: e.target.value })
                       }
-                      placeholder="••••••••"
+                      placeholder={user?.imap_host ? '•••••••• (Salva)' : '••••••••'}
                     />
                   </div>
                 </div>
@@ -414,7 +419,15 @@ export default function ProfileManager() {
                     type="button"
                     variant="outline"
                     onClick={handleTestEmail}
-                    disabled={savingEmail}
+                    disabled={
+                      savingEmail ||
+                      !emailConfig.imap_host.trim() ||
+                      !emailConfig.imap_port ||
+                      !emailConfig.smtp_host.trim() ||
+                      !emailConfig.smtp_port ||
+                      !emailConfig.email_user.trim() ||
+                      !emailConfig.email_password.trim()
+                    }
                   >
                     Testar Conexão
                   </Button>
