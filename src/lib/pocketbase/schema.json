@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-23T02:37:12.360Z",
+  "generatedAt": "2026-04-23T02:45:58.626Z",
   "collections": [
     {
       "name": "users",
@@ -170,6 +170,13 @@
           "type": "password",
           "required": false,
           "system": false
+        },
+        {
+          "name": "email_encryption",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["ssl_tls", "starttls", "none"]
         }
       ],
       "indexes": [

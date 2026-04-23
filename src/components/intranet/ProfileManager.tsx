@@ -44,6 +44,7 @@ export default function ProfileManager() {
     smtp_port: user?.smtp_port?.toString() || '',
     email_user: user?.email_user || '',
     email_password: '',
+    email_encryption: user?.email_encryption || 'ssl_tls',
   })
   const [savingEmail, setSavingEmail] = useState(false)
 
@@ -134,6 +135,7 @@ export default function ProfileManager() {
         smtp_host: emailConfig.smtp_host.trim(),
         smtp_port: parseInt(emailConfig.smtp_port.toString(), 10) || 0,
         email_user: emailConfig.email_user.trim(),
+        email_encryption: emailConfig.email_encryption,
       } as any
 
       if (emailConfig.email_password.trim()) {
@@ -167,6 +169,7 @@ export default function ProfileManager() {
         smtp_port: parseInt(emailConfig.smtp_port.toString(), 10) || 0,
         email_user: emailConfig.email_user.trim(),
         email_password: emailConfig.email_password.trim(),
+        email_encryption: emailConfig.email_encryption,
       }
       const res = await pb.send('/backend/v1/email/test', {
         method: 'POST',
@@ -368,6 +371,24 @@ export default function ProfileManager() {
                       }
                       placeholder="993"
                     />
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-base">Criptografia IMAP/SMTP</Label>
+                    <Select
+                      value={emailConfig.email_encryption}
+                      onValueChange={(val) =>
+                        setEmailConfig({ ...emailConfig, email_encryption: val })
+                      }
+                    >
+                      <SelectTrigger className="w-full text-base py-6">
+                        <SelectValue placeholder="Selecione a criptografia" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ssl_tls">SSL/TLS (Recomendado)</SelectItem>
+                        <SelectItem value="starttls">STARTTLS</SelectItem>
+                        <SelectItem value="none">Nenhuma</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-3">
                     <Label className="text-base">Servidor SMTP (Envio)</Label>

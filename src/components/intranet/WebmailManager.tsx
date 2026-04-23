@@ -7,7 +7,17 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { Mail, Edit, RefreshCw, Send, ArrowLeft, Archive, Trash2 } from 'lucide-react'
+import {
+  Mail,
+  Edit,
+  RefreshCw,
+  Send,
+  ArrowLeft,
+  Archive,
+  Trash2,
+  AlertTriangle,
+  Loader2,
+} from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 
@@ -15,18 +25,17 @@ export default function WebmailManager() {
   const { toast } = useToast()
   const [emails, setEmails] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [composeOpen, setComposeOpen] = useState(false)
   const [selectedEmail, setSelectedEmail] = useState<any>(null)
   const [sending, setSending] = useState(false)
-
   const [settingsMissing, setSettingsMissing] = useState(false)
 
   const loadEmails = async () => {
     setLoading(true)
+    setErrorMsg(null)
     try {
       const user = pb.authStore.record
-      // email_password is a password field in PocketBase, so it is never returned in the user record.
-      // We only check for imap_host and email_user to determine if settings are present.
       if (!user?.imap_host || !user?.email_user) {
         setSettingsMissing(true)
         setLoading(false)
@@ -35,9 +44,11 @@ export default function WebmailManager() {
       setSettingsMissing(false)
       const res = await pb.send('/backend/v1/email/inbox', { method: 'GET' })
       setEmails(res)
-    } catch (err) {
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Erro ao conectar ao servidor de e-mail.')
       toast({
-        title: 'Erro ao carregar e-mails. Verifique suas configurações no perfil.',
+        title: 'Erro ao carregar e-mails.',
+        description: err.message || 'Verifique suas configurações no perfil.',
         variant: 'destructive',
       })
     } finally {
@@ -64,8 +75,8 @@ export default function WebmailManager() {
       })
       toast({ title: 'E-mail enviado com sucesso!' })
       setComposeOpen(false)
-    } catch (err) {
-      toast({ title: 'Erro ao enviar e-mail', variant: 'destructive' })
+    } catch (err: any) {
+      toast({ title: 'Erro ao enviar e-mail', description: err.message, variant: 'destructive' })
     } finally {
       setSending(false)
     }
@@ -108,10 +119,12 @@ export default function WebmailManager() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="pt-6 min-h-[300px]">
-            <p className="whitespace-pre-wrap text-slate-700 leading-relaxed text-base">
-              {selectedEmail.body}
-            </p>
+          <CardContent className="pt-6 min-h-[300px] overflow-auto">
+            {/* Sanitize HTML in production, using dangerouslySetInnerHTML here since it's an email client */}
+            <div
+              className="prose max-w-none text-slate-700 text-base"
+              dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
+            />
           </CardContent>
         </Card>
 
@@ -140,7 +153,9 @@ export default function WebmailManager() {
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="submit" disabled={sending}>
                   {sending ? (
-                    'Enviando...'
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Enviando...
+                    </>
                   ) : (
                     <>
                       <Send className="w-4 h-4 mr-2" /> Enviar
@@ -160,7 +175,7 @@ export default function WebmailManager() {
       <div className="flex items-center justify-between border-b border-slate-200 pb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-            <Mail className="w-8 h-8" /> Central de E-mails
+            <Mail className="w-8 h-8" /> Caixa Postal
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Sua caixa de entrada sincronizada com o servidor externo.
@@ -187,7 +202,20 @@ export default function WebmailManager() {
             </p>
           </div>
         ) : loading && emails.length === 0 ? (
-          <div className="text-center py-12 text-slate-500">Sincronizando e-mails...</div>
+          <div className="flex flex-col items-center justify-center py-16 text-slate-500">
+            <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
+            <p className="text-lg font-medium">Conectando ao servidor de e-mail...</p>
+            <p className="text-sm">Buscando mensagens recentes.</p>
+          </div>
+        ) : errorMsg ? (
+          <div className="text-center py-16 bg-red-50/50">
+            <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+            <p className="text-lg font-medium text-red-700">Falha na Sincronização</p>
+            <p className="text-sm text-red-600 mt-2 max-w-md mx-auto">{errorMsg}</p>
+            <Button variant="outline" className="mt-4" onClick={loadEmails}>
+              Tentar Novamente
+            </Button>
+          </div>
         ) : emails.length === 0 ? (
           <div className="text-center py-16 bg-slate-50/50">
             <Mail className="w-12 h-12 text-slate-300 mx-auto mb-4" />
@@ -202,11 +230,13 @@ export default function WebmailManager() {
                 className="flex items-center gap-4 p-4 hover:bg-slate-50 cursor-pointer transition-colors group"
               >
                 <div className="w-48 shrink-0 truncate font-semibold text-slate-900">
-                  {email.from.split('@')[0]}
+                  {email.from.split('<')[0] || email.from.split('@')[0]}
                 </div>
                 <div className="flex-1 truncate">
                   <span className="font-semibold text-slate-800 mr-2">{email.subject}</span>
-                  <span className="text-slate-500 truncate">- {email.body}</span>
+                  <span className="text-slate-500 truncate">
+                    - {email.snippet || email.body?.substring(0, 100)}
+                  </span>
                 </div>
                 <div className="w-32 shrink-0 text-right text-sm text-slate-500 font-medium">
                   {format(new Date(email.date), 'dd/MM/yyyy')}
@@ -242,7 +272,9 @@ export default function WebmailManager() {
             <div className="flex justify-end gap-2 pt-2">
               <Button type="submit" disabled={sending}>
                 {sending ? (
-                  'Enviando...'
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Enviando...
+                  </>
                 ) : (
                   <>
                     <Send className="w-4 h-4 mr-2" /> Enviar
