@@ -66,11 +66,9 @@ export default function Dashboard() {
           .collection('legal_cases')
           .getList(1, 1, { filter: `${baseFilter} && lifecycle_status="Ativo"` }),
         pb.collection('tasks').getFullList({ filter: baseFilter, expand: 'linked_lawsuit' }),
-        pb
-          .collection('pje_communications')
-          .getList(1, 1, {
-            filter: orgId ? `organization="${orgId}" && is_read=false` : `is_read=false`,
-          }),
+        pb.collection('pje_communications').getList(1, 1, {
+          filter: orgId ? `organization="${orgId}" && is_read=false` : `is_read=false`,
+        }),
         pb
           .collection('agenda_events')
           .getFullList({ filter: baseFilter, expand: 'linked_lawsuit' }),

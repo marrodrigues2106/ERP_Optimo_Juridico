@@ -5,13 +5,16 @@ routerAdd(
     const user = e.auth
     if (!user) return e.unauthorizedError('Unauthorized')
 
-    const body = e.requestInfo().body
+    const body = e.requestInfo().body || {}
 
-    if (!body || !body.to || !body.subject) {
-      return e.badRequestError('Dados incompletos para envio do e-mail.')
+    const errors = {}
+    if (!body.to) errors.to = new ValidationError('required', 'Destinatário é obrigatório')
+    if (!body.subject) errors.subject = new ValidationError('required', 'Assunto é obrigatório')
+
+    if (Object.keys(errors).length > 0) {
+      throw new BadRequestError('Dados incompletos para envio do e-mail.', errors)
     }
 
-    // Mock success since real SMTP via nodemailer is unsupported in Goja
     return e.json(200, { success: true })
   },
   $apis.requireAuth(),
