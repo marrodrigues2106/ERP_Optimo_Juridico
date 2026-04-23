@@ -128,7 +128,12 @@ export default function ProfileManager() {
     e.preventDefault()
     setSavingEmail(true)
     try {
-      const dataToSave = { ...emailConfig }
+      const dataToSave = {
+        ...emailConfig,
+        imap_host: emailConfig.imap_host.trim(),
+        smtp_host: emailConfig.smtp_host.trim(),
+        email_user: emailConfig.email_user.trim(),
+      }
       if (!dataToSave.email_password) {
         delete (dataToSave as any).email_password
       }
@@ -142,11 +147,25 @@ export default function ProfileManager() {
   }
 
   const handleTestEmail = async () => {
+    if (!emailConfig.email_password) {
+      toast({
+        title: 'Senha obrigatória',
+        description: 'Por favor, insira a senha do e-mail para testar a conexão.',
+        variant: 'destructive',
+      })
+      return
+    }
     setSavingEmail(true)
     try {
+      const testConfig = {
+        ...emailConfig,
+        imap_host: emailConfig.imap_host.trim(),
+        smtp_host: emailConfig.smtp_host.trim(),
+        email_user: emailConfig.email_user.trim(),
+      }
       const res = await pb.send('/backend/v1/email/test', {
         method: 'POST',
-        body: JSON.stringify(emailConfig),
+        body: JSON.stringify(testConfig),
       })
       if (res.success) {
         toast({ title: 'Conexão bem sucedida!' })

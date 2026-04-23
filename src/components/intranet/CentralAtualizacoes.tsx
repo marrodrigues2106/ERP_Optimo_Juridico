@@ -70,6 +70,7 @@ type UnifiedItem = {
   treatmentStatus?: string
   caseNumber?: string
   caseTitle?: string
+  parties?: string
   caseId?: string
   clientId?: string
   clientName?: string
@@ -128,12 +129,16 @@ export default function CentralAtualizacoes() {
       } else if (shareTemplate === 'processual' && selectedItem) {
         const dateStr = selectedItem.date ? format(new Date(selectedItem.date), 'dd/MM/yyyy') : ''
         const desc = selectedItem.description?.replace(/<[^>]*>?/gm, '').trim() || ''
+        const processInfo = selectedItem.caseNumber
+          ? `${selectedItem.caseNumber} (${selectedItem.parties || selectedItem.caseTitle || ''})`
+          : selectedItem.caseTitle || ''
         setShareMessage(
-          `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação no processo ${selectedItem.caseNumber || selectedItem.caseTitle || ''}:\n\nData: ${dateStr}\nAndamento: ${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`,
+          `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação no processo ${processInfo}:\n\nData: ${dateStr}\nAndamento: ${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`,
         )
       } else if (shareTemplate === 'financeiro' && selectedItem) {
+        const desc = selectedItem.description?.replace(/<[^>]*>?/gm, '').trim() || ''
         setShareMessage(
-          `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${selectedItem.title}\n${selectedItem.description?.replace(/<[^>]*>?/gm, '').trim()}\n\nAtt. Equipe Moraes Rodrigues Advocacia`,
+          `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${selectedItem.title}\n${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`,
         )
       } else {
         setShareMessage(`Olá, ${cName}.`)
@@ -153,12 +158,16 @@ export default function CentralAtualizacoes() {
     } else if (tpl === 'processual' && selectedItem) {
       const dateStr = selectedItem.date ? format(new Date(selectedItem.date), 'dd/MM/yyyy') : ''
       const desc = selectedItem.description?.replace(/<[^>]*>?/gm, '').trim() || ''
+      const processInfo = selectedItem.caseNumber
+        ? `${selectedItem.caseNumber} (${selectedItem.parties || selectedItem.caseTitle || ''})`
+        : selectedItem.caseTitle || ''
       setShareMessage(
-        `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação no processo ${selectedItem.caseNumber || selectedItem.caseTitle || ''}:\n\nData: ${dateStr}\nAndamento: ${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`,
+        `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação no processo ${processInfo}:\n\nData: ${dateStr}\nAndamento: ${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`,
       )
     } else if (tpl === 'financeiro' && selectedItem) {
+      const desc = selectedItem.description?.replace(/<[^>]*>?/gm, '').trim() || ''
       setShareMessage(
-        `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${selectedItem.title}\n${selectedItem.description?.replace(/<[^>]*>?/gm, '').trim()}\n\nAtt. Equipe Moraes Rodrigues Advocacia`,
+        `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${selectedItem.title}\n${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`,
       )
     } else {
       setShareMessage(`Olá, ${cName}.`)
@@ -238,13 +247,11 @@ export default function CentralAtualizacoes() {
             sort: '-created',
             expand: 'client',
           }),
-          pb
-            .collection('legal_cases')
-            .getFullList({
-              fields:
-                'id,case_number,title,client,expand.client.name,expand.client.fullName,expand.client.phone',
-              expand: 'client',
-            }),
+          pb.collection('legal_cases').getFullList({
+            fields:
+              'id,case_number,title,parties,client,expand.client.name,expand.client.fullName,expand.client.phone',
+            expand: 'client',
+          }),
         ])
 
       const casesMap = new Map()
@@ -272,6 +279,7 @@ export default function CentralAtualizacoes() {
           treatmentStatus: i.treatment_status,
           caseNumber: caseObj?.case_number || i.numeroProcesso,
           caseTitle: caseObj?.title,
+          parties: caseObj?.parties,
           caseId: linkedCaseId,
           clientId: caseObj?.client,
           clientName: clientObj?.fullName || clientObj?.name,
@@ -303,6 +311,7 @@ export default function CentralAtualizacoes() {
           treatmentStatus: i.treatment_status,
           caseNumber: linkedCase?.case_number || primaryNum,
           caseTitle: linkedCase?.title,
+          parties: linkedCase?.parties,
           caseId: linkedCase ? linkedCase.id : undefined,
           clientId: linkedCase?.client,
           clientName: clientObj?.fullName || clientObj?.name,
@@ -338,6 +347,7 @@ export default function CentralAtualizacoes() {
           caseId: i.case,
           caseNumber: cObj?.case_number,
           caseTitle: cObj?.title,
+          parties: cObj?.parties,
           clientId: cObj?.client,
           clientName: clientObj?.fullName || clientObj?.name,
           clientPhone: clientObj?.phone,
@@ -360,6 +370,7 @@ export default function CentralAtualizacoes() {
           caseId: i.linked_lawsuit,
           caseNumber: cObj?.case_number,
           caseTitle: cObj?.title,
+          parties: cObj?.parties,
           clientId: cObj?.client,
           clientName: clientObj?.fullName || clientObj?.name,
           clientPhone: clientObj?.phone,
@@ -382,6 +393,7 @@ export default function CentralAtualizacoes() {
           caseId: i.linked_lawsuit,
           caseNumber: cObj?.case_number,
           caseTitle: cObj?.title,
+          parties: cObj?.parties,
           clientId: cObj?.client,
           clientName: clientObj?.fullName || clientObj?.name,
           clientPhone: clientObj?.phone,
@@ -397,13 +409,14 @@ export default function CentralAtualizacoes() {
           collection: 'finances',
           type: 'Financeiro',
           title: `Financeiro: ${i.description}`,
-          description: `Valor: R$ ${i.amount} - Tipo: ${i.type === 'inflow' ? 'Receita' : 'Despesa'}`,
+          description: `Valor: R$ ${i.amount} - Tipo: ${i.type === 'inflow' ? 'Receita' : 'Despesa'} - Status: ${i.status}`,
           date: i.date || i.created,
           isRead: false,
           isArchived: false,
           caseId: i.linked_lawsuit,
           caseNumber: cObj?.case_number,
           caseTitle: cObj?.title,
+          parties: cObj?.parties,
           clientId: cObj?.client,
           clientName: clientObj?.fullName || clientObj?.name,
           clientPhone: clientObj?.phone,
@@ -691,12 +704,16 @@ export default function CentralAtualizacoes() {
       msg = `Olá, ${clientName}. O escritório Moraes Rodrigues Advocacia gostaria de parabeniza-lo e lhe desejar muita saúde e anos de vida nesta data especial do seu aniversário. Att. Equipe Moraes Rodrigues Advocacia`
     } else if (item.type === 'Financeiro') {
       tpl = 'financeiro'
-      msg = `Olá, ${clientName}.\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${item.title}\n${item.description?.replace(/<[^>]*>?/gm, '').trim()}\n\nAtt. Equipe Moraes Rodrigues Advocacia`
+      const desc = item.description?.replace(/<[^>]*>?/gm, '').trim() || ''
+      msg = `Olá, ${clientName}.\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${item.title}\n${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`
     } else if (['Movimentação', 'PJe', 'DOU', 'Processo Novo'].includes(item.type)) {
       tpl = 'processual'
       const dateStr = item.date ? format(new Date(item.date), 'dd/MM/yyyy') : ''
       const desc = item.description?.replace(/<[^>]*>?/gm, '').trim() || ''
-      msg = `Olá, ${clientName}.\n\nInformamos sobre a seguinte movimentação no processo ${item.caseNumber || item.caseTitle || ''}:\n\nData: ${dateStr}\nAndamento: ${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`
+      const processInfo = item.caseNumber
+        ? `${item.caseNumber} (${item.parties || item.caseTitle || ''})`
+        : item.caseTitle || ''
+      msg = `Olá, ${clientName}.\n\nInformamos sobre a seguinte movimentação no processo ${processInfo}:\n\nData: ${dateStr}\nAndamento: ${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`
     } else {
       msg = `Olá, ${clientName}.\n\n*${item.type}:* ${item.title}\n${item.description?.replace(/<[^>]*>?/gm, '').trim()}\n\nAtt. Equipe Moraes Rodrigues Advocacia`
     }

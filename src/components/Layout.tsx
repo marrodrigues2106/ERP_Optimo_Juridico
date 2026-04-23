@@ -23,6 +23,7 @@ import {
   MessageSquare,
   History,
   Settings,
+  Mail,
 } from 'lucide-react'
 import WhatsAppFAB from './WhatsAppFAB'
 import { Toaster } from '@/components/ui/toaster'
@@ -132,6 +133,7 @@ export default function Layout() {
         label: 'Comunicações',
         items: [
           { title: 'Central de Alertas', url: '/intranet/atualizacoes', icon: Activity },
+          { title: 'Caixa Postal', url: '/intranet/webmail', icon: Mail },
           { title: 'Busca DOU', url: '/intranet/busca-dou', icon: BookOpen },
           { title: 'Comunica PJe', url: '/intranet/pje-comunica', icon: MessageSquare },
         ],
