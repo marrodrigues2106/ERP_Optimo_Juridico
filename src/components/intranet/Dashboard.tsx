@@ -1,62 +1,91 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import pb from '@/lib/pocketbase/client'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Activity, BarChart2, LineChart as LineChartIcon, Loader2 } from 'lucide-react'
-import { DashboardActivities } from './dashboard/DashboardActivities'
-import { DashboardFinance } from './dashboard/DashboardFinance'
-import { DashboardMovements } from './dashboard/DashboardMovements'
-import { getTaskStatus, getEventStatus } from './dashboard/utils'
+  Loader2,
+  Scale,
+  Users,
+  Bell,
+  Clock,
+  Calendar as CalendarIcon,
+  ArrowRight,
+  AlertTriangle,
+  BarChart2,
+} from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { format, addDays } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 export default function Dashboard() {
-  const [data, setData] = useState({ tasks: [], events: [], movements: [], finances: [] })
+  const [stats, setStats] = useState({
+    activeCases: 0,
+    totalClients: 0,
+    unreadAlerts: 0,
+    upcomingDeadlines: 0,
+  })
+  const [deadlines, setDeadlines] = useState<any[]>([])
+  const [alerts, setAlerts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [collabId, setCollabId] = useState<string | null>(null)
-  const [role, setRole] = useState({ isAdmin: false, isFinancial: false })
-  const [chartType, setChartType] = useState('bar')
-  const [activeTab, setActiveTab] = useState('')
 
   useEffect(() => {
     const load = async () => {
       try {
-        const user = pb.authStore.record
-        if (!user) return
+        const orgId = pb.authStore.record?.active_organization
+        const baseFilter = orgId ? `organization="${orgId}" && deleted_at=""` : 'deleted_at=""'
 
-        const isAdmin = user.isAdmin || user.role === 'admin'
-        const isFinancial = user.role === 'financial_user'
-        setRole({ isAdmin, isFinancial })
+        const todayStr = format(new Date(), 'yyyy-MM-dd')
+        const maxDateStr = format(addDays(new Date(), 2), 'yyyy-MM-dd')
 
-        let currentCollab = null
-        try {
-          const c = await pb
-            .collection('collaborators')
-            .getFirstListItem(`user="${user.id}" && deleted_at=""`)
-          currentCollab = c.id
-          setCollabId(c.id)
-        } catch {
-          /* intentionally ignored */
-        }
-
-        const orgId = user.active_organization
-        const filter = orgId ? `organization="${orgId}" && deleted_at=""` : 'deleted_at=""'
-
-        const [tasksRes, eventsRes, moveRes, finRes] = await Promise.all([
-          pb.collection('tasks').getFullList({ filter }),
-          pb.collection('agenda_events').getFullList({ filter }),
-          pb.collection('case_movements').getFullList({ filter, expand: 'case' }),
-          pb.collection('finances').getFullList({ filter, expand: 'linked_lawsuit' }),
+        const [cases, clients, pje, dou, tasks] = await Promise.all([
+          pb
+            .collection('legal_cases')
+            .getList(1, 1, { filter: `${baseFilter} && lifecycle_status="Ativo"` }),
+          pb
+            .collection('clients')
+            .getList(1, 1, { filter: `${baseFilter} && classification="Ativo"` }),
+          pb
+            .collection('pje_communications')
+            .getList(1, 5, {
+              filter: `${baseFilter} && is_read=false`,
+              sort: '-dataDisponibilizacao',
+            }),
+          pb
+            .collection('gazette_publications')
+            .getList(1, 5, { filter: `${baseFilter} && is_read=false`, sort: '-data_publicacao' }),
+          pb.collection('tasks').getList(1, 5, {
+            filter: `${baseFilter} && status!="completed" && due_date >= "${todayStr} 00:00:00" && due_date <= "${maxDateStr} 23:59:59"`,
+            sort: 'due_date',
+          }),
         ])
 
-        setData({ tasks: tasksRes, events: eventsRes, movements: moveRes, finances: finRes })
+        setStats({
+          activeCases: cases.totalItems,
+          totalClients: clients.totalItems,
+          unreadAlerts: pje.totalItems + dou.totalItems,
+          upcomingDeadlines: tasks.totalItems,
+        })
+        setDeadlines(tasks.items)
 
-        if (isFinancial) setActiveTab('finance')
-        else setActiveTab('activities')
+        const combinedAlerts = [
+          ...pje.items.map((i) => ({
+            ...i,
+            source: 'PJe',
+            date: i.dataDisponibilizacao,
+            text: i.texto || i.tipoComunicacao,
+            id: i.id,
+          })),
+          ...dou.items.map((i) => ({
+            ...i,
+            source: 'DOU',
+            date: i.data_publicacao,
+            text: i.texto_normalizado || i.resumo,
+            id: i.id,
+          })),
+        ]
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+          .slice(0, 5)
+
+        setAlerts(combinedAlerts)
       } catch (e) {
         console.error(e)
       } finally {
@@ -66,29 +95,6 @@ export default function Dashboard() {
     load()
   }, [])
 
-  const activities = useMemo(() => {
-    const list: any[] = []
-    data.tasks.forEach((t) => {
-      if (!role.isAdmin && t.collaborator !== collabId) return
-      list.push({ type: 'task', date: t.due_date || t.created, status: getTaskStatus(t), item: t })
-    })
-    data.events.forEach((e) => {
-      if (!role.isAdmin && e.collaborator !== collabId && !e.participants?.includes(collabId))
-        return
-      list.push({
-        type: 'event',
-        date: e.start_date || e.created,
-        status: getEventStatus(e),
-        item: e,
-      })
-    })
-    return list
-  }, [data.tasks, data.events, role.isAdmin, collabId])
-
-  const myMovements = useMemo(() => {
-    return data.movements.filter((m: any) => m.expand?.case?.responsible_collaborator === collabId)
-  }, [data.movements, collabId])
-
   if (loading) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
@@ -97,85 +103,150 @@ export default function Dashboard() {
     )
   }
 
-  const tabs = []
-  if (role.isFinancial) tabs.push({ id: 'finance', label: 'Controle Financeiro' })
-  else tabs.push({ id: 'activities', label: 'Painel de Atividades' })
-
-  if (role.isAdmin) tabs.push({ id: 'office_movements', label: 'Movimentação do Escritório' })
-  tabs.push({ id: 'my_movements', label: 'Minhas Movimentações' })
-
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12 animate-fade-in-up">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b pb-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-            <Activity className="w-8 h-8" /> Dashboard de Produtividade
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Acompanhe métricas, atividades e movimentações.
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight text-primary">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Visão geral e rápida do seu escritório.</p>
         </div>
-
-        <div className="flex items-center gap-3">
-          <Select value={chartType} onValueChange={setChartType}>
-            <SelectTrigger className="w-48 bg-white">
-              <SelectValue placeholder="Tipo de Gráfico" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="bar">
-                <div className="flex items-center gap-2">
-                  <BarChart2 className="w-4 h-4" /> Barras Verticais
-                </div>
-              </SelectItem>
-              <SelectItem value="horizontal">
-                <div className="flex items-center gap-2">
-                  <BarChart2 className="w-4 h-4 rotate-90" /> Barras Horiz.
-                </div>
-              </SelectItem>
-              <SelectItem value="line">
-                <div className="flex items-center gap-2">
-                  <LineChartIcon className="w-4 h-4" /> Linha
-                </div>
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <Link
+          to="/intranet/productivity"
+          className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+        >
+          <BarChart2 className="w-4 h-4 mr-2" />
+          Análise de Produtividade
+        </Link>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-white border border-slate-200 shadow-sm p-1 rounded-xl h-auto flex flex-wrap gap-1">
-          {tabs.map((t) => (
-            <TabsTrigger
-              key={t.id}
-              value={t.id}
-              className="rounded-lg px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              {t.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-6 flex flex-col items-center text-center space-y-2">
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-full">
+              <Scale className="w-6 h-6" />
+            </div>
+            <h3 className="text-2xl font-bold">{stats.activeCases}</h3>
+            <p className="text-sm text-muted-foreground font-medium">Processos Ativos</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6 flex flex-col items-center text-center space-y-2">
+            <div className="p-3 bg-amber-50 text-amber-600 rounded-full">
+              <Clock className="w-6 h-6" />
+            </div>
+            <h3 className="text-2xl font-bold">{stats.upcomingDeadlines}</h3>
+            <p className="text-sm text-muted-foreground font-medium">Prazos (Próx. 48h)</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6 flex flex-col items-center text-center space-y-2">
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-full">
+              <Users className="w-6 h-6" />
+            </div>
+            <h3 className="text-2xl font-bold">{stats.totalClients}</h3>
+            <p className="text-sm text-muted-foreground font-medium">Clientes Ativos</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6 flex flex-col items-center text-center space-y-2">
+            <div className="p-3 bg-red-50 text-red-600 rounded-full">
+              <Bell className="w-6 h-6" />
+            </div>
+            <h3 className="text-2xl font-bold">{stats.unreadAlerts}</h3>
+            <p className="text-sm text-muted-foreground font-medium">Alertas Não Lidos</p>
+          </CardContent>
+        </Card>
+      </div>
 
-        <TabsContent value="activities">
-          <DashboardActivities activities={activities} chartType={chartType} />
-        </TabsContent>
-        <TabsContent value="finance">
-          <DashboardFinance finances={data.finances} chartType={chartType} />
-        </TabsContent>
-        <TabsContent value="office_movements">
-          <DashboardMovements
-            movements={data.movements}
-            chartType={chartType}
-            title="Evolução de Movimentações (Escritório)"
-          />
-        </TabsContent>
-        <TabsContent value="my_movements">
-          <DashboardMovements
-            movements={myMovements}
-            chartType={chartType}
-            title="Evolução de Movimentações (Minhas)"
-          />
-        </TabsContent>
-      </Tabs>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarIcon className="w-5 h-5 text-amber-500" /> Prazos Urgentes
+              </CardTitle>
+              <CardDescription>Vencendo nas próximas 48 horas.</CardDescription>
+            </div>
+            <Link
+              to="/intranet/agenda"
+              className="text-sm text-primary hover:underline flex items-center"
+            >
+              Agenda <ArrowRight className="w-4 h-4 ml-1" />
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {deadlines.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                Nenhum prazo urgente no momento.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {deadlines.map((d) => (
+                  <div
+                    key={d.id}
+                    className="flex justify-between items-start border-b border-slate-100 pb-3 last:border-0"
+                  >
+                    <div>
+                      <p className="font-medium text-sm text-slate-800">{d.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                        {d.description || 'Sem descrição'}
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded-full whitespace-nowrap">
+                      {d.due_date
+                        ? format(new Date(d.due_date), 'dd/MM HH:mm', { locale: ptBR })
+                        : 'S/ Data'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-500" /> Alertas Recentes
+              </CardTitle>
+              <CardDescription>Últimas publicações e intimações.</CardDescription>
+            </div>
+            <Link
+              to="/intranet/atualizacoes"
+              className="text-sm text-primary hover:underline flex items-center"
+            >
+              Central <ArrowRight className="w-4 h-4 ml-1" />
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {alerts.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                Tudo em dia! Nenhum alerta pendente.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {alerts.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex flex-col border-b border-slate-100 pb-3 last:border-0"
+                  >
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                        {a.source}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {a.date ? format(new Date(a.date), 'dd/MM/yyyy', { locale: ptBR }) : ''}
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-700 line-clamp-2">{a.text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

@@ -10,6 +10,7 @@ import {
   Menu,
   LogOut,
   LayoutDashboard,
+  BarChart2,
   Scale,
   Users,
   Calendar,
@@ -119,7 +120,10 @@ export default function Layout() {
     const navCategories = [
       {
         label: 'Principal',
-        items: [{ title: 'Dashboard', url: '/intranet/dashboard', icon: LayoutDashboard }],
+        items: [
+          { title: 'Dashboard', url: '/intranet/dashboard', icon: LayoutDashboard },
+          { title: 'Produtividade', url: '/intranet/productivity', icon: BarChart2 },
+        ],
       },
       {
         label: 'Jurídico',

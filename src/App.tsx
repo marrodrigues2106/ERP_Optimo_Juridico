@@ -31,6 +31,7 @@ import GlobalSearch from '@/components/intranet/GlobalSearch'
 import CentralAtualizacoes from '@/components/intranet/CentralAtualizacoes'
 import PublicAgenda from '@/pages/PublicAgenda'
 import { PjeComunica } from '@/components/intranet/PjeComunica'
+import Productivity from '@/components/intranet/Productivity'
 
 function App() {
   return (
@@ -59,6 +60,7 @@ function App() {
             >
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
+              <Route path="productivity" element={<Productivity />} />
               <Route path="atualizacoes" element={<CentralAtualizacoes />} />
               <Route
                 path="diarios-oficiais"
