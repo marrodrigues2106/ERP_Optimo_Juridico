@@ -107,7 +107,19 @@ export function CaseFormModal({
 
   const [localClients, setLocalClients] = useState<any[]>([])
   const [isNewClientOpen, setIsNewClientOpen] = useState(false)
-  const [newClientData, setNewClientData] = useState({ name: '', email: '', phone: '' })
+  const [newClientData, setNewClientData] = useState({
+    name: '',
+    email: '',
+    cpf: '',
+    idNumber: '',
+    address: '',
+    birthDate: '',
+    nationality: '',
+    maritalStatus: '',
+    profession: '',
+    classification: 'Ativo',
+  })
+  const [phoneNumbers, setPhoneNumbers] = useState([{ number: '', type: 'Celular' }])
 
   useEffect(() => {
     setLocalClients(externalClients)
@@ -198,9 +210,14 @@ export function CaseFormModal({
 
   const handleCreateClient = async () => {
     try {
+      const phones = phoneNumbers.filter((p) => p.number.trim() !== '')
+
       const record = await createClient({
         ...newClientData,
-        classification: 'Ativo',
+        fullName: newClientData.name,
+        phone_numbers: phones,
+        phone: phones.length > 0 ? phones[0].number : '',
+        phone_type: phones.length > 0 ? phones[0].type : '',
         status: 'Active',
       })
       setLocalClients((prev) => [...prev, record])
@@ -212,7 +229,19 @@ export function CaseFormModal({
           : []
       setValue('client', [...currentArray, record.id])
       setIsNewClientOpen(false)
-      setNewClientData({ name: '', email: '', phone: '' })
+      setNewClientData({
+        name: '',
+        email: '',
+        cpf: '',
+        idNumber: '',
+        address: '',
+        birthDate: '',
+        nationality: '',
+        maritalStatus: '',
+        profession: '',
+        classification: 'Ativo',
+      })
+      setPhoneNumbers([{ number: '', type: 'Celular' }])
       toast({ title: 'Cliente cadastrado com sucesso' })
       onSuccess() // refresh parent data
     } catch (e: any) {
@@ -1113,14 +1142,14 @@ export function CaseFormModal({
       </Dialog>
 
       <Dialog open={isNewClientOpen} onOpenChange={setIsNewClientOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="shrink-0">
             <DialogTitle>Novo Cliente Rápido</DialogTitle>
             <DialogDescription>
               Cadastre um novo cliente para vinculá-lo imediatamente a este processo.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 pt-4">
+          <div className="space-y-4 pt-4 overflow-y-auto px-1 pb-6 custom-scrollbar">
             <div>
               <Label>Nome Completo / Razão Social *</Label>
               <Input
@@ -1128,6 +1157,24 @@ export function CaseFormModal({
                 onChange={(e) => setNewClientData({ ...newClientData, name: e.target.value })}
                 placeholder="Ex: Maria Souza"
               />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label>CPF / CNPJ</Label>
+                <Input
+                  value={newClientData.cpf}
+                  onChange={(e) => setNewClientData({ ...newClientData, cpf: e.target.value })}
+                  placeholder="000.000.000-00"
+                />
+              </div>
+              <div>
+                <Label>RG / Inscrição Estadual</Label>
+                <Input
+                  value={newClientData.idNumber}
+                  onChange={(e) => setNewClientData({ ...newClientData, idNumber: e.target.value })}
+                  placeholder="00.000.000-0"
+                />
+              </div>
             </div>
             <div>
               <Label>Email</Label>
@@ -1138,17 +1185,147 @@ export function CaseFormModal({
                 type="email"
               />
             </div>
+
             <div>
-              <Label>Telefone / WhatsApp</Label>
+              <Label className="mb-2 block">Telefones</Label>
+              <div className="space-y-2">
+                {phoneNumbers.map((phone, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <Input
+                      value={phone.number}
+                      onChange={(e) => {
+                        const newPhones = [...phoneNumbers]
+                        newPhones[idx].number = e.target.value
+                        setPhoneNumbers(newPhones)
+                      }}
+                      placeholder="(00) 00000-0000"
+                      className="flex-1"
+                    />
+                    <Select
+                      value={phone.type}
+                      onValueChange={(val) => {
+                        const newPhones = [...phoneNumbers]
+                        newPhones[idx].type = val
+                        setPhoneNumbers(newPhones)
+                      }}
+                    >
+                      <SelectTrigger className="w-[120px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Celular">Celular</SelectItem>
+                        <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                        <SelectItem value="Fixo">Fixo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setPhoneNumbers(phoneNumbers.filter((_, i) => i !== idx))
+                      }}
+                      disabled={phoneNumbers.length === 1 && !phone.number}
+                    >
+                      <X className="w-4 h-4 text-slate-500" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setPhoneNumbers([...phoneNumbers, { number: '', type: 'Celular' }])
+                  }
+                  className="mt-2 text-xs"
+                >
+                  <Plus className="w-3 h-3 mr-1" /> Adicionar Telefone
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <Label>Endereço Completo</Label>
               <Input
-                value={newClientData.phone}
-                onChange={(e) => setNewClientData({ ...newClientData, phone: e.target.value })}
-                placeholder="(00) 00000-0000"
+                value={newClientData.address}
+                onChange={(e) => setNewClientData({ ...newClientData, address: e.target.value })}
+                placeholder="Rua, Número, Bairro, Cidade - UF"
               />
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label>Data de Nascimento</Label>
+                <Input
+                  type="date"
+                  value={newClientData.birthDate}
+                  onChange={(e) =>
+                    setNewClientData({ ...newClientData, birthDate: e.target.value })
+                  }
+                />
+              </div>
+              <div>
+                <Label>Nacionalidade</Label>
+                <Input
+                  value={newClientData.nationality}
+                  onChange={(e) =>
+                    setNewClientData({ ...newClientData, nationality: e.target.value })
+                  }
+                  placeholder="Ex: Brasileiro"
+                />
+              </div>
+              <div>
+                <Label>Estado Civil</Label>
+                <Select
+                  value={newClientData.maritalStatus}
+                  onValueChange={(val) =>
+                    setNewClientData({ ...newClientData, maritalStatus: val })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Solteiro(a)">Solteiro(a)</SelectItem>
+                    <SelectItem value="Casado(a)">Casado(a)</SelectItem>
+                    <SelectItem value="Divorciado(a)">Divorciado(a)</SelectItem>
+                    <SelectItem value="Viúvo(a)">Viúvo(a)</SelectItem>
+                    <SelectItem value="União Estável">União Estável</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Profissão</Label>
+                <Input
+                  value={newClientData.profession}
+                  onChange={(e) =>
+                    setNewClientData({ ...newClientData, profession: e.target.value })
+                  }
+                  placeholder="Ex: Engenheiro"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label>Classificação</Label>
+              <Select
+                value={newClientData.classification}
+                onValueChange={(val) => setNewClientData({ ...newClientData, classification: val })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Ativo">Ativo</SelectItem>
+                  <SelectItem value="Inativo">Inativo</SelectItem>
+                  <SelectItem value="Lead">Lead</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <Button
               onClick={handleCreateClient}
-              className="w-full"
+              className="w-full mt-4 shrink-0"
               disabled={!newClientData.name.trim()}
             >
               Cadastrar e Vincular

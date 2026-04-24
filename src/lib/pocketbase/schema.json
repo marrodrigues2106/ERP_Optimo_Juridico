@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-24T19:17:55.479Z",
+  "generatedAt": "2026-04-24T19:34:45.180Z",
   "collections": [
     {
       "name": "users",
@@ -1173,7 +1173,8 @@
         "CREATE INDEX `idx_legal_cases_parties_search` ON `legal_cases` (parties)",
         "CREATE INDEX `idx_legal_cases_court_search` ON `legal_cases` (court)",
         "CREATE INDEX `idx_legal_cases_description_search` ON `legal_cases` (description)",
-        "CREATE INDEX `idx_legal_cases_title_search` ON `legal_cases` (title)"
+        "CREATE INDEX `idx_legal_cases_title_search` ON `legal_cases` (title)",
+        "CREATE INDEX `idx_legal_cases_favorite` ON `legal_cases` (is_favorite)"
       ]
     },
     {

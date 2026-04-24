@@ -69,6 +69,9 @@ export default function ProcessManager() {
   const [showFavorites, setShowFavorites] = useState(false)
   const [allTags, setAllTags] = useState<string[]>([])
 
+  const [manageTagsOpen, setManageTagsOpen] = useState(false)
+  const [editingTag, setEditingTag] = useState<{ old: string; new: string } | null>(null)
+
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(() => {
     const saved = sessionStorage.getItem('process_manager_per_page')
@@ -218,6 +221,35 @@ export default function ProcessManager() {
       setSelectedIds((prev) => [...prev, id])
     } else {
       setSelectedIds((prev) => prev.filter((i) => i !== id))
+    }
+  }
+
+  const handleRenameTag = async () => {
+    if (!editingTag || !editingTag.new.trim() || editingTag.old === editingTag.new) return
+    try {
+      await pb.send('/backend/v1/tags/rename', {
+        method: 'POST',
+        body: JSON.stringify({ oldTag: editingTag.old, newTag: editingTag.new.trim() }),
+      })
+      toast({ title: 'Etiqueta renomeada com sucesso' })
+      setEditingTag(null)
+      loadData()
+    } catch (err: any) {
+      toast({ title: 'Erro ao renomear', description: err.message, variant: 'destructive' })
+    }
+  }
+
+  const handleDeleteTag = async (tag: string) => {
+    if (!confirm(`Deseja remover a etiqueta "${tag}" de todos os processos?`)) return
+    try {
+      await pb.send('/backend/v1/tags/delete', {
+        method: 'POST',
+        body: JSON.stringify({ tag }),
+      })
+      toast({ title: 'Etiqueta removida com sucesso' })
+      loadData()
+    } catch (err: any) {
+      toast({ title: 'Erro ao remover', description: err.message, variant: 'destructive' })
     }
   }
 
@@ -422,7 +454,7 @@ export default function ProcessManager() {
                     className="border-slate-300"
                   />
                   {st === 'updated'
-                    ? 'Sincronizado'
+                    ? 'Atualizado'
                     : st === 'pending'
                       ? 'Pendente'
                       : st === 'in_queue'
@@ -451,9 +483,20 @@ export default function ProcessManager() {
 
           {allTags.length > 0 && (
             <div>
-              <h3 className="font-semibold text-sm text-slate-800 mb-3 flex items-center gap-2">
-                <Tags className="w-4 h-4 text-slate-400" /> Etiquetas
-              </h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-sm text-slate-800 flex items-center gap-2">
+                  <Tags className="w-4 h-4 text-slate-400" /> Etiquetas
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => setManageTagsOpen(true)}
+                  title="Gerenciar Etiquetas"
+                >
+                  <Edit className="w-3.5 h-3.5 text-slate-400" />
+                </Button>
+              </div>
               <div className="space-y-2.5 max-h-40 overflow-y-auto custom-scrollbar pr-2">
                 {allTags.map((tag) => (
                   <label
@@ -904,6 +947,77 @@ export default function ProcessManager() {
         collaborators={collaborators}
         onSuccess={loadData}
       />
+
+      <Dialog open={manageTagsOpen} onOpenChange={setManageTagsOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Gerenciar Etiquetas</DialogTitle>
+            <DialogDescription>
+              Renomeie ou exclua etiquetas de todos os processos associados.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4 max-h-[60vh] overflow-y-auto pr-2">
+            {allTags.length === 0 ? (
+              <p className="text-sm text-slate-500 text-center py-4">
+                Nenhuma etiqueta encontrada.
+              </p>
+            ) : (
+              allTags.map((tag) => (
+                <div
+                  key={tag}
+                  className="flex items-center justify-between gap-2 bg-slate-50 p-2 rounded-md"
+                >
+                  {editingTag?.old === tag ? (
+                    <div className="flex items-center gap-2 w-full">
+                      <Input
+                        value={editingTag.new}
+                        onChange={(e) => setEditingTag({ ...editingTag, new: e.target.value })}
+                        className="h-8 text-sm"
+                        autoFocus
+                      />
+                      <Button size="sm" onClick={handleRenameTag} className="h-8 px-2">
+                        Salvar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setEditingTag(null)}
+                        className="h-8 px-2"
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="text-sm font-medium text-slate-700 truncate" title={tag}>
+                        {tag}
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => setEditingTag({ old: tag, new: tag })}
+                        >
+                          <Edit className="w-3.5 h-3.5 text-slate-500" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => handleDeleteTag(tag)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
