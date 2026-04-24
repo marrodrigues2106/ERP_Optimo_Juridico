@@ -32,8 +32,10 @@ export default function ProfileManager() {
   const [termos, setTermos] = useState<any[]>([])
   const [newTermo, setNewTermo] = useState('')
   const [newTipoTermo, setNewTipoTermo] = useState('Outros')
+  const [newSearchMethod, setNewSearchMethod] = useState('palavra-chave')
 
   const [fullName, setFullName] = useState(user?.fullName || user?.name || '')
+  const [defaultSenderEmail, setDefaultSenderEmail] = useState('')
   const [email] = useState(user?.email || '')
   const [avatarPreview, setAvatarPreview] = useState<string | null>(
     user?.avatar ? pb.files.getURL(user, user.avatar) : null,
@@ -68,6 +70,11 @@ export default function ProfileManager() {
         .getFirstListItem(`usuario_id="${user.id}"`)
         .then((res) => setAlertConfig(res))
         .catch(() => setAlertConfig({ frequencia: 'daily', ativo: true }))
+
+      pb.collection('settings')
+        .getFirstListItem('key="default_sender_email"')
+        .then((res) => setDefaultSenderEmail(res.value))
+        .catch(() => setDefaultSenderEmail(''))
     }
   }, [user])
 
@@ -106,6 +113,18 @@ export default function ProfileManager() {
       if (avatarFile) formData.append('avatar', avatarFile)
 
       await pb.collection('users').update(user.id, formData)
+
+      try {
+        const existingSetting = await pb
+          .collection('settings')
+          .getFirstListItem('key="default_sender_email"')
+        await pb.collection('settings').update(existingSetting.id, { value: defaultSenderEmail })
+      } catch (e) {
+        await pb
+          .collection('settings')
+          .create({ key: 'default_sender_email', value: defaultSenderEmail })
+      }
+
       toast({ title: 'Perfil atualizado com sucesso!' })
     } catch (err) {
       toast({ title: 'Erro ao atualizar perfil', variant: 'destructive' })
@@ -132,6 +151,7 @@ export default function ProfileManager() {
       const res = await pb.collection('termos_monitorados').create({
         termo: newTermo.trim(),
         tipo_termo: newTipoTermo,
+        search_method: newTipoTermo === 'Livre' ? newSearchMethod : undefined,
         usuario_id: user?.id,
         ativo: true,
       })
@@ -169,7 +189,7 @@ export default function ProfileManager() {
             </TabsTrigger>
           )}
           <TabsTrigger value="monitoramento" className="text-base px-4 py-2 font-medium">
-            Monitoramento PJe
+            Monitoramentos
           </TabsTrigger>
           {(user?.role === 'admin' || user?.role === 'manager' || user?.isAdmin) && (
             <TabsTrigger value="integracoes" className="text-base px-4 py-2 font-medium">
@@ -229,6 +249,20 @@ export default function ProfileManager() {
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       required
+                      className="text-base py-6"
+                    />
+                  </div>
+                  <div className="space-y-3 pt-4 border-t border-slate-100">
+                    <Label className="text-base font-medium">Email de Envio Padrão</Label>
+                    <p className="text-sm text-slate-500">
+                      Endereço utilizado como remetente nas comunicações e notificações disparadas
+                      pelo sistema.
+                    </p>
+                    <Input
+                      type="email"
+                      value={defaultSenderEmail}
+                      onChange={(e) => setDefaultSenderEmail(e.target.value)}
+                      placeholder="exemplo@seudominio.com.br"
                       className="text-base py-6"
                     />
                   </div>
@@ -404,10 +438,26 @@ export default function ProfileManager() {
                       <SelectItem value="Nome Parte">Nome Parte</SelectItem>
                       <SelectItem value="OAB">OAB</SelectItem>
                       <SelectItem value="CPF">CPF</SelectItem>
+                      <SelectItem value="Livre">Livre</SelectItem>
                       <SelectItem value="Outros">Outros</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+                {newTipoTermo === 'Livre' && (
+                  <div className="w-full md:w-1/3 space-y-2 animate-in fade-in slide-in-from-top-1">
+                    <Label>Forma de busca</Label>
+                    <Select value={newSearchMethod} onValueChange={setNewSearchMethod}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="palavra-chave">Palavra-chave</SelectItem>
+                        <SelectItem value="frase_exata">Frase exata</SelectItem>
+                        <SelectItem value="regex">Expressão Regular (Regex)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="flex items-end">
                   <Button onClick={handleAddTermo} type="button" className="w-full">
                     <Plus className="w-4 h-4 mr-2" /> Adicionar
@@ -428,7 +478,10 @@ export default function ProfileManager() {
                     >
                       <div>
                         <p className="font-medium">{t.termo}</p>
-                        <p className="text-xs text-muted-foreground">{t.tipo_termo}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {t.tipo_termo}
+                          {t.tipo_termo === 'Livre' && t.search_method && ` - ${t.search_method}`}
+                        </p>
                       </div>
                       <Button variant="ghost" size="icon" onClick={() => handleRemoveTermo(t.id)}>
                         <Trash2 className="w-4 h-4 text-destructive" />

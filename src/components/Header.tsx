@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { Menu, X, Instagram, Facebook, Phone as WhatsappIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { firmData, specialtiesData } from '@/data/content'
+import { NotificationBell } from '@/components/intranet/NotificationBell'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -209,6 +210,9 @@ export default function Header() {
           ) : (
             <NavigationMenu>
               <NavigationMenuList>
+                <NavigationMenuItem className="mr-2 flex items-center">
+                  <NotificationBell />
+                </NavigationMenuItem>
                 <NavigationMenuItem>
                   <NavigationMenuLink asChild>
                     <a
@@ -275,13 +279,13 @@ export default function Header() {
           </div>
         </div>
 
-        {/* Mobile Toggle */}
-        <button
-          className="lg:hidden p-2 text-primary"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        >
-          {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
+        <div className="flex items-center lg:hidden gap-2">
+          {isIntranet && <NotificationBell />}
+          {/* Mobile Toggle */}
+          <button className="p-2 text-primary" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
       </div>
 
       <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>

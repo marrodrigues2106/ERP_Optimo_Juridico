@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-24T03:58:07.626Z",
+  "generatedAt": "2026-04-24T04:10:12.163Z",
   "collections": [
     {
       "name": "users",
@@ -1930,7 +1930,8 @@
             "Nome Parte",
             "OAB",
             "CPF",
-            "Outros"
+            "Outros",
+            "Livre"
           ]
         },
         {
@@ -1977,6 +1978,13 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "search_method",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["palavra-chave", "frase_exata", "regex"]
         }
       ],
       "indexes": []
