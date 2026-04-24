@@ -15,6 +15,46 @@ routerAdd(
       throw new BadRequestError('Dados incompletos para envio do e-mail.', errors)
     }
 
+    const orgId = user.getString('active_organization')
+
+    const MAX_DAILY = 100
+    const MAX_MONTHLY = 3000
+
+    let dailyCount = 0
+    let monthlyCount = 0
+
+    const now = new Date()
+    const todayStr = now.toISOString().split('T')[0]
+    const startOfMonthStr = todayStr.substring(0, 8) + '01'
+
+    if (orgId) {
+      try {
+        const resDaily = $app
+          .db()
+          .newQuery(
+            `SELECT COUNT(id) as c FROM system_logs WHERE module = 'email' AND message = 'email_sent' AND organization = {:org} AND created >= {:date} `,
+          )
+          .bind({ org: orgId, date: todayStr + ' 00:00:00.000Z' })
+          .one()
+        dailyCount = resDaily.c || 0
+      } catch (_) {}
+
+      try {
+        const resMonthly = $app
+          .db()
+          .newQuery(
+            `SELECT COUNT(id) as c FROM system_logs WHERE module = 'email' AND message = 'email_sent' AND organization = {:org} AND created >= {:date} `,
+          )
+          .bind({ org: orgId, date: startOfMonthStr + ' 00:00:00.000Z' })
+          .one()
+        monthlyCount = resMonthly.c || 0
+      } catch (_) {}
+    }
+
+    if (dailyCount >= MAX_DAILY || monthlyCount >= MAX_MONTHLY) {
+      throw new BadRequestError('Limite de envio de e-mails atingido (Máximo 100/dia ou 3000/mês).')
+    }
+
     let apiKey = ''
     let fromEmail = 'onboarding@resend.dev'
 
@@ -58,6 +98,16 @@ routerAdd(
       const errorMsg = res.json?.message || 'Falha ao enviar e-mail pelo Resend.'
       throw new BadRequestError(errorMsg)
     }
+
+    const logCol = $app.findCollectionByNameOrId('system_logs')
+    const sentLog = new Record(logCol)
+    sentLog.set('level', 'info')
+    sentLog.set('module', 'email')
+    sentLog.set('message', 'email_sent')
+    sentLog.set('details', { to: body.to, subject: body.subject })
+    if (orgId) sentLog.set('organization', orgId)
+    sentLog.set('user', user.id)
+    $app.save(sentLog)
 
     return e.json(200, { success: true })
   },

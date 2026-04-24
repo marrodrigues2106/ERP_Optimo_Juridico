@@ -19,7 +19,8 @@ import {
 import { Input } from '@/components/ui/input'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
-import { Loader2, Mail } from 'lucide-react'
+import { Loader2, Mail, AlertTriangle } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 interface EmailSenderModalProps {
   open: boolean
@@ -28,6 +29,7 @@ interface EmailSenderModalProps {
   context: {
     client_name?: string
     case_number?: string
+    org_name?: string
     [key: string]: any
   }
 }
@@ -38,6 +40,8 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
   const [subject, setSubject] = useState('')
   const [html, setHtml] = useState('')
   const [isSending, setIsSending] = useState(false)
+  const [dailyCount, setDailyCount] = useState(0)
+  const [monthlyCount, setMonthlyCount] = useState(0)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -46,8 +50,36 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
         .getFullList({ filter: "type = 'Email'", sort: '-created' })
         .then(setTemplates)
         .catch(console.error)
+
+      const fetchQuotas = async () => {
+        try {
+          const today = new Date()
+          const todayStr = today.toISOString().split('T')[0]
+          const startOfMonthStr = todayStr.substring(0, 8) + '01'
+          const orgId = pb.authStore.record?.active_organization
+
+          if (!orgId) return
+
+          const dailyRes = await pb.collection('system_logs').getList(1, 1, {
+            filter: `module = 'email' && message = 'email_sent' && organization = "${orgId}" && created >= "${todayStr} 00:00:00"`,
+            $autoCancel: false,
+          })
+          const monthlyRes = await pb.collection('system_logs').getList(1, 1, {
+            filter: `module = 'email' && message = 'email_sent' && organization = "${orgId}" && created >= "${startOfMonthStr} 00:00:00"`,
+            $autoCancel: false,
+          })
+
+          setDailyCount(dailyRes.totalItems)
+          setMonthlyCount(monthlyRes.totalItems)
+        } catch (e) {
+          console.error(e)
+        }
+      }
+      fetchQuotas()
     }
   }, [open])
+
+  const isLimitReached = dailyCount >= 100 || monthlyCount >= 3000
 
   const handleTemplateChange = (id: string) => {
     const tpl = templates.find((t) => t.id === id)
@@ -84,6 +116,8 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
       })
 
       toast({ title: 'Email enviado com sucesso!' })
+      setDailyCount((prev) => prev + 1)
+      setMonthlyCount((prev) => prev + 1)
       onOpenChange(false)
       setSelectedTemplate(null)
       setSubject('')
@@ -109,6 +143,16 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {isLimitReached && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Limite de envio de e-mails atingido (Máximo 100/dia ou 3000/mês). Você já enviou{' '}
+                {dailyCount} hoje e {monthlyCount} este mês.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="space-y-2">
             <Label>Destinatário</Label>
             <Input
@@ -152,10 +196,16 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
         </div>
 
         <DialogFooter>
+          <div className="text-xs text-muted-foreground mr-auto flex items-center">
+            Quota: {dailyCount}/100 dia | {monthlyCount}/3000 mês
+          </div>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending}>
             Cancelar
           </Button>
-          <Button onClick={handleSend} disabled={isSending || !client?.email || !selectedTemplate}>
+          <Button
+            onClick={handleSend}
+            disabled={isSending || !client?.email || !selectedTemplate || isLimitReached}
+          >
             {isSending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Enviar Agora
           </Button>
