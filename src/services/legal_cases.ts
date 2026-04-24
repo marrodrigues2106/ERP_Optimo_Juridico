@@ -18,7 +18,7 @@ export const getLegalCase = (id: string) =>
 const sanitizeCase = (data: any) => {
   if (data.lifecycle_status !== undefined) {
     if (data.lifecycle_status === 'Excluído') data.lifecycle_status = 'Arquivado'
-    if (!['Ativo', 'Arquivado', 'Suspenso'].includes(data.lifecycle_status)) {
+    if (!['Ativo', 'Inativo', 'Arquivado', 'Suspenso'].includes(data.lifecycle_status)) {
       data.lifecycle_status = 'Ativo'
     }
   }

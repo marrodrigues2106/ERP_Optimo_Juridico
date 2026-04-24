@@ -46,7 +46,7 @@ const formSchema = z
     court: z.string().optional(),
     court_organ: z.string().optional(),
     status: z.string().optional(),
-    lifecycle_status: z.enum(['Ativo', 'Arquivado', 'Suspenso']),
+    lifecycle_status: z.enum(['Ativo', 'Inativo', 'Arquivado', 'Suspenso']),
     client: z.string().optional(),
     responsible_collaborator: z.union([z.string(), z.array(z.string())]).optional(),
     deadline: z.string().optional(),
@@ -337,7 +337,20 @@ export function CaseFormModal({
       }
 
       if (pjeMovements.length > 0 && caseId) {
+        const existingMovements = await pb.collection('case_movements').getFullList({
+          filter: `case = "${caseId}" && source = "PJe" && deleted_at = ""`,
+          fields: 'external_id',
+        })
+        const existingExternalIds = new Set(
+          existingMovements.map((m) => m.external_id).filter(Boolean),
+        )
+
         for (const mov of pjeMovements) {
+          const extId = mov.external_id ? `pje-${mov.external_id}` : undefined
+          if (extId && existingExternalIds.has(extId)) {
+            continue
+          }
+
           try {
             await pb.collection('case_movements').create({
               case: caseId,
@@ -347,12 +360,11 @@ export function CaseFormModal({
               description: mov.description,
               details: mov.details,
               source: 'PJe',
-              external_id: mov.external_id ? `pje-${mov.external_id}` : undefined,
+              external_id: extId,
               movement_details: mov.movement_details,
               organization: pb.authStore.record?.active_organization,
             })
           } catch (err) {
-            // Ignore individual movement creation errors (e.g. duplicate external_id)
             console.error('Failed to create movement', err)
           }
         }
@@ -748,6 +760,7 @@ export function CaseFormModal({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Ativo">Ativo</SelectItem>
+                      <SelectItem value="Inativo">Inativo</SelectItem>
                       <SelectItem value="Arquivado">Arquivado</SelectItem>
                       <SelectItem value="Suspenso">Suspenso</SelectItem>
                     </SelectContent>

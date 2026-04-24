@@ -37,6 +37,17 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import {
   ArrowLeft,
   RefreshCw,
   User,
@@ -58,6 +69,7 @@ import {
   ExternalLink,
   Link as LinkIcon,
   Mail,
+  Trash2,
 } from 'lucide-react'
 import { EmailSenderModal } from './EmailSenderModal'
 import pb from '@/lib/pocketbase/client'
@@ -65,6 +77,7 @@ import { Badge } from '@/components/ui/badge'
 import { useRealtime } from '@/hooks/use-realtime'
 import { cn } from '@/lib/utils'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
+import { deleteLegalCase } from '@/services/legal_cases'
 
 const MovementItem = ({
   mov,
@@ -923,6 +936,46 @@ export default function ProcessDetail() {
                 <Badge className="bg-slate-600 hover:bg-slate-700 text-white font-medium uppercase px-3 py-1">
                   {legalCase.lifecycle_status || 'ATIVO'}
                 </Badge>
+                {legalCase.lifecycle_status === 'Arquivado' && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm" className="shadow-sm">
+                        <Trash2 className="w-4 h-4 mr-2" /> Excluir Processo
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir Processo?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Tem certeza que deseja excluir este processo permanentemente? Todas as
+                          tarefas, eventos e movimentações associadas poderão ser afetadas. Esta
+                          ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-red-600 hover:bg-red-700 text-white"
+                          onClick={async () => {
+                            try {
+                              await deleteLegalCase(id!)
+                              toast({ title: 'Processo excluído com sucesso.' })
+                              navigate('/intranet/processos')
+                            } catch (e: any) {
+                              toast({
+                                title: 'Erro ao excluir',
+                                description: getErrorMessage(e),
+                                variant: 'destructive',
+                              })
+                            }
+                          }}
+                        >
+                          Excluir
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-slate-100">

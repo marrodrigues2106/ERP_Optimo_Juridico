@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import pb from '@/lib/pocketbase/client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,13 +13,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import { format } from 'date-fns'
 import {
   Activity,
   BookOpen,
-  Landmark,
   CheckCircle2,
   Archive,
   Calendar as CalendarIcon,
@@ -32,11 +29,12 @@ import {
   MoreVertical,
   FileEdit,
   Check,
-  XCircle,
   Wallet,
   ListTodo,
   MessageCircle,
   Mail,
+  Inbox,
+  ArrowLeft,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -50,6 +48,9 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
 import { EmailSenderModal } from './EmailSenderModal'
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip'
+import { Separator } from '@/components/ui/separator'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 type UnifiedItem = {
   id: string
@@ -80,6 +81,33 @@ type UnifiedItem = {
   raw: any
 }
 
+const NavButton = ({ id, icon: Icon, label, count, active, onClick }: any) => (
+  <button
+    onClick={onClick}
+    className={cn(
+      'w-full flex items-center justify-between gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+      active
+        ? 'bg-slate-200/70 text-slate-900'
+        : 'text-slate-600 hover:bg-slate-200/40 hover:text-slate-900',
+    )}
+  >
+    <div className="flex items-center gap-3">
+      <Icon className={cn('w-4 h-4', active ? 'text-primary' : 'text-slate-400')} />
+      {label}
+    </div>
+    {count !== undefined && count > 0 && (
+      <span
+        className={cn(
+          'px-2 py-0.5 rounded-full text-xs font-bold',
+          active ? 'bg-primary text-primary-foreground' : 'bg-slate-200 text-slate-700',
+        )}
+      >
+        {count}
+      </span>
+    )}
+  </button>
+)
+
 export default function CentralAtualizacoes() {
   const { toast } = useToast()
   const navigate = useNavigate()
@@ -91,7 +119,7 @@ export default function CentralAtualizacoes() {
 
   const [itemsPerPage, setItemsPerPage] = useState(() => {
     const stored = localStorage.getItem('alert_center_per_page')
-    return stored ? Number(stored) : 10
+    return stored ? Number(stored) : 50
   })
 
   useEffect(() => {
@@ -463,7 +491,7 @@ export default function CentralAtualizacoes() {
 
   useEffect(() => {
     loadData()
-  }, [activeTab]) // Trigger fetch on tab change to get fresh archived/unarchived sets
+  }, [activeTab])
 
   const processBatch = async (
     action: 'read' | 'unread' | 'archive' | 'unarchive' | 'save' | 'unsave' | 'delete',
@@ -499,6 +527,14 @@ export default function CentralAtualizacoes() {
         return item
       })
     })
+
+    if (
+      action === 'archive' &&
+      selectedItem &&
+      targetIds.has(`${selectedItem.collection}-${selectedItem.id}`)
+    ) {
+      setSelectedItem(null)
+    }
 
     const chunkSize = 10
     for (let i = 0; i < itemsToProcess.length; i += chunkSize) {
@@ -579,7 +615,7 @@ export default function CentralAtualizacoes() {
         console.error(err)
         hasError = true
         toast({
-          title: 'Erro ao processar lote',
+          title: 'Erro ao processar',
           description: `Operação interrompida após ${successCount} itens.`,
           variant: 'destructive',
         })
@@ -640,6 +676,9 @@ export default function CentralAtualizacoes() {
         organization: pb.authStore.record?.active_organization || null,
       })
 
+      if (type === 'concluded' || type === 'discarded') {
+        setSelectedItem(null)
+      }
       await loadData()
     } catch (e) {
       console.error(e)
@@ -732,22 +771,11 @@ export default function CentralAtualizacoes() {
     setShareClientId(item.clientId || '')
     setSharePhone(item.clientPhone || '')
 
-    // Defer message generation to properly grab dynamically available states
     setTimeout(() => {
       const msg = generateShareMessage(item.clientId || '', tpl, item)
       setShareMessage(msg)
       setShareDialogOpen(true)
     }, 50)
-  }
-
-  const handleCompleteTask = async (item: UnifiedItem) => {
-    try {
-      await pb.collection('tasks').update(item.id, { status: 'completed' })
-      toast({ title: 'Tarefa concluída com sucesso!' })
-    } catch (e) {
-      console.error(e)
-      toast({ title: 'Erro ao concluir tarefa', variant: 'destructive' })
-    }
   }
 
   useEffect(() => {
@@ -787,797 +815,679 @@ export default function CentralAtualizacoes() {
     return filteredItems.slice(start, start + itemsPerPage)
   }, [filteredItems, currentPage, itemsPerPage])
 
-  const renderItemCard = (item: UnifiedItem) => {
-    const itemKey = `${item.collection}-${item.id}`
-    const isSelected = selectedIds.has(itemKey)
+  return (
+    <TooltipProvider>
+      <div className="max-w-screen-2xl mx-auto flex flex-col h-[calc(100vh-80px)] overflow-hidden p-4 md:p-6 animate-fade-in-up">
+        <div className="flex flex-col gap-1 mb-4 shrink-0">
+          <h1 className="text-2xl font-bold tracking-tight text-primary flex items-center gap-2">
+            <Inbox className="w-6 h-6" /> Caixa Postal (Alertas)
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Gerencie comunicações, andamentos e notificações do seu escritório de forma
+            centralizada.
+          </p>
+        </div>
 
-    return (
-      <Card
-        key={itemKey}
-        className={cn(
-          'overflow-hidden border-slate-200 transition-all hover:shadow-md relative',
-          !item.isRead ? 'bg-blue-50/30 border-blue-100' : 'bg-white',
-          isSelected && 'ring-2 ring-primary border-primary bg-primary/5',
-        )}
-      >
-        <div className="p-5 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-bold tracking-wider uppercase text-slate-500">
-              {item.type === 'DOU' && <Landmark className="w-4 h-4 text-emerald-500" />}
-              {item.type === 'PJe' && <Activity className="w-4 h-4 text-blue-500" />}
-              {item.type === 'Processo Novo' && <FileText className="w-4 h-4 text-primary" />}
-              {item.type === 'Ocorrência' && <Activity className="w-4 h-4 text-amber-500" />}
-              {item.type === 'Movimentação' && <FileText className="w-4 h-4 text-indigo-500" />}
-              {item.type === 'Tarefa' && <CheckSquare className="w-4 h-4 text-amber-500" />}
-              {item.type === 'Agenda' && <CalendarIcon className="w-4 h-4 text-amber-500" />}
-              {item.type === 'Financeiro' && <Wallet className="w-4 h-4 text-emerald-500" />}
-              {item.type === 'Aniversário' && <CalendarIcon className="w-4 h-4 text-pink-500" />}
-              {item.type === 'Notificação' && <Activity className="w-4 h-4 text-slate-500" />}
-              {item.type}
-              {item.treatmentStatus && item.treatmentStatus !== 'pending' && (
-                <Badge
-                  variant="outline"
-                  className="ml-2 bg-slate-50 text-slate-600 border-slate-200"
-                >
-                  Tratado: {item.treatmentStatus.replace('_', ' ')}
-                </Badge>
-              )}
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
-                {item.date ? format(new Date(item.date), 'dd/MM/yyyy HH:mm') : '-'}
+        <div className="flex flex-1 overflow-hidden border rounded-xl bg-white shadow-sm">
+          {/* Sidebar */}
+          <div className="hidden md:flex w-64 flex-col border-r bg-slate-50/40">
+            <div className="p-4 border-b">
+              <span className="font-semibold text-sm text-slate-600 uppercase tracking-wider">
+                Pastas
               </span>
-              <Checkbox
-                checked={isSelected}
-                onCheckedChange={(c) => {
-                  const newSet = new Set(selectedIds)
-                  if (c) newSet.add(itemKey)
-                  else newSet.delete(itemKey)
-                  setSelectedIds(newSet)
+            </div>
+            <nav className="flex-1 space-y-1 p-2 overflow-y-auto">
+              <NavButton
+                id="inbox"
+                icon={BookOpen}
+                label="Caixa de Entrada"
+                count={items.filter((i) => !i.isRead && !i.isArchived).length}
+                active={activeTab === 'inbox'}
+                onClick={() => {
+                  setActiveTab('inbox')
+                  setSelectedItem(null)
                 }}
               />
-            </div>
-          </div>
-
-          <div>
-            <h3
-              className={cn(
-                'text-lg font-bold mb-2 flex items-center flex-wrap gap-2',
-                item.isRead ? 'text-slate-800' : 'text-slate-900',
-              )}
-            >
-              {item.caseNumber && (
-                <Badge
-                  variant="secondary"
-                  className={cn(
-                    'text-primary bg-primary/10 border-primary/20 transition-colors',
-                    item.caseId && 'hover:bg-primary/20 cursor-pointer',
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (item.caseId) navigate(`/intranet/processos/${item.caseId}`)
-                  }}
-                >
-                  {item.caseNumber}
-                </Badge>
-              )}
-              <span
-                className={cn(
-                  'leading-tight',
-                  item.caseId &&
-                    'cursor-pointer hover:text-primary transition-colors hover:underline',
-                )}
+              <NavButton
+                id="comunicacoes"
+                icon={Activity}
+                label="Comunicações"
+                active={activeTab === 'comunicacoes'}
                 onClick={() => {
-                  if (item.caseId) navigate(`/intranet/processos/${item.caseId}`)
+                  setActiveTab('comunicacoes')
+                  setSelectedItem(null)
                 }}
-              >
-                {item.title}
-              </span>
-            </h3>
-            <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 max-h-32 overflow-hidden relative mt-2">
-              <p
-                className="text-sm text-slate-600 line-clamp-3 leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: item.description }}
-              ></p>
-              <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-slate-50 to-transparent pointer-events-none"></div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 mt-2 pt-4 border-t border-slate-100">
-            {[
-              'pje_communications',
-              'gazette_publications',
-              'finances',
-              'notifications',
-              'ocorrencias_dou',
-            ].includes(item.collection) &&
-              !item.isArchived && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="default"
-                      className="bg-slate-800 text-white hover:bg-slate-700"
-                    >
-                      Tratar Alerta <MoreVertical className="w-4 h-4 ml-2" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setSelectedItem(item)
-                        setTaskDialogOpen(true)
-                      }}
-                    >
-                      <CheckSquare className="w-4 h-4 mr-2 text-slate-500" /> Incluir Tarefa
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setSelectedItem(item)
-                        setEventDialogOpen(true)
-                      }}
-                    >
-                      <CalendarIcon className="w-4 h-4 mr-2 text-slate-500" /> Incluir Compromisso
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => {
-                        if (!item.caseId)
-                          return toast({
-                            title: 'Aviso',
-                            description: 'Vincule o processo primeiro.',
-                            variant: 'destructive',
-                          })
-                        setSelectedItem(item)
-                        setManualDialogOpen(true)
-                      }}
-                    >
-                      <FileEdit className="w-4 h-4 mr-2 text-slate-500" /> Registro Manual
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => recordTreatment(item, 'concluded')}>
-                      <Check className="w-4 h-4 mr-2 text-emerald-500" /> Concluir
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => recordTreatment(item, 'discarded')}>
-                      <XCircle className="w-4 h-4 mr-2 text-red-500" /> Descartar (Arquivar)
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-
-            {['Tarefa', 'Agenda', 'Financeiro', 'Movimentação'].includes(item.type) && (
-              <Button
-                size="sm"
-                variant="outline"
+              />
+              <NavButton
+                id="movimentacoes"
+                icon={FileText}
+                label="Movimentações"
+                active={activeTab === 'movimentacoes'}
                 onClick={() => {
-                  if (item.type === 'Tarefa' || item.type === 'Agenda') navigate('/intranet/agenda')
-                  if (item.type === 'Financeiro') navigate('/intranet/finance')
-                  if (item.type === 'Movimentação')
-                    navigate(
-                      item.caseId ? `/intranet/processos/${item.caseId}` : '/intranet/processos',
-                    )
+                  setActiveTab('movimentacoes')
+                  setSelectedItem(null)
                 }}
-              >
-                Acessar
-              </Button>
-            )}
-
-            {['pje_communications', 'notifications'].includes(item.collection) &&
-              !item.isArchived && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    processBatch(
-                      item.isSaved ? 'unsave' : 'save',
-                      new Set([`${item.collection}-${item.id}`]),
-                    )
-                  }
-                >
-                  <Bookmark
-                    className={cn('w-4 h-4 mr-2', item.isSaved && 'fill-current text-primary')}
-                  />
-                  {item.isSaved ? 'Salvo' : 'Salvar'}
-                </Button>
-              )}
-
-            {item.isArchived && (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    processBatch('unarchive', new Set([`${item.collection}-${item.id}`]))
-                  }
-                >
-                  <Archive className="w-4 h-4 mr-2" /> Desarquivar
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                  onClick={() => processBatch('delete', new Set([`${item.collection}-${item.id}`]))}
-                >
-                  <Trash2 className="w-4 h-4 mr-2" /> Excluir
-                </Button>
-              </>
-            )}
-
-            {['pje_communications', 'gazette_publications'].includes(item.collection) && (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={async () => {
-                  if (!item.isRead) await handleMarkAsRead(item)
-                  if (item.collection === 'pje_communications')
-                    navigate(`/intranet/pje-comunica?id=${item.id}`)
-                  else navigate(`/intranet/comunicacoes/${item.id}`)
+              />
+              <NavButton
+                id="tarefas"
+                icon={ListTodo}
+                label="Tarefas & Agenda"
+                active={activeTab === 'tarefas'}
+                onClick={() => {
+                  setActiveTab('tarefas')
+                  setSelectedItem(null)
                 }}
-              >
-                <Eye className="w-4 h-4 mr-2" /> Ver Detalhes
-              </Button>
-            )}
-
-            {item.type === 'Tarefa' && !item.isArchived && (
-              <Button
-                size="sm"
-                variant="default"
-                className="bg-emerald-600 text-white hover:bg-emerald-700"
-                onClick={() => handleCompleteTask(item)}
-              >
-                <CheckCircle2 className="w-4 h-4 mr-2" /> Concluir
-              </Button>
-            )}
-
-            {item.type === 'Aniversário' && (
-              <Button
-                size="sm"
-                variant="default"
-                className="bg-[#25D366] text-white hover:bg-[#1ebd5a]"
-                onClick={() => handleShareWhatsApp(item)}
-              >
-                <MessageCircle className="w-4 h-4 mr-2" /> Enviar Parabéns
-              </Button>
-            )}
-
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
-              onClick={() => handleShareWhatsApp(item)}
-            >
-              <MessageCircle className="w-4 h-4 mr-2" /> WhatsApp
-            </Button>
-
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-              onClick={() => {
-                setSelectedItem(item)
-                setEmailModalOpen(true)
-              }}
-            >
-              <Mail className="w-4 h-4 mr-2" /> Email
-            </Button>
+              />
+              <NavButton
+                id="financeiro"
+                icon={Wallet}
+                label="Financeiro"
+                active={activeTab === 'financeiro'}
+                onClick={() => {
+                  setActiveTab('financeiro')
+                  setSelectedItem(null)
+                }}
+              />
+              <Separator className="my-2" />
+              <NavButton
+                id="salvos"
+                icon={Bookmark}
+                label="Salvos"
+                active={activeTab === 'salvos'}
+                onClick={() => {
+                  setActiveTab('salvos')
+                  setSelectedItem(null)
+                }}
+              />
+              <NavButton
+                id="arquivados"
+                icon={Archive}
+                label="Arquivados"
+                active={activeTab === 'arquivados'}
+                onClick={() => {
+                  setActiveTab('arquivados')
+                  setSelectedItem(null)
+                }}
+              />
+            </nav>
           </div>
-        </div>
-      </Card>
-    )
-  }
 
-  return (
-    <div className="max-w-7xl mx-auto space-y-8 animate-fade-in-up pb-12">
-      <div className="flex flex-col gap-2 border-b border-slate-200 pb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-primary">Central de Alertas</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Inbox integrado para gerenciar comunicações, tarefas, agenda e finanças pendentes com
-          ações rápidas de tratamento.
-        </p>
-      </div>
-
-      <div className="flex flex-col lg:flex-row gap-8 items-start">
-        <div className="w-full lg:w-64 shrink-0 bg-slate-50/50 p-2 rounded-xl border border-slate-200">
-          <Tabs
-            value={activeTab}
-            onValueChange={setActiveTab}
-            orientation="vertical"
-            className="w-full"
+          {/* List View */}
+          <div
+            className={cn(
+              'flex flex-col border-r bg-white',
+              selectedItem ? 'hidden lg:flex w-[350px] xl:w-[400px]' : 'flex-1',
+            )}
           >
-            <TabsList className="flex flex-col h-auto w-full bg-transparent p-0 gap-1">
-              <TabsTrigger
-                value="inbox"
-                className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
-              >
-                <BookOpen className="w-4 h-4 mr-3 text-slate-400 data-[state=active]:text-primary" />{' '}
-                Caixa de Entrada
-                <span className="ml-auto bg-primary text-primary-foreground text-xs px-2 py-0.5 rounded-full font-bold">
-                  {items.filter((i) => !i.isRead && !i.isArchived).length}
-                </span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="comunicacoes"
-                className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
-              >
-                <Activity className="w-4 h-4 mr-3 text-blue-500" /> Comunicações
-              </TabsTrigger>
-              <TabsTrigger
-                value="movimentacoes"
-                className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
-              >
-                <FileText className="w-4 h-4 mr-3 text-indigo-500" /> Movimentações
-              </TabsTrigger>
-              <TabsTrigger
-                value="tarefas"
-                className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
-              >
-                <ListTodo className="w-4 h-4 mr-3 text-amber-500" /> Tarefas & Agenda
-              </TabsTrigger>
-              <TabsTrigger
-                value="financeiro"
-                className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
-              >
-                <Wallet className="w-4 h-4 mr-3 text-emerald-500" /> Financeiro
-              </TabsTrigger>
-              <TabsTrigger
-                value="salvos"
-                className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
-              >
-                <Bookmark className="w-4 h-4 mr-3 text-primary" /> Salvos
-              </TabsTrigger>
-              <TabsTrigger
-                value="arquivados"
-                className="w-full justify-start px-4 py-3 text-left data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg"
-              >
-                <Archive className="w-4 h-4 mr-3 text-slate-500" /> Arquivados
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-
-        <div className="flex-1 w-full min-w-0">
-          <div className="bg-white rounded-xl p-1 border border-slate-200 shadow-sm mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center px-4 py-3 gap-4 sticky top-0 z-20">
-            {selectedIds.size > 0 ? (
-              <div className="flex items-center gap-2 w-full">
-                <Checkbox
-                  id="select-all"
-                  checked={
-                    paginatedItems.length > 0 &&
-                    paginatedItems.every((i) => selectedIds.has(`${i.collection}-${i.id}`))
-                  }
-                  onCheckedChange={(c) => {
-                    const newSet = new Set(selectedIds)
-                    if (c) paginatedItems.forEach((i) => newSet.add(`${i.collection}-${i.id}`))
-                    else paginatedItems.forEach((i) => newSet.delete(`${i.collection}-${i.id}`))
-                    setSelectedIds(newSet)
-                  }}
-                />
-                <span className="text-sm font-medium text-slate-700 ml-2">
-                  {selectedIds.size} selecionado(s)
-                </span>
-                <div className="h-6 w-px bg-slate-200 mx-2 hidden sm:block" />
-                <div className="flex flex-wrap items-center gap-2 flex-1">
+            <div className="p-3 border-b flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-2">
+                {selectedItem && (
                   <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => processBatch('read')}
-                    disabled={isProcessingBatch}
-                  >
-                    <CheckCircle2 className="w-4 h-4 mr-2" /> Lidos
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => processBatch('unread')}
-                    disabled={isProcessingBatch}
-                  >
-                    Não Lidos
-                  </Button>
-                  {activeTab === 'arquivados' ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => processBatch('unarchive')}
-                        disabled={isProcessingBatch}
-                      >
-                        <Archive className="w-4 h-4 mr-2" /> Desarquivar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 ml-auto"
-                        onClick={() => processBatch('delete')}
-                        disabled={isProcessingBatch}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" /> Excluir
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => processBatch('archive')}
-                      disabled={isProcessingBatch}
-                    >
-                      <Archive className="w-4 h-4 mr-2" /> Arquivar
-                    </Button>
-                  )}
-                  {activeTab === 'salvos' && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 ml-auto"
-                      onClick={() => processBatch('delete')}
-                      disabled={isProcessingBatch}
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" /> Excluir
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
                     variant="ghost"
-                    onClick={() => setSelectedIds(new Set())}
-                    disabled={isProcessingBatch}
-                    className="ml-auto sm:ml-0"
+                    size="icon"
+                    className="lg:hidden"
+                    onClick={() => setSelectedItem(null)}
                   >
-                    Cancelar
+                    <ArrowLeft className="w-4 h-4" />
                   </Button>
-                </div>
+                )}
+                <span className="font-semibold text-slate-800 capitalize">
+                  {activeTab.replace('-', ' ')}
+                </span>
               </div>
+              {activeTab === 'inbox' && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" onClick={handleMarkAllAsRead}>
+                      <CheckCircle2 className="w-4 h-4 text-slate-500" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Marcar todos como lidos</TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+
+            {loading && items.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-sm">Carregando mensagens...</div>
             ) : (
-              <>
-                <h2 className="text-lg font-bold text-slate-800 capitalize">
-                  {activeTab === 'inbox'
-                    ? 'Caixa de Entrada (Não Lidos)'
-                    : activeTab.replace('-', ' ')}
-                </h2>
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-slate-500 font-medium">
-                    {filteredItems.length} itens
-                  </span>
-                  {filteredItems.length > 0 && (
-                    <div className="flex items-center gap-2 px-2">
-                      <Checkbox
-                        id="select-all"
-                        checked={
-                          paginatedItems.length > 0 &&
-                          paginatedItems.every((i) => selectedIds.has(`${i.collection}-${i.id}`))
-                        }
-                        onCheckedChange={(c) => {
-                          const newSet = new Set(selectedIds)
-                          if (c)
-                            paginatedItems.forEach((i) => newSet.add(`${i.collection}-${i.id}`))
-                          else
-                            paginatedItems.forEach((i) => newSet.delete(`${i.collection}-${i.id}`))
-                          setSelectedIds(newSet)
-                        }}
-                      />
-                      <Label
-                        htmlFor="select-all"
-                        className="text-sm font-medium cursor-pointer text-slate-600"
+              <ScrollArea className="flex-1">
+                <div className="p-2 space-y-1">
+                  {paginatedItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className={cn(
+                        'flex flex-col cursor-pointer p-3 rounded-lg border transition-colors',
+                        selectedItem?.id === item.id
+                          ? 'bg-primary/5 border-primary/20'
+                          : 'border-transparent hover:bg-slate-50',
+                        !item.isRead && 'bg-blue-50/40',
+                      )}
+                      onClick={() => {
+                        setSelectedItem(item)
+                        if (!item.isRead) handleMarkAsRead(item)
+                      }}
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <span
+                          className={cn(
+                            'text-xs font-bold tracking-wider uppercase',
+                            !item.isRead ? 'text-blue-700' : 'text-slate-500',
+                          )}
+                        >
+                          {item.type}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          {format(new Date(item.date), 'dd/MM HH:mm')}
+                        </span>
+                      </div>
+                      <div
+                        className={cn(
+                          'text-sm line-clamp-1 mb-1',
+                          !item.isRead ? 'font-bold text-slate-900' : 'font-medium text-slate-700',
+                        )}
                       >
-                        Selecionar Página
-                      </Label>
+                        {item.title}
+                      </div>
+                      <div
+                        className="text-xs text-slate-500 line-clamp-2"
+                        dangerouslySetInnerHTML={{ __html: item.description }}
+                      />
+                    </div>
+                  ))}
+                  {paginatedItems.length === 0 && (
+                    <div className="p-8 text-center text-slate-400 text-sm">
+                      Nenhum item nesta pasta.
                     </div>
                   )}
-                  {activeTab === 'inbox' && filteredItems.length > 0 && (
-                    <Button size="sm" variant="outline" onClick={handleMarkAllAsRead}>
-                      <CheckCircle2 className="w-4 h-4 mr-2" /> Marcar todos lidos
-                    </Button>
-                  )}
                 </div>
-              </>
+              </ScrollArea>
+            )}
+
+            {filteredItems.length > 0 && (
+              <div className="p-2 border-t flex justify-between items-center bg-slate-50/50">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Ant
+                </Button>
+                <span className="text-xs text-slate-500 font-medium">
+                  {currentPage} / {Math.ceil(filteredItems.length / itemsPerPage)}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    setCurrentPage((p) =>
+                      Math.min(Math.ceil(filteredItems.length / itemsPerPage), p + 1),
+                    )
+                  }
+                  disabled={currentPage * itemsPerPage >= filteredItems.length}
+                >
+                  Próx
+                </Button>
+              </div>
             )}
           </div>
 
-          {loading && items.length === 0 ? (
-            <div className="text-center py-12 text-slate-500">Carregando atualizações...</div>
-          ) : filteredItems.length === 0 ? (
-            <div className="text-center py-16 bg-white border border-slate-200 rounded-xl shadow-sm">
-              <CheckCircle2 className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-              <p className="text-lg font-medium text-slate-600">Nenhum item nesta pasta.</p>
-              <p className="text-sm text-slate-400 mt-1">
-                Você está em dia com as atualizações desta categoria.
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-4">
-              {paginatedItems.map(renderItemCard)}
+          {/* Detail View */}
+          <div className={cn('flex-1 flex-col bg-white', selectedItem ? 'flex' : 'hidden lg:flex')}>
+            {selectedItem ? (
+              <div className="flex flex-col h-full overflow-hidden">
+                <div className="flex items-center p-3 border-b gap-2 bg-slate-50/50">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="lg:hidden mr-1"
+                    onClick={() => setSelectedItem(null)}
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </Button>
 
-              {filteredItems.length > 0 && (
-                <div className="flex flex-col sm:flex-row items-center justify-between bg-white p-4 border rounded-xl mt-4 gap-4">
-                  <div className="flex items-center gap-2 text-sm text-slate-500">
-                    <span>Mostrar</span>
-                    <Select
-                      value={itemsPerPage.toString()}
-                      onValueChange={(v) => setItemsPerPage(Number(v))}
-                    >
-                      <SelectTrigger className="w-20 h-8 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="20">20</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <span>por página</span>
-                  </div>
-                  <div className="flex items-center gap-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() =>
+                          processBatch(
+                            'archive',
+                            new Set([`${selectedItem.collection}-${selectedItem.id}`]),
+                          )
+                        }
+                      >
+                        <Archive className="w-4 h-4 text-slate-600" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Arquivar</TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                        onClick={() =>
+                          processBatch(
+                            'delete',
+                            new Set([`${selectedItem.collection}-${selectedItem.id}`]),
+                          )
+                        }
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Excluir Definitivamente</TooltipContent>
+                  </Tooltip>
+
+                  <Separator orientation="vertical" className="h-6 mx-1" />
+
+                  {['pje_communications', 'notifications'].includes(selectedItem.collection) && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() =>
+                            processBatch(
+                              selectedItem.isSaved ? 'unsave' : 'save',
+                              new Set([`${selectedItem.collection}-${selectedItem.id}`]),
+                            )
+                          }
+                        >
+                          <Bookmark
+                            className={cn(
+                              'w-4 h-4',
+                              selectedItem.isSaved ? 'fill-current text-primary' : 'text-slate-600',
+                            )}
+                          />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {selectedItem.isSaved ? 'Remover dos Salvos' : 'Salvar'}
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+
+                  <div className="ml-auto flex items-center gap-2">
                     <Button
-                      variant="outline"
                       size="sm"
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
+                      variant="outline"
+                      className="hidden sm:flex border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                      onClick={() => handleShareWhatsApp(selectedItem)}
                     >
-                      Anterior
+                      <MessageCircle className="w-4 h-4 mr-2" /> WhatsApp
                     </Button>
-                    <span className="text-sm text-slate-600 font-medium px-2">
-                      Página {currentPage} de {Math.ceil(filteredItems.length / itemsPerPage) || 1}
-                    </span>
                     <Button
-                      variant="outline"
                       size="sm"
-                      onClick={() =>
-                        setCurrentPage((p) =>
-                          Math.min(Math.ceil(filteredItems.length / itemsPerPage), p + 1),
-                        )
-                      }
-                      disabled={
-                        currentPage === Math.ceil(filteredItems.length / itemsPerPage) ||
-                        filteredItems.length === 0
-                      }
+                      variant="outline"
+                      className="hidden sm:flex border-blue-200 text-blue-600 hover:bg-blue-50"
+                      onClick={() => setEmailModalOpen(true)}
                     >
-                      Próxima
+                      <Mail className="w-4 h-4 mr-2" /> Email
                     </Button>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="secondary">
+                          Tratar <MoreVertical className="w-4 h-4 ml-1" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          className="sm:hidden"
+                          onClick={() => handleShareWhatsApp(selectedItem)}
+                        >
+                          <MessageCircle className="w-4 h-4 mr-2 text-emerald-600" /> Enviar
+                          WhatsApp
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="sm:hidden"
+                          onClick={() => setEmailModalOpen(true)}
+                        >
+                          <Mail className="w-4 h-4 mr-2 text-blue-600" /> Enviar Email
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator className="sm:hidden" />
+                        <DropdownMenuItem onClick={() => setTaskDialogOpen(true)}>
+                          <CheckSquare className="w-4 h-4 mr-2" /> Incluir Tarefa
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setEventDialogOpen(true)}>
+                          <CalendarIcon className="w-4 h-4 mr-2" /> Incluir Compromisso
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setManualDialogOpen(true)}>
+                          <FileEdit className="w-4 h-4 mr-2" /> Registro Manual
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() =>
+                            processBatch(
+                              'unread',
+                              new Set([`${selectedItem.collection}-${selectedItem.id}`]),
+                            )
+                          }
+                        >
+                          <Eye className="w-4 h-4 mr-2" /> Marcar Não Lido
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => recordTreatment(selectedItem, 'concluded')}
+                        >
+                          <Check className="w-4 h-4 mr-2 text-emerald-600" /> Concluir e Arquivar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
-              )}
-            </div>
-          )}
+
+                <ScrollArea className="flex-1 p-6 md:p-8">
+                  <div className="max-w-3xl mx-auto space-y-6">
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Badge variant="secondary" className="bg-slate-100">
+                          {selectedItem.type}
+                        </Badge>
+                        <span className="text-sm font-medium text-slate-500">
+                          {format(new Date(selectedItem.date), "dd 'de' MMMM 'de' yyyy, HH:mm")}
+                        </span>
+                        {selectedItem.treatmentStatus &&
+                          selectedItem.treatmentStatus !== 'pending' && (
+                            <Badge
+                              variant="outline"
+                              className="text-emerald-600 border-emerald-200 bg-emerald-50 ml-auto"
+                            >
+                              Tratado
+                            </Badge>
+                          )}
+                      </div>
+                      <h2 className="text-2xl font-bold text-slate-900 leading-tight mb-2">
+                        {selectedItem.title}
+                      </h2>
+                      {selectedItem.caseNumber && (
+                        <div className="flex items-center gap-2 text-sm text-slate-600 mb-4 bg-slate-50 p-2 rounded-md border border-slate-100 w-fit">
+                          <span className="font-semibold">Processo vinculado:</span>
+                          <Button
+                            variant="link"
+                            className="h-auto p-0 text-primary font-bold"
+                            onClick={() =>
+                              selectedItem.caseId &&
+                              navigate(`/intranet/processos/${selectedItem.caseId}`)
+                            }
+                          >
+                            {selectedItem.caseNumber}{' '}
+                            {selectedItem.parties && `(${selectedItem.parties})`}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    <Separator />
+                    <div className="prose prose-sm max-w-none text-slate-800 bg-slate-50/50 p-6 rounded-xl border border-slate-100 whitespace-pre-wrap leading-relaxed shadow-sm">
+                      <div dangerouslySetInnerHTML={{ __html: selectedItem.description }} />
+                    </div>
+                  </div>
+                </ScrollArea>
+              </div>
+            ) : (
+              <div className="flex flex-col flex-1 items-center justify-center text-slate-400 gap-4 p-8 text-center bg-slate-50/30">
+                <div className="w-24 h-24 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200 shadow-sm">
+                  <Mail className="h-10 w-10 text-slate-300" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-600">Nenhum alerta selecionado</h3>
+                  <p className="text-sm mt-1 max-w-xs mx-auto">
+                    Selecione um item na lista ao lado para visualizar o conteúdo completo e as
+                    opções de tratamento.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
 
-      <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Incluir Tarefa</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={handleCreateTaskSubmit}>
-            <div>
-              <Label>Título da Tarefa</Label>
-              <Input name="title" defaultValue={`Acompanhar: ${selectedItem?.title}`} required />
-            </div>
-            <div>
-              <Label>Descrição / Contexto</Label>
-              <textarea
-                name="description"
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm min-h-[80px]"
-                defaultValue={selectedItem?.description?.replace(/<[^>]*>?/gm, '').trim()}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+        {/* Dialogs remain identical logic-wise */}
+        <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Incluir Tarefa</DialogTitle>
+            </DialogHeader>
+            <form className="space-y-4" onSubmit={handleCreateTaskSubmit}>
               <div>
-                <Label>Data de Vencimento</Label>
-                <Input name="due_date" type="date" required />
+                <Label>Título da Tarefa</Label>
+                <Input name="title" defaultValue={`Acompanhar: ${selectedItem?.title}`} required />
               </div>
               <div>
-                <Label>Prioridade</Label>
-                <Select name="priority" defaultValue="medium">
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Baixa</SelectItem>
-                    <SelectItem value="medium">Média</SelectItem>
-                    <SelectItem value="high">Alta</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="pt-4 flex justify-end">
-              <Button type="submit">Criar Tarefa</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={eventDialogOpen} onOpenChange={setEventDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Incluir Evento na Agenda</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={handleCreateEventSubmit}>
-            <div>
-              <Label>Título do Evento</Label>
-              <Input
-                name="title"
-                defaultValue={`Prazo/Audiência: ${selectedItem?.title}`}
-                required
-              />
-            </div>
-            <div>
-              <Label>Descrição / Contexto</Label>
-              <textarea
-                name="description"
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm min-h-[80px]"
-                defaultValue={selectedItem?.description?.replace(/<[^>]*>?/gm, '').trim()}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Data</Label>
-                <Input name="start_date" type="date" required />
-              </div>
-              <div>
-                <Label>Tipo</Label>
-                <Select name="type" defaultValue="Hearing">
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Hearing">Audiência</SelectItem>
-                    <SelectItem value="Meeting">Reunião</SelectItem>
-                    <SelectItem value="Call">Ligação</SelectItem>
-                    <SelectItem value="Email">Email</SelectItem>
-                    <SelectItem value="Task">Tarefa</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="pt-4 flex justify-end">
-              <Button type="submit">Criar Evento</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={manualDialogOpen} onOpenChange={setManualDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Registro Manual de Andamento</DialogTitle>
-          </DialogHeader>
-          <form className="space-y-4" onSubmit={handleCreateManualSubmit}>
-            <div>
-              <Label>Descrição</Label>
-              <textarea
-                name="description"
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm min-h-[80px]"
-                defaultValue={selectedItem?.description?.replace(/<[^>]*>?/gm, '').trim()}
-                required
-              />
-            </div>
-            <div>
-              <Label>Data do Evento</Label>
-              <Input
-                name="event_date"
-                type="date"
-                required
-                defaultValue={new Date().toISOString().split('T')[0]}
-              />
-            </div>
-            <div className="pt-4 flex justify-end">
-              <Button type="submit">Salvar Registro</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Compartilhar no WhatsApp</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-4">
-            <div className="space-y-2">
-              <Label>Template de Mensagem</Label>
-              <Select value={shareTemplate} onValueChange={handleTemplateChange}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="custom">Personalizado</SelectItem>
-                  <SelectItem value="processual">Atualização Processual</SelectItem>
-                  <SelectItem value="financeiro">Cobrança / Financeiro</SelectItem>
-                  <SelectItem value="aniversario">Aniversário</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Cliente</Label>
-                <Select value={shareClientId} onValueChange={handleClientSelect}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {shareClients.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Telefone (WhatsApp)</Label>
-                <Input
-                  value={sharePhone}
-                  onChange={(e) => setSharePhone(e.target.value)}
-                  placeholder="(00) 00000-0000"
+                <Label>Descrição / Contexto</Label>
+                <textarea
+                  name="description"
+                  className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm min-h-[80px]"
+                  defaultValue={selectedItem?.description?.replace(/<[^>]*>?/gm, '').trim()}
                 />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Data de Vencimento</Label>
+                  <Input name="due_date" type="date" required />
+                </div>
+                <div>
+                  <Label>Prioridade</Label>
+                  <Select name="priority" defaultValue="medium">
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Baixa</SelectItem>
+                      <SelectItem value="medium">Média</SelectItem>
+                      <SelectItem value="high">Alta</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="pt-4 flex justify-end">
+                <Button type="submit">Criar Tarefa</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={eventDialogOpen} onOpenChange={setEventDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Incluir Evento na Agenda</DialogTitle>
+            </DialogHeader>
+            <form className="space-y-4" onSubmit={handleCreateEventSubmit}>
+              <div>
+                <Label>Título do Evento</Label>
+                <Input
+                  name="title"
+                  defaultValue={`Prazo/Audiência: ${selectedItem?.title}`}
+                  required
+                />
+              </div>
+              <div>
+                <Label>Descrição / Contexto</Label>
+                <textarea
+                  name="description"
+                  className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm min-h-[80px]"
+                  defaultValue={selectedItem?.description?.replace(/<[^>]*>?/gm, '').trim()}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Data</Label>
+                  <Input name="start_date" type="date" required />
+                </div>
+                <div>
+                  <Label>Tipo</Label>
+                  <Select name="type" defaultValue="Hearing">
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Hearing">Audiência</SelectItem>
+                      <SelectItem value="Meeting">Reunião</SelectItem>
+                      <SelectItem value="Call">Ligação</SelectItem>
+                      <SelectItem value="Email">Email</SelectItem>
+                      <SelectItem value="Task">Tarefa</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="pt-4 flex justify-end">
+                <Button type="submit">Criar Evento</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={manualDialogOpen} onOpenChange={setManualDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Registro Manual de Andamento</DialogTitle>
+            </DialogHeader>
+            <form className="space-y-4" onSubmit={handleCreateManualSubmit}>
+              <div>
+                <Label>Descrição</Label>
+                <textarea
+                  name="description"
+                  className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm min-h-[80px]"
+                  defaultValue={selectedItem?.description?.replace(/<[^>]*>?/gm, '').trim()}
+                  required
+                />
+              </div>
+              <div>
+                <Label>Data do Evento</Label>
+                <Input
+                  name="event_date"
+                  type="date"
+                  required
+                  defaultValue={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+              <div className="pt-4 flex justify-end">
+                <Button type="submit">Salvar Registro</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Compartilhar no WhatsApp</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label>Template de Mensagem</Label>
+                <Select value={shareTemplate} onValueChange={handleTemplateChange}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="custom">Personalizado</SelectItem>
+                    <SelectItem value="processual">Atualização Processual</SelectItem>
+                    <SelectItem value="financeiro">Cobrança / Financeiro</SelectItem>
+                    <SelectItem value="aniversario">Aniversário</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Cliente</Label>
+                  <Select value={shareClientId} onValueChange={handleClientSelect}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {shareClients.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Telefone (WhatsApp)</Label>
+                  <Input
+                    value={sharePhone}
+                    onChange={(e) => setSharePhone(e.target.value)}
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Mensagem</Label>
+                <textarea
+                  className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm min-h-[150px]"
+                  value={shareMessage}
+                  onChange={(e) => setShareMessage(e.target.value)}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setShareDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="bg-[#25D366] text-white hover:bg-[#1ebd5a]"
+                  onClick={() => {
+                    let num = sharePhone.replace(/\D/g, '')
+                    if (num && !num.startsWith('55')) num = '55' + num
+                    const url = num
+                      ? `https://web.whatsapp.com/send?phone=${num}&text=${encodeURIComponent(shareMessage)}`
+                      : `https://web.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`
+                    window.open(url, '_blank')
+                    setShareDialogOpen(false)
+                  }}
+                >
+                  <MessageCircle className="w-4 h-4 mr-2" /> Enviar
+                </Button>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Mensagem</Label>
-              <textarea
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm min-h-[150px]"
-                value={shareMessage}
-                onChange={(e) => setShareMessage(e.target.value)}
+          </DialogContent>
+        </Dialog>
+
+        <EmailSenderModal
+          open={emailModalOpen}
+          onOpenChange={setEmailModalOpen}
+          client={selectedItem?.clientId ? { id: selectedItem.clientId } : null}
+          context={{
+            type: selectedItem?.type || '',
+            case_number: selectedItem?.caseNumber || '',
+            client_name: selectedItem?.clientName || '',
+            data_alerta: selectedItem?.date
+              ? format(new Date(selectedItem.date), 'dd/MM/yyyy')
+              : format(new Date(), 'dd/MM/yyyy'),
+            alert_date: selectedItem?.date
+              ? format(new Date(selectedItem.date), 'dd/MM/yyyy')
+              : format(new Date(), 'dd/MM/yyyy'),
+            movement_description: selectedItem?.description?.replace(/<[^>]*>?/gm, '') || '',
+            org_name: pb.authStore.record?.expand?.active_organization?.name || 'Nosso Escritório',
+          }}
+        />
+
+        <Dialog open={isProcessingBatch} onOpenChange={() => {}}>
+          <DialogContent
+            className="sm:max-w-md [&>button]:hidden"
+            onPointerDownOutside={(e) => e.preventDefault()}
+            onEscapeKeyDown={(e) => e.preventDefault()}
+          >
+            <DialogHeader>
+              <DialogTitle>Processando Lote...</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-6">
+              <Progress
+                value={batchTotal > 0 ? (batchProgress / batchTotal) * 100 : 0}
+                className="w-full h-3"
               />
+              <p className="text-sm text-center text-slate-500 font-medium">
+                Atualizando {batchProgress} de {batchTotal} itens. Por favor, aguarde.
+              </p>
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setShareDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button
-                className="bg-[#25D366] text-white hover:bg-[#1ebd5a]"
-                onClick={() => {
-                  let num = sharePhone.replace(/\D/g, '')
-                  if (num && !num.startsWith('55')) num = '55' + num
-                  const url = num
-                    ? `https://web.whatsapp.com/send?phone=${num}&text=${encodeURIComponent(shareMessage)}`
-                    : `https://web.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`
-                  window.open(url, '_blank')
-                  setShareDialogOpen(false)
-                }}
-              >
-                <MessageCircle className="w-4 h-4 mr-2" /> Enviar
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <EmailSenderModal
-        open={emailModalOpen}
-        onOpenChange={setEmailModalOpen}
-        client={selectedItem?.clientId ? { id: selectedItem.clientId } : null}
-        context={{
-          type: selectedItem?.type || '',
-          case_number: selectedItem?.caseNumber || '',
-          client_name: selectedItem?.clientName || '',
-          data_alerta: selectedItem?.date
-            ? format(new Date(selectedItem.date), 'dd/MM/yyyy')
-            : format(new Date(), 'dd/MM/yyyy'),
-          alert_date: selectedItem?.date
-            ? format(new Date(selectedItem.date), 'dd/MM/yyyy')
-            : format(new Date(), 'dd/MM/yyyy'),
-          movement_description: selectedItem?.description?.replace(/<[^>]*>?/gm, '') || '',
-          org_name: pb.authStore.record?.expand?.active_organization?.name || 'Nosso Escritório',
-        }}
-      />
-
-      <Dialog open={isProcessingBatch} onOpenChange={() => {}}>
-        <DialogContent
-          className="sm:max-w-md [&>button]:hidden"
-          onPointerDownOutside={(e) => e.preventDefault()}
-          onEscapeKeyDown={(e) => e.preventDefault()}
-        >
-          <DialogHeader>
-            <DialogTitle>Processando Lote...</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-6">
-            <Progress
-              value={batchTotal > 0 ? (batchProgress / batchTotal) * 100 : 0}
-              className="w-full h-3"
-            />
-            <p className="text-sm text-center text-slate-500 font-medium">
-              Atualizando {batchProgress} de {batchTotal} itens. Por favor, aguarde.
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </TooltipProvider>
   )
 }
