@@ -21,6 +21,23 @@ onRecordAfterCreateSuccess((e) => {
       return e.next()
     }
 
+    const getAlertEmail = (userId, defaultEmail) => {
+      try {
+        const confs = $app.findRecordsByFilter(
+          'configuracoes_alerta',
+          `usuario_id = '${userId}'`,
+          '',
+          1,
+          0,
+        )
+        if (confs.length > 0) {
+          const dest = confs[0].getString('email_destinatario')
+          if (dest) return dest
+        }
+      } catch (e) {}
+      return defaultEmail
+    }
+
     const recipients = new Set()
     try {
       const filterAdm = orgId
@@ -28,7 +45,7 @@ onRecordAfterCreateSuccess((e) => {
         : `role = 'admin' || isAdmin = true`
       const admins = $app.findRecordsByFilter('users', filterAdm, '', 100, 0)
       admins.forEach((a) => {
-        if (a.getString('email')) recipients.add(a.getString('email'))
+        if (a.getString('email')) recipients.add(getAlertEmail(a.id, a.getString('email')))
       })
     } catch (e) {}
 

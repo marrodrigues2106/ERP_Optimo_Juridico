@@ -35,7 +35,6 @@ export default function ProfileManager() {
   const [newSearchMethod, setNewSearchMethod] = useState('palavra-chave')
 
   const [fullName, setFullName] = useState(user?.fullName || user?.name || '')
-  const [defaultSenderEmail, setDefaultSenderEmail] = useState('')
   const [email] = useState(user?.email || '')
   const [avatarPreview, setAvatarPreview] = useState<string | null>(
     user?.avatar ? pb.files.getURL(user, user.avatar) : null,
@@ -70,11 +69,6 @@ export default function ProfileManager() {
         .getFirstListItem(`usuario_id="${user.id}"`)
         .then((res) => setAlertConfig(res))
         .catch(() => setAlertConfig({ frequencia: 'daily', ativo: true }))
-
-      pb.collection('settings')
-        .getFirstListItem('key="default_sender_email"')
-        .then((res) => setDefaultSenderEmail(res.value))
-        .catch(() => setDefaultSenderEmail(''))
     }
   }, [user])
 
@@ -86,6 +80,7 @@ export default function ProfileManager() {
         await pb.collection('configuracoes_alerta').update(alertConfig.id, {
           frequencia: alertConfig.frequencia,
           ativo: alertConfig.ativo,
+          email_destinatario: alertConfig.email_destinatario,
         })
       } else {
         const res = await pb.collection('configuracoes_alerta').create({
@@ -93,6 +88,7 @@ export default function ProfileManager() {
           frequencia: alertConfig.frequencia,
           ativo: alertConfig.ativo,
           tipo_notificacao: 'app',
+          email_destinatario: alertConfig.email_destinatario,
         })
         setAlertConfig(res)
       }
@@ -113,17 +109,6 @@ export default function ProfileManager() {
       if (avatarFile) formData.append('avatar', avatarFile)
 
       await pb.collection('users').update(user.id, formData)
-
-      try {
-        const existingSetting = await pb
-          .collection('settings')
-          .getFirstListItem('key="default_sender_email"')
-        await pb.collection('settings').update(existingSetting.id, { value: defaultSenderEmail })
-      } catch (e) {
-        await pb
-          .collection('settings')
-          .create({ key: 'default_sender_email', value: defaultSenderEmail })
-      }
 
       toast({ title: 'Perfil atualizado com sucesso!' })
     } catch (err) {
@@ -252,20 +237,6 @@ export default function ProfileManager() {
                       className="text-base py-6"
                     />
                   </div>
-                  <div className="space-y-3 pt-4 border-t border-slate-100">
-                    <Label className="text-base font-medium">Email de Envio Padrão</Label>
-                    <p className="text-sm text-slate-500">
-                      Endereço utilizado como remetente nas comunicações e notificações disparadas
-                      pelo sistema.
-                    </p>
-                    <Input
-                      type="email"
-                      value={defaultSenderEmail}
-                      onChange={(e) => setDefaultSenderEmail(e.target.value)}
-                      placeholder="exemplo@seudominio.com.br"
-                      className="text-base py-6"
-                    />
-                  </div>
                   <Button type="submit" className="w-full py-6 text-base font-bold">
                     Salvar Perfil
                   </Button>
@@ -373,6 +344,23 @@ export default function ProfileManager() {
                       setAlertConfig({ ...alertConfig, ativo: checked })
                     }
                   />
+                </div>
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">
+                    E-mail para Recebimento de Alertas
+                  </Label>
+                  <Input
+                    type="email"
+                    value={alertConfig.email_destinatario || ''}
+                    onChange={(e) =>
+                      setAlertConfig({ ...alertConfig, email_destinatario: e.target.value })
+                    }
+                    placeholder="exemplo@dominio.com"
+                    className="text-base py-6"
+                  />
+                  <p className="text-sm text-slate-500">
+                    Se vazio, os alertas serão enviados para o seu e-mail de login da conta.
+                  </p>
                 </div>
                 <div className="space-y-3">
                   <Label className="text-base font-semibold">Frequência de Atualização</Label>
