@@ -338,8 +338,8 @@ export function CaseFormModal({
 
       if (pjeMovements.length > 0 && caseId) {
         const existingMovements = await pb.collection('case_movements').getFullList({
-          filter: `case = "${caseId}" && source = "PJe" && deleted_at = ""`,
-          fields: 'external_id',
+          filter: `case = "${caseId}" && deleted_at = ""`,
+          fields: 'external_id,description,event_date',
         })
         const existingExternalIds = new Set(
           existingMovements.map((m) => m.external_id).filter(Boolean),
@@ -348,6 +348,17 @@ export function CaseFormModal({
         for (const mov of pjeMovements) {
           const extId = mov.external_id ? `pje-${mov.external_id}` : undefined
           if (extId && existingExternalIds.has(extId)) {
+            continue
+          }
+
+          const dateStr = mov.event_date
+            ? mov.event_date.substring(0, 10)
+            : new Date().toISOString().substring(0, 10)
+          const isDuplicate = existingMovements.some((m) => {
+            return m.description === mov.description && m.event_date?.startsWith(dateStr)
+          })
+
+          if (isDuplicate) {
             continue
           }
 

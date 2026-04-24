@@ -4,30 +4,65 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Mail, Edit, Send, Inbox, Loader2 } from 'lucide-react'
+import { Mail, Edit, Send, Inbox, Loader2, ChevronsUpDown, Check, X } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
+import { useEffect } from 'react'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from '@/components/ui/command'
+import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 
 export default function WebmailManager() {
   const { toast } = useToast()
   const [composeOpen, setComposeOpen] = useState(false)
   const [sending, setSending] = useState(false)
+  const [clients, setClients] = useState<any[]>([])
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
+  const [openCombobox, setOpenCombobox] = useState(false)
+
+  useEffect(() => {
+    pb.collection('clients')
+      .getFullList({ filter: 'deleted_at=""', sort: 'name' })
+      .then(setClients)
+      .catch(console.error)
+  }, [])
 
   const handleSend = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+
+    const toEmails = selectedClientIds
+      .map((id) => clients.find((c) => c.id === id)?.email)
+      .filter(Boolean)
+
+    if (toEmails.length === 0) {
+      return toast({
+        title: 'Selecione pelo menos um cliente com e-mail válido',
+        variant: 'destructive',
+      })
+    }
+
     setSending(true)
     const fd = new FormData(e.currentTarget)
     try {
       await pb.send('/backend/v2/email/send', {
         method: 'POST',
         body: JSON.stringify({
-          to: fd.get('to'),
+          to: toEmails,
           subject: fd.get('subject'),
           body: fd.get('body'),
         }),
       })
       toast({ title: 'E-mail enviado com sucesso!' })
       setComposeOpen(false)
+      setSelectedClientIds([])
     } catch (err: any) {
       const errorMsg = err.response?.data
         ? Object.values(err.response.data)[0]?.message
@@ -76,8 +111,90 @@ export default function WebmailManager() {
           </DialogHeader>
           <form onSubmit={handleSend} className="space-y-4 pt-4">
             <div className="space-y-2">
-              <Label>Para</Label>
-              <Input name="to" required placeholder="cliente@exemplo.com" />
+              <Label>Para (Clientes)</Label>
+              <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openCombobox}
+                    className="w-full justify-between font-normal"
+                  >
+                    {selectedClientIds.length > 0
+                      ? `${selectedClientIds.length} cliente(s) selecionado(s)`
+                      : 'Buscar e adicionar clientes...'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[500px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar cliente por nome..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        {clients.map((c) => {
+                          const isSelected = selectedClientIds.includes(c.id)
+                          return (
+                            <CommandItem
+                              key={c.id}
+                              value={c.name}
+                              onSelect={() => {
+                                setSelectedClientIds((prev) =>
+                                  isSelected ? prev.filter((id) => id !== c.id) : [...prev, c.id],
+                                )
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  'mr-2 h-4 w-4',
+                                  isSelected ? 'opacity-100' : 'opacity-0',
+                                )}
+                              />
+                              <div className="flex flex-col">
+                                <span>{c.name}</span>
+                                {c.email ? (
+                                  <span className="text-xs text-slate-500">{c.email}</span>
+                                ) : (
+                                  <span className="text-xs text-rose-500">
+                                    Sem e-mail cadastrado
+                                  </span>
+                                )}
+                              </div>
+                            </CommandItem>
+                          )
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
+              {selectedClientIds.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3 p-3 bg-slate-50 rounded-md border border-slate-100 max-h-[120px] overflow-y-auto custom-scrollbar">
+                  {selectedClientIds.map((id) => {
+                    const c = clients.find((x) => x.id === id)
+                    if (!c) return null
+                    return (
+                      <Badge
+                        key={id}
+                        variant="secondary"
+                        className="flex items-center gap-1 font-normal bg-white"
+                      >
+                        {c.name} {c.email ? '' : '(Sem e-mail)'}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedClientIds((prev) => prev.filter((x) => x !== id))
+                          }
+                          className="ml-1 text-slate-400 hover:text-slate-800"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    )
+                  })}
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Assunto</Label>

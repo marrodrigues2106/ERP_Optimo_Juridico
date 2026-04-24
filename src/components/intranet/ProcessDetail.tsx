@@ -751,8 +751,8 @@ export default function ProcessDetail() {
       }
 
       const existingMovements = await pb.collection('case_movements').getFullList({
-        filter: `case = "${id}" && source = "PJe" && deleted_at = ""`,
-        fields: 'external_id',
+        filter: `case = "${id}" && deleted_at = ""`,
+        fields: 'external_id,description,event_date,source',
       })
       const existingExternalIds = new Set(
         existingMovements.map((m) => m.external_id).filter(Boolean),
@@ -763,7 +763,26 @@ export default function ProcessDetail() {
         const extId = item.id?.toString() || item.hash || ''
         const fullExtId = extId ? `pje-${extId}` : ''
 
+        const itemDesc = item.tipoComunicacao || item.tipo_comunicacao || 'Comunicação PJe'
+        const rawDate = item.dataDisponibilizacao || item.data_disponibilizacao
+        let parsedDate = new Date()
+        if (rawDate) {
+          const tempDate = new Date(rawDate)
+          if (!isNaN(tempDate.getTime())) {
+            parsedDate = tempDate
+          }
+        }
+        const dateStr = parsedDate.toISOString().substring(0, 10)
+
         if (fullExtId && existingExternalIds.has(fullExtId)) {
+          continue
+        }
+
+        const isDuplicate = existingMovements.some((m) => {
+          return m.description === itemDesc && m.event_date?.startsWith(dateStr)
+        })
+
+        if (isDuplicate) {
           continue
         }
 

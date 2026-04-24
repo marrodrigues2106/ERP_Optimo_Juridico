@@ -13,6 +13,15 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
   Search,
   Plus,
   RefreshCw,
@@ -24,6 +33,7 @@ import {
   Check,
   Clock,
   Copy,
+  ChevronsUpDown,
 } from 'lucide-react'
 import { useSync } from '@/stores/sync-context'
 import pb from '@/lib/pocketbase/client'
@@ -74,6 +84,16 @@ export default function ProcessManager() {
   const { isBatchSyncing, batchProgress, startBatchSync } = useSync()
 
   const [editingMetadataCase, setEditingMetadataCase] = useState<any>(null)
+  const [openClientCombo, setOpenClientCombo] = useState(false)
+  const [selectedClientId, setSelectedClientId] = useState<string>('none')
+
+  useEffect(() => {
+    if (editingMetadataCase) {
+      setSelectedClientId(
+        editingMetadataCase.expand?.client?.id || editingMetadataCase.client || 'none',
+      )
+    }
+  }, [editingMetadataCase])
 
   const [clients, setClients] = useState<any[]>([])
   const [collaborators, setCollaborators] = useState<any[]>([])
@@ -220,6 +240,8 @@ export default function ProcessManager() {
     e.preventDefault()
     if (!editingMetadataCase) return
     const fd = new FormData(e.currentTarget)
+    const clientId = selectedClientId
+    const lifecycleStatus = fd.get('lifecycle_status') as string
     const tagsStr = fd.get('tags') as string
     const tags = tagsStr
       .split(',')
@@ -244,6 +266,16 @@ export default function ProcessManager() {
         ...editingMetadataCase.metadata,
         distribution_date,
       },
+    }
+
+    if (clientId && clientId !== 'none') {
+      ;(payload as any).client = clientId
+    } else if (clientId === 'none') {
+      ;(payload as any).client = null
+    }
+
+    if (lifecycleStatus) {
+      ;(payload as any).lifecycle_status = lifecycleStatus
     }
 
     try {
@@ -320,6 +352,7 @@ export default function ProcessManager() {
                 <SelectContent>
                   <SelectItem value="Todos">Todos</SelectItem>
                   <SelectItem value="Ativo">Ativos</SelectItem>
+                  <SelectItem value="Inativo">Inativos</SelectItem>
                   <SelectItem value="Suspenso">Suspensos</SelectItem>
                   <SelectItem value="Arquivado">Arquivados</SelectItem>
                 </SelectContent>
@@ -556,6 +589,92 @@ export default function ProcessManager() {
                   defaultValue={editingMetadataCase.title}
                   className="font-medium"
                 />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>Cliente Vinculado</Label>
+                <Popover open={openClientCombo} onOpenChange={setOpenClientCombo}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={openClientCombo}
+                      className="w-full justify-between font-normal px-3"
+                    >
+                      <span className="truncate pr-4">
+                        {selectedClientId && selectedClientId !== 'none'
+                          ? clients.find((c) => c.id === selectedClientId)?.name ||
+                            'Cliente selecionado'
+                          : 'Selecionar cliente...'}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-[var(--radix-popover-trigger-width)] p-0"
+                    align="start"
+                  >
+                    <Command>
+                      <CommandInput placeholder="Buscar cliente..." />
+                      <CommandList>
+                        <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                            value="none"
+                            onSelect={() => {
+                              setSelectedClientId('none')
+                              setOpenClientCombo(false)
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                'mr-2 h-4 w-4',
+                                !selectedClientId || selectedClientId === 'none'
+                                  ? 'opacity-100'
+                                  : 'opacity-0',
+                              )}
+                            />
+                            Nenhum cliente
+                          </CommandItem>
+                          {clients.map((c) => (
+                            <CommandItem
+                              key={c.id}
+                              value={c.name}
+                              onSelect={() => {
+                                setSelectedClientId(c.id)
+                                setOpenClientCombo(false)
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  'mr-2 h-4 w-4',
+                                  selectedClientId === c.id ? 'opacity-100' : 'opacity-0',
+                                )}
+                              />
+                              {c.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div>
+                <Label>Status do Processo</Label>
+                <Select
+                  name="lifecycle_status"
+                  defaultValue={editingMetadataCase.lifecycle_status || 'Ativo'}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o status..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Ativo">Ativo</SelectItem>
+                    <SelectItem value="Inativo">Inativo</SelectItem>
+                    <SelectItem value="Arquivado">Arquivado</SelectItem>
+                    <SelectItem value="Suspenso">Suspenso</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label>Número do Processo</Label>
