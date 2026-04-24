@@ -10,6 +10,7 @@ import Articles from './pages/Articles'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './hooks/use-auth'
 import { Toaster } from '@/components/ui/toaster'
+import { SyncProvider } from '@/stores/sync-context'
 
 import Dashboard from '@/components/intranet/Dashboard'
 import WebmailManager from '@/components/intranet/WebmailManager'
@@ -37,62 +38,64 @@ import IntegrationsManager from '@/components/intranet/IntegrationsManager'
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Index />} />
-            <Route path="especialidade/:id" element={<Specialty />} />
-            <Route path="artigos" element={<Articles />} />
-            <Route path="login" element={<Login />} />
-            <Route path="reset-password" element={<ResetPassword />} />
-            <Route path="public/agenda/:token" element={<PublicAgenda />} />
-            <Route
-              path="diarios-oficiais"
-              element={<Navigate to="/intranet/busca-dou" replace />}
-            />
-
-            <Route
-              path="intranet"
-              element={
-                <ProtectedRoute>
-                  <Intranet />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="productivity" element={<Productivity />} />
-              <Route path="atualizacoes" element={<CentralAtualizacoes />} />
+      <SyncProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Index />} />
+              <Route path="especialidade/:id" element={<Specialty />} />
+              <Route path="artigos" element={<Articles />} />
+              <Route path="login" element={<Login />} />
+              <Route path="reset-password" element={<ResetPassword />} />
+              <Route path="public/agenda/:token" element={<PublicAgenda />} />
               <Route
                 path="diarios-oficiais"
                 element={<Navigate to="/intranet/busca-dou" replace />}
               />
-              <Route path="busca-dou" element={<DouSearch />} />
-              <Route path="pje-comunica" element={<PjeComunica />} />
-              <Route path="search" element={<GlobalSearch />} />
-              <Route path="webmail" element={<WebmailManager />} />
-              <Route path="processos" element={<ProcessManager />} />
-              <Route path="processos/:id" element={<ProcessDetail />} />
-              <Route path="clientes/:id" element={<ClientDetail />} />
-              <Route path="equipe/:id" element={<CollaboratorDetail />} />
-              <Route path="crm" element={<CrmManager />} />
-              <Route path="agenda" element={<AgendaManager />} />
-              <Route path="finance" element={<FinanceManager />} />
-              <Route path="library" element={<LibraryManager />} />
-              <Route path="blog" element={<BlogManager />} />
-              <Route path="team" element={<TeamManager />} />
-              <Route path="users" element={<UsersManager />} />
-              <Route path="audit" element={<Navigate to="/intranet/settings/logs" replace />} />
-              <Route path="settings/logs" element={<AuditLogs />} />
-              <Route path="profile" element={<ProfileManager />} />
-              <Route path="integrations" element={<IntegrationsManager />} />
-            </Route>
 
-            <Route path="*" element={<NotFound />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-      <Toaster />
+              <Route
+                path="intranet"
+                element={
+                  <ProtectedRoute>
+                    <Intranet />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="productivity" element={<Productivity />} />
+                <Route path="atualizacoes" element={<CentralAtualizacoes />} />
+                <Route
+                  path="diarios-oficiais"
+                  element={<Navigate to="/intranet/busca-dou" replace />}
+                />
+                <Route path="busca-dou" element={<DouSearch />} />
+                <Route path="pje-comunica" element={<PjeComunica />} />
+                <Route path="search" element={<GlobalSearch />} />
+                <Route path="webmail" element={<WebmailManager />} />
+                <Route path="processos" element={<ProcessManager />} />
+                <Route path="processos/:id" element={<ProcessDetail />} />
+                <Route path="clientes/:id" element={<ClientDetail />} />
+                <Route path="equipe/:id" element={<CollaboratorDetail />} />
+                <Route path="crm" element={<CrmManager />} />
+                <Route path="agenda" element={<AgendaManager />} />
+                <Route path="finance" element={<FinanceManager />} />
+                <Route path="library" element={<LibraryManager />} />
+                <Route path="blog" element={<BlogManager />} />
+                <Route path="team" element={<TeamManager />} />
+                <Route path="users" element={<UsersManager />} />
+                <Route path="audit" element={<Navigate to="/intranet/settings/logs" replace />} />
+                <Route path="settings/logs" element={<AuditLogs />} />
+                <Route path="profile" element={<ProfileManager />} />
+                <Route path="integrations" element={<IntegrationsManager />} />
+              </Route>
+
+              <Route path="*" element={<NotFound />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+        <Toaster />
+      </SyncProvider>
     </AuthProvider>
   )
 }

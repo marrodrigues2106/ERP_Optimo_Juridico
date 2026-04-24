@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-24T04:49:53.465Z",
+  "generatedAt": "2026-04-24T14:21:58.725Z",
   "collections": [
     {
       "name": "users",
@@ -1261,6 +1261,12 @@
         {
           "name": "document_identifiers",
           "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "external_link",
+          "type": "url",
           "required": false,
           "system": false
         }

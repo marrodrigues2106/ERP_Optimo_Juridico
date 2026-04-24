@@ -54,7 +54,12 @@ import {
   Bell,
   CheckCircle2,
   Loader2,
+  Copy,
+  ExternalLink,
+  Link as LinkIcon,
+  Mail,
 } from 'lucide-react'
+import { EmailSenderModal } from './EmailSenderModal'
 import pb from '@/lib/pocketbase/client'
 import { Badge } from '@/components/ui/badge'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -318,6 +323,17 @@ const MovementItem = ({
                 </Button>
               )}
             </div>
+
+            {(mov.external_link || mov.movement_details?.link || mov.movement_details?.url) && (
+              <a
+                href={mov.external_link || mov.movement_details?.link || mov.movement_details?.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-primary hover:underline text-xs mt-2 font-medium bg-primary/5 px-3 py-1.5 rounded-md w-fit transition-colors hover:bg-primary/10"
+              >
+                <ExternalLink className="w-4 h-4" /> Acessar Documento Original
+              </a>
+            )}
           </div>
 
           {(mov.movement_details?.protocolo || mov.movement_details?.recibo) && (
@@ -548,6 +564,13 @@ export default function ProcessDetail() {
   const [newMovement, setNewMovement] = useState('')
   const [activeTab, setActiveTab] = useState('andamento')
   const [isSyncingPje, setIsSyncingPje] = useState(false)
+  const [emailModalOpen, setEmailModalOpen] = useState(false)
+  const [allCases, setAllCases] = useState<any[]>([])
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+    toast({ title: 'Copiado para a área de transferência!' })
+  }
 
   useEffect(() => {
     if (id) {
@@ -594,6 +617,11 @@ export default function ProcessDetail() {
         .collection('finances')
         .getFullList({ filter: `linked_lawsuit = "${id}" && deleted_at = ""`, sort: '-created' })
       setFinances(fins)
+
+      const casesList = await pb
+        .collection('legal_cases')
+        .getFullList({ filter: `deleted_at = "" && id != "${id}"`, sort: '-created' })
+      setAllCases(casesList)
     } catch (err) {
       toast({ title: 'Erro ao carregar processo', variant: 'destructive' })
     }
@@ -781,6 +809,28 @@ export default function ProcessDetail() {
     }
   }
 
+  const handleLinkCase = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    const targetId = fd.get('related_case_id') as string
+    if (!targetId) return
+    try {
+      const currentRelated = Array.isArray(legalCase.related_cases)
+        ? [...legalCase.related_cases]
+        : legalCase.related_cases
+          ? [legalCase.related_cases]
+          : []
+      if (!currentRelated.includes(targetId)) {
+        currentRelated.push(targetId)
+        await updateLegalCase(id!, { related_cases: currentRelated })
+        toast({ title: 'Processo vinculado com sucesso' })
+        loadData()
+      }
+    } catch (err) {
+      toast({ title: 'Erro ao vincular', variant: 'destructive' })
+    }
+  }
+
   const handleAddEvent = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
@@ -828,9 +878,16 @@ export default function ProcessDetail() {
                     <div className="flex items-center gap-1">
                       <Badge
                         variant="secondary"
-                        className="bg-slate-100 text-slate-600 hover:bg-slate-200 text-sm font-medium py-1 px-3"
+                        className="bg-slate-100 text-slate-600 hover:bg-slate-200 text-sm font-medium py-1 px-3 cursor-pointer group/copy flex items-center gap-1.5 transition-colors"
+                        onClick={() =>
+                          legalCase.case_number && copyToClipboard(legalCase.case_number)
+                        }
+                        title="Copiar número"
                       >
                         {legalCase.case_number || 'Sem número'}
+                        {legalCase.case_number && (
+                          <Copy className="w-3.5 h-3.5 opacity-0 group-hover/copy:opacity-100 transition-opacity text-slate-400" />
+                        )}
                       </Badge>
                     </div>
                     <Badge variant="outline" className="text-slate-500">
@@ -869,15 +926,27 @@ export default function ProcessDetail() {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-slate-100">
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <User className="w-4 h-4 text-slate-400" />
-                <span className="font-medium text-slate-500">Cliente:</span>
-                <span
-                  className="font-semibold text-slate-800 truncate"
-                  title={legalCase.expand?.client?.name}
-                >
-                  {legalCase.expand?.client?.name || 'Não informado'}
-                </span>
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <User className="w-4 h-4 text-slate-400" />
+                  <span className="font-medium text-slate-500">Cliente:</span>
+                  <span
+                    className="font-semibold text-slate-800 truncate"
+                    title={legalCase.expand?.client?.name}
+                  >
+                    {legalCase.expand?.client?.name || 'Não informado'}
+                  </span>
+                </div>
+                {legalCase.expand?.client?.email && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-fit h-7 text-xs flex items-center gap-1.5 text-slate-500 hover:text-primary -ml-2"
+                    onClick={() => setEmailModalOpen(true)}
+                  >
+                    <Mail className="w-3.5 h-3.5" /> Enviar Email
+                  </Button>
+                )}
               </div>
               <div className="flex items-center gap-2 text-sm text-slate-600">
                 <Briefcase className="w-4 h-4 text-slate-400" />
@@ -972,6 +1041,12 @@ export default function ProcessDetail() {
                     className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent py-3"
                   >
                     Novo Registro
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="relacionados"
+                    className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent py-3"
+                  >
+                    Relacionados
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="andamento" className="p-6 pt-6">
@@ -1103,9 +1178,72 @@ export default function ProcessDetail() {
                     <Button type="submit">Criar Registro</Button>
                   </form>
                 </TabsContent>
+                <TabsContent value="relacionados" className="p-6 pt-6 space-y-6">
+                  <form onSubmit={handleLinkCase} className="flex gap-4 items-end">
+                    <div className="flex-1">
+                      <Label>Vincular a outro processo ou serviço</Label>
+                      <Select name="related_case_id">
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Selecione um processo..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allCases.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.title || c.parties || 'Sem título'} (
+                              {c.case_number || 'Sem número'})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button type="submit">Vincular</Button>
+                  </form>
+
+                  {legalCase.expand?.related_cases && legalCase.expand.related_cases.length > 0 && (
+                    <div className="space-y-3 mt-4 border-t pt-4">
+                      <h4 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                        <LinkIcon className="w-4 h-4 text-slate-400" /> Processos Vinculados
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {legalCase.expand.related_cases.map((rc: any) => (
+                          <div
+                            key={rc.id}
+                            className="p-3 border rounded-lg bg-slate-50 relative group"
+                          >
+                            <p
+                              className="font-medium text-sm text-slate-800 line-clamp-1 pr-6"
+                              title={rc.title || rc.parties}
+                            >
+                              {rc.title || rc.parties}
+                            </p>
+                            <p className="text-xs text-slate-500 mt-1">{rc.case_number}</p>
+                            <Button
+                              variant="link"
+                              size="sm"
+                              className="px-0 h-auto text-xs mt-2"
+                              onClick={() => navigate(`/intranet/processos/${rc.id}`)}
+                            >
+                              Ver Detalhes
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </TabsContent>
               </Tabs>
             </Card>
           </div>
+
+          <EmailSenderModal
+            open={emailModalOpen}
+            onOpenChange={setEmailModalOpen}
+            client={legalCase.expand?.client}
+            context={{
+              case_number: legalCase.case_number || '',
+              client_name: legalCase.expand?.client?.name || '',
+            }}
+          />
 
           <div className="space-y-6">
             <Card className="border-none shadow-sm">

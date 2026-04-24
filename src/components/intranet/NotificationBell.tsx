@@ -7,8 +7,13 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Mail } from 'lucide-react'
+import { EmailSenderModal } from './EmailSenderModal'
 
 export function NotificationBell() {
+  const [emailModalOpen, setEmailModalOpen] = useState(false)
+  const [selectedClient, setSelectedClient] = useState<any>(null)
+  const [contextData, setContextData] = useState<any>({})
   const { user } = useAuth()
   const [notifications, setNotifications] = useState<any[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -20,6 +25,7 @@ export function NotificationBell() {
         pb.collection('notifications').getList(1, 20, {
           filter: `user_id = "${user.id}" && is_read = false`,
           sort: '-created',
+          expand: 'client',
         }),
         pb.collection('ocorrencias_dou').getList(1, 20, {
           filter: `termo_id.usuario_id = "${user.id}" && status_alerta = 'pendente'`,
@@ -148,14 +154,36 @@ export function NotificationBell() {
                   key={notif.id}
                   className="p-4 hover:bg-slate-50 transition-colors flex gap-3 group"
                 >
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm text-slate-800 leading-snug">{notif.message}</p>
+                  <div className="flex-1 space-y-1 min-w-0">
+                    <p className="text-sm text-slate-800 leading-snug break-words">
+                      {notif.message}
+                    </p>
                     {notif.numero_processo && (
                       <p className="text-xs font-mono text-slate-500">{notif.numero_processo}</p>
                     )}
-                    <p className="text-[10px] text-slate-400">
-                      {new Date(notif.created).toLocaleString()}
-                    </p>
+                    <div className="flex items-center justify-between gap-2 mt-1">
+                      <p className="text-[10px] text-slate-400">
+                        {new Date(notif.created).toLocaleString()}
+                      </p>
+                      {notif.expand?.client?.email && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 px-1.5 text-[10px] text-slate-500 hover:text-primary z-10"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedClient(notif.expand?.client)
+                            setContextData({
+                              case_number: notif.numero_processo || '',
+                              client_name: notif.expand?.client?.name,
+                            })
+                            setEmailModalOpen(true)
+                          }}
+                        >
+                          <Mail className="w-3 h-3 mr-1" /> Avisar Cliente
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   <Button
                     variant="ghost"
@@ -177,6 +205,13 @@ export function NotificationBell() {
           </Button>
         </div>
       </PopoverContent>
+
+      <EmailSenderModal
+        open={emailModalOpen}
+        onOpenChange={setEmailModalOpen}
+        client={selectedClient}
+        context={contextData}
+      />
     </Popover>
   )
 }

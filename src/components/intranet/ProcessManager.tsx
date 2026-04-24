@@ -23,7 +23,9 @@ import {
   AlertTriangle,
   Check,
   Clock,
+  Copy,
 } from 'lucide-react'
+import { useSync } from '@/stores/sync-context'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -53,18 +55,23 @@ export default function ProcessManager() {
     const saved = sessionStorage.getItem('process_manager_per_page')
     return saved ? Number(saved) : 10
   })
-  const [sortBy, setSortBy] = useState('-created')
+  const [sortBy, setSortBy] = useState(() => {
+    return localStorage.getItem('process_manager_sort') || '-created'
+  })
 
   useEffect(() => {
     sessionStorage.setItem('process_manager_per_page', perPage.toString())
   }, [perPage])
-  const [totalPages, setTotalPages] = useState(1)
 
+  useEffect(() => {
+    localStorage.setItem('process_manager_sort', sortBy)
+  }, [sortBy])
+
+  const [totalPages, setTotalPages] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 
-  const [isBatchSyncing, setIsBatchSyncing] = useState(false)
-  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0, currentCase: '' })
+  const { isBatchSyncing, batchProgress, startBatchSync } = useSync()
 
   const [editingMetadataCase, setEditingMetadataCase] = useState<any>(null)
 
@@ -126,7 +133,7 @@ export default function ProcessManager() {
     setPage(1)
   }, [searchTerm, statusFilter, sortBy, perPage])
 
-  useRealtime('legal_cases', loadData, !isBatchSyncing)
+  useRealtime('legal_cases', loadData)
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -144,7 +151,7 @@ export default function ProcessManager() {
     }
   }
 
-  const handleBatchSync = async () => {
+  const handleBatchSync = () => {
     const targetCases =
       selectedIds.length > 0
         ? cases.filter((c) => selectedIds.includes(c.id))
@@ -158,119 +165,13 @@ export default function ProcessManager() {
         variant: 'destructive',
       })
 
-    setIsBatchSyncing(true)
-    setBatchProgress({ current: 0, total: casesToSync.length, currentCase: '' })
-
-    setCases((prev) =>
-      prev.map((p) =>
-        casesToSync.some((c) => c.id === p.id) ? { ...p, sync_status: 'in_queue' } : p,
-      ),
-    )
-    await Promise.all(
-      casesToSync.map((c) =>
-        pb.collection('legal_cases').update(c.id, { sync_status: 'in_queue' }),
-      ),
-    )
-
-    let successCount = 0
-    let failCount = 0
-
-    for (let i = 0; i < casesToSync.length; i++) {
-      const c = casesToSync[i]
-      setBatchProgress({
-        current: i + 1,
-        total: casesToSync.length,
-        currentCase: c.case_number || 'Sem número',
-      })
-
-      setCases((prev) => prev.map((p) => (p.id === c.id ? { ...p, sync_status: 'syncing' } : p)))
-      await pb.collection('legal_cases').update(c.id, { sync_status: 'syncing' })
-
-      try {
-        const cleanNumber = (c.case_number || '').replace(/\D/g, '')
-        if (cleanNumber.length !== 20) {
-          throw new Error('Número do processo deve ter 20 dígitos')
-        }
-
-        const response = await fetch(
-          `https://comunicaapi.pje.jus.br/api/v1/comunicacao?numeroProcesso=${cleanNumber}`,
-          {
-            method: 'GET',
-            headers: {
-              Accept: 'application/json',
-            },
-          },
-        )
-
-        if (!response.ok) {
-          throw new Error(`Erro na API do PJe (${response.status})`)
-        }
-
-        const data = await response.json()
-        const items = data.items || []
-
-        if (items.length > 0) {
-          for (const item of items) {
-            const externalId = `pje_${item.id || item.numeroComunicacao || item.hash}`
-            try {
-              await pb.collection('case_movements').create({
-                case: c.id,
-                event_date: item.dataDisponibilizacao || new Date().toISOString(),
-                description: item.tipoComunicacao || 'Comunicação PJe',
-                source: 'PJe',
-                external_id: externalId,
-                details: item.texto || '',
-                organization: c.organization,
-                movement_details: item,
-              })
-            } catch (err: any) {
-              if (err?.response?.data?.external_id?.code !== 'validation_not_unique') {
-                console.warn(`Failed to save movement ${externalId}:`, err)
-              }
-            }
-          }
-        }
-
-        await pb.collection('legal_cases').update(c.id, {
-          sync_status: 'updated',
-          last_sync_attempt: new Date().toISOString(),
-          metadata: {
-            ...(c.metadata || {}),
-            last_synced_at: new Date().toISOString(),
-          },
-        })
-        setCases((prev) =>
-          prev.map((p) =>
-            p.id === c.id
-              ? { ...p, sync_status: 'updated', last_sync_attempt: new Date().toISOString() }
-              : p,
-          ),
-        )
-        successCount++
-      } catch (err: any) {
-        failCount++
-        await pb
-          .collection('legal_cases')
-          .update(c.id, { sync_status: 'error', last_sync_attempt: new Date().toISOString() })
-        setCases((prev) =>
-          prev.map((p) =>
-            p.id === c.id
-              ? { ...p, sync_status: 'error', last_sync_attempt: new Date().toISOString() }
-              : p,
-          ),
-        )
-        console.error(`Error syncing case ${c.case_number}`, err)
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-    }
-
-    setIsBatchSyncing(false)
+    startBatchSync(casesToSync)
     setSelectedIds([])
-    toast({
-      title: 'Sincronização em Lote Concluída',
-      description: `Sucesso: ${successCount} processos atualizados. Falha: ${failCount} processos.`,
-    })
+  }
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+    toast({ title: 'Copiado para a área de transferência!' })
   }
 
   const getStatusBadge = (caseRecord: any) => {
@@ -522,9 +423,19 @@ export default function ProcessManager() {
                             )}
                             {getStatusBadge(c)}
                           </div>
-                          <span className="text-slate-600 text-sm font-medium">
-                            {c.case_number || 'Sem número / Serviço'}
-                          </span>
+                          <div className="flex items-center gap-2 group/copy">
+                            <span className="text-slate-600 text-sm font-medium">
+                              {c.case_number || 'Sem número / Serviço'}
+                            </span>
+                            {c.case_number && (
+                              <button
+                                onClick={() => copyToClipboard(c.case_number)}
+                                className="opacity-0 group-hover/copy:opacity-100 transition-opacity"
+                              >
+                                <Copy className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
+                              </button>
+                            )}
+                          </div>
                           <span
                             className="text-slate-400 text-xs mt-0.5 truncate max-w-[300px]"
                             title={c.parties}

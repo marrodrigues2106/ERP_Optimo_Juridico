@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/use-auth'
-import { Menu, X, Instagram, Facebook, Phone as WhatsappIcon } from 'lucide-react'
+import { Menu, X, Instagram, Facebook, Phone as WhatsappIcon, Loader2 } from 'lucide-react'
+import { useSync } from '@/stores/sync-context'
 import { cn } from '@/lib/utils'
 import { firmData, specialtiesData } from '@/data/content'
 import { NotificationBell } from '@/components/intranet/NotificationBell'
@@ -64,6 +65,7 @@ export default function Header() {
   }, [isAuthenticated, user])
 
   const isIntranet = pathname.startsWith('/intranet')
+  const { isBatchSyncing, batchProgress } = useSync()
 
   const confirmLogout = () => {
     setLogoutDialogOpen(false)
@@ -210,6 +212,14 @@ export default function Header() {
           ) : (
             <NavigationMenu>
               <NavigationMenuList>
+                {isBatchSyncing && (
+                  <NavigationMenuItem className="mr-4 flex items-center">
+                    <div className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full text-xs font-medium border border-indigo-100">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Sincronizando {batchProgress.current}/{batchProgress.total}
+                    </div>
+                  </NavigationMenuItem>
+                )}
                 <NavigationMenuItem className="mr-2 flex items-center">
                   <NotificationBell />
                 </NavigationMenuItem>
