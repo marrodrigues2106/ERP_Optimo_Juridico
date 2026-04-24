@@ -9,8 +9,8 @@ routerAdd(
     const apiKey = body.resend_api_key
     const fromEmail = body.resend_from_email || 'onboarding@resend.dev'
 
-    if (!apiKey) {
-      throw new BadRequestError('Chave da API do Resend é obrigatória.')
+    if (!apiKey || apiKey === 'pending') {
+      throw new BadRequestError('Chave da API do Resend é obrigatória e deve ser configurada.')
     }
 
     const res = $http.send({

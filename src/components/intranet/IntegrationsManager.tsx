@@ -21,7 +21,7 @@ export default function IntegrationsManager() {
     const loadSettings = async () => {
       try {
         const keyRecord = await getSettingByKey('resend_api_key')
-        if (keyRecord) setResendApiKey(keyRecord.value)
+        if (keyRecord && keyRecord.value !== 'pending') setResendApiKey(keyRecord.value)
         const fromRecord = await getSettingByKey('resend_from_email')
         if (fromRecord) setResendFromEmail(fromRecord.value)
       } catch (err) {
@@ -64,7 +64,7 @@ export default function IntegrationsManager() {
     e.preventDefault()
     setSaving(true)
     try {
-      await setSettingByKey('resend_api_key', resendApiKey.trim())
+      await setSettingByKey('resend_api_key', resendApiKey.trim() || 'pending')
       await setSettingByKey('resend_from_email', resendFromEmail.trim())
       toast({ title: 'Configurações de e-mail atualizadas!' })
     } catch (err: any) {

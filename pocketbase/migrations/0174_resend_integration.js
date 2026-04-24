@@ -18,7 +18,7 @@ migrate(
     } catch (_) {
       const record = new Record(settings)
       record.set('key', 'resend_api_key')
-      record.set('value', '')
+      record.set('value', 'pending')
       app.save(record)
     }
 

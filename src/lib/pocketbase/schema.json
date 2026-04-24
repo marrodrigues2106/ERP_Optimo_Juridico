@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-24T03:08:28.357Z",
+  "generatedAt": "2026-04-24T03:12:50.305Z",
   "collections": [
     {
       "name": "users",
@@ -132,61 +132,6 @@
         {
           "name": "ical_token",
           "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "imap_host",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "imap_port",
-          "type": "number",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "smtp_host",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "smtp_port",
-          "type": "number",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "email_user",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "email_password",
-          "type": "password",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "email_encryption",
-          "type": "select",
-          "required": false,
-          "system": false,
-          "selectValues": ["ssl_tls", "starttls", "none"]
-        },
-        {
-          "name": "email_encrypted_password",
-          "type": "text",
-          "required": false,
-          "system": false
-        },
-        {
-          "name": "is_system_dispatcher",
-          "type": "bool",
           "required": false,
           "system": false
         }

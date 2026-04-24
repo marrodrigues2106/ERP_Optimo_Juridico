@@ -24,11 +24,11 @@ cronAdd('agenda_alerts', '0 8 * * *', () => {
       fromEmail = fromRec.getString('value') || 'onboarding@resend.dev'
     } catch (err) {}
 
-    if (!apiKey && events.length > 0) {
+    if ((!apiKey || apiKey === 'pending') && events.length > 0) {
       const log = new Record($app.findCollectionByNameOrId('system_logs'))
       log.set('level', 'warning')
       log.set('module', 'cron')
-      log.set('message', 'Cron agenda_alerts falhou: RESEND_API_KEY ausente.')
+      log.set('message', 'Cron agenda_alerts falhou: RESEND_API_KEY ausente ou não configurada.')
       $app.save(log)
       return
     }

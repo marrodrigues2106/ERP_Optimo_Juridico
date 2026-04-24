@@ -23,11 +23,11 @@ cronAdd('task_deadlines', '0 8 * * *', () => {
 
   if (tasks.length === 0) return
 
-  if (!apiKey) {
+  if (!apiKey || apiKey === 'pending') {
     const log = new Record($app.findCollectionByNameOrId('system_logs'))
     log.set('level', 'warning')
     log.set('module', 'cron')
-    log.set('message', 'Cron task_deadlines falhou: RESEND_API_KEY ausente.')
+    log.set('message', 'Cron task_deadlines falhou: RESEND_API_KEY ausente ou não configurada.')
     $app.save(log)
     return
   }

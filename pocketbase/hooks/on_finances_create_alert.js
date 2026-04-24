@@ -13,11 +13,11 @@ onRecordAfterCreateSuccess((e) => {
       fromEmail = fromRec.getString('value') || 'onboarding@resend.dev'
     } catch (err) {}
 
-    if (!apiKey) {
+    if (!apiKey || apiKey === 'pending') {
       const log = new Record($app.findCollectionByNameOrId('system_logs'))
       log.set('level', 'warning')
       log.set('module', 'email')
-      log.set('message', 'Alerta de finanças falhou: RESEND_API_KEY ausente.')
+      log.set('message', 'Alerta de finanças falhou: RESEND_API_KEY ausente ou não configurada.')
       $app.save(log)
       return e.next()
     }

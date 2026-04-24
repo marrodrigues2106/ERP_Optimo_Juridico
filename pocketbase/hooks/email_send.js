@@ -25,11 +25,14 @@ routerAdd(
       fromEmail = fromRec.getString('value') || 'onboarding@resend.dev'
     } catch (err) {}
 
-    if (!apiKey) {
+    if (!apiKey || apiKey === 'pending') {
       const log = new Record($app.findCollectionByNameOrId('system_logs'))
       log.set('level', 'warning')
       log.set('module', 'email')
-      log.set('message', 'Tentativa de envio de email falhou: RESEND_API_KEY ausente.')
+      log.set(
+        'message',
+        'Tentativa de envio de email falhou: RESEND_API_KEY ausente ou não configurada.',
+      )
       $app.save(log)
       return e.badRequestError('Configuração da API do Resend não encontrada.')
     }
