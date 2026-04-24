@@ -411,8 +411,8 @@ export default function CentralAtualizacoes() {
           title: `Financeiro: ${i.description}`,
           description: `Valor: R$ ${i.amount} - Tipo: ${i.type === 'inflow' ? 'Receita' : 'Despesa'} - Status: ${i.status}`,
           date: i.date || i.created,
-          isRead: false,
-          isArchived: false,
+          isRead: !!i.is_read,
+          isArchived: !!i.is_archived,
           caseId: i.linked_lawsuit,
           caseNumber: cObj?.case_number,
           caseTitle: cObj?.title,
@@ -436,7 +436,7 @@ export default function CentralAtualizacoes() {
         description: i.message,
         date: i.created,
         isRead: !!i.is_read,
-        isArchived: false,
+        isArchived: !!i.is_archived,
         clientId: i.client,
         clientName: i.expand?.client?.fullName || i.expand?.client?.name,
         clientPhone: i.expand?.client?.phone,
@@ -521,6 +521,8 @@ export default function CentralAtualizacoes() {
                 await pb.collection('case_movements').update(item.id, { notified_client: true })
               else if (item.collection === 'notifications')
                 await pb.collection('notifications').update(item.id, { is_read: true })
+              else if (item.collection === 'finances')
+                await pb.collection('finances').update(item.id, { is_read: true })
             } else if (action === 'unread') {
               if (item.collection === 'pje_communications')
                 await pb.collection('pje_communications').update(item.id, { is_read: false })
@@ -532,11 +534,19 @@ export default function CentralAtualizacoes() {
                   .update(item.id, { status_alerta: 'pendente' })
               else if (item.collection === 'case_movements')
                 await pb.collection('case_movements').update(item.id, { notified_client: false })
+              else if (item.collection === 'notifications')
+                await pb.collection('notifications').update(item.id, { is_read: false })
+              else if (item.collection === 'finances')
+                await pb.collection('finances').update(item.id, { is_read: false })
             } else if (action === 'archive') {
               if (
-                ['gazette_publications', 'ocorrencias_dou', 'pje_communications'].includes(
-                  item.collection,
-                )
+                [
+                  'gazette_publications',
+                  'ocorrencias_dou',
+                  'pje_communications',
+                  'finances',
+                  'notifications',
+                ].includes(item.collection)
               ) {
                 await pb.collection(item.collection).update(item.id, { is_archived: true })
               }
@@ -595,6 +605,16 @@ export default function CentralAtualizacoes() {
           treatment_status: type,
           is_archived: isArchived,
           treatment_type: type,
+          is_read: true,
+        })
+      } else if (
+        item.collection === 'finances' ||
+        item.collection === 'notifications' ||
+        item.collection === 'ocorrencias_dou'
+      ) {
+        const isArchived = type === 'discarded' || type === 'concluded' ? true : item.isArchived
+        await pb.collection(item.collection).update(item.id, {
+          is_archived: isArchived,
           is_read: true,
         })
       }
@@ -867,7 +887,10 @@ export default function CentralAtualizacoes() {
 
           <div className="flex flex-wrap items-center gap-2 mt-2 pt-4 border-t border-slate-100">
             {(item.collection === 'pje_communications' ||
-              item.collection === 'gazette_publications') &&
+              item.collection === 'gazette_publications' ||
+              item.collection === 'finances' ||
+              item.collection === 'notifications' ||
+              item.collection === 'ocorrencias_dou') &&
               !item.isArchived && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

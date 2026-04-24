@@ -5,8 +5,6 @@ routerAdd(
     const body = e.requestInfo().body || {}
 
     const errors = {}
-    if (!body.imap_host)
-      errors.imap_host = new ValidationError('required', 'Host IMAP é obrigatório')
     if (!body.smtp_host)
       errors.smtp_host = new ValidationError('required', 'Host SMTP é obrigatório')
     if (!body.email_user)
@@ -14,14 +12,12 @@ routerAdd(
     if (!body.email_password)
       errors.email_password = new ValidationError('required', 'Senha é obrigatória')
 
-    const imap_port = parseInt(body.imap_port, 10)
     const smtp_port = parseInt(body.smtp_port, 10)
 
-    if (!imap_port) errors.imap_port = new ValidationError('required', 'Porta IMAP é obrigatória')
     if (!smtp_port) errors.smtp_port = new ValidationError('required', 'Porta SMTP é obrigatória')
 
     if (Object.keys(errors).length > 0) {
-      throw new BadRequestError('Falha na validação dos campos de conexão.', errors)
+      throw new BadRequestError('Falha na validação dos campos de conexão SMTP.', errors)
     }
 
     const bridgeUrl = $secrets.get('EMAIL_BRIDGE_URL') || 'https://email-bridge.goskip.app'
@@ -37,18 +33,13 @@ routerAdd(
       }
     }
 
-    // For Hostinger and similar shared hosts, explicitly pass strict TLS parameters if needed,
-    // or rely on the bridge recognizing 'ssl_tls' / 'starttls' properly.
-
     let res
     try {
       res = $http.send({
-        url: bridgeUrl + '/api/test',
+        url: bridgeUrl + '/api/v2/test',
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imap_host: body.imap_host,
-          imap_port: imap_port,
           smtp_host: body.smtp_host,
           smtp_port: smtp_port,
           user: body.email_user,
@@ -69,8 +60,7 @@ routerAdd(
 
     if (res.statusCode !== 200) {
       $app.logger().error('Email bridge error (test)', 'status', res.statusCode)
-      const errorMsg =
-        res.json?.error || 'Erro ao conectar com o servidor IMAP/SMTP através do bridge.'
+      const errorMsg = res.json?.error || 'Erro ao conectar com o servidor SMTP através do bridge.'
 
       let code = 'connection_failed'
       let userMessage = errorMsg
@@ -83,8 +73,7 @@ routerAdd(
         lowerMsg.includes('authentication')
       ) {
         code = 'auth_failed'
-        userMessage =
-          'Falha na autenticação: Usuário ou senha incorretos para o servidor Hostinger/IMAP.'
+        userMessage = 'Falha na autenticação: Usuário ou senha incorretos para o servidor SMTP.'
       } else if (
         lowerMsg.includes('timeout') ||
         lowerMsg.includes('deadline') ||
@@ -92,7 +81,7 @@ routerAdd(
       ) {
         code = 'timeout'
         userMessage =
-          'Tempo de conexão esgotado: Verifique se o servidor e as portas estão corretas (ex: 993 para IMAP SSL e 465 para SMTP SSL/TLS).'
+          'Tempo de conexão esgotado: Verifique se o servidor e as portas estão corretas (ex: 465 para SMTP SSL/TLS ou 587 para STARTTLS).'
       } else if (
         lowerMsg.includes('certificate') ||
         lowerMsg.includes('tls') ||
@@ -121,7 +110,7 @@ routerAdd(
 
     return e.json(200, {
       success: true,
-      message: `Conexão IMAP/SMTP validada com sucesso.`,
+      message: `Conexão SMTP validada com sucesso para envios.`,
     })
   },
   $apis.requireAuth(),

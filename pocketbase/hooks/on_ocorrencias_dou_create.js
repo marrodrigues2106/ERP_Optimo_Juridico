@@ -62,9 +62,60 @@ onRecordAfterCreateSuccess((e) => {
         }
       }
       if (type === 'email' || type === 'all') {
-        console.log(
-          `[EMAIL DISPATCHER] Sending email to user: ${conf.get('usuario_id')} - Subject: Alerta Ro-DOU - ${termo.get('termo')}`,
-        )
+        try {
+          const userObj = $app.findRecordById('users', conf.get('usuario_id'))
+          const userEmail = userObj.getString('email')
+          if (userEmail) {
+            let dispatcher = null
+            try {
+              const filter = userObj.get('active_organization')
+                ? `is_system_dispatcher = true && active_organization = '${userObj.get('active_organization')}'`
+                : `is_system_dispatcher = true`
+              dispatcher = $app.findFirstRecordByFilter('users', filter)
+            } catch (err) {}
+
+            if (dispatcher) {
+              const host = dispatcher.getString('smtp_host')
+              const port = dispatcher.getInt('smtp_port') || 587
+              const emailUser = dispatcher.getString('email_user')
+              const password = dispatcher.getString('email_encrypted_password')
+              const encryption = dispatcher.getString('email_encryption') || 'ssl_tls'
+
+              if (host && emailUser && password) {
+                const bridgeUrl =
+                  $secrets.get('EMAIL_BRIDGE_URL') || 'https://email-bridge.goskip.app'
+                const htmlBody = `
+                    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                        <h2 style="color: #2563eb;">Novo Alerta Ro-DOU</h2>
+                        <div style="background: #f8fafc; padding: 15px; border-left: 4px solid #2563eb; margin: 20px 0;">
+                            <p style="margin: 0 0 10px 0;"><strong>Termo:</strong> ${termo.get('termo')}</p>
+                            <p style="margin: 0 0 10px 0;"><strong>Publicação:</strong> ${pub.get('titulo')}</p>
+                            <p style="margin: 0;"><strong>Trecho:</strong> ${snippetClean}</p>
+                        </div>
+                    </div>
+                `
+                $http.send({
+                  url: bridgeUrl + '/api/v2/send',
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    smtp_host: host,
+                    smtp_port: port,
+                    user: emailUser,
+                    password: password,
+                    encryption: encryption,
+                    to: userEmail,
+                    subject: `Alerta Ro-DOU: ${termo.get('termo')}`,
+                    html: htmlBody,
+                  }),
+                  timeout: 15,
+                })
+              }
+            }
+          }
+        } catch (err) {
+          console.error('[EMAIL DISPATCHER ERROR]', err)
+        }
       }
     }
 
