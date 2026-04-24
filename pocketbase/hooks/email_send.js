@@ -25,7 +25,10 @@ routerAdd(
 
     const defaultPort = host.includes('hostinger') ? 465 : 587
     const port = user.getInt('smtp_port') || defaultPort
-    const encryption = user.getString('email_encryption') || (port === 465 ? 'ssl_tls' : 'starttls')
+    let encryption = user.getString('email_encryption')
+    if (!encryption || encryption === '') {
+      encryption = port === 465 ? 'ssl_tls' : 'starttls'
+    }
     const bridgeUrl = $secrets.get('EMAIL_BRIDGE_URL') || 'https://email-bridge.goskip.app'
 
     let res

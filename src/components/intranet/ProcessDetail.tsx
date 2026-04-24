@@ -226,10 +226,12 @@ const MovementItem = ({
               <span
                 className={`text-sm font-bold ${isDecision ? 'text-amber-900' : 'text-slate-700'}`}
               >
-                {new Date(mov.event_date || mov.created).toLocaleString('pt-BR', {
-                  dateStyle: 'short',
-                  timeStyle: 'short',
-                })}
+                {mov.event_date
+                  ? new Date(mov.event_date).toLocaleString('pt-BR', {
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    })
+                  : 'Data não informada'}
               </span>
             </div>
             {mov.movement_details?.nivelSigilo && (
@@ -993,7 +995,7 @@ export default function ProcessDetail() {
                       </div>
                     ) : (
                       movements.map((mov) => {
-                        const movDate = new Date(mov.created).getTime()
+                        const movDate = mov.event_date ? new Date(mov.event_date).getTime() : 0
                         const isNew = movDate > Date.now() - 86400000 * 2
 
                         return (

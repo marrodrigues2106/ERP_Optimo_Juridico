@@ -26,6 +26,11 @@ routerAdd(
 
     const bridgeUrl = $secrets.get('EMAIL_BRIDGE_URL') || 'https://email-bridge.goskip.app'
 
+    let encryption = body.email_encryption
+    if (!encryption || encryption === '') {
+      encryption = smtp_port === 465 ? 'ssl_tls' : 'starttls'
+    }
+
     let res
     try {
       res = $http.send({
@@ -39,7 +44,7 @@ routerAdd(
           smtp_port: smtp_port,
           user: body.email_user,
           password: body.email_password,
-          encryption: body.email_encryption || 'ssl_tls',
+          encryption: encryption,
         }),
         timeout: 30,
       })

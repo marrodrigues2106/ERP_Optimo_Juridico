@@ -10,7 +10,7 @@ onRecordAfterCreateSuccess((e) => {
     } catch (err) {}
 
     const detail = movement.get('description')
-    const date = movement.get('event_date')
+    const date = movement.get('event_date') || ''
     const source = movement.get('source')
     const caseId = movement.get('case')
     const orgId = movement.get('organization') || (legalCase ? legalCase.get('organization') : null)
