@@ -123,7 +123,7 @@ export default function WebmailManager() {
       let msg = 'Erro ao conectar ao servidor de e-mail.'
       if (err.status === 400 || isAuthError) {
         msg =
-          'Falha na conexão IMAP. Verifique se a senha, usuário e portas estão corretos nas configurações de e-mail.'
+          'Configuração de e-mail necessária ou inválida. Verifique suas credenciais no painel de Integrações.'
       } else if (isTimeout) {
         msg = 'Tempo de conexão esgotado. Verifique se os servidores IMAP/SMTP estão acessíveis.'
       } else if (isNotFound) {
@@ -133,7 +133,9 @@ export default function WebmailManager() {
       }
 
       setErrorMsg(msg)
-      if (!append) {
+      if (err.status === 400 || isAuthError) {
+        setSettingsMissing(true)
+      } else if (!append) {
         toast({ title: 'Erro de sincronização', description: msg, variant: 'destructive' })
       }
     } finally {
@@ -343,7 +345,7 @@ export default function WebmailManager() {
                     className="w-16 h-16 opacity-60 mb-4"
                   />
                   <p className="text-sm font-medium text-slate-600 mb-4">
-                    Configurações Ausentes. Vá em Integrações para configurar.
+                    Configuração de e-mail necessária ou inválida.
                   </p>
                   <Button
                     size="sm"
