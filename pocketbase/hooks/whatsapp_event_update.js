@@ -23,7 +23,16 @@ onRecordAfterUpdateSuccess((e) => {
       dateStr = `${dStr.substring(8, 10)}/${dStr.substring(5, 7)}/${dStr.substring(0, 4)} às ${dStr.substring(11, 16)}`
     }
 
-    let templateMsg = `Atualização: {{name}}, seu(sua) ${type === 'Hearing' ? 'Audiência' : 'Reunião'} agora está agendado(a) para {{date}}. Assunto: {{title}}.`
+    let orgName = 'nosso escritório'
+    try {
+      const orgId = e.record.getString('organization')
+      if (orgId) {
+        const org = $app.findRecordById('organizations', orgId)
+        if (org && org.getString('name')) orgName = org.getString('name')
+      }
+    } catch (_) {}
+
+    let templateMsg = `Atualização: {{name}}, seu(sua) ${type === 'Hearing' ? 'Audiência' : 'Reunião'} com a {{nome_organizacao}} agora está agendado(a) para {{date}}. Assunto: {{title}}.`
     try {
       const tmpl = $app.findFirstRecordByFilter(
         'communication_templates',
@@ -42,6 +51,7 @@ onRecordAfterUpdateSuccess((e) => {
       .replace(/\{\{name\}\}/gi, client.getString('name') || client.getString('fullName') || '')
       .replace(/\{\{date\}\}/gi, dateStr)
       .replace(/\{\{title\}\}/gi, e.record.getString('title') || '')
+      .replace(/\{\{nome_organizacao\}\}/gi, orgName)
 
     $http.send({
       url: url,

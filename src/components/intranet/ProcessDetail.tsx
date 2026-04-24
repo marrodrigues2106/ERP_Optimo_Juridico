@@ -331,7 +331,7 @@ const MovementItem = ({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 text-primary hover:underline text-xs mt-2 font-medium bg-primary/5 px-3 py-1.5 rounded-md w-fit transition-colors hover:bg-primary/10"
               >
-                <ExternalLink className="w-4 h-4" /> Acessar Documento Original
+                <ExternalLink className="w-4 h-4" /> Ver no Tribunal
               </a>
             )}
           </div>
@@ -569,7 +569,7 @@ export default function ProcessDetail() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
-    toast({ title: 'Copiado para a área de transferência!' })
+    toast({ title: 'Número copiado!' })
   }
 
   useEffect(() => {

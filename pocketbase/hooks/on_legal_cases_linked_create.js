@@ -1,4 +1,4 @@
-onRecordAfterUpdateSuccess((e) => {
+onRecordAfterCreateSuccess((e) => {
   const record = e.record
   const related = record.get('related_cases') || []
   if (!related || related.length === 0) return e.next()
@@ -13,7 +13,7 @@ onRecordAfterUpdateSuccess((e) => {
         $app.saveNoValidate(otherCase)
       }
     } catch (err) {
-      $app.logger().error('Failed reciprocal link update', 'error', err.message)
+      $app.logger().error('Failed reciprocal link create', 'error', err.message)
     }
   }
   return e.next()

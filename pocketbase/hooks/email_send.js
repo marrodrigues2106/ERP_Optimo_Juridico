@@ -57,12 +57,20 @@ routerAdd(
 
     let apiKey = ''
     let fromEmail = 'onboarding@resend.dev'
+    let fromName = 'Escritório de Advocacia'
 
     try {
       const keyRec = $app.findFirstRecordByData('settings', 'key', 'resend_api_key')
       apiKey = keyRec.getString('value')
       const fromRec = $app.findFirstRecordByData('settings', 'key', 'resend_from_email')
       fromEmail = fromRec.getString('value') || 'onboarding@resend.dev'
+
+      if (orgId) {
+        const org = $app.findRecordById('organizations', orgId)
+        if (org && org.getString('name')) {
+          fromName = org.getString('name')
+        }
+      }
     } catch (err) {}
 
     if (!apiKey || apiKey === 'pending') {
@@ -85,7 +93,7 @@ routerAdd(
         Authorization: 'Bearer ' + apiKey,
       },
       body: JSON.stringify({
-        from: fromEmail,
+        from: `${fromName} <${fromEmail}>`,
         to: body.to,
         subject: body.subject,
         html: body.body,

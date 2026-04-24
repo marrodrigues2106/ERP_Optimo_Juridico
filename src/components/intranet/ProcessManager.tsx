@@ -171,7 +171,7 @@ export default function ProcessManager() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
-    toast({ title: 'Copiado para a área de transferência!' })
+    toast({ title: 'Número copiado!' })
   }
 
   const getStatusBadge = (caseRecord: any) => {
@@ -424,16 +424,19 @@ export default function ProcessManager() {
                             {getStatusBadge(c)}
                           </div>
                           <div className="flex items-center gap-2 group/copy">
-                            <span className="text-slate-600 text-sm font-medium">
-                              {c.case_number || 'Sem número / Serviço'}
-                            </span>
-                            {c.case_number && (
+                            {c.case_number ? (
                               <button
                                 onClick={() => copyToClipboard(c.case_number)}
-                                className="opacity-0 group-hover/copy:opacity-100 transition-opacity"
+                                className="flex items-center gap-1.5 text-slate-600 text-sm font-medium hover:text-primary hover:bg-slate-50 px-1.5 py-0.5 -ml-1.5 rounded transition-colors"
+                                title="Copiar número"
                               >
-                                <Copy className="w-3.5 h-3.5 text-slate-400 hover:text-primary" />
+                                {c.case_number}
+                                <Copy className="w-3.5 h-3.5 opacity-0 group-hover/copy:opacity-100 transition-opacity" />
                               </button>
+                            ) : (
+                              <span className="text-slate-600 text-sm font-medium">
+                                Sem número / Serviço
+                              </span>
                             )}
                           </div>
                           <span

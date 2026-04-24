@@ -89,7 +89,14 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
     let parsedSubject = tpl.subject
     let parsedHtml = tpl.body_html || ''
 
-    Object.entries(context).forEach(([key, value]) => {
+    const finalContext = { ...context }
+    if (pb.authStore.record?.expand?.active_organization?.name) {
+      finalContext['nome_organizacao'] = pb.authStore.record.expand.active_organization.name
+    } else {
+      finalContext['nome_organizacao'] = 'Nosso Escritório'
+    }
+
+    Object.entries(finalContext).forEach(([key, value]) => {
       const regex = new RegExp(`{{${key}}}`, 'g')
       parsedSubject = parsedSubject.replace(regex, value || '')
       parsedHtml = parsedHtml.replace(regex, value || '')
@@ -148,7 +155,8 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
                 Limite de envio de e-mails atingido (Máximo 100/dia ou 3000/mês). Você já enviou{' '}
-                {dailyCount} hoje e {monthlyCount} este mês.
+                {dailyCount} hoje e {monthlyCount} este mês. O envio foi bloqueado temporariamente
+                para sua organização.
               </AlertDescription>
             </Alert>
           )}

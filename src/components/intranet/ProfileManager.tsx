@@ -59,7 +59,6 @@ export default function ProfileManager() {
   // Alerts config
   const [alertConfigId, setAlertConfigId] = useState<string | null>(null)
   const [alertEmail, setAlertEmail] = useState(user?.email || '')
-  const [receiveMode, setReceiveMode] = useState('imediato')
   const [frequency, setFrequency] = useState('daily')
 
   // Termos
@@ -83,14 +82,7 @@ export default function ProfileManager() {
           const conf = result.items[0]
           setAlertConfigId(conf.id)
           setAlertEmail(conf.email_destinatario || user.email || '')
-
-          if (conf.frequencia === 'imediato' || conf.frequencia === '') {
-            setReceiveMode('imediato')
-            setFrequency('daily')
-          } else {
-            setReceiveMode('agendado')
-            setFrequency(conf.frequencia === 'weekly' ? 'weekly' : 'daily')
-          }
+          setFrequency(conf.frequencia === 'weekly' ? 'weekly' : 'daily')
         }
 
         const termRes = await pb.collection('termos_monitorados').getFullList({
@@ -156,13 +148,11 @@ export default function ProfileManager() {
     e.preventDefault()
     setLoading(true)
 
-    const finalFreq = receiveMode === 'imediato' ? 'imediato' : frequency
-
     try {
       const payload = {
         usuario_id: user.id,
         email_destinatario: alertEmail,
-        frequencia: finalFreq,
+        frequencia: frequency,
         tipo_notificacao: 'email',
         ativo: true,
       }
@@ -399,72 +389,37 @@ export default function ProfileManager() {
                 </div>
 
                 <div className="space-y-4 border-t pt-6">
-                  <Label className="text-base font-semibold">Tipo de Alerta</Label>
-                  <RadioGroup
-                    value={receiveMode}
-                    onValueChange={setReceiveMode}
-                    className="space-y-3"
-                  >
+                  <Label className="text-base font-semibold">Frequência do Resumo Agendado</Label>
+                  <p className="text-sm text-slate-500 mb-4">
+                    Receber um e-mail consolidado com todos os alertas na frequência selecionada.
+                  </p>
+                  <RadioGroup value={frequency} onValueChange={setFrequency} className="space-y-3">
                     <div
                       className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-slate-50 cursor-pointer"
-                      onClick={() => setReceiveMode('imediato')}
+                      onClick={() => setFrequency('daily')}
                     >
-                      <RadioGroupItem value="imediato" id="imediato" className="mt-1" />
+                      <RadioGroupItem value="daily" id="daily" className="mt-1" />
                       <div>
-                        <Label htmlFor="imediato" className="text-base font-medium cursor-pointer">
-                          Alerta Individual
+                        <Label htmlFor="daily" className="text-base font-medium cursor-pointer">
+                          Diário
                         </Label>
-                        <p className="text-sm text-slate-500">
-                          Receber um e-mail para cada novo alerta imediatamente.
-                        </p>
+                        <p className="text-sm text-slate-500">Resumo enviado todos os dias.</p>
                       </div>
                     </div>
                     <div
                       className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-slate-50 cursor-pointer"
-                      onClick={() => setReceiveMode('agendado')}
+                      onClick={() => setFrequency('weekly')}
                     >
-                      <RadioGroupItem value="agendado" id="agendado" className="mt-1" />
+                      <RadioGroupItem value="weekly" id="weekly" className="mt-1" />
                       <div>
-                        <Label htmlFor="agendado" className="text-base font-medium cursor-pointer">
-                          Resumo Agendado
+                        <Label htmlFor="weekly" className="text-base font-medium cursor-pointer">
+                          Semanal
                         </Label>
-                        <p className="text-sm text-slate-500">
-                          Receber um único e-mail consolidado com todos os alertas.
-                        </p>
+                        <p className="text-sm text-slate-500">Resumo enviado uma vez por semana.</p>
                       </div>
                     </div>
                   </RadioGroup>
                 </div>
-
-                {receiveMode === 'agendado' && (
-                  <div className="space-y-4 border-t pt-6 animate-in fade-in slide-in-from-top-4">
-                    <Label className="text-base font-semibold">Frequência do Resumo</Label>
-                    <RadioGroup
-                      value={frequency}
-                      onValueChange={setFrequency}
-                      className="space-y-3"
-                    >
-                      <div
-                        className="flex items-center space-x-3 cursor-pointer"
-                        onClick={() => setFrequency('daily')}
-                      >
-                        <RadioGroupItem value="daily" id="daily" />
-                        <Label htmlFor="daily" className="cursor-pointer font-medium">
-                          Diário
-                        </Label>
-                      </div>
-                      <div
-                        className="flex items-center space-x-3 cursor-pointer"
-                        onClick={() => setFrequency('weekly')}
-                      >
-                        <RadioGroupItem value="weekly" id="weekly" />
-                        <Label htmlFor="weekly" className="cursor-pointer font-medium">
-                          Semanal
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-                )}
               </CardContent>
               <CardFooter className="bg-slate-50 border-t py-4">
                 <Button type="submit" disabled={loading} className="w-full sm:w-auto">

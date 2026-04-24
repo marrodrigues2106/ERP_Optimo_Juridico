@@ -48,7 +48,9 @@ routerAdd(
       throw new BadRequestError('Limite de envio de e-mails atingido (Máximo 100/dia ou 3000/mês).')
     }
 
-    let senderName = $app.settings().meta.senderName || 'Moraes Rodrigues Advocacia'
+    let senderName = $app.settings().meta.senderName || 'Escritório de Advocacia'
+    let senderAddress = $app.settings().meta.senderAddress || 'no-reply@escritorio.com.br'
+
     if (orgId) {
       try {
         const org = $app.findRecordById('organizations', orgId)
@@ -60,7 +62,7 @@ routerAdd(
 
     const message = new mailer.Message({
       from: {
-        address: $app.settings().meta.senderAddress || 'no-reply@moraesrodriguesadvocacia.com.br',
+        address: senderAddress,
         name: senderName,
       },
       to: [{ address: body.to }],
