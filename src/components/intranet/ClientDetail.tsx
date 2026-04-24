@@ -14,7 +14,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
-import { ArrowLeft, UserCircle, MessageSquare, FileText, CheckSquare, Scale } from 'lucide-react'
+import {
+  ArrowLeft,
+  UserCircle,
+  MessageSquare,
+  FileText,
+  CheckSquare,
+  Scale,
+  Plus,
+  Trash2,
+} from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 
 import { ClientOverviewTab } from './clients/ClientOverviewTab'
@@ -31,6 +40,8 @@ export default function ClientDetail() {
   const [client, setClient] = useState<any>(null)
   const [editClientOpen, setEditClientOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [classification, setClassification] = useState('Lead')
+  const [phoneNumbers, setPhoneNumbers] = useState<{ number: string; type: string }[]>([])
 
   const loadData = async () => {
     if (!id) return
@@ -47,11 +58,16 @@ export default function ClientDetail() {
     loadData()
   }, [id, navigate])
 
-  const [classification, setClassification] = useState('Lead')
-
   useEffect(() => {
     if (client) {
       setClassification(client.classification || 'Lead')
+      if (client.phone_numbers && Array.isArray(client.phone_numbers)) {
+        setPhoneNumbers(client.phone_numbers)
+      } else if (client.phone) {
+        setPhoneNumbers([{ number: client.phone, type: client.phone_type || 'Celular' }])
+      } else {
+        setPhoneNumbers([])
+      }
     }
   }, [client])
 
@@ -59,22 +75,14 @@ export default function ClientDetail() {
     setClassification(val)
   }
 
-  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let v = e.target.value.replace(/\D/g, '')
-    if (v.length <= 11) {
-      v = v
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
-    } else {
-      v = v
-        .replace(/^(\d{2})(\d)/, '$1.$2')
-        .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-        .replace(/\.(\d{3})(\d)/, '.$1/$2')
-        .replace(/(\d{4})(\d)/, '$1-$2')
-        .slice(0, 18)
-    }
-    e.target.value = v
+  const addPhone = () => setPhoneNumbers([...phoneNumbers, { number: '', type: 'Celular' }])
+  const updatePhone = (index: number, field: string, val: string) => {
+    const newPhones = [...phoneNumbers]
+    newPhones[index] = { ...newPhones[index], [field]: val }
+    setPhoneNumbers(newPhones)
+  }
+  const removePhone = (index: number) => {
+    setPhoneNumbers(phoneNumbers.filter((_, i) => i !== index))
   }
 
   const handleEditClient = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -87,17 +95,20 @@ export default function ClientDetail() {
       if (classification === 'Ativo') status = 'Active'
       if (classification === 'Inativo') status = 'Inactive'
 
+      const cleanedPhones = phoneNumbers.filter((p) => p.number.trim() !== '')
+
       const updateData: any = {
         status,
         classification,
         funnel_stage: fd.get('funnel_stage'),
         email: fd.get('email'),
-        phone: fd.get('phone'),
         address: fd.get('address'),
-        phone_type: fd.get('phone_type'),
         nationality: fd.get('nationality'),
         maritalStatus: fd.get('maritalStatus'),
         profession: fd.get('profession'),
+        phone_numbers: cleanedPhones,
+        phone: cleanedPhones.length > 0 ? cleanedPhones[0].number : '',
+        phone_type: cleanedPhones.length > 0 ? cleanedPhones[0].type : '',
       }
 
       if (fd.get('birthDate')) {
@@ -207,7 +218,7 @@ export default function ClientDetail() {
       </Tabs>
 
       <Dialog open={editClientOpen} onOpenChange={setEditClientOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Relacionamento</DialogTitle>
           </DialogHeader>
@@ -244,31 +255,64 @@ export default function ClientDetail() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>E-mail</Label>
-                <Input name="email" type="email" defaultValue={client.email || ''} />
+            <div>
+              <Label>E-mail</Label>
+              <Input name="email" type="email" defaultValue={client.email || ''} />
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-slate-700">Telefones / Contatos</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addPhone}
+                  className="h-7 text-xs bg-white"
+                >
+                  <Plus className="w-3 h-3 mr-1" /> Adicionar
+                </Button>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-1">
-                  <Label>Tipo</Label>
-                  <Select name="phone_type" defaultValue={client.phone_type || 'Celular'}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Fixo">Fixo</SelectItem>
-                      <SelectItem value="Celular">Celular</SelectItem>
-                      <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="col-span-2">
-                  <Label>Telefone</Label>
-                  <Input name="phone" defaultValue={client.phone || ''} />
-                </div>
+              <div className="space-y-2">
+                {phoneNumbers.map((phone, i) => (
+                  <div
+                    key={i}
+                    className="flex gap-2 items-center bg-white p-1 rounded border border-slate-100"
+                  >
+                    <Select value={phone.type} onValueChange={(val) => updatePhone(i, 'type', val)}>
+                      <SelectTrigger className="w-[110px] h-8 text-xs border-none shadow-none focus:ring-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Fixo">Fixo</SelectItem>
+                        <SelectItem value="Celular">Celular</SelectItem>
+                        <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <div className="w-[1px] h-4 bg-slate-200"></div>
+                    <Input
+                      value={phone.number}
+                      onChange={(e) => updatePhone(i, 'number', e.target.value)}
+                      placeholder="(00) 00000-0000"
+                      className="flex-1 h-8 text-sm border-none shadow-none focus-visible:ring-0"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 hover:bg-red-50 hover:text-red-600"
+                      onClick={() => removePhone(i)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                ))}
+                {phoneNumbers.length === 0 && (
+                  <p className="text-xs text-slate-500 italic px-2">Nenhum telefone cadastrado.</p>
+                )}
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Nacionalidade</Label>

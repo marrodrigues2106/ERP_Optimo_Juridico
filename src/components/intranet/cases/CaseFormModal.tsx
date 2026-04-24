@@ -30,10 +30,11 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { createLegalCase, updateLegalCase } from '@/services/legal_cases'
+import { createClient } from '@/services/clients'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
-import { Search, Loader2, X, Check, ChevronsUpDown } from 'lucide-react'
+import { Search, Loader2, X, Check, ChevronsUpDown, Plus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
@@ -47,7 +48,7 @@ const formSchema = z
     court_organ: z.string().optional(),
     status: z.string().optional(),
     lifecycle_status: z.enum(['Ativo', 'Inativo', 'Arquivado', 'Suspenso']),
-    client: z.string().optional(),
+    client: z.union([z.string(), z.array(z.string())]).optional(),
     responsible_collaborator: z.union([z.string(), z.array(z.string())]).optional(),
     deadline: z.string().optional(),
     subject: z.string().optional(),
@@ -90,7 +91,7 @@ export function CaseFormModal({
   open,
   onOpenChange,
   editingCase,
-  clients,
+  clients: externalClients,
   collaborators,
   onSuccess,
 }: Props) {
@@ -103,6 +104,14 @@ export function CaseFormModal({
   const [openClientCombo, setOpenClientCombo] = useState(false)
   const [openCollabCombo, setOpenCollabCombo] = useState(false)
   const [openCourtCombo, setOpenCourtCombo] = useState(false)
+
+  const [localClients, setLocalClients] = useState<any[]>([])
+  const [isNewClientOpen, setIsNewClientOpen] = useState(false)
+  const [newClientData, setNewClientData] = useState({ name: '', email: '', phone: '' })
+
+  useEffect(() => {
+    setLocalClients(externalClients)
+  }, [externalClients])
 
   useEffect(() => {
     pb.collection('tribunals').getFullList({ sort: 'name' }).then(setTribunals).catch(console.error)
@@ -146,7 +155,11 @@ export function CaseFormModal({
           court_organ: editingCase.court_organ || '',
           status: editingCase.status || '',
           lifecycle_status: editingCase.lifecycle_status,
-          client: editingCase.client || 'none',
+          client: Array.isArray(editingCase.client)
+            ? editingCase.client
+            : editingCase.client
+              ? [editingCase.client]
+              : [],
           responsible_collaborator: editingCase.responsible_collaborator || [],
           deadline: editingCase.deadline ? editingCase.deadline.substring(0, 10) : '',
           subject: editingCase.metadata?.subject || '',
@@ -168,6 +181,8 @@ export function CaseFormModal({
           title: '',
           type: 'Processo',
           lifecycle_status: 'Ativo',
+          client: [],
+          responsible_collaborator: [],
           tags: [],
           estimated_duration: 0,
           duration_unit: 'meses',
@@ -180,6 +195,30 @@ export function CaseFormModal({
   }, [open, editingCase, reset])
 
   const [pjeMovements, setPjeMovements] = useState<any[]>([])
+
+  const handleCreateClient = async () => {
+    try {
+      const record = await createClient({
+        ...newClientData,
+        classification: 'Ativo',
+        status: 'Active',
+      })
+      setLocalClients((prev) => [...prev, record])
+      const current = getValues('client')
+      const currentArray = Array.isArray(current)
+        ? current
+        : current && current !== 'none'
+          ? [current]
+          : []
+      setValue('client', [...currentArray, record.id])
+      setIsNewClientOpen(false)
+      setNewClientData({ name: '', email: '', phone: '' })
+      toast({ title: 'Cliente cadastrado com sucesso' })
+      onSuccess() // refresh parent data
+    } catch (e: any) {
+      toast({ title: 'Erro', description: getErrorMessage(e), variant: 'destructive' })
+    }
+  }
 
   const handlePjeSearch = async () => {
     const rawNum = watch('case_number')
@@ -213,7 +252,6 @@ export function CaseFormModal({
         return
       }
 
-      // Extract court and additional metadata
       const item = items[0]
       const court = item.siglaTribunal || ''
       if (court) {
@@ -248,7 +286,6 @@ export function CaseFormModal({
         setValue('distribution_date', distDate.substring(0, 10))
       }
 
-      // Extract parties
       const allParties = new Set<string>()
       items.forEach((item: any) => {
         if (Array.isArray(item.destinatarios)) {
@@ -261,7 +298,6 @@ export function CaseFormModal({
         setValue('parties', Array.from(allParties).join(' x '))
       }
 
-      // Store movements
       const parsedMovements = items.map((item: any) => ({
         event_date: item.dataDisponibilizacao,
         description: item.tipoComunicacao || 'Comunicação PJe',
@@ -285,6 +321,11 @@ export function CaseFormModal({
   }
 
   const onSubmit = async (data: CaseFormValues) => {
+    let finalClients = data.client
+    if (finalClients === 'none') finalClients = []
+    else if (typeof finalClients === 'string') finalClients = [finalClients]
+    if (Array.isArray(finalClients) && finalClients.length === 0) finalClients = null as any
+
     const payload = {
       title: data.title,
       type: data.type,
@@ -294,7 +335,7 @@ export function CaseFormModal({
       court_organ: data.court_organ,
       status: data.status,
       lifecycle_status: data.lifecycle_status,
-      client: !data.client || data.client === 'none' ? null : data.client,
+      client: finalClients,
       responsible_collaborator:
         !data.responsible_collaborator ||
         (Array.isArray(data.responsible_collaborator) &&
@@ -411,303 +452,286 @@ export function CaseFormModal({
   }, [currentCaseNumber, selectedType, editingCase])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{editingCase ? 'Editar Registro' : 'Novo Registro de Caso'}</DialogTitle>
-          <DialogDescription>
-            Preencha os dados manualmente ou busque no PJe pelo CNJ.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 mt-2">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
-            <div className="col-span-1 md:col-span-2">
-              <Label>Título / Identificação do Caso *</Label>
-              <Input
-                {...register('title')}
-                placeholder="Ex: Ação Indenizatória - Cliente X"
-                className="font-medium text-lg"
-              />
-              {errors.title && <p className="text-xs text-red-500 mt-1">{errors.title.message}</p>}
-            </div>
-
-            <div className="col-span-1 md:col-span-2">
-              <Label>Tipo</Label>
-              <Controller
-                name="type"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Processo">Processo</SelectItem>
-                      <SelectItem value="Serviço Jurídico">Serviço Jurídico</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
-
-            <div className="col-span-1 md:col-span-2 flex flex-col sm:flex-row items-end gap-3">
-              <div className="flex-1 w-full relative">
-                <Label>Número do Processo {selectedType === 'Processo' && '*'}</Label>
-                <div className="relative">
-                  <Input
-                    {...register('case_number')}
-                    placeholder="0000000-00.0000.0.00.0000"
-                    disabled={selectedType === 'Serviço Jurídico'}
-                    className={selectedType === 'Serviço Jurídico' ? 'bg-slate-100' : ''}
-                  />
-                  {isSearching && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    </div>
-                  )}
-                </div>
-                {errors.case_number && selectedType === 'Processo' && (
-                  <p className="text-xs text-red-500 mt-1">{errors.case_number.message}</p>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingCase ? 'Editar Registro' : 'Novo Registro de Caso'}</DialogTitle>
+            <DialogDescription>
+              Preencha os dados manualmente ou busque no PJe pelo CNJ.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 mt-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
+              <div className="col-span-1 md:col-span-2">
+                <Label>Título / Identificação do Caso *</Label>
+                <Input
+                  {...register('title')}
+                  placeholder="Ex: Ação Indenizatória - Cliente X"
+                  className="font-medium text-lg bg-white"
+                />
+                {errors.title && (
+                  <p className="text-xs text-red-500 mt-1">{errors.title.message}</p>
                 )}
               </div>
-              {selectedType === 'Processo' && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handlePjeSearch}
-                  disabled={isSearching}
-                  className="w-full sm:w-auto"
-                >
-                  {isSearching ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Search className="w-4 h-4 mr-2" />
+
+              <div className="col-span-1 md:col-span-2">
+                <Label>Tipo</Label>
+                <Controller
+                  name="type"
+                  control={control}
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger className="bg-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Processo">Processo</SelectItem>
+                        <SelectItem value="Serviço Jurídico">Serviço Jurídico</SelectItem>
+                      </SelectContent>
+                    </Select>
                   )}
-                  Autopreencher PJe
-                </Button>
-              )}
-            </div>
+                />
+              </div>
 
-            <div className="col-span-1 md:col-span-2">
-              <Label>Partes / Título do Serviço *</Label>
-              <Input {...register('parties')} placeholder="Ex: João da Silva x INSS" />
-              {errors.parties && (
-                <p className="text-xs text-red-500 mt-1">{errors.parties.message}</p>
-              )}
-            </div>
+              <div className="col-span-1 md:col-span-2 flex flex-col sm:flex-row items-end gap-3">
+                <div className="flex-1 w-full relative">
+                  <Label>Número do Processo {selectedType === 'Processo' && '*'}</Label>
+                  <div className="relative">
+                    <Input
+                      {...register('case_number')}
+                      placeholder="0000000-00.0000.0.00.0000"
+                      disabled={selectedType === 'Serviço Jurídico'}
+                      className={cn(
+                        'bg-white',
+                        selectedType === 'Serviço Jurídico' && 'bg-slate-100',
+                      )}
+                    />
+                    {isSearching && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  {errors.case_number && selectedType === 'Processo' && (
+                    <p className="text-xs text-red-500 mt-1">{errors.case_number.message}</p>
+                  )}
+                </div>
+                {selectedType === 'Processo' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handlePjeSearch}
+                    disabled={isSearching}
+                    className="w-full sm:w-auto bg-white"
+                  >
+                    {isSearching ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Search className="w-4 h-4 mr-2" />
+                    )}
+                    Autopreencher PJe
+                  </Button>
+                )}
+              </div>
 
-            <div className="col-span-1">
-              <Label>Tribunal</Label>
-              <Controller
-                name="court"
-                control={control}
-                render={({ field }) => {
-                  const currentCourt = field.value || ''
-                  const courtOptions = [...tribunals]
-                  if (
-                    currentCourt &&
-                    !courtOptions.find((t) => t.alias?.toLowerCase() === currentCourt.toLowerCase())
-                  ) {
-                    courtOptions.push({
-                      id: 'custom',
-                      name: currentCourt.toUpperCase(),
-                      alias: currentCourt.toLowerCase(),
-                    })
-                  }
+              <div className="col-span-1 md:col-span-2">
+                <Label>Partes / Título do Serviço *</Label>
+                <Input
+                  {...register('parties')}
+                  placeholder="Ex: João da Silva x INSS"
+                  className="bg-white"
+                />
+                {errors.parties && (
+                  <p className="text-xs text-red-500 mt-1">{errors.parties.message}</p>
+                )}
+              </div>
 
-                  return (
-                    <Popover open={openCourtCombo} onOpenChange={setOpenCourtCombo}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={openCourtCombo}
-                          className={cn(
-                            'w-full justify-between font-normal px-3 uppercase',
-                            selectedType === 'Serviço Jurídico' && 'opacity-50 pointer-events-none',
-                          )}
-                          disabled={selectedType === 'Serviço Jurídico'}
+              <div className="col-span-1">
+                <Label>Tribunal</Label>
+                <Controller
+                  name="court"
+                  control={control}
+                  render={({ field }) => {
+                    const currentCourt = field.value || ''
+                    const courtOptions = [...tribunals]
+                    if (
+                      currentCourt &&
+                      !courtOptions.find(
+                        (t) => t.alias?.toLowerCase() === currentCourt.toLowerCase(),
+                      )
+                    ) {
+                      courtOptions.push({
+                        id: 'custom',
+                        name: currentCourt.toUpperCase(),
+                        alias: currentCourt.toLowerCase(),
+                      })
+                    }
+
+                    return (
+                      <Popover open={openCourtCombo} onOpenChange={setOpenCourtCombo}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={openCourtCombo}
+                            className={cn(
+                              'w-full justify-between font-normal px-3 uppercase bg-white',
+                              selectedType === 'Serviço Jurídico' &&
+                                'opacity-50 pointer-events-none bg-slate-100',
+                            )}
+                            disabled={selectedType === 'Serviço Jurídico'}
+                          >
+                            <span className="truncate pr-4">
+                              {currentCourt ? currentCourt : 'Selecione o tribunal...'}
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-[var(--radix-popover-trigger-width)] p-0"
+                          align="start"
                         >
-                          <span className="truncate pr-4">
-                            {currentCourt ? currentCourt : 'Selecione o tribunal...'}
-                          </span>
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        className="w-[var(--radix-popover-trigger-width)] p-0"
-                        align="start"
-                      >
-                        <Command>
-                          <CommandInput placeholder="Buscar tribunal..." />
-                          <CommandList>
-                            <CommandEmpty>Nenhum tribunal encontrado.</CommandEmpty>
-                            <CommandGroup>
-                              <CommandItem
-                                value="none"
-                                onSelect={() => {
-                                  field.onChange('')
-                                  setValue('court_alias', '')
-                                  setOpenCourtCombo(false)
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    'mr-2 h-4 w-4',
-                                    !currentCourt ? 'opacity-100' : 'opacity-0',
-                                  )}
-                                />
-                                Nenhum tribunal
-                              </CommandItem>
-                              {courtOptions.map((t) => (
+                          <Command>
+                            <CommandInput placeholder="Buscar tribunal..." />
+                            <CommandList>
+                              <CommandEmpty>Nenhum tribunal encontrado.</CommandEmpty>
+                              <CommandGroup>
                                 <CommandItem
-                                  key={t.id || t.alias}
-                                  value={`${t.alias} ${t.name}`}
+                                  value="none"
                                   onSelect={() => {
-                                    field.onChange(t.alias?.toLowerCase())
-                                    setValue('court_alias', t.alias?.toLowerCase())
+                                    field.onChange('')
+                                    setValue('court_alias', '')
                                     setOpenCourtCombo(false)
                                   }}
-                                  className="uppercase"
                                 >
                                   <Check
                                     className={cn(
                                       'mr-2 h-4 w-4',
-                                      currentCourt === t.alias?.toLowerCase()
-                                        ? 'opacity-100'
-                                        : 'opacity-0',
+                                      !currentCourt ? 'opacity-100' : 'opacity-0',
                                     )}
                                   />
-                                  {t.alias?.toLowerCase()}{' '}
-                                  {t.name && t.name.toLowerCase() !== t.alias?.toLowerCase()
-                                    ? `- ${t.name}`
-                                    : ''}
+                                  Nenhum tribunal
                                 </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  )
-                }}
-              />
-            </div>
+                                {courtOptions.map((t) => (
+                                  <CommandItem
+                                    key={t.id || t.alias}
+                                    value={`${t.alias} ${t.name}`}
+                                    onSelect={() => {
+                                      field.onChange(t.alias?.toLowerCase())
+                                      setValue('court_alias', t.alias?.toLowerCase())
+                                      setOpenCourtCombo(false)
+                                    }}
+                                    className="uppercase"
+                                  >
+                                    <Check
+                                      className={cn(
+                                        'mr-2 h-4 w-4',
+                                        currentCourt === t.alias?.toLowerCase()
+                                          ? 'opacity-100'
+                                          : 'opacity-0',
+                                      )}
+                                    />
+                                    {t.alias?.toLowerCase()}{' '}
+                                    {t.name && t.name.toLowerCase() !== t.alias?.toLowerCase()
+                                      ? `- ${t.name}`
+                                      : ''}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    )
+                  }}
+                />
+              </div>
 
-            <div className="col-span-1">
-              <Label>Órgão Julgador</Label>
-              <Input
-                {...register('court_organ')}
-                placeholder="Ex: 1ª Vara Cível"
-                disabled={selectedType === 'Serviço Jurídico'}
-                className={selectedType === 'Serviço Jurídico' ? 'opacity-50' : ''}
-              />
-            </div>
+              <div className="col-span-1">
+                <Label>Órgão Julgador</Label>
+                <Input
+                  {...register('court_organ')}
+                  placeholder="Ex: 1ª Vara Cível"
+                  disabled={selectedType === 'Serviço Jurídico'}
+                  className={cn(
+                    'bg-white',
+                    selectedType === 'Serviço Jurídico' && 'opacity-50 bg-slate-100',
+                  )}
+                />
+              </div>
 
-            <div className="col-span-1">
-              <Label>Classe / Espécie da Ação</Label>
-              <Input
-                {...register('action_class')}
-                placeholder="Ex: Procedimento Comum Cível"
-                disabled={selectedType === 'Serviço Jurídico'}
-                className={selectedType === 'Serviço Jurídico' ? 'opacity-50' : ''}
-              />
-            </div>
+              <div className="col-span-1">
+                <Label>Classe / Espécie da Ação</Label>
+                <Input
+                  {...register('action_class')}
+                  placeholder="Ex: Procedimento Comum Cível"
+                  disabled={selectedType === 'Serviço Jurídico'}
+                  className={cn(
+                    'bg-white',
+                    selectedType === 'Serviço Jurídico' && 'opacity-50 bg-slate-100',
+                  )}
+                />
+              </div>
 
-            <div className="col-span-1">
-              <Label>Assunto</Label>
-              <Input
-                {...register('subject')}
-                placeholder="Ex: Benefício Assistencial"
-                disabled={selectedType === 'Serviço Jurídico'}
-                className={selectedType === 'Serviço Jurídico' ? 'opacity-50' : ''}
-              />
-            </div>
+              <div className="col-span-1">
+                <Label>Assunto</Label>
+                <Input
+                  {...register('subject')}
+                  placeholder="Ex: Benefício Assistencial"
+                  disabled={selectedType === 'Serviço Jurídico'}
+                  className={cn(
+                    'bg-white',
+                    selectedType === 'Serviço Jurídico' && 'opacity-50 bg-slate-100',
+                  )}
+                />
+              </div>
 
-            <div className="col-span-1">
-              <Label>Data de Distribuição</Label>
-              <Input
-                type="date"
-                {...register('distribution_date')}
-                disabled={selectedType === 'Serviço Jurídico'}
-                className={selectedType === 'Serviço Jurídico' ? 'opacity-50' : ''}
-              />
-            </div>
-            <div className="col-span-1 md:col-span-2">
-              <Label>Etiquetas</Label>
-              <div className="flex flex-col gap-2 mt-1">
-                <Popover open={showTagSuggestions} onOpenChange={setShowTagSuggestions}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={showTagSuggestions}
-                      className="w-full justify-between font-normal bg-white"
+              <div className="col-span-1">
+                <Label>Data de Distribuição</Label>
+                <Input
+                  type="date"
+                  {...register('distribution_date')}
+                  disabled={selectedType === 'Serviço Jurídico'}
+                  className={cn(
+                    'bg-white',
+                    selectedType === 'Serviço Jurídico' && 'opacity-50 bg-slate-100',
+                  )}
+                />
+              </div>
+              <div className="col-span-1 md:col-span-2">
+                <Label>Etiquetas</Label>
+                <div className="flex flex-col gap-2 mt-1">
+                  <Popover open={showTagSuggestions} onOpenChange={setShowTagSuggestions}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={showTagSuggestions}
+                        className="w-full justify-between font-normal bg-white"
+                      >
+                        {watch('tags')?.length
+                          ? `${watch('tags')?.length} etiqueta(s) selecionada(s)`
+                          : 'Selecione ou crie etiquetas...'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-[var(--radix-popover-trigger-width)] p-0"
+                      align="start"
                     >
-                      {watch('tags')?.length
-                        ? `${watch('tags')?.length} etiqueta(s) selecionada(s)`
-                        : 'Selecione ou crie etiquetas...'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="w-[var(--radix-popover-trigger-width)] p-0"
-                    align="start"
-                  >
-                    <Command>
-                      <CommandInput
-                        placeholder="Buscar ou criar etiqueta..."
-                        value={tagInput}
-                        onValueChange={setTagInput}
-                      />
-                      <CommandList>
-                        <CommandEmpty>
-                          {tagInput.trim() ? (
-                            <Button
-                              variant="ghost"
-                              className="w-full justify-start px-2 py-1.5 text-sm font-medium text-primary"
-                              onClick={() => {
-                                const current = watch('tags') || []
-                                if (!current.includes(tagInput.trim())) {
-                                  setValue('tags', [...current, tagInput.trim()])
-                                  setAllTags((prev) =>
-                                    Array.from(new Set([...prev, tagInput.trim()])).sort(),
-                                  )
-                                }
-                                setTagInput('')
-                                setShowTagSuggestions(false)
-                              }}
-                            >
-                              Criar nova etiqueta: "{tagInput.trim()}"
-                            </Button>
-                          ) : (
-                            'Nenhuma etiqueta encontrada.'
-                          )}
-                        </CommandEmpty>
-                        <CommandGroup>
-                          {allTags
-                            .filter((t) => !(watch('tags') || []).includes(t))
-                            .map((t) => (
-                              <CommandItem
-                                key={t}
-                                value={t}
-                                onSelect={() => {
-                                  const current = watch('tags') || []
-                                  if (!current.includes(t)) {
-                                    setValue('tags', [...current, t])
-                                  }
-                                  setTagInput('')
-                                }}
-                              >
-                                {t}
-                              </CommandItem>
-                            ))}
-                          {tagInput.trim() &&
-                            !allTags.find(
-                              (t) => t.toLowerCase() === tagInput.trim().toLowerCase(),
-                            ) && (
-                              <CommandItem
-                                value={tagInput.trim()}
-                                onSelect={() => {
+                      <Command>
+                        <CommandInput
+                          placeholder="Buscar ou criar etiqueta..."
+                          value={tagInput}
+                          onValueChange={setTagInput}
+                        />
+                        <CommandList>
+                          <CommandEmpty>
+                            {tagInput.trim() ? (
+                              <Button
+                                variant="ghost"
+                                className="w-full justify-start px-2 py-1.5 text-sm font-medium text-primary"
+                                onClick={() => {
                                   const current = watch('tags') || []
                                   if (!current.includes(tagInput.trim())) {
                                     setValue('tags', [...current, tagInput.trim()])
@@ -716,309 +740,422 @@ export function CaseFormModal({
                                     )
                                   }
                                   setTagInput('')
+                                  setShowTagSuggestions(false)
                                 }}
-                                className="text-primary font-medium"
                               >
                                 Criar nova etiqueta: "{tagInput.trim()}"
-                              </CommandItem>
+                              </Button>
+                            ) : (
+                              'Nenhuma etiqueta encontrada.'
                             )}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-
-                {(watch('tags')?.length ?? 0) > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {watch('tags')?.map((tag, index) => (
-                      <Badge
-                        key={index}
-                        variant="secondary"
-                        className="flex items-center gap-1 px-2 py-1"
-                      >
-                        {tag}
-                        <button
-                          type="button"
-                          className="hover:bg-slate-200 rounded-full p-0.5 transition-colors"
-                          onClick={() => {
-                            const current = watch('tags') || []
-                            setValue(
-                              'tags',
-                              current.filter((_, i) => i !== index),
-                            )
-                          }}
-                        >
-                          <X className="w-3 h-3 text-slate-500 hover:text-slate-800" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="col-span-1">
-              <Label>Status do Ciclo</Label>
-              <Controller
-                name="lifecycle_status"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Ativo">Ativo</SelectItem>
-                      <SelectItem value="Inativo">Inativo</SelectItem>
-                      <SelectItem value="Arquivado">Arquivado</SelectItem>
-                      <SelectItem value="Suspenso">Suspenso</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
-
-            <div className="col-span-1">
-              <Label>Fase / Status Atual</Label>
-              <Input {...register('status')} placeholder="Ex: Conhecimento, Recursal..." />
-            </div>
-
-            <div className="col-span-1">
-              <Label>Cliente Vinculado</Label>
-              <Controller
-                name="client"
-                control={control}
-                render={({ field }) => (
-                  <Popover open={openClientCombo} onOpenChange={setOpenClientCombo}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={openClientCombo}
-                        className="w-full justify-between font-normal px-3"
-                      >
-                        <span className="truncate pr-4">
-                          {field.value && field.value !== 'none'
-                            ? clients.find((c) => c.id === field.value)?.name ||
-                              'Cliente selecionado'
-                            : 'Selecionar cliente...'}
-                        </span>
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="w-[var(--radix-popover-trigger-width)] p-0"
-                      align="start"
-                    >
-                      <Command>
-                        <CommandInput placeholder="Buscar cliente..." />
-                        <CommandList>
-                          <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                          </CommandEmpty>
                           <CommandGroup>
-                            <CommandItem
-                              value="none"
-                              onSelect={() => {
-                                field.onChange('none')
-                                setOpenClientCombo(false)
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  'mr-2 h-4 w-4',
-                                  !field.value || field.value === 'none'
-                                    ? 'opacity-100'
-                                    : 'opacity-0',
-                                )}
-                              />
-                              Nenhum cliente
-                            </CommandItem>
-                            {clients.map((c) => (
-                              <CommandItem
-                                key={c.id}
-                                value={c.name}
-                                onSelect={() => {
-                                  field.onChange(c.id)
-                                  setOpenClientCombo(false)
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    'mr-2 h-4 w-4',
-                                    field.value === c.id ? 'opacity-100' : 'opacity-0',
-                                  )}
-                                />
-                                {c.name}
-                              </CommandItem>
-                            ))}
+                            {allTags
+                              .filter((t) => !(watch('tags') || []).includes(t))
+                              .map((t) => (
+                                <CommandItem
+                                  key={t}
+                                  value={t}
+                                  onSelect={() => {
+                                    const current = watch('tags') || []
+                                    if (!current.includes(t)) {
+                                      setValue('tags', [...current, t])
+                                    }
+                                    setTagInput('')
+                                  }}
+                                >
+                                  {t}
+                                </CommandItem>
+                              ))}
+                            {tagInput.trim() &&
+                              !allTags.find(
+                                (t) => t.toLowerCase() === tagInput.trim().toLowerCase(),
+                              ) && (
+                                <CommandItem
+                                  value={tagInput.trim()}
+                                  onSelect={() => {
+                                    const current = watch('tags') || []
+                                    if (!current.includes(tagInput.trim())) {
+                                      setValue('tags', [...current, tagInput.trim()])
+                                      setAllTags((prev) =>
+                                        Array.from(new Set([...prev, tagInput.trim()])).sort(),
+                                      )
+                                    }
+                                    setTagInput('')
+                                  }}
+                                  className="text-primary font-medium"
+                                >
+                                  Criar nova etiqueta: "{tagInput.trim()}"
+                                </CommandItem>
+                              )}
                           </CommandGroup>
                         </CommandList>
                       </Command>
                     </PopoverContent>
                   </Popover>
-                )}
-              />
-            </div>
 
-            <div className="col-span-1">
-              <Label>Responsáveis</Label>
-              <Controller
-                name="responsible_collaborator"
-                control={control}
-                render={({ field }) => {
-                  const selectedIds = Array.isArray(field.value)
-                    ? field.value
-                    : field.value && field.value !== 'none'
-                      ? [field.value]
-                      : []
-                  return (
-                    <Popover open={openCollabCombo} onOpenChange={setOpenCollabCombo}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={openCollabCombo}
-                          className="w-full justify-between font-normal h-auto min-h-10 py-2 px-3"
+                  {(watch('tags')?.length ?? 0) > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {watch('tags')?.map((tag, index) => (
+                        <Badge
+                          key={index}
+                          variant="secondary"
+                          className="flex items-center gap-1 px-2 py-1 bg-white border border-slate-200"
                         >
-                          <div className="flex flex-wrap gap-1 items-center">
-                            {selectedIds.length > 0 ? (
-                              selectedIds.map((id) => {
-                                const c = collaborators.find((x) => x.id === id)
-                                return c ? (
-                                  <Badge variant="secondary" key={id} className="text-xs">
-                                    {c.name}
-                                  </Badge>
-                                ) : null
-                              })
-                            ) : (
-                              <span className="text-slate-500">Selecionar equipe...</span>
-                            )}
-                          </div>
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent
-                        className="w-[var(--radix-popover-trigger-width)] p-0"
-                        align="start"
-                      >
-                        <Command>
-                          <CommandInput placeholder="Buscar colaborador..." />
-                          <CommandList>
-                            <CommandEmpty>Nenhum colaborador encontrado.</CommandEmpty>
-                            <CommandGroup>
-                              {collaborators.map((c) => {
-                                const isSelected = selectedIds.includes(c.id)
-                                return (
-                                  <CommandItem
-                                    key={c.id}
-                                    value={c.name}
-                                    onSelect={() => {
-                                      if (isSelected) {
-                                        field.onChange(selectedIds.filter((id) => id !== c.id))
-                                      } else {
-                                        field.onChange([...selectedIds, c.id])
-                                      }
-                                    }}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        'mr-2 h-4 w-4',
-                                        isSelected ? 'opacity-100' : 'opacity-0',
-                                      )}
-                                    />
-                                    {c.name}
-                                  </CommandItem>
-                                )
-                              })}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  )
-                }}
-              />
+                          {tag}
+                          <button
+                            type="button"
+                            className="hover:bg-slate-200 rounded-full p-0.5 transition-colors"
+                            onClick={() => {
+                              const current = watch('tags') || []
+                              setValue(
+                                'tags',
+                                current.filter((_, i) => i !== index),
+                              )
+                            }}
+                          >
+                            <X className="w-3 h-3 text-slate-500 hover:text-slate-800" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
-            <div className="col-span-1 md:col-span-2">
-              <Label>Prazo / Alerta Principal</Label>
-              <Input type="date" {...register('deadline')} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="col-span-1">
+                <Label>Status do Ciclo</Label>
+                <Controller
+                  name="lifecycle_status"
+                  control={control}
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Ativo">Ativo</SelectItem>
+                        <SelectItem value="Inativo">Inativo</SelectItem>
+                        <SelectItem value="Arquivado">Arquivado</SelectItem>
+                        <SelectItem value="Suspenso">Suspenso</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+
+              <div className="col-span-1">
+                <Label>Fase / Status Atual</Label>
+                <Input {...register('status')} placeholder="Ex: Conhecimento, Recursal..." />
+              </div>
+
+              <div className="col-span-1 flex gap-2 items-end">
+                <div className="flex-1">
+                  <Label>Clientes Vinculados</Label>
+                  <Controller
+                    name="client"
+                    control={control}
+                    render={({ field }) => {
+                      const selectedIds = Array.isArray(field.value)
+                        ? field.value
+                        : field.value && field.value !== 'none'
+                          ? [field.value]
+                          : []
+                      return (
+                        <Popover open={openClientCombo} onOpenChange={setOpenClientCombo}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={openClientCombo}
+                              className="w-full justify-between font-normal h-auto min-h-10 py-2 px-3"
+                            >
+                              <div className="flex flex-wrap gap-1 items-center">
+                                {selectedIds.length > 0 ? (
+                                  selectedIds.map((id) => {
+                                    const c = localClients.find((x) => x.id === id)
+                                    return c ? (
+                                      <Badge
+                                        variant="secondary"
+                                        key={id}
+                                        className="text-xs font-medium"
+                                      >
+                                        {c.name}
+                                      </Badge>
+                                    ) : null
+                                  })
+                                ) : (
+                                  <span className="text-slate-500">Selecionar clientes...</span>
+                                )}
+                              </div>
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-[var(--radix-popover-trigger-width)] p-0"
+                            align="start"
+                          >
+                            <Command>
+                              <CommandInput placeholder="Buscar cliente..." />
+                              <CommandList>
+                                <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                                <CommandGroup>
+                                  {localClients.map((c) => {
+                                    const isSelected = selectedIds.includes(c.id)
+                                    return (
+                                      <CommandItem
+                                        key={c.id}
+                                        value={c.name}
+                                        onSelect={() => {
+                                          if (isSelected) {
+                                            field.onChange(selectedIds.filter((id) => id !== c.id))
+                                          } else {
+                                            field.onChange([...selectedIds, c.id])
+                                          }
+                                        }}
+                                      >
+                                        <Check
+                                          className={cn(
+                                            'mr-2 h-4 w-4',
+                                            isSelected ? 'opacity-100' : 'opacity-0',
+                                          )}
+                                        />
+                                        {c.name}
+                                      </CommandItem>
+                                    )
+                                  })}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      )
+                    }}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="px-3"
+                  onClick={() => setIsNewClientOpen(true)}
+                  title="Novo Cliente Rápido"
+                >
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+
+              <div className="col-span-1">
+                <Label>Equipe Responsável</Label>
+                <Controller
+                  name="responsible_collaborator"
+                  control={control}
+                  render={({ field }) => {
+                    const selectedIds = Array.isArray(field.value)
+                      ? field.value
+                      : field.value && field.value !== 'none'
+                        ? [field.value]
+                        : []
+                    return (
+                      <Popover open={openCollabCombo} onOpenChange={setOpenCollabCombo}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={openCollabCombo}
+                            className="w-full justify-between font-normal h-auto min-h-10 py-2 px-3"
+                          >
+                            <div className="flex flex-wrap gap-1 items-center">
+                              {selectedIds.length > 0 ? (
+                                selectedIds.map((id) => {
+                                  const c = collaborators.find((x) => x.id === id)
+                                  return c ? (
+                                    <Badge
+                                      variant="secondary"
+                                      key={id}
+                                      className="text-xs font-medium"
+                                    >
+                                      {c.name}
+                                    </Badge>
+                                  ) : null
+                                })
+                              ) : (
+                                <span className="text-slate-500">Selecionar equipe...</span>
+                              )}
+                            </div>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-[var(--radix-popover-trigger-width)] p-0"
+                          align="start"
+                        >
+                          <Command>
+                            <CommandInput placeholder="Buscar colaborador..." />
+                            <CommandList>
+                              <CommandEmpty>Nenhum colaborador encontrado.</CommandEmpty>
+                              <CommandGroup>
+                                {collaborators.map((c) => {
+                                  const isSelected = selectedIds.includes(c.id)
+                                  return (
+                                    <CommandItem
+                                      key={c.id}
+                                      value={c.name}
+                                      onSelect={() => {
+                                        if (isSelected) {
+                                          field.onChange(selectedIds.filter((id) => id !== c.id))
+                                        } else {
+                                          field.onChange([...selectedIds, c.id])
+                                        }
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          'mr-2 h-4 w-4',
+                                          isSelected ? 'opacity-100' : 'opacity-0',
+                                        )}
+                                      />
+                                      {c.name}
+                                    </CommandItem>
+                                  )
+                                })}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    )
+                  }}
+                />
+              </div>
+
+              <div className="col-span-1 md:col-span-2">
+                <Label>Prazo / Alerta Principal</Label>
+                <Input type="date" {...register('deadline')} />
+              </div>
+
+              <div className="col-span-1 md:col-span-2">
+                <Label>Descrição</Label>
+                <Textarea
+                  {...register('description')}
+                  placeholder="Descrição do caso/serviço..."
+                  className="min-h-[80px]"
+                />
+              </div>
+
+              <div className="col-span-1 md:col-span-2">
+                <Label>Observações</Label>
+                <Textarea
+                  {...register('observations')}
+                  placeholder="Observações adicionais..."
+                  className="min-h-[80px]"
+                />
+              </div>
             </div>
 
-            <div className="col-span-1 md:col-span-2">
-              <Label>Descrição</Label>
-              <Textarea
-                {...register('description')}
-                placeholder="Descrição do caso/serviço..."
-                className="min-h-[80px]"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
+              <div className="col-span-1 md:col-span-3">
+                <h4 className="font-semibold text-sm text-slate-800">Estimativa de Prazo</h4>
+              </div>
+              <div className="col-span-1">
+                <Label>Duração do Trabalho</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  {...register('estimated_duration')}
+                  placeholder="Ex: 6"
+                  className="bg-white"
+                />
+              </div>
+              <div className="col-span-1">
+                <Label>Unidade</Label>
+                <Controller
+                  name="duration_unit"
+                  control={control}
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value || 'meses'}>
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="semanas">Semanas</SelectItem>
+                        <SelectItem value="meses">Meses</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+              <div className="col-span-1">
+                <Label>Custo Fixo Alocado (Mensal)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  {...register('allocated_fixed_cost')}
+                  placeholder="R$ 0,00"
+                  className="bg-white"
+                />
+              </div>
             </div>
 
-            <div className="col-span-1 md:col-span-2">
-              <Label>Observações</Label>
-              <Textarea
-                {...register('observations')}
-                placeholder="Observações adicionais..."
-                className="min-h-[80px]"
-              />
-            </div>
-          </div>
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                'Salvar Registro'
+              )}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
-            <div className="col-span-1 md:col-span-3">
-              <h4 className="font-semibold text-sm text-slate-800">Estimativa de Prazo</h4>
-            </div>
-            <div className="col-span-1">
-              <Label>Duração do Trabalho</Label>
+      <Dialog open={isNewClientOpen} onOpenChange={setIsNewClientOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Novo Cliente Rápido</DialogTitle>
+            <DialogDescription>
+              Cadastre um novo cliente para vinculá-lo imediatamente a este processo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div>
+              <Label>Nome Completo / Razão Social *</Label>
               <Input
-                type="number"
-                step="0.1"
-                {...register('estimated_duration')}
-                placeholder="Ex: 6"
+                value={newClientData.name}
+                onChange={(e) => setNewClientData({ ...newClientData, name: e.target.value })}
+                placeholder="Ex: Maria Souza"
               />
             </div>
-            <div className="col-span-1">
-              <Label>Unidade</Label>
-              <Controller
-                name="duration_unit"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value || 'meses'}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="semanas">Semanas</SelectItem>
-                      <SelectItem value="meses">Meses</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
-            <div className="col-span-1">
-              <Label>Custo Fixo Alocado (Mensal)</Label>
+            <div>
+              <Label>Email</Label>
               <Input
-                type="number"
-                step="0.01"
-                {...register('allocated_fixed_cost')}
-                placeholder="R$ 0,00"
+                value={newClientData.email}
+                onChange={(e) => setNewClientData({ ...newClientData, email: e.target.value })}
+                placeholder="Ex: maria@email.com"
+                type="email"
               />
             </div>
+            <div>
+              <Label>Telefone / WhatsApp</Label>
+              <Input
+                value={newClientData.phone}
+                onChange={(e) => setNewClientData({ ...newClientData, phone: e.target.value })}
+                placeholder="(00) 00000-0000"
+              />
+            </div>
+            <Button
+              onClick={handleCreateClient}
+              className="w-full"
+              disabled={!newClientData.name.trim()}
+            >
+              Cadastrar e Vincular
+            </Button>
           </div>
-
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Salvando...
-              </>
-            ) : (
-              'Salvar Registro'
-            )}
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

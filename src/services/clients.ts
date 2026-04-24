@@ -32,6 +32,7 @@ export const createClient = (data: any) => {
   if (!orgId) throw new Error('Organização ativa não encontrada. Atualize seu perfil.')
   data = syncCrmStatus(data)
   const sanitized = sanitizePayload('clients', data, orgId)
+  if (data.phone_numbers) sanitized.phone_numbers = data.phone_numbers
   return pb.collection('clients').create(sanitized)
 }
 
@@ -39,6 +40,7 @@ export const updateClient = (id: string, data: any) => {
   const orgId = pb.authStore.record?.active_organization
   data = syncCrmStatus(data)
   const sanitized = sanitizePayload('clients', data, orgId)
+  if (data.phone_numbers) sanitized.phone_numbers = data.phone_numbers
   return pb.collection('clients').update(id, sanitized)
 }
 

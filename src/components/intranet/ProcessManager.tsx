@@ -34,6 +34,9 @@ import {
   Clock,
   Copy,
   ChevronsUpDown,
+  Circle,
+  Star,
+  Tags,
 } from 'lucide-react'
 import { useSync } from '@/stores/sync-context'
 import pb from '@/lib/pocketbase/client'
@@ -58,12 +61,18 @@ export default function ProcessManager() {
   const [cases, setCases] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('Todos')
+
+  // Advanced filters
+  const [statusFilter, setStatusFilter] = useState<string[]>(['Ativo'])
+  const [tagFilter, setTagFilter] = useState<string[]>([])
+  const [syncFilter, setSyncFilter] = useState<string[]>([])
+  const [showFavorites, setShowFavorites] = useState(false)
+  const [allTags, setAllTags] = useState<string[]>([])
 
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(() => {
     const saved = sessionStorage.getItem('process_manager_per_page')
-    return saved ? Number(saved) : 10
+    return saved ? Number(saved) : 20
   })
   const [sortBy, setSortBy] = useState(() => {
     return localStorage.getItem('process_manager_sort') || '-created'
@@ -85,13 +94,20 @@ export default function ProcessManager() {
 
   const [editingMetadataCase, setEditingMetadataCase] = useState<any>(null)
   const [openClientCombo, setOpenClientCombo] = useState(false)
-  const [selectedClientId, setSelectedClientId] = useState<string>('none')
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
 
   useEffect(() => {
     if (editingMetadataCase) {
-      setSelectedClientId(
-        editingMetadataCase.expand?.client?.id || editingMetadataCase.client || 'none',
-      )
+      const existingClients = editingMetadataCase.expand?.client
+        ? Array.isArray(editingMetadataCase.expand.client)
+          ? editingMetadataCase.expand.client.map((c: any) => c.id)
+          : [editingMetadataCase.expand.client.id]
+        : editingMetadataCase.client
+          ? Array.isArray(editingMetadataCase.client)
+            ? editingMetadataCase.client
+            : [editingMetadataCase.client]
+          : []
+      setSelectedClientIds(existingClients)
     }
   }, [editingMetadataCase])
 
@@ -105,14 +121,25 @@ export default function ProcessManager() {
 
       const filterParts = [`deleted_at = ""`]
       if (orgId) filterParts.push(`organization = "${orgId}"`)
+
+      if (statusFilter.length > 0) {
+        filterParts.push(`(${statusFilter.map((s) => `lifecycle_status = "${s}"`).join(' || ')})`)
+      }
+      if (syncFilter.length > 0) {
+        filterParts.push(`(${syncFilter.map((s) => `sync_status = "${s}"`).join(' || ')})`)
+      }
+      if (showFavorites) {
+        filterParts.push(`is_favorite = true`)
+      }
+      if (tagFilter.length > 0) {
+        filterParts.push(`(${tagFilter.map((t) => `tags ?~ "${t}"`).join(' && ')})`)
+      }
+
       if (searchTerm) {
         const safeTerm = searchTerm.replace(/"/g, '\\"')
         filterParts.push(
-          `(case_number ~ "${safeTerm}" || parties ~ "${safeTerm}" || title ~ "${safeTerm}" || client.name ~ "${safeTerm}" || client.fullName ~ "${safeTerm}")`,
+          `(case_number ~ "${safeTerm}" || parties ~ "${safeTerm}" || title ~ "${safeTerm}" || client.name ?~ "${safeTerm}" || client.fullName ?~ "${safeTerm}")`,
         )
-      }
-      if (statusFilter !== 'Todos') {
-        filterParts.push(`lifecycle_status = "${statusFilter}"`)
       }
 
       const filterStr = filterParts.join(' && ')
@@ -134,13 +161,36 @@ export default function ProcessManager() {
         setClients(clientsData)
         setCollaborators(collabsData)
       }
+
+      if (allTags.length === 0) {
+        const casesForTags = await pb
+          .collection('legal_cases')
+          .getFullList({ fields: 'tags', filter: `deleted_at = ""` })
+        const tagSet = new Set<string>()
+        casesForTags.forEach((c) => {
+          if (Array.isArray(c.tags)) c.tags.forEach((t: string) => tagSet.add(t))
+        })
+        setAllTags(Array.from(tagSet).sort())
+      }
     } catch (err) {
       console.error(err)
       toast({ title: 'Erro ao carregar processos', variant: 'destructive' })
     } finally {
       setLoading(false)
     }
-  }, [page, perPage, sortBy, searchTerm, statusFilter, toast, clients.length])
+  }, [
+    page,
+    perPage,
+    sortBy,
+    searchTerm,
+    statusFilter,
+    syncFilter,
+    tagFilter,
+    showFavorites,
+    toast,
+    clients.length,
+    allTags.length,
+  ])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -151,7 +201,7 @@ export default function ProcessManager() {
 
   useEffect(() => {
     setPage(1)
-  }, [searchTerm, statusFilter, sortBy, perPage])
+  }, [searchTerm, statusFilter, syncFilter, tagFilter, showFavorites, sortBy, perPage])
 
   useRealtime('legal_cases', loadData)
 
@@ -240,7 +290,6 @@ export default function ProcessManager() {
     e.preventDefault()
     if (!editingMetadataCase) return
     const fd = new FormData(e.currentTarget)
-    const clientId = selectedClientId
     const lifecycleStatus = fd.get('lifecycle_status') as string
     const tagsStr = fd.get('tags') as string
     const tags = tagsStr
@@ -262,16 +311,11 @@ export default function ProcessManager() {
       observations: fd.get('observations'),
       tags,
       distribution_date,
+      client: selectedClientIds.length > 0 ? selectedClientIds : null,
       metadata: {
         ...editingMetadataCase.metadata,
         distribution_date,
       },
-    }
-
-    if (clientId && clientId !== 'none') {
-      ;(payload as any).client = clientId
-    } else if (clientId === 'none') {
-      ;(payload as any).client = null
     }
 
     if (lifecycleStatus) {
@@ -332,244 +376,363 @@ export default function ProcessManager() {
         </div>
       )}
 
-      <Card>
-        <CardHeader className="bg-slate-50/50 border-b pb-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
-              <div className="relative flex-1 sm:w-64 min-w-[200px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input
-                  placeholder="Buscar por número ou parte..."
-                  className="pl-9 bg-white"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-32 bg-white">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Todos">Todos</SelectItem>
-                  <SelectItem value="Ativo">Ativos</SelectItem>
-                  <SelectItem value="Inativo">Inativos</SelectItem>
-                  <SelectItem value="Suspenso">Suspensos</SelectItem>
-                  <SelectItem value="Arquivado">Arquivados</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-40 bg-white">
-                  <SelectValue placeholder="Ordenar por" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="-created">Mais Recentes</SelectItem>
-                  <SelectItem value="case_number">Número</SelectItem>
-                  <SelectItem value="parties">Nome</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
-              {selectedIds.length > 0 && (
-                <span className="text-sm font-medium text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-md shadow-sm whitespace-nowrap">
-                  {selectedIds.length} selecionado(s)
-                </span>
-              )}
-              <Button
-                onClick={handleBatchSync}
-                disabled={isBatchSyncing}
-                variant="outline"
-                className="border-primary text-primary hover:bg-primary/5 whitespace-nowrap"
-              >
-                {isBatchSyncing ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                )}
-                <span className="hidden sm:inline">Sincronizar PJe</span>
-                <span className="sm:hidden">Sinc.</span>
-              </Button>
+      <div className="flex flex-col md:flex-row gap-6 items-start">
+        {/* Sidebar Filters */}
+        <Card className="w-full md:w-64 shrink-0 shadow-sm border-none bg-white p-5 space-y-7 rounded-xl">
+          <div>
+            <h3 className="font-semibold text-sm text-slate-800 mb-3 flex items-center gap-2">
+              <Circle className="w-4 h-4 text-slate-400" /> Status
+            </h3>
+            <div className="space-y-2.5">
+              {['Ativo', 'Inativo', 'Suspenso', 'Arquivado'].map((st) => (
+                <label
+                  key={st}
+                  className="flex items-center gap-2.5 text-sm text-slate-600 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={statusFilter.includes(st)}
+                    onCheckedChange={(c) => {
+                      if (c) setStatusFilter([...statusFilter, st])
+                      else setStatusFilter(statusFilter.filter((x) => x !== st))
+                    }}
+                    className="border-slate-300"
+                  />
+                  {st}
+                </label>
+              ))}
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 text-slate-500 font-semibold border-b">
-                <tr>
-                  <th className="px-4 py-3 w-12 text-center">
+
+          <div>
+            <h3 className="font-semibold text-sm text-slate-800 mb-3 flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 text-slate-400" /> Sincronização
+            </h3>
+            <div className="space-y-2.5">
+              {['pending', 'in_queue', 'syncing', 'updated', 'error'].map((st) => (
+                <label
+                  key={st}
+                  className="flex items-center gap-2.5 text-sm text-slate-600 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={syncFilter.includes(st)}
+                    onCheckedChange={(c) => {
+                      if (c) setSyncFilter([...syncFilter, st])
+                      else setSyncFilter(syncFilter.filter((x) => x !== st))
+                    }}
+                    className="border-slate-300"
+                  />
+                  {st === 'updated'
+                    ? 'Sincronizado'
+                    : st === 'pending'
+                      ? 'Pendente'
+                      : st === 'in_queue'
+                        ? 'Na fila'
+                        : st === 'syncing'
+                          ? 'Sincronizando'
+                          : 'Erro'}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-sm text-slate-800 mb-3 flex items-center gap-2">
+              <Star className="w-4 h-4 text-amber-400" /> Destaques
+            </h3>
+            <label className="flex items-center gap-2.5 text-sm text-slate-600 cursor-pointer">
+              <Checkbox
+                checked={showFavorites}
+                onCheckedChange={(c) => setShowFavorites(!!c)}
+                className="border-slate-300"
+              />
+              Apenas Favoritos
+            </label>
+          </div>
+
+          {allTags.length > 0 && (
+            <div>
+              <h3 className="font-semibold text-sm text-slate-800 mb-3 flex items-center gap-2">
+                <Tags className="w-4 h-4 text-slate-400" /> Etiquetas
+              </h3>
+              <div className="space-y-2.5 max-h-40 overflow-y-auto custom-scrollbar pr-2">
+                {allTags.map((tag) => (
+                  <label
+                    key={tag}
+                    className="flex items-center gap-2.5 text-sm text-slate-600 cursor-pointer"
+                  >
                     <Checkbox
-                      checked={cases.length > 0 && selectedIds.length === cases.length}
-                      onCheckedChange={handleSelectAll}
+                      checked={tagFilter.includes(tag)}
+                      onCheckedChange={(c) => {
+                        if (c) setTagFilter([...tagFilter, tag])
+                        else setTagFilter(tagFilter.filter((x) => x !== tag))
+                      }}
+                      className="border-slate-300"
                     />
-                  </th>
-                  <th className="px-4 py-3">Título / Número</th>
-                  <th className="px-4 py-3">Cliente</th>
-                  <th className="px-4 py-3 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {loading ? (
-                  <tr>
-                    <td colSpan={4} className="py-12 text-center text-slate-400">
-                      <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 opacity-50" />
-                      Carregando processos...
-                    </td>
-                  </tr>
-                ) : cases.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="py-12 text-center text-slate-400">
-                      Nenhum processo encontrado.
-                    </td>
-                  </tr>
-                ) : (
-                  cases.map((c) => (
-                    <tr
-                      key={c.id}
-                      className={cn(
-                        'hover:bg-slate-50/50 transition-colors',
-                        selectedIds.includes(c.id) && 'bg-primary/5',
-                      )}
-                    >
-                      <td className="px-4 py-3 text-center">
-                        <Checkbox
-                          checked={selectedIds.includes(c.id)}
-                          onCheckedChange={(checked) => handleSelect(c.id, !!checked)}
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col">
-                          <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <Link
-                              to={`/intranet/processos/${c.id}`}
-                              className="font-bold text-base text-primary hover:underline"
-                            >
-                              {c.title || c.parties || 'Sem título'}
-                            </Link>
-                            {c.lifecycle_status === 'Arquivado' && (
-                              <Badge
-                                variant="secondary"
-                                className="text-[10px] h-5 bg-slate-200 text-slate-600"
-                              >
-                                ARQUIVADO
-                              </Badge>
-                            )}
-                            {getStatusBadge(c)}
-                          </div>
-                          <div className="flex items-center gap-2 group/copy">
-                            {c.case_number ? (
-                              <button
-                                onClick={() => copyToClipboard(c.case_number)}
-                                className="flex items-center gap-1.5 text-slate-600 text-sm font-medium hover:text-primary hover:bg-slate-50 px-1.5 py-0.5 -ml-1.5 rounded transition-colors"
-                                title="Copiar número"
-                              >
-                                {c.case_number}
-                                <Copy className="w-3.5 h-3.5 opacity-0 group-hover/copy:opacity-100 transition-opacity" />
-                              </button>
-                            ) : (
-                              <span className="text-slate-600 text-sm font-medium">
-                                Sem número / Serviço
-                              </span>
-                            )}
-                          </div>
-                          <span
-                            className="text-slate-400 text-xs mt-0.5 truncate max-w-[300px]"
-                            title={c.parties}
-                          >
-                            {c.parties}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          {c.expand?.client ? (
-                            <Link
-                              to={`/intranet/clientes/${c.expand.client.id}`}
-                              className="text-slate-700 hover:text-primary transition-colors font-medium"
-                            >
-                              {c.expand.client.name}
-                            </Link>
-                          ) : (
-                            <span className="text-slate-400 italic">Não vinculado</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setEditingMetadataCase(c)}
-                            title="Editar Metadados"
-                          >
-                            <Edit className="w-4 h-4 text-slate-500" />
-                          </Button>
-                          {c.lifecycle_status === 'Arquivado' && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDelete(c.id)}
-                              title="Excluir Processo"
-                            >
-                              <Trash2 className="w-4 h-4 text-red-500" />
-                            </Button>
-                          )}
-                          <Button variant="ghost" size="sm" asChild>
-                            <Link to={`/intranet/processos/${c.id}`}>
-                              Detalhes <ChevronRight className="w-4 h-4 ml-1" />
-                            </Link>
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {cases.length > 0 && (
-            <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t gap-4">
-              <div className="flex items-center gap-2 text-sm text-slate-500">
-                <span>Mostrar</span>
-                <Select value={perPage.toString()} onValueChange={(v) => setPerPage(Number(v))}>
-                  <SelectTrigger className="w-20 h-8 text-xs bg-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="20">20</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
-                <span>por página</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  Anterior
-                </Button>
-                <span className="text-sm text-slate-600 font-medium px-2">
-                  Página {page} de {totalPages || 1}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages || totalPages === 0}
-                >
-                  Próxima
-                </Button>
+                    <span className="truncate" title={tag}>
+                      {tag}
+                    </span>
+                  </label>
+                ))}
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </Card>
+
+        {/* Main Content */}
+        <div className="flex-1 min-w-0 w-full space-y-4">
+          <Card className="shadow-sm border-none bg-white rounded-xl overflow-hidden">
+            <CardHeader className="bg-slate-50/50 border-b pb-4 p-5">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+                  <div className="relative flex-1 sm:w-80 min-w-[200px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                      placeholder="Buscar por número, parte, cliente ou título..."
+                      className="pl-9 bg-white"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-40 bg-white">
+                      <SelectValue placeholder="Ordenar por" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="-created">Mais Recentes</SelectItem>
+                      <SelectItem value="case_number">Número</SelectItem>
+                      <SelectItem value="parties">Nome</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
+                  {selectedIds.length > 0 && (
+                    <span className="text-sm font-medium text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-md shadow-sm whitespace-nowrap">
+                      {selectedIds.length} selecionado(s)
+                    </span>
+                  )}
+                  <Button
+                    onClick={handleBatchSync}
+                    disabled={isBatchSyncing}
+                    variant="outline"
+                    className="border-primary text-primary hover:bg-primary/5 whitespace-nowrap bg-white"
+                  >
+                    {isBatchSyncing ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                    )}
+                    <span className="hidden sm:inline">Sincronizar PJe</span>
+                    <span className="sm:hidden">Sinc.</span>
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-slate-50 text-slate-500 font-semibold border-b">
+                    <tr>
+                      <th className="px-4 py-3 w-12 text-center">
+                        <Checkbox
+                          checked={cases.length > 0 && selectedIds.length === cases.length}
+                          onCheckedChange={handleSelectAll}
+                        />
+                      </th>
+                      <th className="px-4 py-3">Título / Número</th>
+                      <th className="px-4 py-3">Cliente(s)</th>
+                      <th className="px-4 py-3 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {loading ? (
+                      <tr>
+                        <td colSpan={4} className="py-12 text-center text-slate-400">
+                          <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 opacity-50" />
+                          Carregando processos...
+                        </td>
+                      </tr>
+                    ) : cases.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-12 text-center text-slate-400">
+                          Nenhum processo encontrado.
+                        </td>
+                      </tr>
+                    ) : (
+                      cases.map((c) => (
+                        <tr
+                          key={c.id}
+                          className={cn(
+                            'hover:bg-slate-50/50 transition-colors',
+                            selectedIds.includes(c.id) && 'bg-primary/5',
+                          )}
+                        >
+                          <td className="px-4 py-3 text-center">
+                            <Checkbox
+                              checked={selectedIds.includes(c.id)}
+                              onCheckedChange={(checked) => handleSelect(c.id, !!checked)}
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-col">
+                              <div className="flex flex-wrap items-center gap-2 mb-1">
+                                <Link
+                                  to={`/intranet/processos/${c.id}`}
+                                  className="font-bold text-base text-primary hover:underline"
+                                >
+                                  {c.title || c.parties || 'Sem título'}
+                                </Link>
+                                {c.is_favorite && (
+                                  <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                                )}
+                                {c.lifecycle_status === 'Arquivado' && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-[10px] h-5 bg-slate-200 text-slate-600 uppercase"
+                                  >
+                                    Arquivado
+                                  </Badge>
+                                )}
+                                {c.lifecycle_status === 'Inativo' && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-[10px] h-5 bg-slate-100 text-slate-500 uppercase"
+                                  >
+                                    Inativo
+                                  </Badge>
+                                )}
+                                {getStatusBadge(c)}
+                              </div>
+                              <div className="flex items-center gap-2 group/copy">
+                                {c.case_number ? (
+                                  <button
+                                    onClick={() => copyToClipboard(c.case_number)}
+                                    className="flex items-center gap-1.5 text-slate-600 text-sm font-medium hover:text-primary hover:bg-slate-50 px-1.5 py-0.5 -ml-1.5 rounded transition-colors"
+                                    title="Copiar número"
+                                  >
+                                    {c.case_number}
+                                    <Copy className="w-3.5 h-3.5 opacity-0 group-hover/copy:opacity-100 transition-opacity" />
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-600 text-sm font-medium">
+                                    Sem número / Serviço
+                                  </span>
+                                )}
+                              </div>
+                              <span
+                                className="text-slate-400 text-xs mt-0.5 truncate max-w-[300px]"
+                                title={c.parties}
+                              >
+                                {c.parties}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {c.expand?.client ? (
+                                Array.isArray(c.expand.client) ? (
+                                  c.expand.client.map((cl: any) => (
+                                    <Link
+                                      key={cl.id}
+                                      to={`/intranet/clientes/${cl.id}`}
+                                      className="text-slate-700 hover:text-primary transition-colors font-medium bg-slate-100 px-2 py-0.5 rounded text-xs"
+                                    >
+                                      {cl.name}
+                                    </Link>
+                                  ))
+                                ) : (
+                                  <Link
+                                    to={`/intranet/clientes/${c.expand.client.id}`}
+                                    className="text-slate-700 hover:text-primary transition-colors font-medium bg-slate-100 px-2 py-0.5 rounded text-xs"
+                                  >
+                                    {c.expand.client.name}
+                                  </Link>
+                                )
+                              ) : (
+                                <span className="text-slate-400 italic">Não vinculado</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setEditingMetadataCase(c)}
+                                title="Editar Metadados"
+                              >
+                                <Edit className="w-4 h-4 text-slate-500" />
+                              </Button>
+                              {c.lifecycle_status === 'Arquivado' && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleDelete(c.id)}
+                                  title="Excluir Processo"
+                                >
+                                  <Trash2 className="w-4 h-4 text-red-500" />
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="sm" asChild>
+                                <Link to={`/intranet/processos/${c.id}`}>
+                                  Detalhes <ChevronRight className="w-4 h-4 ml-1" />
+                                </Link>
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {cases.length > 0 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t gap-4">
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <span>Mostrar</span>
+                    <Select value={perPage.toString()} onValueChange={(v) => setPerPage(Number(v))}>
+                      <SelectTrigger className="w-20 h-8 text-xs bg-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span>por página</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="bg-white"
+                    >
+                      Anterior
+                    </Button>
+                    <span className="text-sm text-slate-600 font-medium px-2">
+                      Página {page} de {totalPages || 1}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages || totalPages === 0}
+                      className="bg-white"
+                    >
+                      Próxima
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       <Sheet
         open={!!editingMetadataCase}
@@ -591,21 +754,29 @@ export default function ProcessManager() {
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label>Cliente Vinculado</Label>
+                <Label>Clientes Vinculados</Label>
                 <Popover open={openClientCombo} onOpenChange={setOpenClientCombo}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       role="combobox"
                       aria-expanded={openClientCombo}
-                      className="w-full justify-between font-normal px-3"
+                      className="w-full justify-between font-normal h-auto min-h-10 py-2 px-3"
                     >
-                      <span className="truncate pr-4">
-                        {selectedClientId && selectedClientId !== 'none'
-                          ? clients.find((c) => c.id === selectedClientId)?.name ||
-                            'Cliente selecionado'
-                          : 'Selecionar cliente...'}
-                      </span>
+                      <div className="flex flex-wrap gap-1 items-center">
+                        {selectedClientIds.length > 0 ? (
+                          selectedClientIds.map((id) => {
+                            const c = clients.find((x) => x.id === id)
+                            return c ? (
+                              <Badge variant="secondary" key={id} className="text-xs font-medium">
+                                {c.name}
+                              </Badge>
+                            ) : null
+                          })
+                        ) : (
+                          <span className="text-slate-500">Selecionar clientes...</span>
+                        )}
+                      </div>
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
@@ -618,41 +789,32 @@ export default function ProcessManager() {
                       <CommandList>
                         <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
                         <CommandGroup>
-                          <CommandItem
-                            value="none"
-                            onSelect={() => {
-                              setSelectedClientId('none')
-                              setOpenClientCombo(false)
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                'mr-2 h-4 w-4',
-                                !selectedClientId || selectedClientId === 'none'
-                                  ? 'opacity-100'
-                                  : 'opacity-0',
-                              )}
-                            />
-                            Nenhum cliente
-                          </CommandItem>
-                          {clients.map((c) => (
-                            <CommandItem
-                              key={c.id}
-                              value={c.name}
-                              onSelect={() => {
-                                setSelectedClientId(c.id)
-                                setOpenClientCombo(false)
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  'mr-2 h-4 w-4',
-                                  selectedClientId === c.id ? 'opacity-100' : 'opacity-0',
-                                )}
-                              />
-                              {c.name}
-                            </CommandItem>
-                          ))}
+                          {clients.map((c) => {
+                            const isSelected = selectedClientIds.includes(c.id)
+                            return (
+                              <CommandItem
+                                key={c.id}
+                                value={c.name}
+                                onSelect={() => {
+                                  if (isSelected) {
+                                    setSelectedClientIds(
+                                      selectedClientIds.filter((id) => id !== c.id),
+                                    )
+                                  } else {
+                                    setSelectedClientIds([...selectedClientIds, c.id])
+                                  }
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    'mr-2 h-4 w-4',
+                                    isSelected ? 'opacity-100' : 'opacity-0',
+                                  )}
+                                />
+                                {c.name}
+                              </CommandItem>
+                            )
+                          })}
                         </CommandGroup>
                       </CommandList>
                     </Command>

@@ -28,6 +28,9 @@ const sanitizeCase = (data: any) => {
     }
   }
   if (data.client === 'none') data.client = null
+  if (data.client && !Array.isArray(data.client)) {
+    data.client = [data.client]
+  }
   if (data.responsible_collaborator === 'none') data.responsible_collaborator = null
   return data
 }
