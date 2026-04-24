@@ -215,6 +215,8 @@ export default function CentralAtualizacoes() {
       const orgId = pb.authStore.record?.active_organization
       const orgFilter = orgId ? ` && organization = "${orgId}"` : ''
 
+      const [pjeRes, douPub, douOcc, moveRes, tasksRes, agendaRes, finRes, notifRes, casesRes] =
+        await Promise.all([
           pb
             .collection('pje_communications')
             .getList(1, 300, { sort: '-dataDisponibilizacao', expand: 'linked_case' }),
