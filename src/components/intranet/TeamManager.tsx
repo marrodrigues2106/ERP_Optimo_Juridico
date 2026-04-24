@@ -1,16 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState, useEffect } from 'react'
+import pb from '@/lib/pocketbase/client'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
 import {
   Select,
   SelectContent,
@@ -18,405 +11,288 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { UserPlus, Mail, Phone, Trash2, Edit2, FileBadge, Loader2, Camera } from 'lucide-react'
 import {
-  getCollaborators,
-  createCollaborator,
-  updateCollaborator,
-  deleteCollaborator,
-} from '@/services/collaborators'
-import { getLegalCases } from '@/services/legal_cases'
-import { useRealtime } from '@/hooks/use-realtime'
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
-import { getErrorMessage } from '@/lib/pocketbase/errors'
-import { useAuth } from '@/hooks/use-auth'
-import pb from '@/lib/pocketbase/client'
+import { Loader2, Plus, Users, Shield, Briefcase, Trash2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 export default function TeamManager() {
-  const [team, setTeam] = useState<any[]>([])
-  const [cases, setCases] = useState<any[]>([])
-  const [open, setOpen] = useState(false)
-  const [editingItem, setEditingItem] = useState<any>(null)
-
-  // Filters
-  const [roleFilter, setRoleFilter] = useState<string[]>([])
-  const [caseFilter, setCaseFilter] = useState<string>('all')
-
-  const { toast } = useToast()
-  const { user: currentUser } = useAuth()
+  const [collaborators, setCollaborators] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const { toast } = useToast()
 
-  const [avatarFile, setAvatarFile] = useState<File | null>(null)
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [selectedUser, setSelectedUser] = useState('')
+  const [role, setRole] = useState('Advogado')
+  const [oabNumber, setOabNumber] = useState('')
+  const [doTerms, setDoTerms] = useState('')
 
   const loadData = async () => {
+    setLoading(true)
     try {
-      setTeam(await getCollaborators())
-      const allCases = await getLegalCases()
-      setCases(
-        allCases.filter((c) => c.responsible_collaborator && c.lifecycle_status !== 'Excluído'),
-      )
-      if (
-        currentUser?.isAdmin ||
-        currentUser?.role === 'admin' ||
-        currentUser?.role === 'manager'
-      ) {
-        const uList = await pb.collection('users').getFullList()
-        setUsers(uList)
-      }
-    } catch (e) {
-      console.error(e)
+      const orgFilter = pb.authStore.record?.active_organization
+        ? `organization = "${pb.authStore.record.active_organization}"`
+        : ''
+
+      const collabsRes = await pb.collection('collaborators').getFullList({
+        filter: orgFilter,
+        expand: 'user',
+        sort: 'name',
+      })
+      setCollaborators(collabsRes)
+
+      const usersRes = await pb.collection('users').getFullList({
+        sort: 'name',
+      })
+
+      const collabUserIds = new Set(collabsRes.map((c) => c.user).filter(Boolean))
+      const availableUsers = usersRes.filter((u) => !collabUserIds.has(u.id))
+      setUsers(availableUsers)
+    } catch (err: any) {
+      toast({ title: 'Erro ao carregar equipe', variant: 'destructive' })
+    } finally {
+      setLoading(false)
     }
   }
+
   useEffect(() => {
     loadData()
   }, [])
-  useRealtime('collaborators', loadData)
 
-  const handleOpenNew = () => {
-    setEditingItem(null)
-    setAvatarFile(null)
-    setAvatarPreview(null)
-    setOpen(true)
-  }
-
-  const handleEdit = (item: any) => {
-    setEditingItem(item)
-    setAvatarFile(null)
-    if (item.avatar) {
-      setAvatarPreview(pb.files.getURL(item, item.avatar))
-    } else {
-      setAvatarPreview(null)
-    }
-    setOpen(true)
-  }
-
-  const [submitting, setSubmitting] = useState(false)
-
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
-      setAvatarFile(file)
-      setAvatarPreview(URL.createObjectURL(file))
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSubmitting(true)
-    const fd = new FormData(e.currentTarget)
-
-    const fullName = fd.get('fullName') as string
-    if (fullName) fd.set('name', fullName)
-
-    if (fd.get('user') === 'none') fd.delete('user')
-
-    const birthDate = fd.get('birthDate') as string
-    if (birthDate) {
-      const d = new Date(birthDate)
-      if (!isNaN(d.getTime())) fd.set('birthDate', d.toISOString())
-    } else {
-      fd.delete('birthDate')
+    if (!selectedUser) {
+      return toast({ title: 'Selecione um usuário', variant: 'destructive' })
     }
-
-    if (avatarFile) {
-      fd.set('avatar', avatarFile)
-    } else {
-      fd.delete('avatar')
-    }
-
+    setSaving(true)
     try {
-      if (editingItem) {
-        await updateCollaborator(editingItem.id, fd)
-        toast({ title: 'Membro da equipe atualizado' })
-      } else {
-        await createCollaborator(fd)
-        toast({ title: 'Membro da equipe adicionado' })
-      }
-      setOpen(false)
-      loadData()
-    } catch (error: any) {
-      toast({
-        title: 'Erro ao salvar',
-        description: getErrorMessage(error),
-        variant: 'destructive',
+      const user = users.find((u) => u.id === selectedUser)
+      const name = user?.fullName || user?.name || user?.email
+      const org = pb.authStore.record?.active_organization
+
+      await pb.collection('collaborators').create({
+        name,
+        role,
+        email: user?.email,
+        user: selectedUser,
+        oabNumber,
+        organization: org,
       })
+
+      if (doTerms.trim()) {
+        const terms = doTerms
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean)
+        for (const t of terms) {
+          await pb.collection('termos_monitorados').create({
+            termo: t,
+            tipo_termo: role === 'Advogado' ? 'Nome Advogado' : 'Livre',
+            usuario_id: selectedUser,
+            ativo: true,
+            search_method: 'palavra-chave',
+          })
+        }
+      }
+
+      toast({ title: 'Membro adicionado com sucesso!' })
+      setIsAddModalOpen(false)
+      setSelectedUser('')
+      setRole('Advogado')
+      setOabNumber('')
+      setDoTerms('')
+      loadData()
+    } catch (err: any) {
+      toast({ title: 'Erro ao adicionar membro', description: err.message, variant: 'destructive' })
     } finally {
-      setSubmitting(false)
+      setSaving(false)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este membro?')) {
-      await deleteCollaborator(id)
+    if (!confirm('Deseja remover este membro da equipe?')) return
+    try {
+      await pb.collection('collaborators').delete(id)
+      toast({ title: 'Membro removido' })
+      loadData()
+    } catch (err: any) {
+      toast({ title: 'Erro ao remover', variant: 'destructive' })
     }
   }
 
-  const roles = ['Advogado', 'Associado', 'Administrativo']
-
-  const filteredTeam = team.filter((member) => {
-    const matchRole = roleFilter.length === 0 || roleFilter.includes(member.role)
-    const matchCase =
-      caseFilter === 'all' ||
-      cases.some((c) => {
-        if (Array.isArray(c.responsible_collaborator)) {
-          return c.id === caseFilter && c.responsible_collaborator.includes(member.id)
-        }
-        return c.id === caseFilter && c.responsible_collaborator === member.id
-      })
-    return matchRole && matchCase
-  })
-
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-        <h2 className="text-2xl font-serif font-bold text-primary">Gestão de Equipe</h2>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleOpenNew}>
-              <UserPlus className="w-4 h-4 mr-2" /> Adicionar Membro
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingItem ? 'Editar Membro' : 'Novo Membro da Equipe'}</DialogTitle>
-            </DialogHeader>
-            <form key={editingItem?.id || 'new'} onSubmit={handleSubmit} className="space-y-6 pt-2">
-              <div className="flex justify-center mb-6">
-                <div
-                  className="relative group cursor-pointer"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Avatar className="w-24 h-24 border-2 border-slate-100 shadow-sm">
-                    <AvatarImage
-                      src={
-                        avatarPreview ||
-                        (editingItem
-                          ? `https://img.usecurling.com/ppl/thumbnail?seed=${editingItem.id}`
-                          : '')
-                      }
-                    />
-                    <AvatarFallback className="bg-slate-50 text-slate-400">
-                      <Camera className="w-8 h-8" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="absolute inset-0 bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                    <Camera className="w-6 h-6" />
-                  </div>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    className="hidden"
-                    accept="image/*"
-                    onChange={handleAvatarChange}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <Label>Nome Completo</Label>
-                  <Input
-                    name="fullName"
-                    required
-                    defaultValue={editingItem?.fullName || editingItem?.name}
-                  />
-                </div>
-                <div>
-                  <Label>E-mail</Label>
-                  <Input name="email" type="email" defaultValue={editingItem?.email} />
-                </div>
-                <div>
-                  <Label>Telefone</Label>
-                  <Input name="phone" defaultValue={editingItem?.phone} />
-                </div>
-                <div>
-                  <Label>Função</Label>
-                  <Select name="role" defaultValue={editingItem?.role || 'Advogado'}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Advogado">Advogado</SelectItem>
-                      <SelectItem value="Associado">Associado</SelectItem>
-                      <SelectItem value="Administrativo">Administrativo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Data Nascimento</Label>
-                  <Input
-                    name="birthDate"
-                    type="date"
-                    defaultValue={editingItem?.birthDate?.split('T')[0]}
-                  />
-                </div>
-                <div>
-                  <Label>n.º OAB</Label>
-                  <Input name="oabNumber" defaultValue={editingItem?.oabNumber} />
-                </div>
-                <div>
-                  <Label>Termos D.O. (Monitoramento)</Label>
-                  <Input
-                    name="personalSearchTerms"
-                    placeholder="Ex: Nome Completo"
-                    defaultValue={editingItem?.personalSearchTerms}
-                  />
-                </div>
-                {(currentUser?.isAdmin ||
-                  currentUser?.role === 'admin' ||
-                  currentUser?.role === 'manager') && (
-                  <div className="md:col-span-2">
-                    <Label>Vincular a Usuário do Sistema</Label>
-                    <Select name="user" defaultValue={editingItem?.user || 'none'}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um usuário" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Nenhum</SelectItem>
-                        {users.map((u) => (
-                          <SelectItem key={u.id} value={u.id}>
-                            {u.name || u.email}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                <div className="md:col-span-2 mt-2">
-                  <Button type="submit" className="w-full" disabled={submitting}>
-                    {submitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Salvando...
-                      </>
-                    ) : (
-                      'Salvar Membro'
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+    <div className="max-w-6xl mx-auto space-y-6 pb-12 animate-fade-in-up">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
+            <Users className="w-8 h-8" /> Equipe
+          </h1>
+          <p className="text-slate-500 mt-1">
+            Gerencie os colaboradores do escritório e suas permissões.
+          </p>
+        </div>
+        <Button onClick={() => setIsAddModalOpen(true)}>
+          <Plus className="w-4 h-4 mr-2" /> Adicionar Membro
+        </Button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-6 items-start">
-        {/* Sidebar Filter */}
-        <Card className="w-full md:w-64 shrink-0 md:sticky md:top-6">
-          <CardHeader className="pb-3 border-b">
-            <CardTitle className="text-sm">Filtros de Equipe</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6 pt-4">
-            <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-slate-800">Cargo</h4>
-              {roles.map((r) => (
-                <label key={r} className="flex items-center space-x-2 cursor-pointer">
-                  <Checkbox
-                    checked={roleFilter.includes(r)}
-                    onCheckedChange={(c) =>
-                      setRoleFilter((prev) => (c ? [...prev, r] : prev.filter((x) => x !== r)))
-                    }
-                  />
-                  <span className="text-sm text-slate-600">{r}</span>
-                </label>
-              ))}
-            </div>
-
-            <div className="space-y-3">
-              <h4 className="text-sm font-semibold text-slate-800">Atribuído ao Processo</h4>
-              <Select value={caseFilter} onValueChange={setCaseFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um processo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os processos</SelectItem>
-                  {cases.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.case_number || c.parties}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Main Area */}
-        <div className="flex-1 w-full">
-          {filteredTeam.length === 0 ? (
-            <div className="text-center py-12 text-slate-500 border rounded-xl border-dashed">
-              Nenhum colaborador encontrado para os filtros selecionados.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredTeam.map((member) => (
-                <Card
-                  key={member.id}
-                  className="hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative group"
-                >
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10 flex">
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(member)}>
-                      <Edit2 className="w-4 h-4 text-slate-500" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(member.id)}>
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
-                  </div>
-                  <CardContent className="p-6 text-center">
-                    <Avatar className="h-24 w-24 mx-auto mb-4 border-4 border-slate-50">
-                      <AvatarImage
-                        src={
-                          member.avatar
-                            ? pb.files.getURL(member, member.avatar)
-                            : `https://img.usecurling.com/ppl/thumbnail?seed=${member.id}`
-                        }
-                      />
-                      <AvatarFallback className="text-xl bg-primary text-white">
-                        {(member.fullName || member.name || 'M').substring(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="space-y-2">
-                      <h3 className="font-semibold text-primary text-lg">
-                        {member.fullName || member.name}
-                      </h3>
-                      <span className="inline-block px-3 py-1 bg-secondary/10 text-secondary text-xs rounded-full font-medium mb-2">
-                        {member.role}
-                      </span>
-                      <div className="flex flex-col gap-1 pt-3 border-t">
-                        {member.email && (
-                          <a
-                            href={`mailto:${member.email}`}
-                            className="text-xs text-muted-foreground hover:text-primary flex items-center justify-center gap-2"
-                          >
-                            <Mail className="w-3 h-3" />{' '}
-                            <span className="truncate">{member.email}</span>
-                          </a>
-                        )}
-                        {member.phone && (
-                          <a
-                            href={`tel:${member.phone.replace(/\D/g, '')}`}
-                            className="text-xs text-muted-foreground hover:text-primary flex items-center justify-center gap-2"
-                          >
-                            <Phone className="w-3 h-3" /> {member.phone}
-                          </a>
-                        )}
-                        {member.oabNumber && (
-                          <span className="text-xs text-muted-foreground flex items-center justify-center gap-2">
-                            <FileBadge className="w-3 h-3" /> OAB: {member.oabNumber}{' '}
-                          </span>
-                        )}
-                      </div>
+      {loading ? (
+        <div className="flex justify-center p-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {collaborators.map((c) => (
+            <Card
+              key={c.id}
+              className="hover:shadow-md transition-shadow relative overflow-hidden group"
+            >
+              <CardHeader className="pb-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center border text-slate-400">
+                      {c.expand?.user?.avatar ? (
+                        <img
+                          src={pb.files.getUrl(c.expand.user, c.expand.user.avatar)}
+                          className="w-full h-full rounded-full object-cover"
+                          alt="Avatar"
+                        />
+                      ) : (
+                        <Users className="w-6 h-6" />
+                      )}
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    <div>
+                      <CardTitle className="text-lg">{c.name}</CardTitle>
+                      <CardDescription className="flex items-center gap-1 mt-1">
+                        <Shield className="w-3 h-3" /> {c.role || 'Colaborador'}
+                      </CardDescription>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm text-slate-600">
+                {c.email && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4" /> {c.email}
+                  </div>
+                )}
+                {c.oabNumber && (
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="w-4 h-4" /> OAB: {c.oabNumber}
+                  </div>
+                )}
+                <div className="pt-4 flex justify-between items-center border-t mt-4">
+                  <Link
+                    to={`/intranet/equipe/${c.id}`}
+                    className="text-primary hover:underline text-sm font-medium"
+                  >
+                    Ver Detalhes
+                  </Link>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDelete(c.id)}
+                    className="opacity-0 group-hover:opacity-100 text-red-500 hover:bg-red-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {collaborators.length === 0 && (
+            <div className="col-span-full p-12 text-center border-2 border-dashed rounded-xl text-slate-500">
+              Nenhum membro cadastrado na equipe.
             </div>
           )}
         </div>
-      </div>
+      )}
+
+      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adicionar Membro à Equipe</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleAddMember} className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>Selecionar Usuário (Sistema)</Label>
+              <Select value={selectedUser} onValueChange={setSelectedUser} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um usuário existente..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name || u.email}
+                    </SelectItem>
+                  ))}
+                  {users.length === 0 && (
+                    <SelectItem value="none" disabled>
+                      Nenhum usuário disponível
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-slate-500">
+                O usuário deve estar previamente cadastrado no sistema.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Cargo / Função</Label>
+              <Select value={role} onValueChange={setRole} required>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Advogado">Advogado</SelectItem>
+                  <SelectItem value="Associado">Associado</SelectItem>
+                  <SelectItem value="Administrativo">Administrativo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Número OAB (Opcional)</Label>
+              <Input
+                value={oabNumber}
+                onChange={(e) => setOabNumber(e.target.value)}
+                placeholder="Ex: 12345/SP"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Termos de Monitoramento (Diário Oficial)</Label>
+              <Input
+                value={doTerms}
+                onChange={(e) => setDoTerms(e.target.value)}
+                placeholder="Ex: Nome Completo, Razão Social (separados por vírgula)"
+              />
+              <p className="text-xs text-slate-500">
+                Termos inseridos aqui serão automaticamente cadastrados para monitoramento.
+              </p>
+            </div>
+
+            <DialogFooter className="pt-4">
+              <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Adicionar e Configurar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

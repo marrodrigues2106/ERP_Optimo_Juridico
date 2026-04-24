@@ -59,11 +59,20 @@ export function PjeSearchTab() {
       nomeAdvogado: '',
       numeroOab: '',
       ufOab: '',
+      dataInicial: '',
+      dataFinal: '',
     },
   })
 
   const onSubmit = async (data: any) => {
-    if (!data.numeroProcesso && !data.nomeParte && !data.nomeAdvogado && !data.numeroOab) {
+    if (
+      !data.numeroProcesso &&
+      !data.nomeParte &&
+      !data.nomeAdvogado &&
+      !data.numeroOab &&
+      !data.dataInicial &&
+      !data.dataFinal
+    ) {
       toast({
         title: 'Erro',
         description: 'Preencha pelo menos um campo de busca.',
@@ -97,6 +106,8 @@ export function PjeSearchTab() {
       if (data.nomeAdvogado) params.append('nomeAdvogado', data.nomeAdvogado)
       if (data.numeroOab) params.append('numeroOab', data.numeroOab)
       if (data.ufOab) params.append('ufOab', data.ufOab)
+      if (data.dataInicial) params.append('dataDisponibilizacaoInicio', data.dataInicial)
+      if (data.dataFinal) params.append('dataDisponibilizacaoFim', data.dataFinal)
 
       const res = await fetch(
         `https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params.toString()}`,
@@ -119,6 +130,24 @@ export function PjeSearchTab() {
 
   const handleSave = async (r: any) => {
     try {
+      const commId = r.id?.toString() || r.hash || ''
+      if (commId) {
+        const existing = await pb.collection('pje_communications').getList(1, 1, {
+          filter: `numeroComunicacao = "${commId}"`,
+        })
+        if (existing.items.length > 0) {
+          const item = existing.items[0]
+          if (!item.is_saved) {
+            await pb.collection('pje_communications').update(item.id, { is_saved: true })
+            toast({ title: 'Comunicação salva com sucesso!' })
+            return
+          } else {
+            toast({ title: 'Aviso', description: 'Esta comunicação já está salva.' })
+            return
+          }
+        }
+      }
+
       await pb.collection('pje_communications').create({
         numeroProcesso: r.numeroProcesso,
         dataDisponibilizacao: r.dataDisponibilizacao,
@@ -126,7 +155,7 @@ export function PjeSearchTab() {
         tipoComunicacao: r.tipoComunicacao,
         siglaTribunal: r.siglaTribunal,
         meio: r.meio,
-        numeroComunicacao: r.id?.toString() || r.hash || '',
+        numeroComunicacao: commId,
         destinatarios: r.destinatarios,
         advogados: r.advogados,
         is_saved: true,
@@ -182,6 +211,16 @@ export function PjeSearchTab() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 md:col-span-2">
+                <div className="flex flex-col gap-2">
+                  <Label>Data Inicial</Label>
+                  <Input type="date" {...register('dataInicial')} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>Data Final</Label>
+                  <Input type="date" {...register('dataFinal')} />
                 </div>
               </div>
             </div>

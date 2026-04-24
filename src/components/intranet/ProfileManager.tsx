@@ -14,7 +14,8 @@ import {
   CardFooter,
 } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
-import { Loader2, BellRing, User, ShieldCheck, Edit2, Trash2, Plus } from 'lucide-react'
+import { Loader2, BellRing, User, ShieldCheck, Edit2, Trash2, Plus, Zap } from 'lucide-react'
+import IntegrationsManager from '@/components/intranet/IntegrationsManager'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
   Select,
@@ -229,7 +230,7 @@ export default function ProfileManager() {
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full sm:w-auto grid-cols-3 max-w-[500px]">
+        <TabsList className="grid w-full sm:w-auto grid-cols-2 md:grid-cols-4 max-w-[700px]">
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <User className="w-4 h-4" /> Perfil
           </TabsTrigger>
@@ -239,6 +240,11 @@ export default function ProfileManager() {
           <TabsTrigger value="monitoring" className="flex items-center gap-2">
             <BellRing className="w-4 h-4" /> Monitoramentos
           </TabsTrigger>
+          {(user?.role === 'admin' || user?.role === 'manager' || user?.isAdmin) && (
+            <TabsTrigger value="integrations" className="flex items-center gap-2">
+              <Zap className="w-4 h-4" /> Integrações
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="profile" className="mt-6">
@@ -556,6 +562,9 @@ export default function ProfileManager() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+        <TabsContent value="integrations" className="mt-6">
+          <IntegrationsManager />
         </TabsContent>
       </Tabs>
 

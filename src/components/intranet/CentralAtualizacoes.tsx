@@ -437,6 +437,7 @@ export default function CentralAtualizacoes() {
         date: i.created,
         isRead: !!i.is_read,
         isArchived: !!i.is_archived,
+        isSaved: !!i.is_saved,
         clientId: i.client,
         clientName: i.expand?.client?.fullName || i.expand?.client?.name,
         clientPhone: i.expand?.client?.phone,
@@ -469,7 +470,7 @@ export default function CentralAtualizacoes() {
   }, [])
 
   const processBatch = async (
-    action: 'read' | 'unread' | 'archive' | 'save' | 'unsave' | 'delete',
+    action: 'read' | 'unread' | 'archive' | 'unarchive' | 'save' | 'unsave' | 'delete',
     idsToProcess?: Set<string>,
   ) => {
     const targetIds = idsToProcess || selectedIds
@@ -494,7 +495,8 @@ export default function CentralAtualizacoes() {
           return {
             ...item,
             isRead: action === 'read' ? true : action === 'unread' ? false : item.isRead,
-            isArchived: action === 'archive' ? true : item.isArchived,
+            isArchived:
+              action === 'archive' ? true : action === 'unarchive' ? false : item.isArchived,
             isSaved: action === 'save' ? true : action === 'unsave' ? false : item.isSaved,
           }
         }
@@ -550,12 +552,24 @@ export default function CentralAtualizacoes() {
               ) {
                 await pb.collection(item.collection).update(item.id, { is_archived: true })
               }
+            } else if (action === 'unarchive') {
+              if (
+                [
+                  'gazette_publications',
+                  'ocorrencias_dou',
+                  'pje_communications',
+                  'finances',
+                  'notifications',
+                ].includes(item.collection)
+              ) {
+                await pb.collection(item.collection).update(item.id, { is_archived: false })
+              }
             } else if (action === 'save') {
-              if (item.collection === 'pje_communications')
-                await pb.collection('pje_communications').update(item.id, { is_saved: true })
+              if (item.collection === 'pje_communications' || item.collection === 'notifications')
+                await pb.collection(item.collection).update(item.id, { is_saved: true })
             } else if (action === 'unsave') {
-              if (item.collection === 'pje_communications')
-                await pb.collection('pje_communications').update(item.id, { is_saved: false })
+              if (item.collection === 'pje_communications' || item.collection === 'notifications')
+                await pb.collection(item.collection).update(item.id, { is_saved: false })
             } else if (action === 'delete') {
               await pb.collection(item.collection).delete(item.id)
             }
@@ -582,7 +596,8 @@ export default function CentralAtualizacoes() {
         read: 'Marcado como lido',
         unread: 'Marcado como Não Lido',
         archive: 'Movido para Arquivados',
-        save: 'Comunicação salva',
+        unarchive: 'Item desarquivado',
+        save: 'Item salvo',
         unsave: 'Removido dos salvos',
         delete: 'Item excluído definitivamente',
       }
@@ -778,7 +793,11 @@ export default function CentralAtualizacoes() {
           !item.isArchived && (item.collection === 'tasks' || item.collection === 'agenda_events')
         )
       if (activeTab === 'financeiro') return !item.isArchived && item.collection === 'finances'
-      if (activeTab === 'salvos') return item.isSaved && item.collection === 'pje_communications'
+      if (activeTab === 'salvos')
+        return (
+          item.isSaved &&
+          (item.collection === 'pje_communications' || item.collection === 'notifications')
+        )
       if (activeTab === 'arquivados') return item.isArchived
       return true
     })
@@ -964,22 +983,45 @@ export default function CentralAtualizacoes() {
               </Button>
             )}
 
-            {item.collection === 'pje_communications' && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  processBatch(
-                    item.isSaved ? 'unsave' : 'save',
-                    new Set([`${item.collection}-${item.id}`]),
-                  )
-                }
-              >
-                <Bookmark
-                  className={cn('w-4 h-4 mr-2', item.isSaved && 'fill-current text-primary')}
-                />
-                {item.isSaved ? 'Salvo' : 'Salvar'}
-              </Button>
+            {(item.collection === 'pje_communications' || item.collection === 'notifications') &&
+              !item.isArchived && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    processBatch(
+                      item.isSaved ? 'unsave' : 'save',
+                      new Set([`${item.collection}-${item.id}`]),
+                    )
+                  }
+                >
+                  <Bookmark
+                    className={cn('w-4 h-4 mr-2', item.isSaved && 'fill-current text-primary')}
+                  />
+                  {item.isSaved ? 'Salvo' : 'Salvar'}
+                </Button>
+              )}
+
+            {item.isArchived && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    processBatch('unarchive', new Set([`${item.collection}-${item.id}`]))
+                  }
+                >
+                  <Archive className="w-4 h-4 mr-2" /> Desarquivar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                  onClick={() => processBatch('delete', new Set([`${item.collection}-${item.id}`]))}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" /> Excluir
+                </Button>
+              </>
             )}
 
             {(item.collection === 'pje_communications' ||
@@ -1142,14 +1184,36 @@ export default function CentralAtualizacoes() {
                   >
                     Não Lidos
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => processBatch('archive')}
-                    disabled={isProcessingBatch}
-                  >
-                    <Archive className="w-4 h-4 mr-2" /> Arquivar
-                  </Button>
+                  {activeTab === 'arquivados' ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => processBatch('unarchive')}
+                        disabled={isProcessingBatch}
+                      >
+                        <Archive className="w-4 h-4 mr-2" /> Desarquivar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 ml-auto"
+                        onClick={() => processBatch('delete')}
+                        disabled={isProcessingBatch}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" /> Excluir
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => processBatch('archive')}
+                      disabled={isProcessingBatch}
+                    >
+                      <Archive className="w-4 h-4 mr-2" /> Arquivar
+                    </Button>
+                  )}
                   {activeTab === 'salvos' && (
                     <Button
                       size="sm"
