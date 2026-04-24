@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useForm, Controller } from 'react-hook-form'
+import { useForm, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
@@ -69,11 +69,35 @@ export function EventFormModal({
     handleSubmit,
     reset,
     control,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<EventFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: { type: 'Task', sync_provider: 'Local' },
   })
+
+  const watchType = watch('type')
+  const watchClient = watch('client')
+  const watchLawsuit = watch('linked_lawsuit')
+
+  useEffect(() => {
+    if (watchType === 'Email' && !isEditing) {
+      const selectedCase = cases.find((c) => c.id === watchLawsuit)
+      const selectedClient =
+        clients.find((c) => c.id === watchClient) ||
+        clients.find((c) => c.id === selectedCase?.client)
+
+      if (selectedCase) {
+        const caseNumber = selectedCase.case_number || ''
+        const clientName = selectedClient?.name || selectedClient?.fullName || ''
+        const currentTitle = control._formValues.title || ''
+        if (!currentTitle || currentTitle.startsWith('Atualização: Processo')) {
+          setValue('title', `Atualização: Processo ${caseNumber} - ${clientName}`)
+        }
+      }
+    }
+  }, [watchType, watchLawsuit, watchClient, cases, clients, isEditing, setValue, control])
 
   useEffect(() => {
     if (open) {

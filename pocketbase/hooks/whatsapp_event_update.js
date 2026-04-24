@@ -50,8 +50,11 @@ onRecordAfterUpdateSuccess((e) => {
     const msg = templateMsg
       .replace(/\{\{name\}\}/gi, client.getString('name') || client.getString('fullName') || '')
       .replace(/\{\{date\}\}/gi, dateStr)
+      .replace(/\{\{alert_date\}\}/gi, dateStr)
       .replace(/\{\{title\}\}/gi, e.record.getString('title') || '')
       .replace(/\{\{nome_organizacao\}\}/gi, orgName)
+      .replace(/\{\{org_name\}\}/gi, orgName)
+      .replace(/\{\{movement_description\}\}/gi, e.record.getString('description') || '')
 
     $http.send({
       url: url,

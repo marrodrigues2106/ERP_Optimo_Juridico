@@ -68,13 +68,11 @@ export function DashboardCommunications() {
         : `notified_client=${isReadVal} && deleted_at=""`
 
       const [pjeRes, gazetteRes, douOccRes, movRes] = await Promise.all([
-        pb
-          .collection('pje_communications')
-          .getList(1, 100, {
-            filter: pjeFilter,
-            sort: '-dataDisponibilizacao',
-            expand: 'linked_case.client',
-          }),
+        pb.collection('pje_communications').getList(1, 100, {
+          filter: pjeFilter,
+          sort: '-dataDisponibilizacao',
+          expand: 'linked_case.client',
+        }),
         pb
           .collection('gazette_publications')
           .getList(1, 100, { filter: gazetteFilter, sort: '-data_publicacao' }),

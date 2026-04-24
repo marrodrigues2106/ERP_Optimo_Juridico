@@ -126,25 +126,27 @@ export default function CentralAtualizacoes() {
     const dataAlerta = item?.date
       ? format(new Date(item.date), 'dd/MM/yyyy')
       : format(new Date(), 'dd/MM/yyyy')
+    const movementDesc = item?.description?.replace(/<[^>]*>?/gm, '').trim() || ''
 
     let msg = `Olá, ${cName}.`
     if (tpl === 'aniversario') {
       msg = `Olá, ${cName}. O escritório ${orgName} gostaria de parabenizá-lo e lhe desejar muita saúde e anos de vida nesta data especial do seu aniversário. Att. Equipe ${orgName}`
     } else if (tpl === 'processual' && item) {
-      const desc = item.description?.replace(/<[^>]*>?/gm, '').trim() || ''
       const processInfo = item.caseNumber
         ? `${item.caseNumber} (${item.parties || item.caseTitle || ''})`
         : item.caseTitle || ''
-      msg = `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação no processo ${processInfo}:\n\nData do Alerta: ${dataAlerta}\nAndamento: ${desc}\n\nAtt. Equipe ${orgName}`
+      msg = `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação no processo ${processInfo}:\n\nData do Alerta: ${dataAlerta}\nAndamento: ${movementDesc}\n\nAtt. Equipe ${orgName}`
     } else if (tpl === 'financeiro' && item) {
-      const desc = item.description?.replace(/<[^>]*>?/gm, '').trim() || ''
-      msg = `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${item.title}\n${desc}\n\nAtt. Equipe ${orgName}`
+      msg = `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${item.title}\n${movementDesc}\n\nAtt. Equipe ${orgName}`
     }
 
     return msg
-      .replace(/{data_alerta}/gi, dataAlerta)
-      .replace(/{nome_organizacao}/gi, orgName)
-      .replace(/{nome organização}/gi, orgName)
+      .replace(/\{data_alerta\}/gi, dataAlerta)
+      .replace(/\{\{alert_date\}\}/gi, dataAlerta)
+      .replace(/\{nome_organizacao\}/gi, orgName)
+      .replace(/\{nome organização\}/gi, orgName)
+      .replace(/\{\{org_name\}\}/gi, orgName)
+      .replace(/\{\{movement_description\}\}/gi, movementDesc)
   }
 
   const handleClientSelect = (cId: string) => {
@@ -206,64 +208,48 @@ export default function CentralAtualizacoes() {
 
       const [pjeRes, douPub, douOcc, moveRes, tasksRes, agendaRes, finRes, notifRes, casesRes] =
         await Promise.all([
-          pb
-            .collection('pje_communications')
-            .getList(1, 300, {
-              filter: `${isArchivedFilter}${orgFilter}`,
-              sort: '-dataDisponibilizacao',
-              expand: 'linked_case',
-            }),
-          pb
-            .collection('gazette_publications')
-            .getList(1, 300, {
-              filter: `${isArchivedFilter}${orgFilter}`,
-              sort: '-data_publicacao',
-            }),
+          pb.collection('pje_communications').getList(1, 300, {
+            filter: `${isArchivedFilter}${orgFilter}`,
+            sort: '-dataDisponibilizacao',
+            expand: 'linked_case',
+          }),
+          pb.collection('gazette_publications').getList(1, 300, {
+            filter: `${isArchivedFilter}${orgFilter}`,
+            sort: '-data_publicacao',
+          }),
           pb
             .collection('ocorrencias_dou')
             .getList(1, 300, { filter: isArchivedFilter, sort: '-created' }),
-          pb
-            .collection('case_movements')
-            .getList(1, 50, {
-              filter: `notified_client = false && deleted_at = ""${orgFilter}`,
-              sort: '-event_date',
-              expand: 'case.client',
-            }),
-          pb
-            .collection('tasks')
-            .getList(1, 50, {
-              filter: `status = "todo" && deleted_at = ""${orgFilter}`,
-              sort: 'due_date',
-              expand: 'linked_lawsuit.client',
-            }),
-          pb
-            .collection('agenda_events')
-            .getList(1, 50, {
-              filter: `start_date >= "${new Date().toISOString().split('T')[0]} 00:00:00" && deleted_at = ""${orgFilter}`,
-              sort: 'start_date',
-              expand: 'linked_lawsuit.client',
-            }),
-          pb
-            .collection('finances')
-            .getList(1, 50, {
-              filter: `${isArchivedFilter} && status != "pago" && status != "recebida" && status != "realizada" && deleted_at = ""${orgFilter}`,
-              sort: 'date',
-              expand: 'linked_lawsuit.client',
-            }),
-          pb
-            .collection('notifications')
-            .getList(1, 50, {
-              filter: `${isArchivedFilter} && user_id = "${pb.authStore.record?.id}"`,
-              sort: '-created',
-              expand: 'client',
-            }),
-          pb
-            .collection('legal_cases')
-            .getFullList({
-              fields:
-                'id,case_number,title,parties,client,expand.client.name,expand.client.fullName,expand.client.phone,expand.client.email',
-              expand: 'client',
-            }),
+          pb.collection('case_movements').getList(1, 50, {
+            filter: `notified_client = false && deleted_at = ""${orgFilter}`,
+            sort: '-event_date',
+            expand: 'case.client',
+          }),
+          pb.collection('tasks').getList(1, 50, {
+            filter: `status = "todo" && deleted_at = ""${orgFilter}`,
+            sort: 'due_date',
+            expand: 'linked_lawsuit.client',
+          }),
+          pb.collection('agenda_events').getList(1, 50, {
+            filter: `start_date >= "${new Date().toISOString().split('T')[0]} 00:00:00" && deleted_at = ""${orgFilter}`,
+            sort: 'start_date',
+            expand: 'linked_lawsuit.client',
+          }),
+          pb.collection('finances').getList(1, 50, {
+            filter: `${isArchivedFilter} && status != "pago" && status != "recebida" && status != "realizada" && deleted_at = ""${orgFilter}`,
+            sort: 'date',
+            expand: 'linked_lawsuit.client',
+          }),
+          pb.collection('notifications').getList(1, 50, {
+            filter: `${isArchivedFilter} && user_id = "${pb.authStore.record?.id}"`,
+            sort: '-created',
+            expand: 'client',
+          }),
+          pb.collection('legal_cases').getFullList({
+            fields:
+              'id,case_number,title,parties,client,expand.client.name,expand.client.fullName,expand.client.phone,expand.client.email',
+            expand: 'client',
+          }),
         ])
 
       const casesMap = new Map()
@@ -626,14 +612,12 @@ export default function CentralAtualizacoes() {
     try {
       if (item.collection === 'pje_communications' || item.collection === 'gazette_publications') {
         const isArchived = type === 'discarded' || type === 'concluded' ? true : item.isArchived
-        await pb
-          .collection(item.collection)
-          .update(item.id, {
-            treatment_status: type,
-            is_archived: isArchived,
-            treatment_type: type,
-            is_read: true,
-          })
+        await pb.collection(item.collection).update(item.id, {
+          treatment_status: type,
+          is_archived: isArchived,
+          treatment_type: type,
+          is_read: true,
+        })
       } else if (
         item.collection === 'finances' ||
         item.collection === 'notifications' ||
@@ -1563,6 +1547,11 @@ export default function CentralAtualizacoes() {
           data_alerta: selectedItem?.date
             ? format(new Date(selectedItem.date), 'dd/MM/yyyy')
             : format(new Date(), 'dd/MM/yyyy'),
+          alert_date: selectedItem?.date
+            ? format(new Date(selectedItem.date), 'dd/MM/yyyy')
+            : format(new Date(), 'dd/MM/yyyy'),
+          movement_description: selectedItem?.description?.replace(/<[^>]*>?/gm, '') || '',
+          org_name: pb.authStore.record?.expand?.active_organization?.name || 'Nosso Escritório',
         }}
       />
 

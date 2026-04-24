@@ -51,29 +51,57 @@ routerAdd(
       )
     }
 
-    let senderName = $app.settings().meta.senderName || 'Escritório de Advocacia'
-    let senderAddress = $app.settings().meta.senderAddress || 'no-reply@escritorio.com.br'
+    let apiKey = ''
+    let fromEmail = 'onboarding@resend.dev'
+    let fromName = 'Escritório de Advocacia'
 
-    if (orgId) {
-      try {
+    try {
+      const keyRec = $app.findFirstRecordByData('settings', 'key', 'resend_api_key')
+      apiKey = keyRec.getString('value')
+      const fromRec = $app.findFirstRecordByData('settings', 'key', 'resend_from_email')
+      fromEmail = fromRec.getString('value') || 'onboarding@resend.dev'
+
+      if (orgId) {
         const org = $app.findRecordById('organizations', orgId)
         if (org && org.getString('name')) {
-          senderName = org.getString('name')
+          fromName = org.getString('name')
         }
-      } catch (_) {}
+      }
+    } catch (err) {}
+
+    if (!apiKey || apiKey === 'pending') {
+      const log = new Record($app.findCollectionByNameOrId('system_logs'))
+      log.set('level', 'warning')
+      log.set('module', 'email')
+      log.set(
+        'message',
+        'Tentativa de envio de email falhou: RESEND_API_KEY ausente ou não configurada.',
+      )
+      $app.save(log)
+      throw new BadRequestError('Configuração da API do Resend não encontrada.')
     }
 
-    const message = new mailer.Message({
-      from: {
-        address: senderAddress,
-        name: senderName,
+    const res = $http.send({
+      url: 'https://api.resend.com/emails',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + apiKey,
       },
-      to: toList.map((email) => ({ address: email })),
-      subject: body.subject,
-      html: body.html,
+      body: JSON.stringify({
+        from: `${fromName} <${fromEmail}>`,
+        to: toList,
+        subject: body.subject,
+        html: body.html,
+      }),
+      timeout: 15,
     })
 
-    $app.newMailClient().send(message)
+    if (res.statusCode !== 200 && res.statusCode !== 201) {
+      $app.logger().error('Resend API error', 'status', res.statusCode, 'body', res.raw)
+      const errorMsg = res.json?.message || 'Falha ao enviar e-mail pelo Resend.'
+      throw new BadRequestError(errorMsg)
+    }
 
     try {
       const emailLogsCol = $app.findCollectionByNameOrId('email_logs')

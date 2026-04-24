@@ -69,7 +69,13 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
         setSelectedClientIds([])
       }
       setSelectedTemplate(null)
-      setSubject('')
+
+      if (context.case_number) {
+        setSubject(`Atualização: Processo ${context.case_number} - ${context.client_name || ''}`)
+      } else {
+        setSubject('')
+      }
+
       setHtml('')
 
       pb.collection('communication_templates')
@@ -127,7 +133,10 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
 
     finalContext['nome_organizacao'] = orgName
     finalContext['nome organização'] = orgName
+    finalContext['org_name'] = orgName
     finalContext['data_alerta'] = context.data_alerta || new Date().toLocaleDateString('pt-BR')
+    finalContext['alert_date'] = context.data_alerta || new Date().toLocaleDateString('pt-BR')
+    finalContext['movement_description'] = context.movement_description || ''
 
     Object.entries(finalContext).forEach(([key, value]) => {
       const regex = new RegExp(`\\{${key}\\}|\\{\\{${key}\\}\\}`, 'gi')
