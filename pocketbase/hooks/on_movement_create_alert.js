@@ -54,95 +54,89 @@ onRecordAfterCreateSuccess((e) => {
 
     // 2. Email Notifications
     if (legalCase) {
-      let dispatcher = null
+      let apiKey = ''
+      let fromEmail = 'onboarding@resend.dev'
+
       try {
-        const filter = orgId
-          ? `is_system_dispatcher = true && active_organization = '${orgId}'`
-          : `is_system_dispatcher = true`
-        dispatcher = $app.findFirstRecordByFilter('users', filter)
+        const keyRec = $app.findFirstRecordByData('settings', 'key', 'resend_api_key')
+        apiKey = keyRec.getString('value')
+        const fromRec = $app.findFirstRecordByData('settings', 'key', 'resend_from_email')
+        fromEmail = fromRec.getString('value') || 'onboarding@resend.dev'
       } catch (err) {}
 
-      if (dispatcher) {
-        const host = dispatcher.getString('smtp_host')
-        const port = dispatcher.getInt('smtp_port') || 587
-        const emailUser = dispatcher.getString('email_user')
-        const password = dispatcher.getString('email_encrypted_password')
-        let encryption = dispatcher.getString('email_encryption')
-        if (!encryption || encryption === '') {
-          encryption = port === 465 ? 'ssl_tls' : 'starttls'
-        }
+      if (!apiKey) {
+        const log = new Record($app.findCollectionByNameOrId('system_logs'))
+        log.set('level', 'warning')
+        log.set('module', 'email')
+        log.set('message', 'Alerta de movimento falhou: RESEND_API_KEY ausente.')
+        $app.save(log)
+        return e.next()
+      }
 
-        if (host && emailUser && password) {
-          const recipients = new Set()
+      const recipients = new Set()
 
-          // Admins
-          try {
-            const filterAdm = orgId
-              ? `(role = 'admin' || isAdmin = true) && active_organization = '${orgId}'`
-              : `role = 'admin' || isAdmin = true`
-            const admins = $app.findRecordsByFilter('users', filterAdm, '', 100, 0)
-            admins.forEach((a) => {
-              if (a.getString('email')) recipients.add(a.getString('email'))
-            })
-          } catch (e) {}
+      // Admins
+      try {
+        const filterAdm = orgId
+          ? `(role = 'admin' || isAdmin = true) && active_organization = '${orgId}'`
+          : `role = 'admin' || isAdmin = true`
+        const admins = $app.findRecordsByFilter('users', filterAdm, '', 100, 0)
+        admins.forEach((a) => {
+          if (a.getString('email')) recipients.add(a.getString('email'))
+        })
+      } catch (e) {}
 
-          // Responsible Collaborator
-          const respId = legalCase.get('responsible_collaborator')
-          if (respId) {
-            try {
-              const collab = $app.findRecordById('collaborators', respId)
-              const collabUserId = collab.get('user')
-              if (collabUserId) {
-                const collabUser = $app.findRecordById('users', collabUserId)
-                if (collabUser.getString('email')) recipients.add(collabUser.getString('email'))
-              } else if (collab.getString('email')) {
-                recipients.add(collab.getString('email'))
-              }
-            } catch (e) {}
+      // Responsible Collaborator
+      const respId = legalCase.get('responsible_collaborator')
+      if (respId) {
+        try {
+          const collab = $app.findRecordById('collaborators', respId)
+          const collabUserId = collab.get('user')
+          if (collabUserId) {
+            const collabUser = $app.findRecordById('users', collabUserId)
+            if (collabUser.getString('email')) recipients.add(collabUser.getString('email'))
+          } else if (collab.getString('email')) {
+            recipients.add(collab.getString('email'))
           }
+        } catch (e) {}
+      }
 
-          if (recipients.size > 0) {
-            const appUrl =
-              $secrets.get('PB_INSTANCE_URL') ||
-              'https://moraes-rodrigues-advocacia-5d1d2.goskip.app'
-            const caseUrl = `${appUrl}/intranet/processos/${caseId}`
-            const htmlBody = `
-                        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-                            <h2 style="color: #2563eb;">Novo Movimento Processual</h2>
-                            <p>Um novo andamento foi registrado no sistema.</p>
-                            <div style="background: #f8fafc; padding: 15px; border-left: 4px solid #2563eb; margin: 20px 0;">
-                                <p style="margin: 0 0 10px 0;"><strong>Processo:</strong> ${caseNumber}</p>
-                                <p style="margin: 0 0 10px 0;"><strong>Data:</strong> ${date.substring(0, 10)}</p>
-                                <p style="margin: 0;"><strong>Descrição:</strong> ${detail}</p>
-                            </div>
-                            <a href="${caseUrl}" style="display: inline-block; padding: 10px 20px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold;">Acessar Processo</a>
-                        </div>
-                    `
+      if (recipients.size > 0) {
+        const appUrl =
+          $secrets.get('PB_INSTANCE_URL') || 'https://moraes-rodrigues-advocacia-5d1d2.goskip.app'
+        const caseUrl = `${appUrl}/intranet/processos/${caseId}`
+        const htmlBody = `
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                <h2 style="color: #2563eb;">Novo Movimento Processual</h2>
+                <p>Um novo andamento foi registrado no sistema.</p>
+                <div style="background: #f8fafc; padding: 15px; border-left: 4px solid #2563eb; margin: 20px 0;">
+                    <p style="margin: 0 0 10px 0;"><strong>Processo:</strong> ${caseNumber}</p>
+                    <p style="margin: 0 0 10px 0;"><strong>Data:</strong> ${date.substring(0, 10)}</p>
+                    <p style="margin: 0;"><strong>Descrição:</strong> ${detail}</p>
+                </div>
+                <a href="${caseUrl}" style="display: inline-block; padding: 10px 20px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold;">Acessar Processo</a>
+            </div>
+        `
 
-            const bridgeUrl = $secrets.get('EMAIL_BRIDGE_URL') || 'https://email-bridge.goskip.app'
-
-            for (const to of recipients) {
-              try {
-                $http.send({
-                  url: bridgeUrl + '/api/v2/send',
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    smtp_host: host,
-                    smtp_port: port,
-                    user: emailUser,
-                    password: password,
-                    encryption: encryption,
-                    to: to,
-                    subject: `Aviso de Movimentação: Processo ${caseNumber}`,
-                    html: htmlBody,
-                  }),
-                  timeout: 15,
-                })
-              } catch (e) {
-                $app.logger().error('Failed to send movement email alert', 'error', e.message)
-              }
-            }
+        for (const to of recipients) {
+          try {
+            $http.send({
+              url: 'https://api.resend.com/emails',
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: 'Bearer ' + apiKey,
+              },
+              body: JSON.stringify({
+                from: fromEmail,
+                to: to,
+                subject: `Aviso de Movimentação: Processo ${caseNumber}`,
+                html: htmlBody,
+              }),
+              timeout: 15,
+            })
+          } catch (e) {
+            $app.logger().error('Failed to send movement email alert', 'error', e.message)
           }
         }
       }

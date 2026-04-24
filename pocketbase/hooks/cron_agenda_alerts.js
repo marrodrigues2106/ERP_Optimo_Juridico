@@ -14,26 +14,27 @@ cronAdd('agenda_alerts', '0 8 * * *', () => {
       0,
     )
 
+    let apiKey = ''
+    let fromEmail = 'onboarding@resend.dev'
+
+    try {
+      const keyRec = $app.findFirstRecordByData('settings', 'key', 'resend_api_key')
+      apiKey = keyRec.getString('value')
+      const fromRec = $app.findFirstRecordByData('settings', 'key', 'resend_from_email')
+      fromEmail = fromRec.getString('value') || 'onboarding@resend.dev'
+    } catch (err) {}
+
+    if (!apiKey && events.length > 0) {
+      const log = new Record($app.findCollectionByNameOrId('system_logs'))
+      log.set('level', 'warning')
+      log.set('module', 'cron')
+      log.set('message', 'Cron agenda_alerts falhou: RESEND_API_KEY ausente.')
+      $app.save(log)
+      return
+    }
+
     for (const event of events) {
       const orgId = event.get('organization')
-      let dispatcher = null
-      try {
-        const filter = orgId
-          ? `is_system_dispatcher = true && active_organization = '${orgId}'`
-          : `is_system_dispatcher = true`
-        dispatcher = $app.findFirstRecordByFilter('users', filter)
-      } catch (err) {}
-
-      if (!dispatcher) continue
-
-      const host = dispatcher.getString('smtp_host')
-      const port = dispatcher.getInt('smtp_port') || 587
-      const emailUser = dispatcher.getString('email_user')
-      const password = dispatcher.getString('email_encrypted_password')
-      const encryption = dispatcher.getString('email_encryption') || 'ssl_tls'
-
-      if (!host || !emailUser || !password) continue
-
       const recipients = new Set()
 
       try {
@@ -88,32 +89,29 @@ cronAdd('agenda_alerts', '0 8 * * *', () => {
         const eventType = event.get('type') === 'Hearing' ? 'Audiência' : 'Prazo'
 
         const htmlBody = `
-                    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-                        <h2 style="color: #2563eb;">Lembrete de ${eventType}</h2>
-                        <p>Um evento processual importante está agendado para amanhã.</p>
-                        <div style="background: #f8fafc; padding: 15px; border-left: 4px solid #2563eb; margin: 20px 0;">
-                            <p style="margin: 0 0 10px 0;"><strong>Evento:</strong> ${eventTitle}</p>
-                            <p style="margin: 0 0 10px 0;"><strong>Processo:</strong> ${caseNumber}</p>
-                            <p style="margin: 0;"><strong>Data/Hora:</strong> ${eventDate}</p>
-                        </div>
-                        <a href="${appUrl}/intranet/agenda" style="display: inline-block; padding: 10px 20px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold;">Ver Agenda</a>
-                    </div>
-                `
-
-        const bridgeUrl = $secrets.get('EMAIL_BRIDGE_URL') || 'https://email-bridge.goskip.app'
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                <h2 style="color: #2563eb;">Lembrete de ${eventType}</h2>
+                <p>Um evento processual importante está agendado para amanhã.</p>
+                <div style="background: #f8fafc; padding: 15px; border-left: 4px solid #2563eb; margin: 20px 0;">
+                    <p style="margin: 0 0 10px 0;"><strong>Evento:</strong> ${eventTitle}</p>
+                    <p style="margin: 0 0 10px 0;"><strong>Processo:</strong> ${caseNumber}</p>
+                    <p style="margin: 0;"><strong>Data/Hora:</strong> ${eventDate}</p>
+                </div>
+                <a href="${appUrl}/intranet/agenda" style="display: inline-block; padding: 10px 20px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold;">Ver Agenda</a>
+            </div>
+        `
 
         for (const to of recipients) {
           try {
             $http.send({
-              url: bridgeUrl + '/api/v2/send',
+              url: 'https://api.resend.com/emails',
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: 'Bearer ' + apiKey,
+              },
               body: JSON.stringify({
-                smtp_host: host,
-                smtp_port: port,
-                user: emailUser,
-                password: password,
-                encryption: encryption,
+                from: fromEmail,
                 to: to,
                 subject: `Lembrete: ${eventType} amanhã (${eventTitle})`,
                 html: htmlBody,

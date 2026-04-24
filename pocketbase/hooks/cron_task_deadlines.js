@@ -1,17 +1,13 @@
 cronAdd('task_deadlines', '0 8 * * *', () => {
-  const dispatchers = $app.findRecordsByFilter('users', 'is_system_dispatcher = true', '', 1, 0)
-  if (!dispatchers || dispatchers.length === 0) return
-  const dispatcher = dispatchers[0]
+  let apiKey = ''
+  let fromEmail = 'onboarding@resend.dev'
 
-  const host = dispatcher.getString('smtp_host')
-  const port = dispatcher.getInt('smtp_port') || 587
-  const emailUser = dispatcher.getString('email_user')
-  const password = dispatcher.getString('email_encrypted_password')
-  const encryption = dispatcher.getString('email_encryption') || 'ssl_tls'
-
-  if (!host || !emailUser || !password) return
-
-  const bridgeUrl = $secrets.get('EMAIL_BRIDGE_URL') || 'https://email-bridge.goskip.app'
+  try {
+    const keyRec = $app.findFirstRecordByData('settings', 'key', 'resend_api_key')
+    apiKey = keyRec.getString('value')
+    const fromRec = $app.findFirstRecordByData('settings', 'key', 'resend_from_email')
+    fromEmail = fromRec.getString('value') || 'onboarding@resend.dev'
+  } catch (err) {}
 
   const today = new Date()
   const next3Days = new Date()
@@ -26,6 +22,15 @@ cronAdd('task_deadlines', '0 8 * * *', () => {
   )
 
   if (tasks.length === 0) return
+
+  if (!apiKey) {
+    const log = new Record($app.findCollectionByNameOrId('system_logs'))
+    log.set('level', 'warning')
+    log.set('module', 'cron')
+    log.set('message', 'Cron task_deadlines falhou: RESEND_API_KEY ausente.')
+    $app.save(log)
+    return
+  }
 
   tasks.forEach((task) => {
     try {
@@ -63,23 +68,22 @@ cronAdd('task_deadlines', '0 8 * * *', () => {
       `
 
       $http.send({
-        url: bridgeUrl + '/api/v2/send',
+        url: 'https://api.resend.com/emails',
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + apiKey,
+        },
         body: JSON.stringify({
-          smtp_host: host,
-          smtp_port: port,
-          user: emailUser,
-          password: password,
-          encryption: encryption,
-          to: recipients.join(','),
+          from: fromEmail,
+          to: recipients,
           subject: `[Lembrete de Tarefa] Prazo próximo: ${task.get('title')}`,
           html: htmlBody,
         }),
         timeout: 30,
       })
     } catch (err) {
-      $app.logger().error('Error sending task reminder via dispatcher', 'error', err.message)
+      $app.logger().error('Error sending task reminder', 'error', err.message)
     }
   })
 })
