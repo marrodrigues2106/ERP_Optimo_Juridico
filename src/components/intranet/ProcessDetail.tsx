@@ -652,12 +652,10 @@ export default function ProcessDetail() {
       setAllCases(casesList)
 
       const orgId = pb.authStore.record?.active_organization
-      const casesForTags = await pb
-        .collection('legal_cases')
-        .getFullList({
-          fields: 'tags',
-          filter: orgId ? `organization = "${orgId}" && deleted_at = ""` : 'deleted_at = ""',
-        })
+      const casesForTags = await pb.collection('legal_cases').getFullList({
+        fields: 'tags',
+        filter: orgId ? `organization = "${orgId}" && deleted_at = ""` : 'deleted_at = ""',
+      })
       const tagSet = new Set<string>()
       casesForTags.forEach((c) => {
         if (Array.isArray(c.tags)) c.tags.forEach((t: string) => tagSet.add(t))

@@ -10,7 +10,6 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -18,13 +17,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
-import { getClients, createClient, updateClient, deleteClient } from '@/services/clients'
+import { getClients, deleteClient } from '@/services/clients'
 import { useAuth } from '@/hooks/use-auth'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { Loader2, Plus, Search, Trash2, Edit, Eye } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { ClientFormModal } from '../clients/ClientFormModal'
 
 export function CrmContactsTab() {
   const navigate = useNavigate()
@@ -34,7 +33,6 @@ export function CrmContactsTab() {
   const [sortBy, setSortBy] = useState('name_asc')
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<any>(null)
-  const [submitting, setSubmitting] = useState(false)
 
   const { toast } = useToast()
   const { user } = useAuth()
@@ -53,52 +51,6 @@ export function CrmContactsTab() {
   useEffect(() => {
     loadData()
   }, [])
-
-  const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let v = e.target.value.replace(/\D/g, '')
-    if (v.length <= 11)
-      v = v
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
-    else
-      v = v
-        .replace(/^(\d{2})(\d)/, '$1.$2')
-        .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-        .replace(/\.(\d{3})(\d)/, '.$1/$2')
-        .replace(/(\d{4})(\d)/, '$1-$2')
-        .slice(0, 18)
-    e.target.value = v
-  }
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setSubmitting(true)
-    const fd = new FormData(e.currentTarget)
-    const data = Object.fromEntries(fd.entries())
-    try {
-      const parsedData = { ...data }
-      if (parsedData.birthDate)
-        parsedData.birthDate = new Date(parsedData.birthDate as string).toISOString()
-      if (editing) {
-        await updateClient(editing.id, parsedData)
-        toast({ title: 'Cliente atualizado com sucesso!' })
-      } else {
-        await createClient(parsedData)
-        toast({ title: 'Cliente criado com sucesso!' })
-      }
-      setOpen(false)
-      loadData()
-    } catch (error: any) {
-      toast({
-        title: 'Erro ao salvar',
-        description: getErrorMessage(error),
-        variant: 'destructive',
-      })
-    } finally {
-      setSubmitting(false)
-    }
-  }
 
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir permanentemente este cliente?')) return
@@ -165,107 +117,14 @@ export function CrmContactsTab() {
         </Button>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editing ? 'Editar Contato' : 'Novo Contato'}</DialogTitle>
-          </DialogHeader>
-          <form key={editing?.id || 'new'} onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 sm:col-span-1">
-                <Label>Nome Completo *</Label>
-                <Input name="name" defaultValue={editing?.name} required />
-              </div>
-              <div className="col-span-2 sm:col-span-1">
-                <Label>CPF / CNPJ</Label>
-                <Input
-                  name="cpf"
-                  defaultValue={editing?.cpf}
-                  onChange={handleCpfChange}
-                  maxLength={18}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 sm:col-span-1">
-                <Label>Email</Label>
-                <Input name="email" type="email" defaultValue={editing?.email} />
-              </div>
-              <div className="col-span-2 sm:col-span-1 grid grid-cols-3 gap-2">
-                <div className="col-span-1">
-                  <Label>Tipo</Label>
-                  <Select name="phone_type" defaultValue={editing?.phone_type || 'Celular'}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Fixo">Fixo</SelectItem>
-                      <SelectItem value="Celular">Celular</SelectItem>
-                      <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="col-span-2">
-                  <Label>Telefone</Label>
-                  <Input name="phone" defaultValue={editing?.phone} />
-                </div>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 sm:col-span-1">
-                <Label>Data de Nascimento</Label>
-                <Input
-                  name="birthDate"
-                  type="date"
-                  defaultValue={editing?.birthDate ? editing.birthDate.split('T')[0] : ''}
-                />
-              </div>
-              <div className="col-span-2 sm:col-span-1">
-                <Label>Estado Civil</Label>
-                <Select name="maritalStatus" defaultValue={editing?.maritalStatus || 'Solteiro(a)'}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Solteiro(a)">Solteiro(a)</SelectItem>
-                    <SelectItem value="Casado(a)">Casado(a)</SelectItem>
-                    <SelectItem value="Divorciado(a)">Divorciado(a)</SelectItem>
-                    <SelectItem value="Viúvo(a)">Viúvo(a)</SelectItem>
-                    <SelectItem value="União Estável">União Estável</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 sm:col-span-1">
-                <Label>Nacionalidade</Label>
-                <Input name="nationality" defaultValue={editing?.nationality || 'Brasileiro(a)'} />
-              </div>
-              <div className="col-span-2 sm:col-span-1">
-                <Label>Profissão</Label>
-                <Input name="profession" defaultValue={editing?.profession} />
-              </div>
-            </div>
-            <div>
-              <Label>Classificação</Label>
-              <Select name="classification" defaultValue={editing?.classification || 'Ativo'}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Ativo">Ativo</SelectItem>
-                  <SelectItem value="Inativo">Inativo</SelectItem>
-                  <SelectItem value="Lead">Lead</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Button type="submit" className="w-full mt-2" disabled={submitting}>
-              {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}{' '}
-              {submitting ? 'Salvando...' : 'Salvar Contato'}
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <ClientFormModal
+        open={open}
+        onOpenChange={setOpen}
+        editingClient={editing}
+        onSuccess={() => {
+          loadData()
+        }}
+      />
 
       <Card>
         <CardContent className="p-0 overflow-x-auto">
