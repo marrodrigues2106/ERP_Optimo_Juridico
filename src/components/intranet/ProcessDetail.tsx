@@ -70,8 +70,19 @@ import {
   Link as LinkIcon,
   Mail,
   Trash2,
+  X,
+  Plus,
 } from 'lucide-react'
 import { EmailSenderModal } from './EmailSenderModal'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import pb from '@/lib/pocketbase/client'
 import { Badge } from '@/components/ui/badge'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -580,6 +591,10 @@ export default function ProcessDetail() {
   const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [allCases, setAllCases] = useState<any[]>([])
 
+  const [allTags, setAllTags] = useState<string[]>([])
+  const [tagInput, setTagInput] = useState('')
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false)
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
     toast({ title: 'Número copiado!' })
@@ -635,6 +650,19 @@ export default function ProcessDetail() {
         .collection('legal_cases')
         .getFullList({ filter: `deleted_at = "" && id != "${id}"`, sort: '-created' })
       setAllCases(casesList)
+
+      const orgId = pb.authStore.record?.active_organization
+      const casesForTags = await pb
+        .collection('legal_cases')
+        .getFullList({
+          fields: 'tags',
+          filter: orgId ? `organization = "${orgId}" && deleted_at = ""` : 'deleted_at = ""',
+        })
+      const tagSet = new Set<string>()
+      casesForTags.forEach((c) => {
+        if (Array.isArray(c.tags)) c.tags.forEach((t: string) => tagSet.add(t))
+      })
+      setAllTags(Array.from(tagSet).sort())
     } catch (err) {
       toast({ title: 'Erro ao carregar processo', variant: 'destructive' })
     }
@@ -863,6 +891,29 @@ export default function ProcessDetail() {
     }
   }
 
+  const handleAddTag = async (tag: string) => {
+    const currentTags = Array.isArray(legalCase.tags) ? legalCase.tags : []
+    if (!currentTags.includes(tag)) {
+      const newTags = [...currentTags, tag]
+      try {
+        await updateLegalCase(id!, { tags: newTags })
+        setAllTags((prev) => Array.from(new Set([...prev, tag])).sort())
+      } catch (err) {
+        toast({ title: 'Erro ao adicionar etiqueta', variant: 'destructive' })
+      }
+    }
+  }
+
+  const handleRemoveTag = async (tagToRemove: string) => {
+    const currentTags = Array.isArray(legalCase.tags) ? legalCase.tags : []
+    const newTags = currentTags.filter((t: string) => t !== tagToRemove)
+    try {
+      await updateLegalCase(id!, { tags: newTags })
+    } catch (err) {
+      toast({ title: 'Erro ao remover etiqueta', variant: 'destructive' })
+    }
+  }
+
   const handleAddEvent = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const fd = new FormData(e.currentTarget)
@@ -934,6 +985,95 @@ export default function ProcessDetail() {
                         {legalCase.court_organ}
                       </Badge>
                     )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mt-3 items-center">
+                    {Array.isArray(legalCase.tags) &&
+                      legalCase.tags.map((tag: string) => (
+                        <Badge
+                          key={tag}
+                          variant="secondary"
+                          className="flex items-center gap-1 bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        >
+                          <Tags className="w-3 h-3 text-slate-400" /> {tag}
+                          <button
+                            onClick={() => handleRemoveTag(tag)}
+                            className="ml-1 hover:text-red-500 transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    <Popover open={showTagSuggestions} onOpenChange={setShowTagSuggestions}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 text-xs px-2 bg-white rounded-full border-dashed text-slate-500"
+                        >
+                          <Plus className="w-3 h-3 mr-1" /> Adicionar Etiqueta
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0 w-64" align="start">
+                        <Command>
+                          <CommandInput
+                            placeholder="Buscar ou criar..."
+                            value={tagInput}
+                            onValueChange={setTagInput}
+                          />
+                          <CommandList>
+                            <CommandEmpty>
+                              {tagInput.trim() ? (
+                                <Button
+                                  variant="ghost"
+                                  className="w-full justify-start text-primary text-sm font-medium"
+                                  onClick={() => {
+                                    handleAddTag(tagInput.trim())
+                                    setTagInput('')
+                                    setShowTagSuggestions(false)
+                                  }}
+                                >
+                                  Criar "{tagInput.trim()}"
+                                </Button>
+                              ) : (
+                                'Nenhuma etiqueta'
+                              )}
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {allTags
+                                .filter((t) => !(legalCase.tags || []).includes(t))
+                                .map((t) => (
+                                  <CommandItem
+                                    key={t}
+                                    onSelect={() => {
+                                      handleAddTag(t)
+                                      setTagInput('')
+                                      setShowTagSuggestions(false)
+                                    }}
+                                  >
+                                    {t}
+                                  </CommandItem>
+                                ))}
+                              {tagInput.trim() &&
+                                !allTags.find(
+                                  (t) => t.toLowerCase() === tagInput.trim().toLowerCase(),
+                                ) && (
+                                  <CommandItem
+                                    onSelect={() => {
+                                      handleAddTag(tagInput.trim())
+                                      setTagInput('')
+                                      setShowTagSuggestions(false)
+                                    }}
+                                    className="text-primary font-medium"
+                                  >
+                                    Criar "{tagInput.trim()}"
+                                  </CommandItem>
+                                )}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
               </div>

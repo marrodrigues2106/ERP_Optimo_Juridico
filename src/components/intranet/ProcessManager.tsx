@@ -61,7 +61,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { deleteLegalCase } from '@/services/legal_cases'
+import { deleteLegalCase, bulkFavoriteLegalCases } from '@/services/legal_cases'
 
 export default function ProcessManager() {
   const { toast } = useToast()
@@ -136,7 +136,17 @@ export default function ProcessManager() {
         filterParts.push(`(${statusFilter.map((s) => `lifecycle_status = "${s}"`).join(' || ')})`)
       }
       if (syncFilter.length > 0) {
-        filterParts.push(`(${syncFilter.map((s) => `sync_status = "${s}"`).join(' || ')})`)
+        const mappedSyncFilters: string[] = []
+        if (syncFilter.includes('Atualizado')) mappedSyncFilters.push('sync_status = "updated"')
+        if (syncFilter.includes('Na fila')) {
+          mappedSyncFilters.push('sync_status = "in_queue"')
+          mappedSyncFilters.push('sync_status = "syncing"')
+        }
+        if (syncFilter.includes('Pendente')) mappedSyncFilters.push('sync_status = "pending"')
+        if (syncFilter.includes('Erro')) mappedSyncFilters.push('sync_status = "error"')
+        if (mappedSyncFilters.length > 0) {
+          filterParts.push(`(${mappedSyncFilters.join(' || ')})`)
+        }
       }
       if (showFavorites) {
         filterParts.push(`is_favorite = true`)
@@ -257,6 +267,18 @@ export default function ProcessManager() {
       loadData()
     } catch (err: any) {
       toast({ title: 'Erro ao remover', description: err.message, variant: 'destructive' })
+    }
+  }
+
+  const handleBulkFavorite = async () => {
+    if (selectedIds.length === 0) return
+    try {
+      await bulkFavoriteLegalCases(selectedIds)
+      toast({ title: 'Processos favoritados com sucesso' })
+      setSelectedIds([])
+      loadData()
+    } catch (err: any) {
+      toast({ title: 'Erro ao favoritar', description: err.message, variant: 'destructive' })
     }
   }
 
@@ -447,7 +469,7 @@ export default function ProcessManager() {
               <RefreshCw className="w-4 h-4 text-slate-400" /> Sincronização
             </h3>
             <div className="space-y-2.5">
-              {['pending', 'in_queue', 'syncing', 'updated', 'error'].map((st) => (
+              {['Atualizado', 'Na fila', 'Pendente', 'Erro'].map((st) => (
                 <label
                   key={st}
                   className="flex items-center gap-2.5 text-sm text-slate-600 cursor-pointer"
@@ -460,15 +482,7 @@ export default function ProcessManager() {
                     }}
                     className="border-slate-300"
                   />
-                  {st === 'updated'
-                    ? 'Atualizado'
-                    : st === 'pending'
-                      ? 'Pendente'
-                      : st === 'in_queue'
-                        ? 'Na fila'
-                        : st === 'syncing'
-                          ? 'Sincronizando'
-                          : 'Erro'}
+                  {st}
                 </label>
               ))}
             </div>
@@ -557,9 +571,19 @@ export default function ProcessManager() {
 
                 <div className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
                   {selectedIds.length > 0 && (
-                    <span className="text-sm font-medium text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-md shadow-sm whitespace-nowrap">
-                      {selectedIds.length} selecionado(s)
-                    </span>
+                    <>
+                      <span className="text-sm font-medium text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-md shadow-sm whitespace-nowrap hidden md:inline-flex">
+                        {selectedIds.length} selecionado(s)
+                      </span>
+                      <Button
+                        onClick={handleBulkFavorite}
+                        variant="outline"
+                        className="border-amber-200 text-amber-600 hover:bg-amber-50 hover:text-amber-700 bg-white"
+                      >
+                        <Star className="w-4 h-4 mr-2" />
+                        <span className="hidden sm:inline">Favoritar</span>
+                      </Button>
+                    </>
                   )}
                   <Button
                     onClick={handleBatchSync}

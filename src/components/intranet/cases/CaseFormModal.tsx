@@ -117,7 +117,8 @@ export function CaseFormModal({
     nationality: '',
     maritalStatus: '',
     profession: '',
-    classification: 'Ativo',
+    classification: 'Lead',
+    funnel_stage: 'Contact',
   })
   const [phoneNumbers, setPhoneNumbers] = useState([{ number: '', type: 'Celular' }])
 
@@ -239,7 +240,8 @@ export function CaseFormModal({
         nationality: '',
         maritalStatus: '',
         profession: '',
-        classification: 'Ativo',
+        classification: 'Lead',
+        funnel_stage: 'Contact',
       })
       setPhoneNumbers([{ number: '', type: 'Celular' }])
       toast({ title: 'Cliente cadastrado com sucesso' })
@@ -1306,21 +1308,42 @@ export function CaseFormModal({
               </div>
             </div>
 
-            <div>
-              <Label>Classificação</Label>
-              <Select
-                value={newClientData.classification}
-                onValueChange={(val) => setNewClientData({ ...newClientData, classification: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Ativo">Ativo</SelectItem>
-                  <SelectItem value="Inativo">Inativo</SelectItem>
-                  <SelectItem value="Lead">Lead</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label>Classificação</Label>
+                <Select
+                  value={newClientData.classification}
+                  onValueChange={(val) =>
+                    setNewClientData({ ...newClientData, classification: val })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Ativo">Ativo</SelectItem>
+                    <SelectItem value="Inativo">Inativo</SelectItem>
+                    <SelectItem value="Lead">Lead</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Fase no Funil</Label>
+                <Select
+                  value={newClientData.funnel_stage}
+                  onValueChange={(val) => setNewClientData({ ...newClientData, funnel_stage: val })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Contact">Contato</SelectItem>
+                    <SelectItem value="Proposal">Proposta</SelectItem>
+                    <SelectItem value="Negotiation">Negociação</SelectItem>
+                    <SelectItem value="Closed">Fechado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <Button
