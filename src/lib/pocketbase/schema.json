@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-24T20:19:17.043Z",
+  "generatedAt": "2026-04-24T20:30:56.574Z",
   "collections": [
     {
       "name": "users",
@@ -2861,6 +2861,55 @@
         }
       ],
       "indexes": []
+    },
+    {
+      "name": "case_labels",
+      "type": "base",
+      "apiRules": {
+        "list": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "view": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "create": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "update": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "delete": "(@request.auth.id != '') && organization = @request.auth.active_organization"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "color",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "organization",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "organizations"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE UNIQUE INDEX idx_case_labels_name_org ON case_labels (name, organization)"
+      ]
     }
   ]
 }

@@ -89,6 +89,7 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { cn } from '@/lib/utils'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { deleteLegalCase } from '@/services/legal_cases'
+import { getCaseLabels, createCaseLabel } from '@/services/case_labels'
 
 const MovementItem = ({
   mov,
@@ -591,7 +592,7 @@ export default function ProcessDetail() {
   const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [allCases, setAllCases] = useState<any[]>([])
 
-  const [allTags, setAllTags] = useState<string[]>([])
+  const [caseLabels, setCaseLabels] = useState<any[]>([])
   const [tagInput, setTagInput] = useState('')
   const [showTagSuggestions, setShowTagSuggestions] = useState(false)
 
@@ -629,6 +630,12 @@ export default function ProcessDetail() {
     }
   })
 
+  useRealtime('case_labels', () => {
+    getCaseLabels()
+      .then(setCaseLabels)
+      .catch(() => {})
+  })
+
   const loadData = async () => {
     try {
       const c = await getLegalCase(id!)
@@ -651,16 +658,8 @@ export default function ProcessDetail() {
         .getFullList({ filter: `deleted_at = "" && id != "${id}"`, sort: '-created' })
       setAllCases(casesList)
 
-      const orgId = pb.authStore.record?.active_organization
-      const casesForTags = await pb.collection('legal_cases').getFullList({
-        fields: 'tags',
-        filter: orgId ? `organization = "${orgId}" && deleted_at = ""` : 'deleted_at = ""',
-      })
-      const tagSet = new Set<string>()
-      casesForTags.forEach((c) => {
-        if (Array.isArray(c.tags)) c.tags.forEach((t: string) => tagSet.add(t))
-      })
-      setAllTags(Array.from(tagSet).sort())
+      const labels = await getCaseLabels()
+      setCaseLabels(labels)
     } catch (err) {
       toast({ title: 'Erro ao carregar processo', variant: 'destructive' })
     }
@@ -892,10 +891,17 @@ export default function ProcessDetail() {
   const handleAddTag = async (tag: string) => {
     const currentTags = Array.isArray(legalCase.tags) ? legalCase.tags : []
     if (!currentTags.includes(tag)) {
+      const existingLabel = caseLabels.find((l) => l.name.toLowerCase() === tag.toLowerCase())
+      if (!existingLabel) {
+        try {
+          await createCaseLabel({ name: tag, color: '#e2e8f0' })
+        } catch (e) {
+          // Ignore duplicate constraint errors if created simultaneously
+        }
+      }
       const newTags = [...currentTags, tag]
       try {
         await updateLegalCase(id!, { tags: newTags })
-        setAllTags((prev) => Array.from(new Set([...prev, tag])).sort())
       } catch (err) {
         toast({ title: 'Erro ao adicionar etiqueta', variant: 'destructive' })
       }
@@ -987,21 +993,26 @@ export default function ProcessDetail() {
 
                   <div className="flex flex-wrap gap-2 mt-3 items-center">
                     {Array.isArray(legalCase.tags) &&
-                      legalCase.tags.map((tag: string) => (
-                        <Badge
-                          key={tag}
-                          variant="secondary"
-                          className="flex items-center gap-1 bg-slate-100 text-slate-700 hover:bg-slate-200"
-                        >
-                          <Tags className="w-3 h-3 text-slate-400" /> {tag}
-                          <button
-                            onClick={() => handleRemoveTag(tag)}
-                            className="ml-1 hover:text-red-500 transition-colors"
+                      legalCase.tags.map((tag: string) => {
+                        const labelObj = caseLabels.find((l) => l.name === tag)
+                        const colorStr = labelObj?.color || '#e2e8f0'
+                        return (
+                          <Badge
+                            key={tag}
+                            variant="secondary"
+                            className="flex items-center gap-1 text-slate-800 hover:opacity-80 transition-opacity border border-black/10"
+                            style={{ backgroundColor: colorStr }}
                           >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </Badge>
-                      ))}
+                            <Tags className="w-3 h-3 text-slate-700 opacity-70" /> {tag}
+                            <button
+                              onClick={() => handleRemoveTag(tag)}
+                              className="ml-1 hover:text-red-700 transition-colors"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </Badge>
+                        )
+                      })}
                     <Popover open={showTagSuggestions} onOpenChange={setShowTagSuggestions}>
                       <PopoverTrigger asChild>
                         <Button
@@ -1038,7 +1049,8 @@ export default function ProcessDetail() {
                               )}
                             </CommandEmpty>
                             <CommandGroup>
-                              {allTags
+                              {caseLabels
+                                .map((l) => l.name)
                                 .filter((t) => !(legalCase.tags || []).includes(t))
                                 .map((t) => (
                                   <CommandItem
@@ -1053,8 +1065,8 @@ export default function ProcessDetail() {
                                   </CommandItem>
                                 ))}
                               {tagInput.trim() &&
-                                !allTags.find(
-                                  (t) => t.toLowerCase() === tagInput.trim().toLowerCase(),
+                                !caseLabels.find(
+                                  (l) => l.name.toLowerCase() === tagInput.trim().toLowerCase(),
                                 ) && (
                                   <CommandItem
                                     onSelect={() => {

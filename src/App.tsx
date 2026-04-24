@@ -27,6 +27,7 @@ import UsersManager from '@/components/intranet/UsersManager'
 import ProfileManager from '@/components/intranet/ProfileManager'
 import AgendaManager from '@/components/intranet/AgendaManager'
 import AuditLogs from '@/components/intranet/AuditLogs'
+import LabelsManager from '@/components/intranet/LabelsManager'
 import DouSearch from '@/components/intranet/DouSearch'
 import GlobalSearch from '@/components/intranet/GlobalSearch'
 import CentralAtualizacoes from '@/components/intranet/CentralAtualizacoes'
@@ -86,6 +87,7 @@ function App() {
                 <Route path="users" element={<UsersManager />} />
                 <Route path="audit" element={<Navigate to="/intranet/settings/logs" replace />} />
                 <Route path="settings/logs" element={<AuditLogs />} />
+                <Route path="etiquetas" element={<LabelsManager />} />
                 <Route path="profile" element={<ProfileManager />} />
                 <Route path="integrations" element={<IntegrationsManager />} />
               </Route>
