@@ -260,7 +260,7 @@ export default function WebmailManager() {
             size="sm"
             className="hidden md:flex"
           >
-            <RefreshCw className={cn('w-4 h-4 mr-2', loading && 'animate-spin')} /> Atualizar
+            <RefreshCw className={cn('w-4 h-4 mr-2', loading && 'animate-spin')} /> Sincronizar
           </Button>
           <Button onClick={() => setComposeOpen(true)} size="sm">
             <Edit className="w-4 h-4 md:mr-2" />{' '}
@@ -310,240 +310,245 @@ export default function WebmailManager() {
           )}
         </div>
 
-        <div className="flex-1 min-w-0 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden relative">
-          {selectedEmail ? (
-            <div className="flex flex-col h-full overflow-auto">
-              <div className="sticky top-0 bg-white border-b border-slate-100 p-4 flex items-center gap-4 z-10">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    setSelectedEmail(null)
-                    if (!selectedEmail.read) handleAction('mark_read', [selectedEmail.id])
-                  }}
-                >
-                  <ArrowLeft className="w-5 h-5 text-slate-500" />
-                </Button>
-                <div className="flex-1 truncate">
-                  <h2 className="text-xl font-bold truncate text-slate-900">
-                    {selectedEmail.subject}
-                  </h2>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button variant="outline" size="sm" onClick={() => setComposeOpen(true)}>
-                    <Edit className="w-4 h-4 md:mr-2" />{' '}
-                    <span className="hidden md:inline">Responder</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="text-slate-500 hidden sm:inline-flex"
-                    onClick={() => handleAction('mark_unread', [selectedEmail.id])}
-                    title="Marcar como não lido"
-                  >
-                    <MailOpen className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="text-red-500 hover:bg-red-50 hidden sm:inline-flex"
-                    onClick={() => handleAction('trash', [selectedEmail.id])}
-                    title="Mover para lixeira"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-6 border-b pb-4">
-                  <div>
-                    <div className="text-base font-bold text-slate-900">
-                      {typeof selectedEmail.from === 'string'
-                        ? selectedEmail.from
-                        : `${selectedEmail.from?.name || ''} <${selectedEmail.from?.address || ''}>`}
-                    </div>
-                    <div className="text-sm text-slate-500">
-                      para{' '}
-                      {typeof selectedEmail.to === 'string'
-                        ? selectedEmail.to
-                        : selectedEmail.to?.name || selectedEmail.to?.address || 'mim'}
-                    </div>
-                  </div>
-                  <div className="text-sm text-slate-500 font-medium">
-                    {selectedEmail.date
-                      ? format(new Date(selectedEmail.date), "dd 'de' MMM 'de' yyyy 'às' HH:mm", {
-                          locale: ptBR,
-                        })
-                      : ''}
-                  </div>
-                </div>
-                <div
-                  className="prose max-w-none text-slate-800 text-base leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
-                />
+        <div className="flex-1 flex min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          {/* Email List Pane */}
+          <div
+            className={cn(
+              'w-full md:w-1/2 lg:w-2/5 flex flex-col border-r border-slate-200 h-full',
+              selectedEmail ? 'hidden md:flex' : 'flex',
+            )}
+          >
+            <div className="p-3 border-b flex justify-between items-center bg-slate-50/80 shrink-0">
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-[160px] h-9 text-sm bg-white font-medium">
+                  <SelectValue placeholder="Caixa de Entrada" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Caixa de Entrada</SelectItem>
+                  <SelectItem value="unread">Não Lidas</SelectItem>
+                  <SelectItem value="archived">Arquivadas</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="text-xs text-slate-500 font-medium px-2 truncate max-w-[120px]">
+                {folders.find((f) => f.id === activeFolder)?.name}
               </div>
             </div>
-          ) : (
-            <div className="flex-1 flex flex-col min-h-0">
-              <div className="p-2 border-b flex justify-between items-center bg-slate-50/50 shrink-0">
-                <div className="flex gap-2">
-                  <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger className="w-[140px] h-8 text-xs bg-white">
-                      <SelectValue placeholder="Filtrar" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas as mensagens</SelectItem>
-                      <SelectItem value="unread">Não lidas</SelectItem>
-                      <SelectItem value="read">Lidas</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="text-xs text-slate-500 font-medium px-2">
-                  {folders.find((f) => f.id === activeFolder)?.name}
-                </div>
-              </div>
 
-              <div className="flex-1 overflow-auto">
-                {settingsMissing ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-slate-50/50">
-                    <Mail className="w-16 h-16 text-slate-300 mb-6 opacity-50" />
-                    <p className="text-xl font-medium text-slate-600 mb-2">
-                      Configurações de E-mail Ausentes
-                    </p>
-                    <p className="text-base text-slate-500 max-w-md">
-                      Para acessar sua caixa postal e pastas sincronizadas, você precisa configurar
-                      suas credenciais na página do seu perfil.
-                    </p>
-                  </div>
-                ) : loading && emails.length === 0 ? (
-                  <div className="p-4 space-y-4">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <div
-                        key={i}
-                        className="flex items-center gap-4 border-b border-slate-100 pb-4"
-                      >
-                        <Skeleton className="h-6 w-32 md:w-48 shrink-0" />
-                        <div className="flex-1 space-y-2">
-                          <Skeleton className="h-4 w-3/4" />
-                          <Skeleton className="h-4 w-1/2 hidden md:block" />
-                        </div>
-                        <Skeleton className="h-4 w-24 shrink-0" />
-                      </div>
-                    ))}
-                  </div>
-                ) : errorMsg ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-red-50/30">
-                    <AlertTriangle className="w-16 h-16 text-red-400 mb-6" />
-                    <p className="text-xl font-medium text-red-700 mb-2">Falha na Sincronização</p>
-                    <p className="text-base text-red-600 max-w-md mb-6">{errorMsg}</p>
-                    <Button onClick={() => loadEmails(activeFolder, 1, filterStatus, false)}>
-                      Tentar Novamente
-                    </Button>
-                  </div>
-                ) : emails.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-slate-50/50">
-                    <Inbox className="w-16 h-16 text-slate-300 mb-4" />
-                    <p className="text-lg font-medium text-slate-600">
-                      Nenhuma mensagem encontrada.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-100">
-                    {emails.map((email) => (
-                      <div
-                        key={email.id}
-                        onClick={() => setSelectedEmail(email)}
-                        className={cn(
-                          'flex items-center gap-4 p-4 hover:bg-slate-50 cursor-pointer transition-colors group',
-                          !email.read && 'bg-blue-50/30',
-                        )}
-                      >
+            <div className="flex-1 overflow-auto bg-slate-50/30">
+              {settingsMissing ? (
+                <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                  <img
+                    src="https://img.usecurling.com/i?q=mail&shape=outline&color=blue"
+                    alt="Mail"
+                    className="w-16 h-16 opacity-60 mb-4"
+                  />
+                  <p className="text-sm font-medium text-slate-600 mb-4">
+                    Configurações Ausentes. Vá em Integrações para configurar.
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => (window.location.href = '/intranet/integrations')}
+                  >
+                    Ir para Integrações
+                  </Button>
+                </div>
+              ) : loading && emails.length === 0 ? (
+                <div className="p-4 space-y-4">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="space-y-2">
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
+                    </div>
+                  ))}
+                </div>
+              ) : errorMsg ? (
+                <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                  <AlertTriangle className="w-12 h-12 text-red-400 mb-4" />
+                  <p className="text-sm text-red-600 mb-4">{errorMsg}</p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => loadEmails(activeFolder, 1, filterStatus, false)}
+                  >
+                    Tentar Novamente
+                  </Button>
+                </div>
+              ) : emails.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                  <Inbox className="w-12 h-12 text-slate-300 mb-3" />
+                  <p className="text-sm text-slate-500">Nenhuma mensagem.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {emails.map((email) => (
+                    <div
+                      key={email.id}
+                      onClick={() => {
+                        setSelectedEmail(email)
+                        if (!email.read) handleAction('mark_read', [email.id])
+                      }}
+                      className={cn(
+                        'flex flex-col p-4 cursor-pointer transition-colors hover:bg-blue-50/50',
+                        selectedEmail?.id === email.id
+                          ? 'bg-blue-50 border-l-4 border-l-primary'
+                          : 'border-l-4 border-l-transparent',
+                        !email.read && selectedEmail?.id !== email.id ? 'bg-white' : '',
+                      )}
+                    >
+                      <div className="flex justify-between items-start mb-1">
                         <div
                           className={cn(
-                            'w-32 md:w-48 shrink-0 truncate',
+                            'text-sm truncate pr-2',
                             !email.read ? 'font-bold text-slate-900' : 'font-medium text-slate-700',
                           )}
-                          title={
-                            typeof email.from === 'string'
-                              ? email.from
-                              : email.from?.name || email.from?.address || ''
-                          }
                         >
                           {typeof email.from === 'string'
                             ? email.from.split('<')[0] || email.from.split('@')[0]
                             : email.from?.name || email.from?.address || 'Desconhecido'}
                         </div>
-                        <div className="flex-1 min-w-0 truncate flex flex-col md:flex-row md:items-center">
-                          <span
-                            className={cn(
-                              'mr-2 truncate',
-                              !email.read
-                                ? 'font-bold text-slate-900'
-                                : 'font-semibold text-slate-800',
-                            )}
-                          >
-                            {email.subject || '(Sem assunto)'}
-                          </span>
-                          <span className="text-slate-500 truncate text-sm hidden md:inline">
-                            - {email.snippet || ''}
-                          </span>
-                        </div>
                         <div
                           className={cn(
-                            'w-24 shrink-0 text-right text-xs md:text-sm font-medium',
-                            !email.read ? 'text-blue-600' : 'text-slate-500',
+                            'text-xs shrink-0',
+                            !email.read ? 'text-primary font-bold' : 'text-slate-500',
                           )}
                         >
-                          {email.date ? format(new Date(email.date), 'dd/MM/yyyy') : ''}
-                        </div>
-
-                        <div className="hidden group-hover:flex items-center gap-1 absolute right-2 bg-slate-50 pl-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-slate-400 hover:text-slate-700"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleAction(email.read ? 'mark_unread' : 'mark_read', [email.id])
-                            }}
-                            title={email.read ? 'Marcar como não lido' : 'Marcar como lido'}
-                          >
-                            {email.read ? (
-                              <Mail className="h-4 w-4" />
-                            ) : (
-                              <MailOpen className="h-4 w-4" />
-                            )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleAction('trash', [email.id])
-                            }}
-                            title="Excluir"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {email.date ? format(new Date(email.date), 'dd/MM/yy') : ''}
                         </div>
                       </div>
-                    ))}
-
-                    {hasMore && (
-                      <div ref={observerTarget} className="p-6 flex justify-center">
-                        {loadingMore ? (
-                          <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
-                        ) : (
-                          <span className="text-slate-400 text-sm">Carregando mais...</span>
+                      <div
+                        className={cn(
+                          'text-sm truncate mb-1',
+                          !email.read ? 'font-bold text-slate-800' : 'font-medium text-slate-800',
                         )}
+                      >
+                        {email.subject || '(Sem assunto)'}
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                      <div className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                        {email.snippet || ''}
+                      </div>
+                    </div>
+                  ))}
+                  {hasMore && (
+                    <div ref={observerTarget} className="p-4 flex justify-center">
+                      {loadingMore ? (
+                        <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+                      ) : (
+                        <span className="text-slate-400 text-xs">Carregando mais...</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          )}
+          </div>
+
+          {/* Reading Pane */}
+          <div
+            className={cn(
+              'flex-1 h-full flex flex-col bg-white min-w-0',
+              !selectedEmail ? 'hidden md:flex' : 'flex',
+            )}
+          >
+            {selectedEmail ? (
+              <>
+                <div className="flex items-center gap-2 p-4 border-b border-slate-100 bg-white z-10 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="md:hidden"
+                    onClick={() => setSelectedEmail(null)}
+                  >
+                    <ArrowLeft className="w-5 h-5 text-slate-500" />
+                  </Button>
+                  <div className="flex-1 truncate">
+                    <h2 className="text-xl font-bold truncate text-slate-900 pr-4">
+                      {selectedEmail.subject}
+                    </h2>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setComposeOpen(true)}
+                      title="Responder"
+                    >
+                      <Edit className="w-4 h-4 text-slate-600" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleAction('mark_unread', [selectedEmail.id])}
+                      title="Marcar como não lido"
+                    >
+                      <MailOpen className="w-4 h-4 text-slate-600" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                      onClick={() => handleAction('trash', [selectedEmail.id])}
+                      title="Excluir"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-auto p-6 md:p-8 bg-white">
+                  <div className="flex justify-between items-start mb-8 pb-6 border-b border-slate-100">
+                    <div className="flex gap-4 items-start">
+                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-lg shrink-0">
+                        {typeof selectedEmail.from === 'string'
+                          ? selectedEmail.from.charAt(0).toUpperCase()
+                          : (selectedEmail.from?.name?.charAt(0) || 'D').toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="text-base font-bold text-slate-900">
+                          {typeof selectedEmail.from === 'string'
+                            ? selectedEmail.from
+                            : `${selectedEmail.from?.name || ''} <${selectedEmail.from?.address || ''}>`}
+                        </div>
+                        <div className="text-sm text-slate-500 mt-0.5">
+                          Para:{' '}
+                          {typeof selectedEmail.to === 'string'
+                            ? selectedEmail.to
+                            : selectedEmail.to?.name || selectedEmail.to?.address || 'mim'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-sm text-slate-500 font-medium whitespace-nowrap ml-4">
+                      {selectedEmail.date
+                        ? format(new Date(selectedEmail.date), 'dd MMM yyyy, HH:mm', {
+                            locale: ptBR,
+                          })
+                        : ''}
+                    </div>
+                  </div>
+                  <div
+                    className="prose max-w-none text-slate-800 text-base leading-relaxed break-words"
+                    dangerouslySetInnerHTML={{ __html: selectedEmail.body }}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center bg-slate-50/50 p-8 text-center">
+                <img
+                  src="https://img.usecurling.com/i?q=inbox&shape=lineal-color&color=blue"
+                  alt="Inbox Empty State"
+                  className="w-32 h-32 opacity-70 mb-6"
+                />
+                <h3 className="text-xl font-bold text-slate-700 mb-2">
+                  Nenhuma mensagem selecionada
+                </h3>
+                <p className="text-slate-500 max-w-sm">
+                  Selecione uma mensagem na lista à esquerda para ler o conteúdo completo, ou crie
+                  uma nova mensagem.
+                </p>
+                <Button className="mt-6" onClick={() => setComposeOpen(true)}>
+                  <Edit className="w-4 h-4 mr-2" /> Escrever Mensagem
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

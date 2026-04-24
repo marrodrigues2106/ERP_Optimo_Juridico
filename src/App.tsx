@@ -32,6 +32,7 @@ import CentralAtualizacoes from '@/components/intranet/CentralAtualizacoes'
 import PublicAgenda from '@/pages/PublicAgenda'
 import { PjeComunica } from '@/components/intranet/PjeComunica'
 import Productivity from '@/components/intranet/Productivity'
+import IntegrationsManager from '@/components/intranet/IntegrationsManager'
 
 function App() {
   return (
@@ -84,6 +85,7 @@ function App() {
               <Route path="audit" element={<Navigate to="/intranet/settings/logs" replace />} />
               <Route path="settings/logs" element={<AuditLogs />} />
               <Route path="profile" element={<ProfileManager />} />
+              <Route path="integrations" element={<IntegrationsManager />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

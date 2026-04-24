@@ -12,7 +12,9 @@ routerAdd(
     if (!body.email_password)
       errors.email_password = new ValidationError('required', 'Senha é obrigatória')
 
-    const smtp_port = parseInt(body.smtp_port, 10)
+    const smtp_port =
+      parseInt(body.smtp_port, 10) ||
+      (body.smtp_host && body.smtp_host.includes('hostinger') ? 587 : 587)
 
     if (!smtp_port) errors.smtp_port = new ValidationError('required', 'Porta SMTP é obrigatória')
 
@@ -26,8 +28,6 @@ routerAdd(
     if (!encryption || encryption === '' || encryption === 'none') {
       if (smtp_port === 465) {
         encryption = 'ssl_tls'
-      } else if (smtp_port === 587) {
-        encryption = 'starttls'
       } else {
         encryption = 'starttls'
       }

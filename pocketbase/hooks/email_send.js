@@ -23,7 +23,7 @@ routerAdd(
       return e.badRequestError('Configurações de SMTP incompletas no perfil do usuário.')
     }
 
-    const defaultPort = host.includes('hostinger') ? 465 : 587
+    const defaultPort = host.includes('hostinger') ? 587 : 587
     const port = user.getInt('smtp_port') || defaultPort
     let encryption = user.getString('email_encryption')
     if (!encryption || encryption === '') {

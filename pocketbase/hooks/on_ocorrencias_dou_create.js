@@ -79,7 +79,10 @@ onRecordAfterCreateSuccess((e) => {
               const port = dispatcher.getInt('smtp_port') || 587
               const emailUser = dispatcher.getString('email_user')
               const password = dispatcher.getString('email_encrypted_password')
-              const encryption = dispatcher.getString('email_encryption') || 'ssl_tls'
+              let encryption = dispatcher.getString('email_encryption')
+              if (!encryption || encryption === '') {
+                encryption = port === 465 ? 'ssl_tls' : 'starttls'
+              }
 
               if (host && emailUser && password) {
                 const bridgeUrl =
