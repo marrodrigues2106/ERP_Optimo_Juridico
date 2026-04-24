@@ -36,6 +36,7 @@ import {
   Wallet,
   ListTodo,
   MessageCircle,
+  Mail,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -48,6 +49,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
+import { EmailSenderModal } from './EmailSenderModal'
 
 type UnifiedItem = {
   id: string
@@ -100,6 +102,7 @@ export default function CentralAtualizacoes() {
   const [eventDialogOpen, setEventDialogOpen] = useState(false)
   const [manualDialogOpen, setManualDialogOpen] = useState(false)
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
+  const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [shareMessage, setShareMessage] = useState('')
   const [shareTemplate, setShareTemplate] = useState('custom')
   const [shareClientId, setShareClientId] = useState('')
@@ -116,62 +119,46 @@ export default function CentralAtualizacoes() {
     }
   }, [shareDialogOpen])
 
+  const generateShareMessage = (cId: string, tpl: string, item: UnifiedItem | null) => {
+    const c = shareClients.find((x) => x.id === cId)
+    const cName = c?.fullName || c?.name || item?.clientName || ''
+    const orgName = pb.authStore.record?.expand?.active_organization?.name || 'Nosso Escritório'
+    const dataAlerta = item?.date
+      ? format(new Date(item.date), 'dd/MM/yyyy')
+      : format(new Date(), 'dd/MM/yyyy')
+
+    let msg = `Olá, ${cName}.`
+    if (tpl === 'aniversario') {
+      msg = `Olá, ${cName}. O escritório ${orgName} gostaria de parabenizá-lo e lhe desejar muita saúde e anos de vida nesta data especial do seu aniversário. Att. Equipe ${orgName}`
+    } else if (tpl === 'processual' && item) {
+      const desc = item.description?.replace(/<[^>]*>?/gm, '').trim() || ''
+      const processInfo = item.caseNumber
+        ? `${item.caseNumber} (${item.parties || item.caseTitle || ''})`
+        : item.caseTitle || ''
+      msg = `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação no processo ${processInfo}:\n\nData do Alerta: ${dataAlerta}\nAndamento: ${desc}\n\nAtt. Equipe ${orgName}`
+    } else if (tpl === 'financeiro' && item) {
+      const desc = item.description?.replace(/<[^>]*>?/gm, '').trim() || ''
+      msg = `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${item.title}\n${desc}\n\nAtt. Equipe ${orgName}`
+    }
+
+    return msg
+      .replace(/{data_alerta}/gi, dataAlerta)
+      .replace(/{nome_organizacao}/gi, orgName)
+      .replace(/{nome organização}/gi, orgName)
+  }
+
   const handleClientSelect = (cId: string) => {
     setShareClientId(cId)
     const c = shareClients.find((x) => x.id === cId)
     if (c) {
       setSharePhone(c.phone || '')
-      const cName = c.fullName || c.name || ''
-      if (shareTemplate === 'aniversario') {
-        setShareMessage(
-          `Olá, ${cName}. O escritório Moraes Rodrigues Advocacia gostaria de parabeniza-lo e lhe desejar muita saúde e anos de vida nesta data especial do seu aniversário. Att. Equipe Moraes Rodrigues Advocacia`,
-        )
-      } else if (shareTemplate === 'processual' && selectedItem) {
-        const dateStr = selectedItem.date ? format(new Date(selectedItem.date), 'dd/MM/yyyy') : ''
-        const desc = selectedItem.description?.replace(/<[^>]*>?/gm, '').trim() || ''
-        const processInfo = selectedItem.caseNumber
-          ? `${selectedItem.caseNumber} (${selectedItem.parties || selectedItem.caseTitle || ''})`
-          : selectedItem.caseTitle || ''
-        setShareMessage(
-          `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação no processo ${processInfo}:\n\nData: ${dateStr}\nAndamento: ${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`,
-        )
-      } else if (shareTemplate === 'financeiro' && selectedItem) {
-        const desc = selectedItem.description?.replace(/<[^>]*>?/gm, '').trim() || ''
-        setShareMessage(
-          `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${selectedItem.title}\n${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`,
-        )
-      } else {
-        setShareMessage(`Olá, ${cName}.`)
-      }
+      setShareMessage(generateShareMessage(cId, shareTemplate, selectedItem))
     }
   }
 
   const handleTemplateChange = (tpl: string) => {
     setShareTemplate(tpl)
-    const c = shareClients.find((x) => x.id === shareClientId)
-    const cName = c?.fullName || c?.name || selectedItem?.clientName || ''
-
-    if (tpl === 'aniversario') {
-      setShareMessage(
-        `Olá, ${cName}. O escritório Moraes Rodrigues Advocacia gostaria de parabeniza-lo e lhe desejar muita saúde e anos de vida nesta data especial do seu aniversário. Att. Equipe Moraes Rodrigues Advocacia`,
-      )
-    } else if (tpl === 'processual' && selectedItem) {
-      const dateStr = selectedItem.date ? format(new Date(selectedItem.date), 'dd/MM/yyyy') : ''
-      const desc = selectedItem.description?.replace(/<[^>]*>?/gm, '').trim() || ''
-      const processInfo = selectedItem.caseNumber
-        ? `${selectedItem.caseNumber} (${selectedItem.parties || selectedItem.caseTitle || ''})`
-        : selectedItem.caseTitle || ''
-      setShareMessage(
-        `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação no processo ${processInfo}:\n\nData: ${dateStr}\nAndamento: ${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`,
-      )
-    } else if (tpl === 'financeiro' && selectedItem) {
-      const desc = selectedItem.description?.replace(/<[^>]*>?/gm, '').trim() || ''
-      setShareMessage(
-        `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${selectedItem.title}\n${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`,
-      )
-    } else {
-      setShareMessage(`Olá, ${cName}.`)
-    }
+    setShareMessage(generateShareMessage(shareClientId, tpl, selectedItem))
   }
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -214,44 +201,69 @@ export default function CentralAtualizacoes() {
     try {
       const orgId = pb.authStore.record?.active_organization
       const orgFilter = orgId ? ` && organization = "${orgId}"` : ''
+      const isArchivedFilter =
+        activeTab === 'arquivados' ? 'is_archived = true' : 'is_archived = false'
 
       const [pjeRes, douPub, douOcc, moveRes, tasksRes, agendaRes, finRes, notifRes, casesRes] =
         await Promise.all([
           pb
             .collection('pje_communications')
-            .getList(1, 300, { sort: '-dataDisponibilizacao', expand: 'linked_case' }),
-          pb.collection('gazette_publications').getList(1, 300, { sort: '-data_publicacao' }),
-          pb.collection('ocorrencias_dou').getList(1, 300, { sort: '-created' }),
-          pb.collection('case_movements').getList(1, 50, {
-            filter: `notified_client = false && deleted_at = ""${orgFilter}`,
-            sort: '-event_date',
-            expand: 'case.client',
-          }),
-          pb.collection('tasks').getList(1, 50, {
-            filter: `status = "todo" && deleted_at = ""${orgFilter}`,
-            sort: 'due_date',
-            expand: 'linked_lawsuit.client',
-          }),
-          pb.collection('agenda_events').getList(1, 50, {
-            filter: `start_date >= "${new Date().toISOString().split('T')[0]} 00:00:00" && deleted_at = ""${orgFilter}`,
-            sort: 'start_date',
-            expand: 'linked_lawsuit.client',
-          }),
-          pb.collection('finances').getList(1, 50, {
-            filter: `status != "pago" && status != "recebida" && status != "realizada" && deleted_at = ""${orgFilter}`,
-            sort: 'date',
-            expand: 'linked_lawsuit.client',
-          }),
-          pb.collection('notifications').getList(1, 50, {
-            filter: `user_id = "${pb.authStore.record?.id}"`,
-            sort: '-created',
-            expand: 'client',
-          }),
-          pb.collection('legal_cases').getFullList({
-            fields:
-              'id,case_number,title,parties,client,expand.client.name,expand.client.fullName,expand.client.phone',
-            expand: 'client',
-          }),
+            .getList(1, 300, {
+              filter: `${isArchivedFilter}${orgFilter}`,
+              sort: '-dataDisponibilizacao',
+              expand: 'linked_case',
+            }),
+          pb
+            .collection('gazette_publications')
+            .getList(1, 300, {
+              filter: `${isArchivedFilter}${orgFilter}`,
+              sort: '-data_publicacao',
+            }),
+          pb
+            .collection('ocorrencias_dou')
+            .getList(1, 300, { filter: isArchivedFilter, sort: '-created' }),
+          pb
+            .collection('case_movements')
+            .getList(1, 50, {
+              filter: `notified_client = false && deleted_at = ""${orgFilter}`,
+              sort: '-event_date',
+              expand: 'case.client',
+            }),
+          pb
+            .collection('tasks')
+            .getList(1, 50, {
+              filter: `status = "todo" && deleted_at = ""${orgFilter}`,
+              sort: 'due_date',
+              expand: 'linked_lawsuit.client',
+            }),
+          pb
+            .collection('agenda_events')
+            .getList(1, 50, {
+              filter: `start_date >= "${new Date().toISOString().split('T')[0]} 00:00:00" && deleted_at = ""${orgFilter}`,
+              sort: 'start_date',
+              expand: 'linked_lawsuit.client',
+            }),
+          pb
+            .collection('finances')
+            .getList(1, 50, {
+              filter: `${isArchivedFilter} && status != "pago" && status != "recebida" && status != "realizada" && deleted_at = ""${orgFilter}`,
+              sort: 'date',
+              expand: 'linked_lawsuit.client',
+            }),
+          pb
+            .collection('notifications')
+            .getList(1, 50, {
+              filter: `${isArchivedFilter} && user_id = "${pb.authStore.record?.id}"`,
+              sort: '-created',
+              expand: 'client',
+            }),
+          pb
+            .collection('legal_cases')
+            .getFullList({
+              fields:
+                'id,case_number,title,parties,client,expand.client.name,expand.client.fullName,expand.client.phone,expand.client.email',
+              expand: 'client',
+            }),
         ])
 
       const casesMap = new Map()
@@ -292,13 +304,11 @@ export default function CentralAtualizacoes() {
         let numList: string[] = []
         if (typeof i.numero_processo === 'string') numList.push(i.numero_processo)
         else if (Array.isArray(i.numero_processo)) numList.push(...i.numero_processo)
-
         let primaryNum = numList[0] || ''
         let numClean = primaryNum.replace(/\D/g, '')
         const isNew = numClean && !casesMap.has(numClean)
         const linkedCase = casesMap.get(numClean)
         const clientObj = linkedCase?.expand?.client
-
         return {
           id: i.id,
           collection: 'gazette_publications',
@@ -312,7 +322,7 @@ export default function CentralAtualizacoes() {
           caseNumber: linkedCase?.case_number || primaryNum,
           caseTitle: linkedCase?.title,
           parties: linkedCase?.parties,
-          caseId: linkedCase ? linkedCase.id : undefined,
+          caseId: linkedCase?.id,
           clientId: linkedCase?.client,
           clientName: clientObj?.fullName || clientObj?.name,
           clientPhone: clientObj?.phone,
@@ -467,7 +477,7 @@ export default function CentralAtualizacoes() {
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [activeTab]) // Trigger fetch on tab change to get fresh archived/unarchived sets
 
   const processBatch = async (
     action: 'read' | 'unread' | 'archive' | 'unarchive' | 'save' | 'unsave' | 'delete',
@@ -616,22 +626,23 @@ export default function CentralAtualizacoes() {
     try {
       if (item.collection === 'pje_communications' || item.collection === 'gazette_publications') {
         const isArchived = type === 'discarded' || type === 'concluded' ? true : item.isArchived
-        await pb.collection(item.collection).update(item.id, {
-          treatment_status: type,
-          is_archived: isArchived,
-          treatment_type: type,
-          is_read: true,
-        })
+        await pb
+          .collection(item.collection)
+          .update(item.id, {
+            treatment_status: type,
+            is_archived: isArchived,
+            treatment_type: type,
+            is_read: true,
+          })
       } else if (
         item.collection === 'finances' ||
         item.collection === 'notifications' ||
         item.collection === 'ocorrencias_dou'
       ) {
         const isArchived = type === 'discarded' || type === 'concluded' ? true : item.isArchived
-        await pb.collection(item.collection).update(item.id, {
-          is_archived: isArchived,
-          is_read: true,
-        })
+        await pb
+          .collection(item.collection)
+          .update(item.id, { is_archived: isArchived, is_read: true })
       }
 
       await pb.collection('system_logs').create({
@@ -651,9 +662,6 @@ export default function CentralAtualizacoes() {
 
   const handleMarkAsRead = (item: UnifiedItem) =>
     processBatch('read', new Set([`${item.collection}-${item.id}`]))
-  const handleArchive = (item: UnifiedItem) =>
-    processBatch('archive', new Set([`${item.collection}-${item.id}`]))
-
   const handleMarkAllAsRead = () => {
     const unreadIds = new Set(
       filteredItems.filter((i) => !i.isRead).map((i) => `${i.collection}-${i.id}`),
@@ -730,41 +738,26 @@ export default function CentralAtualizacoes() {
   const handleShareWhatsApp = (item: UnifiedItem) => {
     setSelectedItem(item)
     let tpl = 'custom'
-    let msg = ''
-
-    const clientName = item.clientName || ''
-
-    if (item.type === 'Aniversário') {
-      tpl = 'aniversario'
-      msg = `Olá, ${clientName}. O escritório Moraes Rodrigues Advocacia gostaria de parabeniza-lo e lhe desejar muita saúde e anos de vida nesta data especial do seu aniversário. Att. Equipe Moraes Rodrigues Advocacia`
-    } else if (item.type === 'Financeiro') {
-      tpl = 'financeiro'
-      const desc = item.description?.replace(/<[^>]*>?/gm, '').trim() || ''
-      msg = `Olá, ${clientName}.\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${item.title}\n${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`
-    } else if (['Movimentação', 'PJe', 'DOU', 'Processo Novo'].includes(item.type)) {
-      tpl = 'processual'
-      const dateStr = item.date ? format(new Date(item.date), 'dd/MM/yyyy') : ''
-      const desc = item.description?.replace(/<[^>]*>?/gm, '').trim() || ''
-      const processInfo = item.caseNumber
-        ? `${item.caseNumber} (${item.parties || item.caseTitle || ''})`
-        : item.caseTitle || ''
-      msg = `Olá, ${clientName}.\n\nInformamos sobre a seguinte movimentação no processo ${processInfo}:\n\nData: ${dateStr}\nAndamento: ${desc}\n\nAtt. Equipe Moraes Rodrigues Advocacia`
-    } else {
-      msg = `Olá, ${clientName}.\n\n*${item.type}:* ${item.title}\n${item.description?.replace(/<[^>]*>?/gm, '').trim()}\n\nAtt. Equipe Moraes Rodrigues Advocacia`
-    }
+    if (item.type === 'Aniversário') tpl = 'aniversario'
+    else if (item.type === 'Financeiro') tpl = 'financeiro'
+    else if (['Movimentação', 'PJe', 'DOU', 'Processo Novo'].includes(item.type)) tpl = 'processual'
 
     setShareTemplate(tpl)
-    setShareMessage(msg)
     setShareClientId(item.clientId || '')
     setSharePhone(item.clientPhone || '')
-    setShareDialogOpen(true)
+
+    // Defer message generation to properly grab dynamically available states
+    setTimeout(() => {
+      const msg = generateShareMessage(item.clientId || '', tpl, item)
+      setShareMessage(msg)
+      setShareDialogOpen(true)
+    }, 50)
   }
 
   const handleCompleteTask = async (item: UnifiedItem) => {
     try {
       await pb.collection('tasks').update(item.id, { status: 'completed' })
       toast({ title: 'Tarefa concluída com sucesso!' })
-      // Removal will happen automatically via useRealtime('tasks')
     } catch (e) {
       console.error(e)
       toast({ title: 'Erro ao concluir tarefa', variant: 'destructive' })
@@ -850,9 +843,9 @@ export default function CentralAtualizacoes() {
               </span>
               <Checkbox
                 checked={isSelected}
-                onCheckedChange={(checked) => {
+                onCheckedChange={(c) => {
                   const newSet = new Set(selectedIds)
-                  if (checked) newSet.add(itemKey)
+                  if (c) newSet.add(itemKey)
                   else newSet.delete(itemKey)
                   setSelectedIds(newSet)
                 }}
@@ -905,11 +898,13 @@ export default function CentralAtualizacoes() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-2 pt-4 border-t border-slate-100">
-            {(item.collection === 'pje_communications' ||
-              item.collection === 'gazette_publications' ||
-              item.collection === 'finances' ||
-              item.collection === 'notifications' ||
-              item.collection === 'ocorrencias_dou') &&
+            {[
+              'pje_communications',
+              'gazette_publications',
+              'finances',
+              'notifications',
+              'ocorrencias_dou',
+            ].includes(item.collection) &&
               !item.isArchived && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -940,15 +935,12 @@ export default function CentralAtualizacoes() {
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => {
-                        if (!item.caseId) {
-                          toast({
+                        if (!item.caseId)
+                          return toast({
                             title: 'Aviso',
-                            description:
-                              'Vincule o processo primeiro para adicionar um andamento manual.',
+                            description: 'Vincule o processo primeiro.',
                             variant: 'destructive',
                           })
-                          return
-                        }
                         setSelectedItem(item)
                         setManualDialogOpen(true)
                       }}
@@ -983,7 +975,7 @@ export default function CentralAtualizacoes() {
               </Button>
             )}
 
-            {(item.collection === 'pje_communications' || item.collection === 'notifications') &&
+            {['pje_communications', 'notifications'].includes(item.collection) &&
               !item.isArchived && (
                 <Button
                   size="sm"
@@ -1024,8 +1016,7 @@ export default function CentralAtualizacoes() {
               </>
             )}
 
-            {(item.collection === 'pje_communications' ||
-              item.collection === 'gazette_publications') && (
+            {['pje_communications', 'gazette_publications'].includes(item.collection) && (
               <Button
                 size="sm"
                 variant="secondary"
@@ -1068,7 +1059,19 @@ export default function CentralAtualizacoes() {
               className="text-emerald-600 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
               onClick={() => handleShareWhatsApp(item)}
             >
-              <MessageCircle className="w-4 h-4 mr-2" /> Compartilhar
+              <MessageCircle className="w-4 h-4 mr-2" /> WhatsApp
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+              onClick={() => {
+                setSelectedItem(item)
+                setEmailModalOpen(true)
+              }}
+            >
+              <Mail className="w-4 h-4 mr-2" /> Email
             </Button>
           </div>
         </div>
@@ -1155,10 +1158,9 @@ export default function CentralAtualizacoes() {
                     paginatedItems.length > 0 &&
                     paginatedItems.every((i) => selectedIds.has(`${i.collection}-${i.id}`))
                   }
-                  onCheckedChange={(checked) => {
+                  onCheckedChange={(c) => {
                     const newSet = new Set(selectedIds)
-                    if (checked)
-                      paginatedItems.forEach((i) => newSet.add(`${i.collection}-${i.id}`))
+                    if (c) paginatedItems.forEach((i) => newSet.add(`${i.collection}-${i.id}`))
                     else paginatedItems.forEach((i) => newSet.delete(`${i.collection}-${i.id}`))
                     setSelectedIds(newSet)
                   }}
@@ -1255,9 +1257,9 @@ export default function CentralAtualizacoes() {
                           paginatedItems.length > 0 &&
                           paginatedItems.every((i) => selectedIds.has(`${i.collection}-${i.id}`))
                         }
-                        onCheckedChange={(checked) => {
+                        onCheckedChange={(c) => {
                           const newSet = new Set(selectedIds)
-                          if (checked)
+                          if (c)
                             paginatedItems.forEach((i) => newSet.add(`${i.collection}-${i.id}`))
                           else
                             paginatedItems.forEach((i) => newSet.delete(`${i.collection}-${i.id}`))
@@ -1274,7 +1276,7 @@ export default function CentralAtualizacoes() {
                   )}
                   {activeTab === 'inbox' && filteredItems.length > 0 && (
                     <Button size="sm" variant="outline" onClick={handleMarkAllAsRead}>
-                      <CheckCircle2 className="w-4 h-4 mr-2" /> Marcar todos como lidos
+                      <CheckCircle2 className="w-4 h-4 mr-2" /> Marcar todos lidos
                     </Button>
                   )}
                 </div>
@@ -1495,7 +1497,6 @@ export default function CentralAtualizacoes() {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Cliente</Label>
@@ -1521,7 +1522,6 @@ export default function CentralAtualizacoes() {
                 />
               </div>
             </div>
-
             <div className="space-y-2">
               <Label>Mensagem</Label>
               <textarea
@@ -1552,6 +1552,19 @@ export default function CentralAtualizacoes() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <EmailSenderModal
+        open={emailModalOpen}
+        onOpenChange={setEmailModalOpen}
+        client={selectedItem?.clientId ? { id: selectedItem.clientId } : null}
+        context={{
+          case_number: selectedItem?.caseNumber || '',
+          client_name: selectedItem?.clientName || '',
+          data_alerta: selectedItem?.date
+            ? format(new Date(selectedItem.date), 'dd/MM/yyyy')
+            : format(new Date(), 'dd/MM/yyyy'),
+        }}
+      />
 
       <Dialog open={isProcessingBatch} onOpenChange={() => {}}>
         <DialogContent

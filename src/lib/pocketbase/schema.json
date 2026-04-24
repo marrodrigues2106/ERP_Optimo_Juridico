@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-24T14:58:11.202Z",
+  "generatedAt": "2026-04-24T15:29:50.821Z",
   "collections": [
     {
       "name": "users",
@@ -2806,6 +2806,54 @@
         "CREATE INDEX idx_pje_com_processo ON pje_communications (numeroProcesso)",
         "CREATE INDEX idx_pje_com_data ON pje_communications (dataDisponibilizacao)"
       ]
+    },
+    {
+      "name": "email_logs",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && organization = @request.auth.active_organization",
+        "view": "@request.auth.id != '' && organization = @request.auth.active_organization",
+        "create": null,
+        "update": null,
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "organization",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "organizations"
+        },
+        {
+          "name": "user",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "sent_at",
+          "type": "date",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
     }
   ]
 }

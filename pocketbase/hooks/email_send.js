@@ -15,6 +15,7 @@ routerAdd(
       throw new BadRequestError('Dados incompletos para envio do e-mail.', errors)
     }
 
+    const toList = Array.isArray(body.to) ? body.to : [body.to]
     const orgId = user.getString('active_organization')
 
     const MAX_DAILY = 100
@@ -32,7 +33,7 @@ routerAdd(
         const resDaily = $app
           .db()
           .newQuery(
-            `SELECT COUNT(id) as c FROM system_logs WHERE module = 'email' AND message = 'email_sent' AND organization = {:org} AND created >= {:date} `,
+            `SELECT COUNT(id) as c FROM email_logs WHERE organization = {:org} AND sent_at >= {:date} `,
           )
           .bind({ org: orgId, date: todayStr + ' 00:00:00.000Z' })
           .one()
@@ -43,7 +44,7 @@ routerAdd(
         const resMonthly = $app
           .db()
           .newQuery(
-            `SELECT COUNT(id) as c FROM system_logs WHERE module = 'email' AND message = 'email_sent' AND organization = {:org} AND created >= {:date} `,
+            `SELECT COUNT(id) as c FROM email_logs WHERE organization = {:org} AND sent_at >= {:date} `,
           )
           .bind({ org: orgId, date: startOfMonthStr + ' 00:00:00.000Z' })
           .one()
@@ -51,8 +52,10 @@ routerAdd(
       } catch (_) {}
     }
 
-    if (dailyCount >= MAX_DAILY || monthlyCount >= MAX_MONTHLY) {
-      throw new BadRequestError('Limite de envio de e-mails atingido (Máximo 100/dia ou 3000/mês).')
+    if (dailyCount + toList.length > MAX_DAILY || monthlyCount + toList.length > MAX_MONTHLY) {
+      throw new BadRequestError(
+        `Limite de envio de e-mails atingido. (Você tem ${MAX_DAILY - dailyCount} envios diários restantes)`,
+      )
     }
 
     let apiKey = ''
@@ -94,7 +97,7 @@ routerAdd(
       },
       body: JSON.stringify({
         from: `${fromName} <${fromEmail}>`,
-        to: body.to,
+        to: toList,
         subject: body.subject,
         html: body.body,
       }),
@@ -107,12 +110,23 @@ routerAdd(
       throw new BadRequestError(errorMsg)
     }
 
+    try {
+      const emailLogsCol = $app.findCollectionByNameOrId('email_logs')
+      for (const email of toList) {
+        const eLog = new Record(emailLogsCol)
+        if (orgId) eLog.set('organization', orgId)
+        if (user) eLog.set('user', user.id)
+        eLog.set('sent_at', new Date().toISOString())
+        $app.save(eLog)
+      }
+    } catch (_) {}
+
     const logCol = $app.findCollectionByNameOrId('system_logs')
     const sentLog = new Record(logCol)
     sentLog.set('level', 'info')
     sentLog.set('module', 'email')
     sentLog.set('message', 'email_sent')
-    sentLog.set('details', { to: body.to, subject: body.subject })
+    sentLog.set('details', { to: toList, subject: body.subject })
     if (orgId) sentLog.set('organization', orgId)
     sentLog.set('user', user.id)
     $app.save(sentLog)

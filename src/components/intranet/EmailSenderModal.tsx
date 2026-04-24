@@ -17,19 +17,31 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
-import { Loader2, Mail, AlertTriangle } from 'lucide-react'
+import { Loader2, Mail, AlertTriangle, Check, ChevronsUpDown, X } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { cn } from '@/lib/utils'
 
 interface EmailSenderModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  client: any
+  client?: any
   context: {
     client_name?: string
     case_number?: string
     org_name?: string
+    data_alerta?: string
     [key: string]: any
   }
 }
@@ -42,13 +54,32 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
   const [isSending, setIsSending] = useState(false)
   const [dailyCount, setDailyCount] = useState(0)
   const [monthlyCount, setMonthlyCount] = useState(0)
+
+  const [clientsList, setClientsList] = useState<any[]>([])
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
+  const [openCombobox, setOpenCombobox] = useState(false)
+
   const { toast } = useToast()
 
   useEffect(() => {
     if (open) {
+      if (client && client.id) {
+        setSelectedClientIds([client.id])
+      } else {
+        setSelectedClientIds([])
+      }
+      setSelectedTemplate(null)
+      setSubject('')
+      setHtml('')
+
       pb.collection('communication_templates')
         .getFullList({ filter: "type = 'Email'", sort: '-created' })
         .then(setTemplates)
+        .catch(console.error)
+
+      pb.collection('clients')
+        .getFullList({ filter: 'deleted_at=""', sort: 'name' })
+        .then(setClientsList)
         .catch(console.error)
 
       const fetchQuotas = async () => {
@@ -60,12 +91,12 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
 
           if (!orgId) return
 
-          const dailyRes = await pb.collection('system_logs').getList(1, 1, {
-            filter: `module = 'email' && message = 'email_sent' && organization = "${orgId}" && created >= "${todayStr} 00:00:00"`,
+          const dailyRes = await pb.collection('email_logs').getList(1, 1, {
+            filter: `organization = "${orgId}" && sent_at >= "${todayStr} 00:00:00"`,
             $autoCancel: false,
           })
-          const monthlyRes = await pb.collection('system_logs').getList(1, 1, {
-            filter: `module = 'email' && message = 'email_sent' && organization = "${orgId}" && created >= "${startOfMonthStr} 00:00:00"`,
+          const monthlyRes = await pb.collection('email_logs').getList(1, 1, {
+            filter: `organization = "${orgId}" && sent_at >= "${startOfMonthStr} 00:00:00"`,
             $autoCancel: false,
           })
 
@@ -77,9 +108,11 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
       }
       fetchQuotas()
     }
-  }, [open])
+  }, [open, client])
 
-  const isLimitReached = dailyCount >= 100 || monthlyCount >= 3000
+  const selectedEmailsCount = selectedClientIds.length
+  const isLimitReached =
+    dailyCount + selectedEmailsCount > 100 || monthlyCount + selectedEmailsCount > 3000
 
   const handleTemplateChange = (id: string) => {
     const tpl = templates.find((t) => t.id === id)
@@ -90,16 +123,16 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
     let parsedHtml = tpl.body_html || ''
 
     const finalContext = { ...context }
-    if (pb.authStore.record?.expand?.active_organization?.name) {
-      finalContext['nome_organizacao'] = pb.authStore.record.expand.active_organization.name
-    } else {
-      finalContext['nome_organizacao'] = 'Nosso Escritório'
-    }
+    const orgName = pb.authStore.record?.expand?.active_organization?.name || 'Nosso Escritório'
+
+    finalContext['nome_organizacao'] = orgName
+    finalContext['nome organização'] = orgName
+    finalContext['data_alerta'] = context.data_alerta || new Date().toLocaleDateString('pt-BR')
 
     Object.entries(finalContext).forEach(([key, value]) => {
-      const regex = new RegExp(`{{${key}}}`, 'g')
-      parsedSubject = parsedSubject.replace(regex, value || '')
-      parsedHtml = parsedHtml.replace(regex, value || '')
+      const regex = new RegExp(`\\{${key}\\}|\\{\\{${key}\\}\\}`, 'gi')
+      parsedSubject = parsedSubject.replace(regex, String(value) || '')
+      parsedHtml = parsedHtml.replace(regex, String(value) || '')
     })
 
     setSubject(parsedSubject)
@@ -107,8 +140,15 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
   }
 
   const handleSend = async () => {
-    if (!client?.email) {
-      return toast({ title: 'Cliente não possui email cadastrado', variant: 'destructive' })
+    const toEmails = selectedClientIds
+      .map((id) => clientsList.find((c) => c.id === id)?.email)
+      .filter(Boolean)
+
+    if (toEmails.length === 0) {
+      return toast({
+        title: 'Selecione pelo menos um cliente com e-mail válido',
+        variant: 'destructive',
+      })
     }
 
     setIsSending(true)
@@ -116,19 +156,16 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
       await pb.send('/backend/v1/email/send-template', {
         method: 'POST',
         body: JSON.stringify({
-          to: client.email,
+          to: toEmails,
           subject,
           html,
         }),
       })
 
       toast({ title: 'Email enviado com sucesso!' })
-      setDailyCount((prev) => prev + 1)
-      setMonthlyCount((prev) => prev + 1)
+      setDailyCount((prev) => prev + toEmails.length)
+      setMonthlyCount((prev) => prev + toEmails.length)
       onOpenChange(false)
-      setSelectedTemplate(null)
-      setSubject('')
-      setHtml('')
     } catch (err: any) {
       toast({ title: 'Erro ao enviar email', description: err.message, variant: 'destructive' })
     } finally {
@@ -144,8 +181,7 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
             <Mail className="w-5 h-5 text-primary" /> Enviar Email
           </DialogTitle>
           <DialogDescription>
-            Envie uma mensagem profissional para {client?.name || 'o cliente'} selecionando um
-            template abaixo.
+            Envie uma mensagem profissional selecionando um ou mais clientes e um template abaixo.
           </DialogDescription>
         </DialogHeader>
 
@@ -154,20 +190,92 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                Limite de envio de e-mails atingido (Máximo 100/dia ou 3000/mês). Você já enviou{' '}
-                {dailyCount} hoje e {monthlyCount} este mês. O envio foi bloqueado temporariamente
-                para sua organização.
+                Limite de envio atingido para os destinatários selecionados (Máximo 100/dia ou
+                3000/mês). Sua organização enviou {dailyCount} hoje e {monthlyCount} este mês.
               </AlertDescription>
             </Alert>
           )}
 
           <div className="space-y-2">
-            <Label>Destinatário</Label>
-            <Input
-              value={client?.email || 'Sem email cadastrado'}
-              disabled
-              className="bg-slate-50"
-            />
+            <Label>Destinatários</Label>
+            <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openCombobox}
+                  className="w-full justify-between font-normal"
+                >
+                  {selectedClientIds.length > 0
+                    ? `${selectedClientIds.length} cliente(s) selecionado(s)`
+                    : 'Buscar e adicionar clientes...'}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[450px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Buscar cliente por nome..." />
+                  <CommandList>
+                    <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                    <CommandGroup>
+                      {clientsList.map((c) => {
+                        const isSelected = selectedClientIds.includes(c.id)
+                        return (
+                          <CommandItem
+                            key={c.id}
+                            value={c.name}
+                            onSelect={() => {
+                              setSelectedClientIds((prev) =>
+                                isSelected ? prev.filter((id) => id !== c.id) : [...prev, c.id],
+                              )
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                'mr-2 h-4 w-4',
+                                isSelected ? 'opacity-100' : 'opacity-0',
+                              )}
+                            />
+                            <div className="flex flex-col">
+                              <span>{c.name}</span>
+                              {c.email ? (
+                                <span className="text-xs text-slate-500">{c.email}</span>
+                              ) : (
+                                <span className="text-xs text-rose-500">Sem e-mail cadastrado</span>
+                              )}
+                            </div>
+                          </CommandItem>
+                        )
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
+            {selectedClientIds.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-3 p-3 bg-slate-50 rounded-md border border-slate-100 max-h-[120px] overflow-y-auto custom-scrollbar">
+                {selectedClientIds.map((id) => {
+                  const c = clientsList.find((x) => x.id === id)
+                  if (!c) return null
+                  return (
+                    <Badge
+                      key={id}
+                      variant="secondary"
+                      className="flex items-center gap-1 font-normal bg-white"
+                    >
+                      {c.name} {c.email ? '' : '(Sem e-mail)'}
+                      <button
+                        onClick={() => setSelectedClientIds((prev) => prev.filter((x) => x !== id))}
+                        className="ml-1 text-slate-400 hover:text-slate-800"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -195,7 +303,7 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
               <div className="space-y-2">
                 <Label>Mensagem (HTML)</Label>
                 <div
-                  className="bg-slate-50 border p-4 rounded-md text-sm prose prose-sm max-w-none max-h-[300px] overflow-y-auto"
+                  className="bg-slate-50 border p-4 rounded-md text-sm prose prose-sm max-w-none max-h-[200px] overflow-y-auto"
                   dangerouslySetInnerHTML={{ __html: html }}
                 />
               </div>
@@ -212,7 +320,9 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
           </Button>
           <Button
             onClick={handleSend}
-            disabled={isSending || !client?.email || !selectedTemplate || isLimitReached}
+            disabled={
+              isSending || selectedClientIds.length === 0 || !selectedTemplate || isLimitReached
+            }
           >
             {isSending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Enviar Agora
