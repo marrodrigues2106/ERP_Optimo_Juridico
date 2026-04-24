@@ -19,66 +19,73 @@ routerAdd(
       throw new ForbiddenError('Organização não definida')
     }
 
-    $app.runInTransaction((txApp) => {
-      let foundInLabels = false
-
-      try {
-        const oldLabel = txApp.findFirstRecordByFilter(
-          'case_labels',
-          'name = {:old} && organization = {:org}',
-          { old: oldTag, org: orgId },
-        )
-        foundInLabels = true
+    try {
+      $app.runInTransaction((txApp) => {
+        let foundInLabels = false
 
         try {
-          txApp.findFirstRecordByFilter('case_labels', 'name = {:new} && organization = {:org}', {
-            new: newTag,
-            org: orgId,
-          })
-          // newTag already exists, delete oldLabel to merge and avoid unique constraint error
-          txApp.delete(oldLabel)
-        } catch (_) {
-          // newTag doesn't exist, safely rename oldLabel
-          oldLabel.set('name', newTag)
-          txApp.save(oldLabel)
-        }
-      } catch (_) {
-        // oldTag not found in case_labels, it might still exist inside legal_cases JSON
-      }
+          const oldLabel = txApp.findFirstRecordByFilter(
+            'case_labels',
+            'name = {:old} && organization = {:org}',
+            { old: oldTag, org: orgId },
+          )
+          foundInLabels = true
 
-      const cases = txApp.findRecordsByFilter(
-        'legal_cases',
-        'tags ?~ {:old} && organization = {:org}',
-        '',
-        10000,
-        0,
-        { old: oldTag, org: orgId },
-      )
-
-      if (!foundInLabels && cases.length === 0) {
-        throw new NotFoundError('A etiqueta informada não foi encontrada.')
-      }
-
-      for (const record of cases) {
-        let rawTags = record.get('tags')
-        let tags = []
-
-        if (Array.isArray(rawTags)) {
-          tags = rawTags
-        } else if (typeof rawTags === 'string') {
           try {
-            tags = JSON.parse(rawTags)
-          } catch (err) {}
+            txApp.findFirstRecordByFilter('case_labels', 'name = {:new} && organization = {:org}', {
+              new: newTag,
+              org: orgId,
+            })
+            // newTag already exists, delete oldLabel to merge and avoid unique constraint error
+            txApp.delete(oldLabel)
+          } catch (_) {
+            // newTag doesn't exist, safely rename oldLabel
+            oldLabel.set('name', newTag)
+            txApp.save(oldLabel)
+          }
+        } catch (_) {
+          // oldTag not found in case_labels, it might still exist inside legal_cases JSON
         }
 
-        if (Array.isArray(tags)) {
-          const newTags = tags.map((t) => (t === oldTag ? newTag : t))
-          const uniqueTags = [...new Set(newTags)]
-          record.set('tags', uniqueTags)
-          txApp.save(record)
+        const cases = txApp.findRecordsByFilter(
+          'legal_cases',
+          'tags ?~ {:old} && organization = {:org}',
+          '',
+          10000,
+          0,
+          { old: oldTag, org: orgId },
+        )
+
+        if (!foundInLabels && cases.length === 0) {
+          throw new NotFoundError('A etiqueta informada não foi encontrada.')
         }
-      }
-    })
+
+        for (const record of cases) {
+          let rawTags = record.get('tags')
+          let tags = []
+
+          if (Array.isArray(rawTags)) {
+            tags = rawTags
+          } else if (typeof rawTags === 'string') {
+            try {
+              tags = JSON.parse(rawTags)
+            } catch (err) {}
+          }
+
+          if (Array.isArray(tags)) {
+            const newTags = tags.map((t) => (t === oldTag ? newTag : t))
+            const uniqueTags = [...new Set(newTags)]
+            record.set('tags', uniqueTags)
+            txApp.save(record)
+          }
+        }
+      })
+    } catch (err) {
+      if (err.status) throw err
+      throw new InternalServerError(
+        'Erro ao renomear etiqueta. O banco de dados pode estar bloqueado: ' + err.message,
+      )
+    }
 
     return e.json(200, { success: true })
   },

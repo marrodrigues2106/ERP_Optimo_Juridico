@@ -106,6 +106,10 @@ export default function ProcessManager() {
   const [openClientCombo, setOpenClientCombo] = useState(false)
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
 
+  const [editingTags, setEditingTags] = useState<string[]>([])
+  const [showMetadataTagSuggestions, setShowMetadataTagSuggestions] = useState(false)
+  const [metadataTagInput, setMetadataTagInput] = useState('')
+
   useEffect(() => {
     if (editingMetadataCase) {
       const existingClients = editingMetadataCase.expand?.client
@@ -118,6 +122,9 @@ export default function ProcessManager() {
             : [editingMetadataCase.client]
           : []
       setSelectedClientIds(existingClients)
+
+      const existingTags = Array.isArray(editingMetadataCase.tags) ? editingMetadataCase.tags : []
+      setEditingTags(existingTags)
     }
   }, [editingMetadataCase])
 
@@ -183,13 +190,15 @@ export default function ProcessManager() {
       }
 
       if (allTags.length === 0) {
-        const casesForTags = await pb
-          .collection('legal_cases')
-          .getFullList({ fields: 'tags', filter: `deleted_at = ""` })
+        const [casesForTags, labelsData] = await Promise.all([
+          pb.collection('legal_cases').getFullList({ fields: 'tags', filter: `deleted_at = ""` }),
+          pb.collection('case_labels').getFullList({ fields: 'name' }),
+        ])
         const tagSet = new Set<string>()
         casesForTags.forEach((c) => {
           if (Array.isArray(c.tags)) c.tags.forEach((t: string) => tagSet.add(t))
         })
+        labelsData.forEach((l) => tagSet.add(l.name))
         setAllTags(Array.from(tagSet).sort())
       }
     } catch (err) {
@@ -224,6 +233,23 @@ export default function ProcessManager() {
   }, [searchTerm, statusFilter, syncFilter, tagFilter, showFavorites, sortBy, perPage])
 
   useRealtime('legal_cases', loadData)
+
+  useRealtime('case_labels', async () => {
+    try {
+      const [casesForTags, labelsData] = await Promise.all([
+        pb.collection('legal_cases').getFullList({ fields: 'tags', filter: `deleted_at = ""` }),
+        pb.collection('case_labels').getFullList({ fields: 'name' }),
+      ])
+      const tagSet = new Set<string>()
+      casesForTags.forEach((c) => {
+        if (Array.isArray(c.tags)) c.tags.forEach((t: string) => tagSet.add(t))
+      })
+      labelsData.forEach((l) => tagSet.add(l.name))
+      setAllTags(Array.from(tagSet).sort())
+    } catch {
+      /* intentionally ignored */
+    }
+  })
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -352,11 +378,8 @@ export default function ProcessManager() {
     if (!editingMetadataCase) return
     const fd = new FormData(e.currentTarget)
     const lifecycleStatus = fd.get('lifecycle_status') as string
-    const tagsStr = fd.get('tags') as string
-    const tags = tagsStr
-      .split(',')
-      .map((t) => t.trim())
-      .filter((t) => t)
+
+    const tags = editingTags
 
     const distributionDateStr = fd.get('distribution_date') as string
     const distribution_date = distributionDateStr
@@ -951,16 +974,144 @@ export default function ProcessManager() {
                   className="min-h-[80px]"
                 />
               </div>
-              <div>
-                <Label>Tags (separadas por vírgula)</Label>
-                <Input
-                  name="tags"
-                  defaultValue={
-                    Array.isArray(editingMetadataCase.tags)
-                      ? editingMetadataCase.tags.join(', ')
-                      : ''
-                  }
-                />
+              <div className="flex flex-col gap-1.5">
+                <Label>Etiquetas</Label>
+                <Popover
+                  open={showMetadataTagSuggestions}
+                  onOpenChange={setShowMetadataTagSuggestions}
+                >
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={showMetadataTagSuggestions}
+                      className="w-full justify-between font-normal bg-white h-auto min-h-10 py-2 px-3"
+                    >
+                      <div className="flex flex-wrap gap-1 items-center">
+                        {editingTags.length > 0 ? (
+                          editingTags.map((tag, index) => (
+                            <Badge
+                              key={index}
+                              variant="secondary"
+                              className="text-xs font-medium flex items-center gap-1"
+                            >
+                              {tag}
+                              <button
+                                type="button"
+                                className="hover:bg-slate-200 rounded-full p-0.5 transition-colors ml-1"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setEditingTags(editingTags.filter((t) => t !== tag))
+                                }}
+                              >
+                                <X className="w-3 h-3 text-slate-500 hover:text-slate-800" />
+                              </button>
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-slate-500">Selecionar ou criar etiquetas...</span>
+                        )}
+                      </div>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-[var(--radix-popover-trigger-width)] p-0"
+                    align="start"
+                  >
+                    <Command>
+                      <CommandInput
+                        placeholder="Buscar ou criar etiqueta..."
+                        value={metadataTagInput}
+                        onValueChange={setMetadataTagInput}
+                      />
+                      <CommandList>
+                        <CommandEmpty>
+                          {metadataTagInput.trim() ? (
+                            <Button
+                              variant="ghost"
+                              className="w-full justify-start px-2 py-1.5 text-sm font-medium text-primary"
+                              onClick={async () => {
+                                const newTag = metadataTagInput.trim()
+                                if (!editingTags.includes(newTag)) {
+                                  setEditingTags([...editingTags, newTag])
+                                  if (!allTags.includes(newTag)) {
+                                    setAllTags((prev) => [...prev, newTag].sort())
+                                    try {
+                                      await pb.collection('case_labels').create({
+                                        name: newTag,
+                                        color: '#e2e8f0',
+                                        organization: pb.authStore.record?.active_organization,
+                                      })
+                                    } catch {
+                                      /* intentionally ignored */
+                                    }
+                                  }
+                                }
+                                setMetadataTagInput('')
+                                setShowMetadataTagSuggestions(false)
+                              }}
+                            >
+                              Criar nova etiqueta: "{metadataTagInput.trim()}"
+                            </Button>
+                          ) : (
+                            'Nenhuma etiqueta encontrada.'
+                          )}
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {allTags
+                            .filter((t) => !editingTags.includes(t))
+                            .map((t) => (
+                              <CommandItem
+                                key={t}
+                                value={t}
+                                onSelect={() => {
+                                  if (!editingTags.includes(t)) {
+                                    setEditingTags([...editingTags, t])
+                                  }
+                                  setMetadataTagInput('')
+                                  setShowMetadataTagSuggestions(false)
+                                }}
+                              >
+                                {t}
+                              </CommandItem>
+                            ))}
+                          {metadataTagInput.trim() &&
+                            !allTags.find(
+                              (t) => t.toLowerCase() === metadataTagInput.trim().toLowerCase(),
+                            ) && (
+                              <CommandItem
+                                value={metadataTagInput.trim()}
+                                onSelect={async () => {
+                                  const newTag = metadataTagInput.trim()
+                                  if (!editingTags.includes(newTag)) {
+                                    setEditingTags([...editingTags, newTag])
+                                    if (!allTags.includes(newTag)) {
+                                      setAllTags((prev) => [...prev, newTag].sort())
+                                      try {
+                                        await pb.collection('case_labels').create({
+                                          name: newTag,
+                                          color: '#e2e8f0',
+                                          organization: pb.authStore.record?.active_organization,
+                                        })
+                                      } catch {
+                                        /* intentionally ignored */
+                                      }
+                                    }
+                                  }
+                                  setMetadataTagInput('')
+                                  setShowMetadataTagSuggestions(false)
+                                }}
+                                className="text-primary font-medium"
+                              >
+                                Criar nova etiqueta: "{metadataTagInput.trim()}"
+                              </CommandItem>
+                            )}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               <Button type="submit" className="w-full">
                 Salvar Alterações
