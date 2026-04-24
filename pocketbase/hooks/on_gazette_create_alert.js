@@ -31,12 +31,23 @@ onRecordAfterCreateSuccess((e) => {
           0,
         )
         if (confs.length > 0) {
+          const freq = confs[0].getString('frequencia') || 'imediato'
+          if (freq !== 'imediato') return null
           const dest = confs[0].getString('email_destinatario')
           if (dest) return dest
         }
       } catch (e) {}
       return defaultEmail
     }
+
+    const orgao = gazette.getString('orgao') || 'DOU'
+    let numList = gazette.get('numero_processo')
+    let primaryNum = 'Publicação'
+    if (numList) {
+      if (typeof numList === 'string') primaryNum = numList
+      else if (Array.isArray(numList) && numList.length > 0) primaryNum = numList[0]
+    }
+    const texto = gazette.getString('texto_normalizado') || ''
 
     const recipients = new Set()
     try {
@@ -45,20 +56,23 @@ onRecordAfterCreateSuccess((e) => {
         : `role = 'admin' || isAdmin = true`
       const admins = $app.findRecordsByFilter('users', filterAdm, '', 100, 0)
       admins.forEach((a) => {
-        if (a.getString('email')) recipients.add(getAlertEmail(a.id, a.getString('email')))
+        try {
+          const notifCol = $app.findCollectionByNameOrId('notifications')
+          const notif = new Record(notifCol)
+          notif.set('user_id', a.id)
+          notif.set('numero_processo', primaryNum)
+          notif.set('message', `Nova publicação ${orgao}: ${texto.substring(0, 100)}...`)
+          $app.save(notif)
+        } catch (err) {}
+
+        if (a.getString('email')) {
+          const email = getAlertEmail(a.id, a.getString('email'))
+          if (email) recipients.add(email)
+        }
       })
     } catch (e) {}
 
     if (recipients.size > 0) {
-      const orgao = gazette.getString('orgao') || 'DOU'
-      let numList = gazette.get('numero_processo')
-      let primaryNum = 'Publicação'
-      if (numList) {
-        if (typeof numList === 'string') primaryNum = numList
-        else if (Array.isArray(numList) && numList.length > 0) primaryNum = numList[0]
-      }
-      const texto = gazette.getString('texto_normalizado') || ''
-
       const htmlBody = `
           <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
               <h2 style="color: #2563eb;">Nova Publicação ${orgao}</h2>
@@ -69,6 +83,7 @@ onRecordAfterCreateSuccess((e) => {
           </div>
       `
       for (const to of recipients) {
+        if (!to) continue
         try {
           $http.send({
             url: 'https://api.resend.com/emails',
