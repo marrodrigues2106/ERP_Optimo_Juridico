@@ -7,7 +7,6 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { cn } from '@/lib/utils'
 
 export function NotificationBell() {
   const { user } = useAuth()
@@ -17,12 +16,39 @@ export function NotificationBell() {
   const fetchNotifications = async () => {
     if (!user?.id) return
     try {
-      const records = await pb.collection('notifications').getList(1, 20, {
-        filter: `user_id = "${user.id}" && is_read = false`,
-        sort: '-created',
-      })
-      setNotifications(records.items)
-      setUnreadCount(records.totalItems)
+      const [notifRes, occRes] = await Promise.all([
+        pb.collection('notifications').getList(1, 20, {
+          filter: `user_id = "${user.id}" && is_read = false`,
+          sort: '-created',
+        }),
+        pb.collection('ocorrencias_dou').getList(1, 20, {
+          filter: `termo_id.usuario_id = "${user.id}" && status_alerta = 'pendente'`,
+          sort: '-created',
+          expand: 'publicacao_id,termo_id',
+        }),
+      ])
+
+      const mappedOcc = occRes.items.map((occ) => ({
+        id: occ.id,
+        message: `Nova ocorrência para o termo: ${occ.expand?.termo_id?.termo || 'Desconhecido'}`,
+        numero_processo: occ.expand?.publicacao_id?.orgao || 'Monitoramento',
+        created: occ.created,
+        is_read: false,
+        type: 'ocorrencia',
+        original: occ,
+      }))
+
+      const mappedNotif = notifRes.items.map((n) => ({
+        ...n,
+        type: 'notificacao',
+      }))
+
+      const combined = [...mappedNotif, ...mappedOcc]
+        .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime())
+        .slice(0, 20)
+
+      setNotifications(combined)
+      setUnreadCount(notifRes.totalItems + occRes.totalItems)
     } catch (err) {
       console.error(err)
     }
@@ -42,10 +68,22 @@ export function NotificationBell() {
     !!user?.id,
   )
 
-  const markAsRead = async (id: string) => {
+  useRealtime(
+    'ocorrencias_dou',
+    (e) => {
+      fetchNotifications()
+    },
+    !!user?.id,
+  )
+
+  const markAsRead = async (notif: any) => {
     try {
-      await pb.collection('notifications').update(id, { is_read: true })
-      setNotifications((prev) => prev.filter((n) => n.id !== id))
+      if (notif.type === 'ocorrencia') {
+        await pb.collection('ocorrencias_dou').update(notif.id, { status_alerta: 'visualizado' })
+      } else {
+        await pb.collection('notifications').update(notif.id, { is_read: true })
+      }
+      setNotifications((prev) => prev.filter((n) => n.id !== notif.id))
       setUnreadCount((prev) => Math.max(0, prev - 1))
     } catch (err) {
       console.error(err)
@@ -55,7 +93,12 @@ export function NotificationBell() {
   const markAllAsRead = async () => {
     try {
       await Promise.all(
-        notifications.map((n) => pb.collection('notifications').update(n.id, { is_read: true })),
+        notifications.map((n) => {
+          if (n.type === 'ocorrencia') {
+            return pb.collection('ocorrencias_dou').update(n.id, { status_alerta: 'visualizado' })
+          }
+          return pb.collection('notifications').update(n.id, { is_read: true })
+        }),
       )
       setNotifications([])
       setUnreadCount(0)
@@ -118,7 +161,7 @@ export function NotificationBell() {
                     variant="ghost"
                     size="icon"
                     className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 text-slate-400 hover:text-primary shrink-0"
-                    onClick={() => markAsRead(notif.id)}
+                    onClick={() => markAsRead(notif)}
                     title="Marcar como lida"
                   >
                     <Check className="w-4 h-4" />
