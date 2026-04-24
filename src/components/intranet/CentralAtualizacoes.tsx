@@ -547,6 +547,8 @@ export default function CentralAtualizacoes() {
                 ].includes(item.collection)
               ) {
                 await pb.collection(item.collection).update(item.id, { is_archived: true })
+              } else if (item.collection === 'case_movements') {
+                await pb.collection('case_movements').update(item.id, { notified_client: true })
               }
             } else if (action === 'unarchive') {
               if (
@@ -1542,6 +1544,7 @@ export default function CentralAtualizacoes() {
         onOpenChange={setEmailModalOpen}
         client={selectedItem?.clientId ? { id: selectedItem.clientId } : null}
         context={{
+          type: selectedItem?.type || '',
           case_number: selectedItem?.caseNumber || '',
           client_name: selectedItem?.clientName || '',
           data_alerta: selectedItem?.date

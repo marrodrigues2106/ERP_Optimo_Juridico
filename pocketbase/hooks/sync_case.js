@@ -85,21 +85,42 @@ routerAdd(
 
         if (!externalId) continue
 
+        let evtDate = item.dataDisponibilizacao || new Date().toISOString()
+        let description = item.tipoComunicacao || 'Comunicação PJe'
+
         let movRec
         try {
           movRec = $app.findFirstRecordByData('case_movements', 'external_id', externalId)
           continue
         } catch (_) {
+          try {
+            const datePrefix = evtDate.substring(0, 10)
+            const existing = $app.findFirstRecordByFilter(
+              'case_movements',
+              'case = {:caseId} && description = {:desc} && event_date >= {:dStart} && event_date <= {:dEnd}',
+              {
+                caseId: c.id,
+                desc: description,
+                dStart: datePrefix + ' 00:00:00.000Z',
+                dEnd: datePrefix + ' 23:59:59.999Z',
+              },
+            )
+            if (existing) {
+              if (!existing.getString('external_id')) {
+                existing.set('external_id', externalId)
+                $app.saveNoValidate(existing)
+              }
+              continue
+            }
+          } catch (__) {}
+
           const movCol = $app.findCollectionByNameOrId('case_movements')
           movRec = new Record(movCol)
           movRec.set('case', c.id)
         }
 
-        let evtDate = item.dataDisponibilizacao
-        if (!evtDate) evtDate = new Date().toISOString()
         movRec.set('event_date', evtDate)
-
-        movRec.set('description', item.tipoComunicacao || 'Comunicação PJe')
+        movRec.set('description', description)
         movRec.set('source', 'PJe')
         movRec.set('details', item.texto || '')
         movRec.set('external_id', externalId)

@@ -80,7 +80,30 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
 
       pb.collection('communication_templates')
         .getFullList({ filter: "type = 'Email'", sort: '-created' })
-        .then(setTemplates)
+        .then((tpls) => {
+          setTemplates(tpls)
+
+          if (context.type) {
+            let targetName = ''
+            if (
+              ['Movimentação', 'PJe', 'DOU', 'Processo Novo', 'Atualização Processual'].includes(
+                context.type,
+              )
+            )
+              targetName = 'Atualização Processual'
+            else if (context.type === 'Financeiro') targetName = 'Cobrança / Financeiro'
+            else if (context.type === 'Aniversário') targetName = 'Aniversário'
+
+            if (targetName) {
+              const match = tpls.find((t) =>
+                t.name.toLowerCase().includes(targetName.toLowerCase()),
+              )
+              if (match) {
+                handleTemplateChange(match.id, tpls)
+              }
+            }
+          }
+        })
         .catch(console.error)
 
       pb.collection('clients')
@@ -120,8 +143,8 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
   const isLimitReached =
     dailyCount + selectedEmailsCount > 100 || monthlyCount + selectedEmailsCount > 3000
 
-  const handleTemplateChange = (id: string) => {
-    const tpl = templates.find((t) => t.id === id)
+  const handleTemplateChange = (id: string, tpls = templates) => {
+    const tpl = tpls.find((t) => t.id === id)
     if (!tpl) return
     setSelectedTemplate(tpl)
 

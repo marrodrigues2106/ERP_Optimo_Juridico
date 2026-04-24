@@ -22,7 +22,8 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Mail } from 'lucide-react'
+import { EmailSenderModal } from '../EmailSenderModal'
 
 const formSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
@@ -63,6 +64,8 @@ export function EventFormModal({
   const [clients, setClients] = useState<any[]>([])
   const [cases, setCases] = useState<any[]>([])
   const isEditing = !!editingEvent
+
+  const [emailModalOpen, setEmailModalOpen] = useState(false)
 
   const {
     register,
@@ -428,11 +431,17 @@ export function EventFormModal({
                 Excluir
               </Button>
             )}
-            <Button
-              type="submit"
-              className={isEditing ? 'flex-1' : 'w-full'}
-              disabled={isSubmitting}
-            >
+            {watchType === 'Email' && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1 bg-blue-50 text-blue-600 hover:bg-blue-100 border-blue-200"
+                onClick={() => setEmailModalOpen(true)}
+              >
+                <Mail className="w-4 h-4 mr-2" /> Compor E-mail Agora
+              </Button>
+            )}
+            <Button type="submit" className="flex-1" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -446,6 +455,28 @@ export function EventFormModal({
             </Button>
           </div>
         </form>
+
+        <EmailSenderModal
+          open={emailModalOpen}
+          onOpenChange={setEmailModalOpen}
+          client={
+            watchClient !== 'none'
+              ? { id: watchClient }
+              : watchLawsuit !== 'none'
+                ? { id: cases.find((c) => c.id === watchLawsuit)?.client }
+                : null
+          }
+          context={{
+            type: 'Atualização Processual',
+            case_number:
+              watchLawsuit !== 'none' ? cases.find((c) => c.id === watchLawsuit)?.case_number : '',
+            client_name:
+              watchClient !== 'none' ? clients.find((c) => c.id === watchClient)?.name : '',
+            org_name: pb.authStore.record?.expand?.active_organization?.name || 'Nosso Escritório',
+            data_alerta: new Date().toLocaleDateString('pt-BR'),
+            movement_description: control._formValues.description || '',
+          }}
+        />
       </DialogContent>
     </Dialog>
   )
