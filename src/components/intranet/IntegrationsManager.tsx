@@ -8,16 +8,23 @@ import { useToast } from '@/hooks/use-toast'
 import { Save, Loader2, Mail, ShieldCheck, Zap } from 'lucide-react'
 import { getSettingByKey, setSettingByKey } from '@/services/settings'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
+import { useAuth } from '@/hooks/use-auth'
+import { Navigate } from 'react-router-dom'
 
 export default function IntegrationsManager() {
   const { toast } = useToast()
+  const { user } = useAuth()
 
   const [resendApiKey, setResendApiKey] = useState('')
   const [resendFromEmail, setResendFromEmail] = useState('onboarding@resend.dev')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
+  const isAuthorized = user?.role === 'admin' || user?.role === 'manager' || user?.isAdmin
+
   useEffect(() => {
+    if (!isAuthorized) return
+
     const loadSettings = async () => {
       try {
         const keyRecord = await getSettingByKey('resend_api_key')
@@ -31,7 +38,7 @@ export default function IntegrationsManager() {
       }
     }
     loadSettings()
-  }, [])
+  }, [isAuthorized])
 
   const handleTestEmail = async () => {
     setSaving(true)
@@ -40,18 +47,14 @@ export default function IntegrationsManager() {
         method: 'POST',
         body: JSON.stringify({ resend_api_key: resendApiKey, resend_from_email: resendFromEmail }),
       })
-      if (res.success) {
-        toast({ title: 'Conexão validada!', description: 'E-mail de teste enviado com sucesso.' })
-        return true
-      }
-      return false
+
+      if (res.error) throw new Error(res.message || 'Erro de conexão')
+
+      toast({ title: 'Conexão com Resend estabelecida com sucesso!' })
+      return true
     } catch (err: any) {
-      const errorMsg = err.response?.data
-        ? Object.values(err.response.data)[0]?.message
-        : err.message
       toast({
-        title: 'Falha na conexão',
-        description: errorMsg || 'Verifique a chave da API do Resend.',
+        title: 'Falha na conexão: Verifique sua Chave API.',
         variant: 'destructive',
       })
       return false
@@ -72,6 +75,10 @@ export default function IntegrationsManager() {
     } finally {
       setSaving(false)
     }
+  }
+
+  if (!isAuthorized) {
+    return <Navigate to="/intranet" replace />
   }
 
   return (

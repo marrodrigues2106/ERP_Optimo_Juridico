@@ -7,8 +7,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/hooks/use-auth'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
-import { Camera, Save, Loader2, Building2, Activity } from 'lucide-react'
+import { Camera, Save, Loader2, Building2, Activity, Zap } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Link } from 'react-router-dom'
 import {
   Select,
   SelectContent,
@@ -131,6 +132,11 @@ export default function ProfileManager() {
           <TabsTrigger value="monitoramento" className="text-base px-4 py-2 font-medium">
             Monitoramento PJe
           </TabsTrigger>
+          {(user?.role === 'admin' || user?.role === 'manager' || user?.isAdmin) && (
+            <TabsTrigger value="integracoes" className="text-base px-4 py-2 font-medium">
+              Integrações
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="perfil">
@@ -256,6 +262,35 @@ export default function ProfileManager() {
                     Salvar Organização
                   </Button>
                 </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {(user?.role === 'admin' || user?.role === 'manager' || user?.isAdmin) && (
+          <TabsContent value="integracoes">
+            <Card className="max-w-2xl border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-2xl flex items-center gap-2">
+                  <Zap className="w-6 h-6 text-primary" /> Integrações e API
+                </CardTitle>
+                <CardDescription className="text-base">
+                  Gerencie chaves de API, envio de e-mails (Resend) e outras conexões externas do
+                  sistema.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center justify-center py-8 text-center gap-4">
+                <div className="p-4 bg-primary/10 rounded-full">
+                  <Zap className="w-8 h-8 text-primary" />
+                </div>
+                <h3 className="text-lg font-medium">Configurações Avançadas</h3>
+                <p className="text-sm text-slate-500 max-w-sm mb-4">
+                  Acesse o painel central de integrações para configurar e testar suas chaves de API
+                  do Resend e outras conexões.
+                </p>
+                <Button asChild size="lg" className="font-semibold">
+                  <Link to="/intranet/integrations">Acessar Painel de Integrações</Link>
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>
