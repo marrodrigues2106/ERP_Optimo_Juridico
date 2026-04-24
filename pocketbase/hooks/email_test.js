@@ -27,9 +27,18 @@ routerAdd(
     const bridgeUrl = $secrets.get('EMAIL_BRIDGE_URL') || 'https://email-bridge.goskip.app'
 
     let encryption = body.email_encryption
-    if (!encryption || encryption === '') {
-      encryption = smtp_port === 465 ? 'ssl_tls' : 'starttls'
+    if (!encryption || encryption === '' || encryption === 'none') {
+      if (smtp_port === 465) {
+        encryption = 'ssl_tls'
+      } else if (smtp_port === 587) {
+        encryption = 'starttls'
+      } else {
+        encryption = 'starttls'
+      }
     }
+
+    // For Hostinger and similar shared hosts, explicitly pass strict TLS parameters if needed,
+    // or rely on the bridge recognizing 'ssl_tls' / 'starttls' properly.
 
     let res
     try {
@@ -70,25 +79,39 @@ routerAdd(
       if (
         lowerMsg.includes('auth') ||
         lowerMsg.includes('login') ||
-        lowerMsg.includes('credentials')
+        lowerMsg.includes('credentials') ||
+        lowerMsg.includes('authentication')
       ) {
         code = 'auth_failed'
-        userMessage = 'Falha na autenticação: Usuário ou senha incorretos.'
-      } else if (lowerMsg.includes('timeout') || lowerMsg.includes('deadline')) {
+        userMessage =
+          'Falha na autenticação: Usuário ou senha incorretos para o servidor Hostinger/IMAP.'
+      } else if (
+        lowerMsg.includes('timeout') ||
+        lowerMsg.includes('deadline') ||
+        lowerMsg.includes('io: read/write on closed pipe')
+      ) {
         code = 'timeout'
         userMessage =
-          'Tempo de conexão esgotado: Verifique o servidor e as portas (ex: porta 993 pode estar bloqueada).'
+          'Tempo de conexão esgotado: Verifique se o servidor e as portas estão corretas (ex: 993 para IMAP SSL e 465 para SMTP SSL/TLS).'
       } else if (
         lowerMsg.includes('certificate') ||
         lowerMsg.includes('tls') ||
-        lowerMsg.includes('ssl')
+        lowerMsg.includes('ssl') ||
+        lowerMsg.includes('handshake') ||
+        lowerMsg.includes('first record does not look like a tls handshake')
       ) {
         code = 'tls_error'
         userMessage =
-          'Erro de certificado SSL/TLS: Tente alterar a opção de criptografia para STARTTLS ou Nenhuma.'
+          'Erro de Handshake SSL/TLS: Verifique se a porta corresponde à criptografia (Porta 465 exige SSL/TLS, Porta 587 exige STARTTLS).'
       } else if (lowerMsg.includes('no such host') || lowerMsg.includes('lookup')) {
         code = 'host_not_found'
-        userMessage = 'Servidor não encontrado: Verifique o endereço do host informado.'
+        userMessage =
+          'Servidor não encontrado: Verifique o endereço do host (ex: imap.hostinger.com / smtp.hostinger.com).'
+      } else if (lowerMsg.includes('connection refused')) {
+        code = 'connection_refused'
+        userMessage = 'Conexão recusada pelo servidor: A porta informada pode estar incorreta.'
+      } else {
+        userMessage = `Erro ao conectar: ${errorMsg}`
       }
 
       throw new BadRequestError(userMessage, {

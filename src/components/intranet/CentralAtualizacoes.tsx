@@ -215,13 +215,11 @@ export default function CentralAtualizacoes() {
       const orgId = pb.authStore.record?.active_organization
       const orgFilter = orgId ? ` && organization = "${orgId}"` : ''
 
-      const [pjeRes, douPub, douOcc, moveRes, tasksRes, agendaRes, finRes, notifRes, casesRes] =
-        await Promise.all([
           pb
             .collection('pje_communications')
-            .getList(1, 150, { sort: '-created', expand: 'linked_case' }),
-          pb.collection('gazette_publications').getList(1, 150, { sort: '-created' }),
-          pb.collection('ocorrencias_dou').getList(1, 150, { sort: '-created' }),
+            .getList(1, 300, { sort: '-dataDisponibilizacao', expand: 'linked_case' }),
+          pb.collection('gazette_publications').getList(1, 300, { sort: '-data_publicacao' }),
+          pb.collection('ocorrencias_dou').getList(1, 300, { sort: '-created' }),
           pb.collection('case_movements').getList(1, 50, {
             filter: `notified_client = false && deleted_at = ""${orgFilter}`,
             sort: '-event_date',

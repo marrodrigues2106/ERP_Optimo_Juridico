@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import pb from '@/lib/pocketbase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Bell, Loader2, Mail, MailOpen } from 'lucide-react'
+import { Bell, Loader2, Mail, MailOpen, Landmark, Activity } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -35,17 +35,63 @@ export function DashboardCommunications() {
     try {
       const orgId = pb.authStore.record?.active_organization
       const isReadVal = readFilter === 'read' ? 'true' : 'false'
-      const filter = orgId
-        ? `organization="${orgId}" && is_read=${isReadVal}`
-        : `is_read=${isReadVal}`
 
-      const res = await pb.collection('pje_communications').getList(page, perPage, {
-        filter,
-        sort: '-dataDisponibilizacao',
-        expand: 'linked_case',
+      const pjeFilter = orgId
+        ? `organization="${orgId}" && is_read=${isReadVal} && is_archived=false`
+        : `is_read=${isReadVal} && is_archived=false`
+
+      const gazetteFilter = orgId
+        ? `organization="${orgId}" && is_read=${isReadVal} && is_archived=false`
+        : `is_read=${isReadVal} && is_archived=false`
+
+      const [pjeRes, gazetteRes] = await Promise.all([
+        pb.collection('pje_communications').getList(1, 100, {
+          filter: pjeFilter,
+          sort: '-dataDisponibilizacao',
+          expand: 'linked_case',
+        }),
+        pb.collection('gazette_publications').getList(1, 100, {
+          filter: gazetteFilter,
+          sort: '-data_publicacao',
+        }),
+      ])
+
+      const pjeMapped = pjeRes.items.map((c) => ({
+        ...c,
+        _type: 'PJe',
+        _date: c.dataDisponibilizacao || c.created,
+        _title: c.numeroProcesso,
+        _text: c.texto || c.tipoComunicacao,
+        _source: c.siglaTribunal || 'PJe',
+        _caseId: c.linked_case,
+      }))
+
+      const gazetteMapped = gazetteRes.items.map((c) => {
+        let numList: string[] = []
+        if (typeof c.numero_processo === 'string') numList.push(c.numero_processo)
+        else if (Array.isArray(c.numero_processo)) numList.push(...c.numero_processo)
+        let primaryNum = numList[0] || 'Publicação DOU'
+
+        return {
+          ...c,
+          _type: 'DOU',
+          _date: c.data_publicacao || c.created,
+          _title: primaryNum,
+          _text: c.texto_normalizado,
+          _source: c.orgao || 'DOU',
+          _caseId: null,
+        }
       })
-      setCommunications(res.items)
-      setCommsTotal(res.totalItems)
+
+      const all = [...pjeMapped, ...gazetteMapped].sort(
+        (a, b) => new Date(b._date).getTime() - new Date(a._date).getTime(),
+      )
+
+      const start = (page - 1) * perPage
+      const paginated = all.slice(start, start + perPage)
+
+      setCommunications(paginated)
+      setCommsTotal(all.length)
     } catch (e) {
       console.error(e)
     } finally {
@@ -56,13 +102,19 @@ export function DashboardCommunications() {
   useEffect(() => {
     loadComms()
   }, [page, perPage, readFilter])
+
   useRealtime('pje_communications', loadComms)
+  useRealtime('gazette_publications', loadComms)
 
   const toggleReadStatus = async (e: React.MouseEvent, c: any) => {
     e.stopPropagation()
     e.preventDefault()
     try {
-      await pb.collection('pje_communications').update(c.id, { is_read: !c.is_read })
+      if (c._type === 'PJe') {
+        await pb.collection('pje_communications').update(c.id, { is_read: !c.is_read })
+      } else {
+        await pb.collection('gazette_publications').update(c.id, { is_read: !c.is_read })
+      }
       loadComms()
     } catch (err) {
       console.error(err)
@@ -115,16 +167,20 @@ export function DashboardCommunications() {
               >
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                      {c.siglaTribunal || 'PJe'}
-                    </span>
+                    {c._type === 'PJe' ? (
+                      <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+                        <Activity className="w-3 h-3" /> {c._source}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+                        <Landmark className="w-3 h-3" /> {c._source}
+                      </span>
+                    )}
                     {!c.is_read && <span className="w-2 h-2 rounded-full bg-rose-500" />}
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-muted-foreground font-medium">
-                      {c.dataDisponibilizacao
-                        ? format(new Date(c.dataDisponibilizacao), 'dd/MM/yyyy HH:mm')
-                        : ''}
+                      {c._date ? format(new Date(c._date), 'dd/MM/yyyy HH:mm') : ''}
                     </span>
                     <button
                       onClick={(e) => toggleReadStatus(e, c)}
@@ -137,13 +193,15 @@ export function DashboardCommunications() {
                 </div>
                 <p
                   className="text-sm font-bold text-slate-800 mb-1 hover:text-primary cursor-pointer transition-colors"
-                  onClick={() => c.linked_case && navigate(`/intranet/processos/${c.linked_case}`)}
+                  onClick={() => {
+                    if (c._type === 'PJe' && c._caseId) navigate(`/intranet/processos/${c._caseId}`)
+                    else if (c._type === 'PJe') navigate(`/intranet/pje-comunica?id=${c.id}`)
+                    else navigate(`/intranet/comunicacoes/${c.id}`)
+                  }}
                 >
-                  {c.numeroProcesso}
+                  {c._title}
                 </p>
-                <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed">
-                  {c.texto || c.tipoComunicacao}
-                </p>
+                <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed">{c._text}</p>
               </div>
             ))
           )}
