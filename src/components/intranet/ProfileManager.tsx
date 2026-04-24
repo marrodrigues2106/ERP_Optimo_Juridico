@@ -46,6 +46,7 @@ export default function ProfileManager() {
     email_user: user?.email_user || '',
     email_password: '',
     email_encryption: user?.email_encryption || 'ssl_tls',
+    is_system_dispatcher: user?.is_system_dispatcher || false,
   })
   const [savingEmail, setSavingEmail] = useState(false)
   const [emailErrors, setEmailErrors] = useState<Record<string, string>>({})
@@ -184,6 +185,7 @@ export default function ProfileManager() {
         smtp_port: parseInt(emailConfig.smtp_port.toString(), 10) || 0,
         email_user: emailConfig.email_user.trim(),
         email_encryption: emailConfig.email_encryption,
+        is_system_dispatcher: emailConfig.is_system_dispatcher,
       } as any
 
       if (emailConfig.email_password.trim()) {
@@ -542,6 +544,26 @@ export default function ProfileManager() {
                       </p>
                     )}
                   </div>
+
+                  {(user?.isAdmin || user?.role === 'admin') && (
+                    <div className="space-y-3 md:col-span-2 flex items-center justify-between border-t border-slate-100 pt-6">
+                      <div className="space-y-0.5">
+                        <Label className="text-base font-medium text-slate-800">
+                          Usar como Remetente do Sistema (Dispatcher)
+                        </Label>
+                        <p className="text-sm text-slate-500 max-w-md">
+                          Se ativado, esta conta enviará os e-mails automáticos do sistema (alertas
+                          de prazos, andamentos, etc).
+                        </p>
+                      </div>
+                      <Switch
+                        checked={emailConfig.is_system_dispatcher}
+                        onCheckedChange={(val) =>
+                          setEmailConfig({ ...emailConfig, is_system_dispatcher: val })
+                        }
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end gap-4 pt-6 border-t border-slate-100">

@@ -5,106 +5,65 @@ onRecordAfterCreateSuccess((e) => {
 
   try {
     const legalCase = $app.findRecordById('legal_cases', caseId)
-    if (legalCase.get('notify_client') === true) {
-      const clientId = legalCase.get('client')
-      if (clientId) {
-        const client = $app.findRecordById('clients', clientId)
-        const clientEmail = client.get('email')
+    const responsibleId = legalCase.get('responsible_collaborator')
 
-        if (clientEmail) {
-          console.log(
-            `[CRM] Automated notification: Sending movement update to ${clientEmail} for case ${legalCase.get('case_number') || caseId}`,
-          )
+    const dispatchers = $app.findRecordsByFilter('users', 'is_system_dispatcher = true', '', 1, 0)
+    if (!dispatchers || dispatchers.length === 0) return e.next()
+    const dispatcher = dispatchers[0]
 
-          let subject = `Atualização no Processo ${legalCase.get('case_number') || ''}`
-          let html = `<p>Olá ${client.get('name')},</p><p>Nova movimentação: ${movement.get('description')}</p>`
+    const host = dispatcher.getString('smtp_host')
+    const port = dispatcher.getInt('smtp_port') || 587
+    const emailUser = dispatcher.getString('email_user')
+    const password = dispatcher.getString('email_encrypted_password')
+    const encryption = dispatcher.getString('email_encryption') || 'ssl_tls'
 
-          try {
-            const tmpl = $app.findFirstRecordByFilter(
-              'communication_templates',
-              "name = 'Notificação de Movimentação (Padrão)'",
-            )
-            if (tmpl) {
-              subject = tmpl
-                .get('subject')
-                .replace('{{case_number}}', legalCase.get('case_number') || '')
-              html = tmpl
-                .get('body_html')
-                .replace('{{client_name}}', client.get('name') || '')
-                .replace('{{case_number}}', legalCase.get('case_number') || '')
-                .replace('{{movement_description}}', movement.get('description') || '')
-            }
-          } catch (err) {
-            // Template not found, fallback used
-          }
+    if (!host || !emailUser || !password) return e.next()
 
-          try {
-            const message = new mailer.Message({
-              from: {
-                address: $app.settings().meta.senderAddress || 'no-reply@example.com',
-                name: $app.settings().meta.senderName || 'Sistema',
-              },
-              to: [{ address: clientEmail }],
-              subject: subject,
-              html: html,
-            })
-            $app.newMailClient().send(message)
-            console.log(`[CRM] Email sent to ${clientEmail}`)
-          } catch (mailErr) {
-            console.log(`[CRM] Mail client not configured or error: ${mailErr}`)
-          }
-
-          movement.set('notified_client', true)
-          $app.saveNoValidate(movement)
-
-          // Also notify responsible user
-          try {
-            const respCollabId = legalCase.get('responsible_collaborator')
-            if (respCollabId) {
-              const collab = $app.findRecordById('collaborators', respCollabId)
-              const userId = collab.get('user')
-              if (userId) {
-                const user = $app.findRecordById('users', userId)
-                const userEmail = user.get('email')
-                if (userEmail) {
-                  const alertMsg = new mailer.Message({
-                    from: {
-                      address: $app.settings().meta.senderAddress || 'no-reply@example.com',
-                      name: 'Central de Alertas',
-                    },
-                    to: [{ address: userEmail }],
-                    subject: `Alerta Processual: ${legalCase.get('case_number') || ''}`,
-                    html: `<p>Olá ${user.get('name')},</p><p>Nova movimentação no processo: ${movement.get('description')}</p>`,
-                  })
-                  $app.newMailClient().send(alertMsg)
-                }
-              }
-            }
-          } catch (uErr) {
-            console.error('Failed to notify responsible user:', uErr)
-          }
-
-          // Log interaction automatically
-          try {
-            const interaction = new Record($app.findCollectionByNameOrId('crm_interactions'))
-            interaction.set('client', clientId)
-            interaction.set('type', 'Email')
-            interaction.set(
-              'description',
-              `Notificação automática enviada: ${movement.get('description')}`,
-            )
-            interaction.set('date', new Date().toISOString())
-            interaction.set('linked_case', caseId)
-            interaction.set('status', 'Completed')
-            $app.save(interaction)
-          } catch (intErr) {
-            console.error('Failed to log interaction:', intErr)
-          }
-        }
-      }
+    let recipients = []
+    if (responsibleId) {
+      try {
+        const collab = $app.findRecordById('collaborators', responsibleId)
+        if (collab.get('email')) recipients.push(collab.get('email'))
+      } catch (err) {}
     }
+
+    const admins = $app.findRecordsByFilter('users', "role = 'admin' || isAdmin = true", '', 100, 0)
+    admins.forEach((admin) => {
+      const email = admin.getString('email')
+      if (email && !recipients.includes(email)) recipients.push(email)
+    })
+
+    if (recipients.length === 0) return e.next()
+
+    const bridgeUrl = $secrets.get('EMAIL_BRIDGE_URL') || 'https://email-bridge.goskip.app'
+    const caseTitle = legalCase.get('title') || legalCase.get('case_number') || 'Sem Título'
+    const htmlBody = `
+      <h2>Novo Andamento Processual Detectado</h2>
+      <p><strong>Processo:</strong> ${caseTitle}</p>
+      <p><strong>Data do Evento:</strong> ${movement.get('event_date')}</p>
+      <p><strong>Descrição:</strong> ${movement.get('description')}</p>
+      <hr />
+      <p>Verifique no sistema para mais detalhes: <a href="https://moraes-rodrigues-advocacia-5d1d2.goskip.app/intranet/processos/${caseId}">Acessar Processo</a></p>
+    `
+
+    $http.send({
+      url: bridgeUrl + '/api/v2/send',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        smtp_host: host,
+        smtp_port: port,
+        user: emailUser,
+        password: password,
+        encryption: encryption,
+        to: recipients.join(','),
+        subject: `[Alerta de Processo] Novo andamento - ${caseTitle}`,
+        html: htmlBody,
+      }),
+      timeout: 30,
+    })
   } catch (err) {
-    console.error('Failed to process automated client notification:', err)
+    $app.logger().error('Error sending movement notification via dispatcher', 'error', err.message)
   }
 
   e.next()

@@ -72,7 +72,7 @@ export default function WebmailManager() {
 
   const loadFolders = async () => {
     try {
-      const res = await pb.send('/backend/v1/email/folders', { method: 'POST' })
+      const res = await pb.send('/backend/v2/email/folders', { method: 'POST' })
       setFolders(res)
     } catch (err) {
       console.error(err)
@@ -98,7 +98,7 @@ export default function WebmailManager() {
         await loadFolders()
       }
 
-      const res = await pb.send('/backend/v1/email/inbox', {
+      const res = await pb.send('/backend/v2/email/inbox', {
         method: 'POST',
         body: JSON.stringify({ folder: folderId, page: pageNum, limit: 20, status }),
       })
@@ -216,7 +216,7 @@ export default function WebmailManager() {
     setSending(true)
     const fd = new FormData(e.currentTarget)
     try {
-      await pb.send('/backend/v1/email/send', {
+      await pb.send('/backend/v2/email/send', {
         method: 'POST',
         body: JSON.stringify({
           to: fd.get('to'),
