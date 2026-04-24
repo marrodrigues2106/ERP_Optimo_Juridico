@@ -55,11 +55,39 @@ routerAdd(
 
     if (res.statusCode !== 200) {
       $app.logger().error('Email bridge error (test)', 'status', res.statusCode)
-      throw new BadRequestError('Falha na conexão IMAP/SMTP', {
-        connection: new ValidationError(
-          'connection_failed',
-          res.json?.error || 'Erro ao conectar com o servidor IMAP/SMTP através do bridge.',
-        ),
+      const errorMsg =
+        res.json?.error || 'Erro ao conectar com o servidor IMAP/SMTP através do bridge.'
+
+      let code = 'connection_failed'
+      let userMessage = errorMsg
+      const lowerMsg = errorMsg.toLowerCase()
+
+      if (
+        lowerMsg.includes('auth') ||
+        lowerMsg.includes('login') ||
+        lowerMsg.includes('credentials')
+      ) {
+        code = 'auth_failed'
+        userMessage = 'Falha na autenticação: Usuário ou senha incorretos.'
+      } else if (lowerMsg.includes('timeout') || lowerMsg.includes('deadline')) {
+        code = 'timeout'
+        userMessage =
+          'Tempo de conexão esgotado: Verifique o servidor e as portas (ex: porta 993 pode estar bloqueada).'
+      } else if (
+        lowerMsg.includes('certificate') ||
+        lowerMsg.includes('tls') ||
+        lowerMsg.includes('ssl')
+      ) {
+        code = 'tls_error'
+        userMessage =
+          'Erro de certificado SSL/TLS: Tente alterar a opção de criptografia para STARTTLS ou Nenhuma.'
+      } else if (lowerMsg.includes('no such host') || lowerMsg.includes('lookup')) {
+        code = 'host_not_found'
+        userMessage = 'Servidor não encontrado: Verifique o endereço do host informado.'
+      }
+
+      throw new BadRequestError(userMessage, {
+        connection: new ValidationError(code, userMessage),
       })
     }
 

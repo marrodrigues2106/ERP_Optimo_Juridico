@@ -154,7 +154,7 @@ export default function ProfileManager() {
       return false
     } catch (err: any) {
       const fieldErrs = extractFieldErrors(err)
-      if (Object.keys(fieldErrs).length > 0) {
+      if (Object.keys(fieldErrs).length > 0 && !fieldErrs.connection && !fieldErrs.bridge) {
         setEmailErrors(fieldErrs)
         toast({
           title: 'Verifique os campos destacados',
@@ -162,7 +162,12 @@ export default function ProfileManager() {
           variant: 'destructive',
         })
       } else {
-        toast({ title: 'Falha na conexão', description: err.message, variant: 'destructive' })
+        const errorDetail = fieldErrs.connection || fieldErrs.bridge || err.message
+        toast({
+          title: 'Falha na conexão',
+          description: errorDetail,
+          variant: 'destructive',
+        })
       }
       return false
     } finally {

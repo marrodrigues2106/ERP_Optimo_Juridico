@@ -1,47 +1,151 @@
 onRecordAfterCreateSuccess((e) => {
   const movement = e.record
-  if (movement.get('source') !== 'DataJud') return e.next()
 
   try {
-    const configs = $app.findRecordsByFilter('configuracoes_alerta', `ativo = true`, '', 100, 0)
-    if (configs.length === 0) return e.next()
-
-    const slackWebhook = $secrets.get('SLACK_WEBHOOK')
-    const discordWebhook = $secrets.get('DISCORD_WEBHOOK')
-
     let caseNumber = 'Desconhecido'
+    let legalCase = null
     try {
-      const legalCase = $app.findRecordById('legal_cases', movement.get('case'))
+      legalCase = $app.findRecordById('legal_cases', movement.get('case'))
       caseNumber = legalCase.get('case_number') || caseNumber
     } catch (err) {}
 
-    const webhookMsg = `⚖️ *Novo Movimento Detectado (DataJud)*\n*Processo:* ${caseNumber}\n*Data:* ${movement.get('event_date')}\n*Detalhe:*\n> ${movement.get('description')}`
+    const detail = movement.get('description')
+    const date = movement.get('event_date')
+    const source = movement.get('source')
+    const caseId = movement.get('case')
+    const orgId = movement.get('organization') || (legalCase ? legalCase.get('organization') : null)
 
-    for (let conf of configs) {
-      const type = conf.get('tipo_notificacao')
-      const freq = conf.get('frequencia')
+    // 1. DataJud Webhooks (Slack/Discord)
+    if (source === 'DataJud') {
+      const configs = $app.findRecordsByFilter('configuracoes_alerta', `ativo = true`, '', 100, 0)
+      if (configs.length > 0) {
+        const slackWebhook = $secrets.get('SLACK_WEBHOOK')
+        const discordWebhook = $secrets.get('DISCORD_WEBHOOK')
+        const webhookMsg = `⚖️ *Novo Movimento Detectado (DataJud)*\n*Processo:* ${caseNumber}\n*Data:* ${date}\n*Detalhe:*\n> ${detail}`
 
-      if (freq === 'diario') continue
+        for (let conf of configs) {
+          const type = conf.get('tipo_notificacao')
+          const freq = conf.get('frequencia')
+          if (freq === 'diario') continue
 
-      if ((type === 'slack' || type === 'all') && slackWebhook) {
-        $http.send({
-          url: slackWebhook,
-          method: 'POST',
-          body: JSON.stringify({ text: webhookMsg }),
-          headers: { 'Content-Type': 'application/json' },
-        })
+          if ((type === 'slack' || type === 'all') && slackWebhook) {
+            try {
+              $http.send({
+                url: slackWebhook,
+                method: 'POST',
+                body: JSON.stringify({ text: webhookMsg }),
+                headers: { 'Content-Type': 'application/json' },
+              })
+            } catch (err) {}
+          }
+          if ((type === 'discord' || type === 'all') && discordWebhook) {
+            try {
+              $http.send({
+                url: discordWebhook,
+                method: 'POST',
+                body: JSON.stringify({ content: webhookMsg }),
+                headers: { 'Content-Type': 'application/json' },
+              })
+            } catch (err) {}
+          }
+        }
       }
-      if ((type === 'discord' || type === 'all') && discordWebhook) {
-        $http.send({
-          url: discordWebhook,
-          method: 'POST',
-          body: JSON.stringify({ content: webhookMsg }),
-          headers: { 'Content-Type': 'application/json' },
-        })
+    }
+
+    // 2. Email Notifications
+    if (legalCase) {
+      let dispatcher = null
+      try {
+        const filter = orgId
+          ? `is_system_dispatcher = true && active_organization = '${orgId}'`
+          : `is_system_dispatcher = true`
+        dispatcher = $app.findFirstRecordByFilter('users', filter)
+      } catch (err) {}
+
+      if (dispatcher) {
+        const host = dispatcher.getString('smtp_host')
+        const port = dispatcher.getInt('smtp_port') || 587
+        const emailUser = dispatcher.getString('email_user')
+        const password = dispatcher.getString('email_encrypted_password')
+        const encryption = dispatcher.getString('email_encryption') || 'ssl_tls'
+
+        if (host && emailUser && password) {
+          const recipients = new Set()
+
+          // Admins
+          try {
+            const filterAdm = orgId
+              ? `(role = 'admin' || isAdmin = true) && active_organization = '${orgId}'`
+              : `role = 'admin' || isAdmin = true`
+            const admins = $app.findRecordsByFilter('users', filterAdm, '', 100, 0)
+            admins.forEach((a) => {
+              if (a.getString('email')) recipients.add(a.getString('email'))
+            })
+          } catch (e) {}
+
+          // Responsible Collaborator
+          const respId = legalCase.get('responsible_collaborator')
+          if (respId) {
+            try {
+              const collab = $app.findRecordById('collaborators', respId)
+              const collabUserId = collab.get('user')
+              if (collabUserId) {
+                const collabUser = $app.findRecordById('users', collabUserId)
+                if (collabUser.getString('email')) recipients.add(collabUser.getString('email'))
+              } else if (collab.getString('email')) {
+                recipients.add(collab.getString('email'))
+              }
+            } catch (e) {}
+          }
+
+          if (recipients.size > 0) {
+            const appUrl =
+              $secrets.get('PB_INSTANCE_URL') ||
+              'https://moraes-rodrigues-advocacia-5d1d2.goskip.app'
+            const caseUrl = `${appUrl}/intranet/processos/${caseId}`
+            const htmlBody = `
+                        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+                            <h2 style="color: #2563eb;">Novo Movimento Processual</h2>
+                            <p>Um novo andamento foi registrado no sistema.</p>
+                            <div style="background: #f8fafc; padding: 15px; border-left: 4px solid #2563eb; margin: 20px 0;">
+                                <p style="margin: 0 0 10px 0;"><strong>Processo:</strong> ${caseNumber}</p>
+                                <p style="margin: 0 0 10px 0;"><strong>Data:</strong> ${date.substring(0, 10)}</p>
+                                <p style="margin: 0;"><strong>Descrição:</strong> ${detail}</p>
+                            </div>
+                            <a href="${caseUrl}" style="display: inline-block; padding: 10px 20px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold;">Acessar Processo</a>
+                        </div>
+                    `
+
+            const bridgeUrl = $secrets.get('EMAIL_BRIDGE_URL') || 'https://email-bridge.goskip.app'
+
+            for (const to of recipients) {
+              try {
+                $http.send({
+                  url: bridgeUrl + '/api/v2/send',
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    smtp_host: host,
+                    smtp_port: port,
+                    user: emailUser,
+                    password: password,
+                    encryption: encryption,
+                    to: to,
+                    subject: `Aviso de Movimentação: Processo ${caseNumber}`,
+                    html: htmlBody,
+                  }),
+                  timeout: 15,
+                })
+              } catch (e) {
+                $app.logger().error('Failed to send movement email alert', 'error', e.message)
+              }
+            }
+          }
+        }
       }
     }
   } catch (err) {
-    console.error('[DataJud Alert] Error sending alert', err)
+    $app.logger().error('[Movement Alert] Error', 'msg', err.message)
   }
 
   e.next()

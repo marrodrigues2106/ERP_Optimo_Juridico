@@ -55,11 +55,21 @@ routerAdd(
 
     if (res.statusCode !== 200) {
       $app.logger().error('Email bridge error (inbox)', 'status', res.statusCode)
-      throw new BadRequestError('Erro ao buscar e-mails no servidor.', {
-        bridge: new ValidationError(
-          'bridge_error',
-          res.json?.error || 'Falha na comunicação com o servidor Hostinger/IMAP.',
-        ),
+      const errorMsg = res.json?.error || 'Falha na comunicação com o servidor IMAP.'
+
+      let userMessage = errorMsg
+      const lowerMsg = errorMsg.toLowerCase()
+
+      if (lowerMsg.includes('auth') || lowerMsg.includes('login')) {
+        userMessage = 'Falha na autenticação IMAP: Verifique sua senha.'
+      } else if (lowerMsg.includes('timeout')) {
+        userMessage = 'Tempo de conexão esgotado no servidor IMAP.'
+      } else if (lowerMsg.includes('tls') || lowerMsg.includes('certificate')) {
+        userMessage = 'Erro de SSL/TLS no servidor IMAP.'
+      }
+
+      throw new BadRequestError(userMessage, {
+        bridge: new ValidationError('bridge_error', userMessage),
       })
     }
 

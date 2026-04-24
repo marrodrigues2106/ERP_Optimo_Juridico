@@ -58,11 +58,21 @@ routerAdd(
 
     if (res.statusCode !== 200) {
       $app.logger().error('Email bridge error (send)', 'status', res.statusCode)
-      throw new BadRequestError('Erro ao enviar e-mail via SMTP.', {
-        bridge: new ValidationError(
-          'bridge_error',
-          res.json?.error || 'Falha na comunicação com o servidor Hostinger/SMTP.',
-        ),
+      const errorMsg = res.json?.error || 'Falha na comunicação com o servidor SMTP.'
+
+      let userMessage = errorMsg
+      const lowerMsg = errorMsg.toLowerCase()
+
+      if (lowerMsg.includes('auth') || lowerMsg.includes('login')) {
+        userMessage = 'Falha na autenticação SMTP: Verifique sua senha.'
+      } else if (lowerMsg.includes('timeout')) {
+        userMessage = 'Tempo de conexão esgotado no servidor SMTP.'
+      } else if (lowerMsg.includes('tls') || lowerMsg.includes('certificate')) {
+        userMessage = 'Erro de SSL/TLS no servidor SMTP.'
+      }
+
+      throw new BadRequestError(userMessage, {
+        bridge: new ValidationError('bridge_error', userMessage),
       })
     }
 

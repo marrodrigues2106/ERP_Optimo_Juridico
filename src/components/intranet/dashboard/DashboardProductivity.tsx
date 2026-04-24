@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import pb from '@/lib/pocketbase/client'
+import { useRealtime } from '@/hooks/use-realtime'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
   Select,
@@ -92,51 +93,89 @@ export function DashboardProductivity() {
   const [retroPeriod, setRetroPeriod] = useState('last_7_days')
   const [prospPeriod, setProspPeriod] = useState('next_7_days')
   const [loading, setLoading] = useState(true)
-  const [data, setData] = useState({ tasks: [] as any[], events: [] as any[], cases: [] as any[] })
+  const [data, setData] = useState({
+    tasks: [] as any[],
+    events: [] as any[],
+    cases: [] as any[],
+    movements: [] as any[],
+  })
+
+  const load = async (showLoading = true) => {
+    if (showLoading) setLoading(true)
+    try {
+      const orgId = pb.authStore.record?.active_organization
+      const baseFilter = orgId ? `organization="${orgId}" && deleted_at=""` : 'deleted_at=""'
+
+      const [tasks, events, cases, movements] = await Promise.all([
+        pb.collection('tasks').getFullList({ filter: baseFilter }),
+        pb.collection('agenda_events').getFullList({ filter: baseFilter }),
+        pb
+          .collection('legal_cases')
+          .getFullList({ filter: `${baseFilter} && lifecycle_status="Ativo"` }),
+        pb.collection('case_movements').getFullList({ filter: baseFilter }),
+      ])
+      setData({ tasks, events, cases, movements })
+    } catch (err) {
+      console.error(err)
+    } finally {
+      if (showLoading) setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      try {
-        const orgId = pb.authStore.record?.active_organization
-        const baseFilter = orgId ? `organization="${orgId}" && deleted_at=""` : 'deleted_at=""'
-
-        const [tasks, events, cases] = await Promise.all([
-          pb.collection('tasks').getFullList({ filter: baseFilter }),
-          pb.collection('agenda_events').getFullList({ filter: baseFilter }),
-          pb
-            .collection('legal_cases')
-            .getFullList({ filter: `${baseFilter} && lifecycle_status="Ativo"` }),
-        ])
-        setData({ tasks, events, cases })
-      } catch (err) {
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
-    }
     load()
   }, [])
+
+  useRealtime('tasks', () => {
+    load(false)
+  })
+  useRealtime('agenda_events', () => {
+    load(false)
+  })
+  useRealtime('legal_cases', () => {
+    load(false)
+  })
+  useRealtime('case_movements', () => {
+    load(false)
+  })
 
   const retroData = useMemo(() => {
     const range = getRetroRange(retroPeriod)
     const days = generateDaysArray(range.start, range.end)
     return days.map((d) => {
       const dayStr = format(d, 'yyyy-MM-dd')
+
       const tasksCount = data.tasks.filter(
         (t) => t.due_date && t.due_date.startsWith(dayStr) && t.status === 'completed',
       ).length
-      const eventsCount = data.events.filter(
-        (e) => e.start_date && e.start_date.startsWith(dayStr),
+
+      const processEvents = data.events.filter(
+        (e) =>
+          e.start_date &&
+          e.start_date.startsWith(dayStr) &&
+          (e.type === 'Deadline' || e.type === 'Hearing'),
       ).length
+
+      const commitments = data.events.filter(
+        (e) =>
+          e.start_date &&
+          e.start_date.startsWith(dayStr) &&
+          (e.type === 'Meeting' || e.type === 'Call' || e.type === 'Note'),
+      ).length
+
       const casesCount = data.cases.filter(
         (c) => c.deadline && c.deadline.startsWith(dayStr),
       ).length
+
+      const movementsCount = data.movements.filter(
+        (m) => m.event_date && m.event_date.startsWith(dayStr),
+      ).length
+
       return {
         date: format(d, 'dd/MM', { locale: ptBR }),
         Tarefas: tasksCount,
-        'Eventos Processuais': casesCount,
-        Compromissos: eventsCount,
+        'Eventos Processuais': casesCount + processEvents + movementsCount,
+        Compromissos: commitments,
       }
     })
   }, [data, retroPeriod])
@@ -146,20 +185,38 @@ export function DashboardProductivity() {
     const days = generateDaysArray(range.start, range.end)
     return days.map((d) => {
       const dayStr = format(d, 'yyyy-MM-dd')
+
       const tasksCount = data.tasks.filter(
         (t) => t.due_date && t.due_date.startsWith(dayStr) && t.status !== 'completed',
       ).length
-      const eventsCount = data.events.filter(
-        (e) => e.start_date && e.start_date.startsWith(dayStr),
+
+      const processEvents = data.events.filter(
+        (e) =>
+          e.start_date &&
+          e.start_date.startsWith(dayStr) &&
+          (e.type === 'Deadline' || e.type === 'Hearing'),
       ).length
+
+      const commitments = data.events.filter(
+        (e) =>
+          e.start_date &&
+          e.start_date.startsWith(dayStr) &&
+          (e.type === 'Meeting' || e.type === 'Call' || e.type === 'Note'),
+      ).length
+
       const casesCount = data.cases.filter(
         (c) => c.deadline && c.deadline.startsWith(dayStr),
       ).length
+
+      const movementsCount = data.movements.filter(
+        (m) => m.event_date && m.event_date.startsWith(dayStr),
+      ).length
+
       return {
         date: format(d, 'dd/MM', { locale: ptBR }),
         Tarefas: tasksCount,
-        'Eventos Processuais': casesCount,
-        Compromissos: eventsCount,
+        'Eventos Processuais': casesCount + processEvents + movementsCount,
+        Compromissos: commitments,
       }
     })
   }, [data, prospPeriod])
