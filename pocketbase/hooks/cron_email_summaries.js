@@ -1,8 +1,6 @@
-// @deps date-fns@4.1.0
 cronAdd('email_summaries', '0 8 * * *', () => {
-  const { subDays, subWeeks, isFriday } = require('date-fns')
-
-  const isWeeklyDay = isFriday(new Date())
+  const now = new Date()
+  const isWeeklyDay = now.getDay() === 5 // Friday is 5
 
   const configs = $app.findRecordsByFilter(
     'configuracoes_alerta',
@@ -38,10 +36,9 @@ cronAdd('email_summaries', '0 8 * * *', () => {
     }
     if (!userEmail) continue
 
-    const dateLimit =
-      freq === 'weekly'
-        ? subWeeks(new Date(), 1).toISOString().replace('T', ' ')
-        : subDays(new Date(), 1).toISOString().replace('T', ' ')
+    const limit = new Date()
+    limit.setDate(limit.getDate() - (freq === 'weekly' ? 7 : 1))
+    const dateLimit = limit.toISOString().replace('T', ' ')
 
     const notifs = $app.findRecordsByFilter(
       'notifications',
