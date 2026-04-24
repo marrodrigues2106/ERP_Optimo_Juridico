@@ -28,16 +28,21 @@ onRecordAfterUpdateSuccess((e) => {
 
       let updated = false
       let newTags = tags.map((t) => {
-        if (t === originalName) {
+        if (typeof t === 'string' && t === originalName) {
           updated = true
           return newName
         }
         return t
       })
 
+      const cleanedTags = newTags.filter((t) => typeof t === 'string' && !/^\d+$/.test(t))
+      if (cleanedTags.length !== newTags.length) {
+        updated = true
+      }
+
       if (updated) {
-        newTags = [...new Set(newTags)]
-        record.set('tags', newTags)
+        const uniqueTags = [...new Set(cleanedTags)]
+        record.set('tags', uniqueTags)
         txApp.saveNoValidate(record)
       }
     }

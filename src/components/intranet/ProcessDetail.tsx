@@ -956,10 +956,15 @@ export default function ProcessDetail() {
                   <ArrowLeft className="w-5 h-5 text-slate-500" />
                 </Button>
                 <div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-col gap-1">
                     <h1 className="text-2xl font-bold text-slate-900 leading-tight">
-                      [{legalCase.parties}]
+                      {legalCase.title || legalCase.case_number || 'Processo sem título'}
                     </h1>
+                    {legalCase.parties && (
+                      <p className="text-sm font-medium text-slate-500">
+                        Partes: {legalCase.parties}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 mt-2 flex-wrap">
                     <div className="flex items-center gap-1">
