@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-24T03:47:47.374Z",
+  "generatedAt": "2026-04-24T03:58:07.626Z",
   "collections": [
     {
       "name": "users",
@@ -1922,7 +1922,16 @@
           "type": "select",
           "required": false,
           "system": false,
-          "selectValues": ["palavra-chave", "frase", "regex"]
+          "selectValues": [
+            "palavra-chave",
+            "frase",
+            "regex",
+            "Nome Advogado",
+            "Nome Parte",
+            "OAB",
+            "CPF",
+            "Outros"
+          ]
         },
         {
           "name": "usuario_id",

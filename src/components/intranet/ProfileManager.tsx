@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/hooks/use-auth'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
-import { Camera, Save, Loader2, Building2, Activity, Zap } from 'lucide-react'
+import { Camera, Save, Loader2, Building2, Activity, Zap, Search, Plus, Trash2 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Link } from 'react-router-dom'
 import {
@@ -19,6 +19,8 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 
+import IntegrationsManager from './IntegrationsManager'
+
 export default function ProfileManager() {
   const { user } = useAuth()
   const { toast } = useToast()
@@ -26,6 +28,10 @@ export default function ProfileManager() {
 
   const [alertConfig, setAlertConfig] = useState<any>({ frequencia: 'daily', ativo: true })
   const [savingAlert, setSavingAlert] = useState(false)
+
+  const [termos, setTermos] = useState<any[]>([])
+  const [newTermo, setNewTermo] = useState('')
+  const [newTipoTermo, setNewTipoTermo] = useState('Outros')
 
   const [fullName, setFullName] = useState(user?.fullName || user?.name || '')
   const [email] = useState(user?.email || '')
@@ -38,6 +44,12 @@ export default function ProfileManager() {
   const [savingOrg, setSavingOrg] = useState(false)
 
   useEffect(() => {
+    if (user?.id) {
+      pb.collection('termos_monitorados')
+        .getFullList({ filter: `usuario_id="${user.id}"` })
+        .then(setTermos)
+        .catch(console.error)
+    }
     if (user?.active_organization) {
       pb.collection('organizations')
         .getOne(user.active_organization)
@@ -111,6 +123,33 @@ export default function ProfileManager() {
       toast({ title: 'Erro ao atualizar organização', variant: 'destructive' })
     } finally {
       setSavingOrg(false)
+    }
+  }
+
+  const handleAddTermo = async () => {
+    if (!newTermo.trim()) return
+    try {
+      const res = await pb.collection('termos_monitorados').create({
+        termo: newTermo.trim(),
+        tipo_termo: newTipoTermo,
+        usuario_id: user?.id,
+        ativo: true,
+      })
+      setTermos([...termos, res])
+      setNewTermo('')
+      toast({ title: 'Termo adicionado!' })
+    } catch (err) {
+      toast({ title: 'Erro ao adicionar termo', variant: 'destructive' })
+    }
+  }
+
+  const handleRemoveTermo = async (id: string) => {
+    try {
+      await pb.collection('termos_monitorados').delete(id)
+      setTermos(termos.filter((t) => t.id !== id))
+      toast({ title: 'Termo removido!' })
+    } catch (err) {
+      toast({ title: 'Erro ao remover termo', variant: 'destructive' })
     }
   }
 
@@ -269,30 +308,9 @@ export default function ProfileManager() {
 
         {(user?.role === 'admin' || user?.role === 'manager' || user?.isAdmin) && (
           <TabsContent value="integracoes">
-            <Card className="max-w-2xl border-slate-200 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-2xl flex items-center gap-2">
-                  <Zap className="w-6 h-6 text-primary" /> Integrações e API
-                </CardTitle>
-                <CardDescription className="text-base">
-                  Gerencie chaves de API, envio de e-mails (Resend) e outras conexões externas do
-                  sistema.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center justify-center py-8 text-center gap-4">
-                <div className="p-4 bg-primary/10 rounded-full">
-                  <Zap className="w-8 h-8 text-primary" />
-                </div>
-                <h3 className="text-lg font-medium">Configurações Avançadas</h3>
-                <p className="text-sm text-slate-500 max-w-sm mb-4">
-                  Acesse o painel central de integrações para configurar e testar suas chaves de API
-                  do Resend e outras conexões.
-                </p>
-                <Button asChild size="lg" className="font-semibold">
-                  <Link to="/intranet/integrations">Acessar Painel de Integrações</Link>
-                </Button>
-              </CardContent>
-            </Card>
+            <div className="max-w-2xl">
+              <IntegrationsManager />
+            </div>
           </TabsContent>
         )}
 
@@ -352,6 +370,73 @@ export default function ProfileManager() {
                   Salvar Preferências
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+
+          <Card className="max-w-2xl border-slate-200 shadow-sm mt-6">
+            <CardHeader>
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <Search className="w-6 h-6 text-primary" /> Termos Monitorados
+              </CardTitle>
+              <CardDescription className="text-base">
+                Gerencie os nomes, CPFs, OABs ou outros termos que deseja monitorar nos diários e no
+                PJe.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 space-y-2">
+                  <Label>Novo Termo</Label>
+                  <Input
+                    value={newTermo}
+                    onChange={(e) => setNewTermo(e.target.value)}
+                    placeholder="Ex: 123456/SP ou João da Silva"
+                  />
+                </div>
+                <div className="w-full md:w-1/3 space-y-2">
+                  <Label>Tipo</Label>
+                  <Select value={newTipoTermo} onValueChange={setNewTipoTermo}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Nome Advogado">Nome Advogado</SelectItem>
+                      <SelectItem value="Nome Parte">Nome Parte</SelectItem>
+                      <SelectItem value="OAB">OAB</SelectItem>
+                      <SelectItem value="CPF">CPF</SelectItem>
+                      <SelectItem value="Outros">Outros</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-end">
+                  <Button onClick={handleAddTermo} type="button" className="w-full">
+                    <Plus className="w-4 h-4 mr-2" /> Adicionar
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {termos.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Nenhum termo configurado.
+                  </p>
+                ) : (
+                  termos.map((t) => (
+                    <div
+                      key={t.id}
+                      className="flex items-center justify-between p-3 border rounded-md"
+                    >
+                      <div>
+                        <p className="font-medium">{t.termo}</p>
+                        <p className="text-xs text-muted-foreground">{t.tipo_termo}</p>
+                      </div>
+                      <Button variant="ghost" size="icon" onClick={() => handleRemoveTermo(t.id)}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

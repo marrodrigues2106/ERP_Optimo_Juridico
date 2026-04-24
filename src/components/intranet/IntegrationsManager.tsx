@@ -82,14 +82,13 @@ export default function IntegrationsManager() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12 animate-fade-in">
+    <div className="w-full space-y-6 animate-fade-in">
       <div className="flex flex-col gap-2 border-b border-slate-200 pb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-3">
-          <Zap className="w-8 h-8" /> Integrações
-        </h1>
+        <h2 className="text-2xl font-bold tracking-tight text-primary flex items-center gap-3">
+          <Zap className="w-6 h-6" /> Integrações
+        </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Gerencie integrações externas, envio de e-mails e outras configurações avançadas do
-          sistema.
+          Gerencie integrações externas, envio de e-mails e outras configurações avançadas.
         </p>
       </div>
 

@@ -360,7 +360,11 @@ cronAdd('dou_datajud_ingestion_daily', '0 3 * * *', () => {
         const searchType = t.get('tipo_termo') || 'palavra-chave'
         let pass = true
 
-        if (searchType === 'frase' || isExactSearch) {
+        if (
+          searchType === 'frase' ||
+          isExactSearch ||
+          ['Nome Advogado', 'Nome Parte', 'OAB', 'CPF', 'Outros'].includes(searchType)
+        ) {
           let exact = termStr.trim()
           if (
             (exact.startsWith('"') && exact.endsWith('"')) ||
