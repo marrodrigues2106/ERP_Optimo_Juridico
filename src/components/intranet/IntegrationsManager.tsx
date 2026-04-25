@@ -109,10 +109,13 @@ export default function IntegrationsManager() {
     try {
       const res = await pb.send('/backend/v1/admin/purge-data', {
         method: 'POST',
-        body: JSON.stringify({ collections })
+        body: JSON.stringify({ collections }),
       })
       if (res.error) throw new Error(res.message)
-      toast({ title: 'Limpeza concluída!', description: `${res.deletedCount} registros removidos com sucesso.` })
+      toast({
+        title: 'Limpeza concluída!',
+        description: `${res.deletedCount} registros removidos com sucesso.`,
+      })
       setPurgeSelection({ crm_interactions: false, tasks: false, agenda_events: false })
     } catch (err: any) {
       toast({ title: 'Erro na limpeza de dados', description: err.message, variant: 'destructive' })
@@ -139,132 +142,163 @@ export default function IntegrationsManager() {
           <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
         </div>
       ) : (
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-2xl flex items-center gap-2">
-              <Mail className="w-6 h-6 text-primary" /> Resend API (Envio de E-mails)
-            </CardTitle>
-            <CardDescription className="text-base">
-              Configure a chave de API do Resend para o envio de alertas e comunicações do sistema.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSaveSettings} className="space-y-6">
-              <div className="grid grid-cols-1 gap-6">
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">Chave da API (Resend)</Label>
-                  <Input
-                    type="password"
-                    value={resendApiKey}
-                    onChange={(e) => setResendApiKey(e.target.value)}
-                    placeholder="re_..."
-                    className="text-base py-6"
-                  />
+        <>
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <Mail className="w-6 h-6 text-primary" /> Resend API (Envio de E-mails)
+              </CardTitle>
+              <CardDescription className="text-base">
+                Configure a chave de API do Resend para o envio de alertas e comunicações do
+                sistema.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSaveSettings} className="space-y-6">
+                <div className="grid grid-cols-1 gap-6">
+                  <div className="space-y-3">
+                    <Label className="text-base font-medium">Chave da API (Resend)</Label>
+                    <Input
+                      type="password"
+                      value={resendApiKey}
+                      onChange={(e) => setResendApiKey(e.target.value)}
+                      placeholder="re_..."
+                      className="text-base py-6"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-base font-medium">E-mail Remetente (From)</Label>
+                    <Input
+                      type="email"
+                      value={resendFromEmail}
+                      onChange={(e) => setResendFromEmail(e.target.value)}
+                      placeholder="exemplo@seudominio.com.br"
+                      className="text-base py-6"
+                    />
+                    <p className="text-sm text-slate-500">
+                      O domínio deve estar verificado no painel do Resend. Use onboarding@resend.dev
+                      para testes se não tiver um domínio verificado.
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">E-mail Remetente (From)</Label>
-                  <Input
-                    type="email"
-                    value={resendFromEmail}
-                    onChange={(e) => setResendFromEmail(e.target.value)}
-                    placeholder="exemplo@seudominio.com.br"
-                    className="text-base py-6"
+
+                <div className="flex justify-end gap-4 pt-6 border-t border-slate-100">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleTestEmail}
+                    disabled={saving}
+                    className="py-6 px-6 text-base font-medium"
+                  >
+                    <ShieldCheck className="w-5 h-5 mr-2" /> Testar Conexão
+                  </Button>
+                  <Button type="submit" disabled={saving} className="py-6 px-8 text-base font-bold">
+                    {saving ? (
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    ) : (
+                      <Save className="w-5 h-5 mr-2" />
+                    )}
+                    Salvar Configurações
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Danger Zone */}
+          <Card className="border-red-200 shadow-sm mt-8">
+            <CardHeader className="bg-red-50/50 rounded-t-xl border-b border-red-100">
+              <CardTitle className="text-2xl flex items-center gap-2 text-red-600">
+                <AlertTriangle className="w-6 h-6" /> Zona de Perigo (Limpeza de Dados)
+              </CardTitle>
+              <CardDescription className="text-base text-red-600/80">
+                Atenção: Ações realizadas nesta seção são irreversíveis e afetam o ambiente de
+                produção da sua organização.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-6">
+              <div className="space-y-4">
+                <p className="text-sm text-slate-600 font-medium">
+                  Selecione os módulos operacionais para limpar o histórico (Ex: Preparação para
+                  início de produção oficial):
+                </p>
+
+                <div className="flex items-center space-x-3 bg-red-50/30 p-3 rounded-lg border border-red-100">
+                  <Checkbox
+                    id="purge-crm"
+                    checked={purgeSelection.crm_interactions}
+                    onCheckedChange={(c) =>
+                      setPurgeSelection((prev) => ({ ...prev, crm_interactions: c === true }))
+                    }
                   />
-                  <p className="text-sm text-slate-500">
-                    O domínio deve estar verificado no painel do Resend. Use onboarding@resend.dev
-                    para testes se não tiver um domínio verificado.
-                  </p>
+                  <Label htmlFor="purge-crm" className="text-base font-medium cursor-pointer">
+                    Atendimentos e Interações (CRM)
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-3 bg-red-50/30 p-3 rounded-lg border border-red-100">
+                  <Checkbox
+                    id="purge-tasks"
+                    checked={purgeSelection.tasks}
+                    onCheckedChange={(c) =>
+                      setPurgeSelection((prev) => ({ ...prev, tasks: c === true }))
+                    }
+                  />
+                  <Label htmlFor="purge-tasks" className="text-base font-medium cursor-pointer">
+                    Atividades e Kanban (Tasks)
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-3 bg-red-50/30 p-3 rounded-lg border border-red-100">
+                  <Checkbox
+                    id="purge-agenda"
+                    checked={purgeSelection.agenda_events}
+                    onCheckedChange={(c) =>
+                      setPurgeSelection((prev) => ({ ...prev, agenda_events: c === true }))
+                    }
+                  />
+                  <Label htmlFor="purge-agenda" className="text-base font-medium cursor-pointer">
+                    Eventos e Prazos (Agenda Events)
+                  </Label>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-4 pt-6 border-t border-slate-100">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleTestEmail}
-                  disabled={saving}
-                  className="py-6 px-6 text-base font-medium"
-                >
-                  <ShieldCheck className="w-5 h-5 mr-2" /> Testar Conexão
-                </Button>
-                <Button type="submit" disabled={saving} className="py-6 px-8 text-base font-bold">
-                  {saving ? (
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="w-5 h-5 mr-2" />
-                  )}
-                  Salvar Configurações
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Danger Zone */}
-        <Card className="border-red-200 shadow-sm mt-8">
-          <CardHeader className="bg-red-50/50 rounded-t-xl border-b border-red-100">
-            <CardTitle className="text-2xl flex items-center gap-2 text-red-600">
-              <AlertTriangle className="w-6 h-6" /> Zona de Perigo (Limpeza de Dados)
-            </CardTitle>
-            <CardDescription className="text-base text-red-600/80">
-              Atenção: Ações realizadas nesta seção são irreversíveis e afetam o ambiente de produção da sua organização.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6 space-y-6">
-            <div className="space-y-4">
-              <p className="text-sm text-slate-600 font-medium">Selecione os módulos operacionais para limpar o histórico (Ex: Preparação para início de produção oficial):</p>
-              
-              <div className="flex items-center space-x-3 bg-red-50/30 p-3 rounded-lg border border-red-100">
-                <Checkbox 
-                  id="purge-crm" 
-                  checked={purgeSelection.crm_interactions} 
-                  onCheckedChange={(c) => setPurgeSelection(prev => ({ ...prev, crm_interactions: c === true }))} 
-                />
-                <Label htmlFor="purge-crm" className="text-base font-medium cursor-pointer">Atendimentos e Interações (CRM)</Label>
-              </div>
-              <div className="flex items-center space-x-3 bg-red-50/30 p-3 rounded-lg border border-red-100">
-                <Checkbox 
-                  id="purge-tasks" 
-                  checked={purgeSelection.tasks} 
-                  onCheckedChange={(c) => setPurgeSelection(prev => ({ ...prev, tasks: c === true }))} 
-                />
-                <Label htmlFor="purge-tasks" className="text-base font-medium cursor-pointer">Atividades e Kanban (Tasks)</Label>
-              </div>
-              <div className="flex items-center space-x-3 bg-red-50/30 p-3 rounded-lg border border-red-100">
-                <Checkbox 
-                  id="purge-agenda" 
-                  checked={purgeSelection.agenda_events} 
-                  onCheckedChange={(c) => setPurgeSelection(prev => ({ ...prev, agenda_events: c === true }))} 
-                />
-                <Label htmlFor="purge-agenda" className="text-base font-medium cursor-pointer">Eventos e Prazos (Agenda Events)</Label>
-              </div>
-            </div>
-
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="mt-4" disabled={!Object.values(purgeSelection).some(Boolean) || isPurging}>
-                  {isPurging ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-                  Purgar Dados Selecionados
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Tem certeza absoluta?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Esta ação apagará <strong>todos</strong> os registros dos módulos selecionados para a organização ativa. 
-                    O histórico será completamente destruído e esta operação <strong>não pode ser desfeita</strong>.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar operação</AlertDialogCancel>
-                  <AlertDialogAction onClick={handlePurgeData} className="bg-red-600 hover:bg-red-700 text-white">
-                    Sim, apagar dados permanentemente
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </CardContent>
-        </Card>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    className="mt-4"
+                    disabled={!Object.values(purgeSelection).some(Boolean) || isPurging}
+                  >
+                    {isPurging ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4 mr-2" />
+                    )}
+                    Purgar Dados Selecionados
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Tem certeza absoluta?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta ação apagará <strong>todos</strong> os registros dos módulos selecionados
+                      para a organização ativa. O histórico será completamente destruído e esta
+                      operação <strong>não pode ser desfeita</strong>.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar operação</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handlePurgeData}
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                    >
+                      Sim, apagar dados permanentemente
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   )

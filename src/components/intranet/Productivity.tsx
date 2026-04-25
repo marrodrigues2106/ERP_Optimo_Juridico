@@ -152,6 +152,16 @@ export default function Productivity() {
     )
   }, [data.movements, role.isAdmin, selectedCollabFilter])
 
+  const filteredInteractions = useMemo(() => {
+    if (!role.isAdmin || selectedCollabFilter === 'all') return data.interactions
+    return data.interactions.filter((i) => i.responsible === selectedCollabFilter)
+  }, [data.interactions, role.isAdmin, selectedCollabFilter])
+
+  const filteredTasks = useMemo(() => {
+    if (!role.isAdmin || selectedCollabFilter === 'all') return data.tasks
+    return data.tasks.filter((t) => t.collaborator === selectedCollabFilter)
+  }, [data.tasks, role.isAdmin, selectedCollabFilter])
+
   if (loading) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
@@ -169,16 +179,6 @@ export default function Productivity() {
 
   if (role.isAdmin) tabs.push({ id: 'office_movements', label: 'Movimentação do Escritório' })
   tabs.push({ id: 'my_movements', label: 'Minhas Movimentações' })
-
-  const filteredInteractions = useMemo(() => {
-    if (!role.isAdmin || selectedCollabFilter === 'all') return data.interactions
-    return data.interactions.filter((i) => i.responsible === selectedCollabFilter)
-  }, [data.interactions, role.isAdmin, selectedCollabFilter])
-
-  const filteredTasks = useMemo(() => {
-    if (!role.isAdmin || selectedCollabFilter === 'all') return data.tasks
-    return data.tasks.filter((t) => t.collaborator === selectedCollabFilter)
-  }, [data.tasks, role.isAdmin, selectedCollabFilter])
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12 animate-fade-in-up">
