@@ -45,11 +45,6 @@ onRecordAfterUpdateSuccess((e) => {
 
         t = t.trim()
 
-        if (/^\d+$/.test(t)) {
-          updated = true
-          continue
-        }
-
         // Exact match string comparison
         if (t === originalName) {
           updated = true

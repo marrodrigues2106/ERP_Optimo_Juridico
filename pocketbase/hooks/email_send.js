@@ -60,14 +60,11 @@ routerAdd(
       )
     }
 
-    let apiKey = $secrets.get('RESEND_API_KEY')
-
-    if (!apiKey) {
-      try {
-        const keyRec = $app.findFirstRecordByData('settings', 'key', 'resend_api_key')
-        apiKey = keyRec.getString('value')
-      } catch (_) {}
-    }
+    let apiKey = ''
+    try {
+      const keyRec = $app.findFirstRecordByData('settings', 'key', 'resend_api_key')
+      apiKey = keyRec.getString('value')
+    } catch (_) {}
 
     let fromEmail = 'onboarding@resend.dev'
     let fromName = 'Escritório de Advocacia'
@@ -100,9 +97,7 @@ routerAdd(
         $app.saveNoValidate(log)
       } catch (_) {}
 
-      throw new BadRequestError(
-        'Configuração da API do Resend não encontrada. Verifique as configurações de ambiente.',
-      )
+      throw new BadRequestError('Resend API Key not found in settings.')
     }
 
     let res
@@ -133,13 +128,12 @@ routerAdd(
         $app.saveNoValidate(log)
       } catch (_) {}
 
-      throw new InternalServerError(
+      throw new BadRequestError(
         'Falha de conexão ao tentar enviar e-mail. O provedor pode estar indisponível.',
       )
     }
 
     if (res.statusCode !== 200 && res.statusCode !== 201) {
-      // Using native res.json method exclusively for JSON parsed API responses
       const responseBody = res.json || { message: 'Erro desconhecido (sem body parseável)' }
 
       $app.logger().error('Resend API error', 'status', res.statusCode, 'body', responseBody)
@@ -156,7 +150,7 @@ routerAdd(
       } catch (_) {}
 
       const errorMsg = responseBody.message || 'Falha ao enviar e-mail pelo provedor externo.'
-      throw new BadRequestError(`Erro no envio: ${errorMsg}`)
+      throw new BadRequestError(errorMsg)
     }
 
     try {

@@ -97,12 +97,6 @@ routerAdd(
 
             t = t.trim()
 
-            // Drop purely numeric tags
-            if (/^\d+$/.test(t)) {
-              changed = true
-              continue
-            }
-
             if (t === oldTag) {
               changed = true
               newTagsArray.push(newTag)
@@ -152,7 +146,7 @@ routerAdd(
         $app.saveNoValidate(log)
       } catch (_) {}
 
-      throw new InternalServerError('Erro interno ao renomear etiqueta.')
+      throw new BadRequestError('Erro ao renomear etiqueta: ' + err.message)
     }
   },
   $apis.requireAuth(),
