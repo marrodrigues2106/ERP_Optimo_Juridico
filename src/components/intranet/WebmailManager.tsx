@@ -1,14 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Mail, Edit, Send, Inbox, Loader2, ChevronsUpDown, Check, X } from 'lucide-react'
+import { Mail, Edit, Send, Inbox, Loader2, ChevronsUpDown, Check, X, History } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
-import { useEffect } from 'react'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import {
   Command,
@@ -20,6 +19,7 @@ import {
 } from '@/components/ui/command'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export default function WebmailManager() {
   const { toast } = useToast()
@@ -28,13 +28,32 @@ export default function WebmailManager() {
   const [clients, setClients] = useState<any[]>([])
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
   const [openCombobox, setOpenCombobox] = useState(false)
+  const [logs, setLogs] = useState<any[]>([])
+
+  const fetchLogs = async () => {
+    try {
+      const result = await pb.collection('email_logs').getList(1, 50, {
+        sort: '-sent_at',
+        expand: 'user',
+      })
+      setLogs(result.items)
+    } catch (e) {
+      console.error(e)
+    }
+  }
 
   useEffect(() => {
     pb.collection('clients')
       .getFullList({ filter: 'deleted_at=""', sort: 'name' })
       .then(setClients)
       .catch(console.error)
+
+    fetchLogs()
   }, [])
+
+  useRealtime('email_logs', () => {
+    fetchLogs()
+  })
 
   const handleSend = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -53,7 +72,7 @@ export default function WebmailManager() {
     setSending(true)
     const fd = new FormData(e.currentTarget)
     try {
-      await pb.send('/backend/v2/email/send', {
+      await pb.send('/backend/v1/email/send', {
         method: 'POST',
         body: JSON.stringify({
           to: toEmails,
@@ -79,7 +98,7 @@ export default function WebmailManager() {
     <div className="max-w-7xl mx-auto space-y-6 pb-12 animate-fade-in-up h-[calc(100vh-120px)] flex flex-col">
       <div className="flex items-center justify-between border-b border-slate-200 pb-4 shrink-0">
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-          <Mail className="w-8 h-8 hidden md:block" /> Caixa de Entrada
+          <Mail className="w-8 h-8 hidden md:block" /> Caixa Postal
         </h1>
         <Button onClick={() => setComposeOpen(true)} size="sm">
           <Edit className="w-4 h-4 md:mr-2" />
@@ -87,18 +106,47 @@ export default function WebmailManager() {
         </Button>
       </div>
 
-      <div className="flex flex-1 gap-6 min-h-0 overflow-hidden relative">
-        <div className="flex-1 flex flex-col items-center justify-center bg-white rounded-xl border border-slate-200 shadow-sm p-8 text-center">
-          <Inbox className="w-20 h-20 text-slate-300 mb-6" />
-          <h3 className="text-2xl font-bold text-slate-700 mb-2">Caixa de Entrada Desativada</h3>
-          <p className="text-slate-500 max-w-md text-lg">
-            O sistema foi atualizado para utilizar a API do Resend, que foca exclusivamente no envio
-            confiável de e-mails transacionais. O recebimento de e-mails via IMAP não está mais
-            disponível.
-          </p>
-          <Button className="mt-8" size="lg" onClick={() => setComposeOpen(true)}>
-            <Edit className="w-5 h-5 mr-2" /> Enviar Nova Mensagem
-          </Button>
+      <div className="flex flex-1 gap-6 min-h-0 overflow-hidden relative flex-col lg:flex-row">
+        <div className="flex-1 flex flex-col min-h-0 bg-white rounded-xl border border-slate-200 shadow-sm p-4 lg:p-6 overflow-hidden">
+          <div className="flex items-center gap-2 mb-6">
+            <History className="w-5 h-5 text-slate-500" />
+            <h3 className="text-lg font-semibold text-slate-800">Histórico de Envios</h3>
+          </div>
+
+          <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+            {logs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center text-slate-500 space-y-4">
+                <Inbox className="w-16 h-16 opacity-20" />
+                <p>Nenhum e-mail enviado recentemente.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {logs.map((log) => (
+                  <div
+                    key={log.id}
+                    className="flex flex-col sm:flex-row sm:justify-between items-start gap-2 sm:gap-4 p-4 rounded-lg bg-slate-50 border border-slate-100"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium text-slate-900 truncate">
+                        {log.subject || 'Sem Assunto'}
+                      </p>
+                      <p className="text-sm text-slate-500 truncate">
+                        Para: {log.to || 'Desconhecido'}
+                      </p>
+                    </div>
+                    <div className="sm:text-right shrink-0">
+                      <p className="text-sm text-slate-600 font-medium">
+                        {new Date(log.sent_at).toLocaleString('pt-BR')}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Por: {log.expand?.user?.name || log.expand?.user?.email || 'Sistema'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

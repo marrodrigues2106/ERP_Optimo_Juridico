@@ -186,7 +186,7 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
 
     setIsSending(true)
     try {
-      await pb.send('/backend/v2/email/send', {
+      await pb.send('/backend/v1/email/send', {
         method: 'POST',
         body: JSON.stringify({
           to: toEmails,
