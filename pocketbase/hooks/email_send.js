@@ -127,7 +127,7 @@ routerAdd(
     }
 
     if (res.statusCode !== 200 && res.statusCode !== 201) {
-      const responseBody = res.json || new TextDecoder().decode(res.body)
+      const responseBody = res.json || { message: 'Erro desconhecido (sem body parseável)' }
       $app.logger().error('Resend API error', 'status', res.statusCode, 'body', responseBody)
 
       const log = new Record($app.findCollectionByNameOrId('system_logs'))

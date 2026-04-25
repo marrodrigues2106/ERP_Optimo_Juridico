@@ -57,11 +57,11 @@ routerAdd(
         // 2. Update legal_cases
         const cases = txApp.findRecordsByFilter(
           'legal_cases',
-          'organization = {:org} && tags ~ {:oldTagExact}',
+          'organization = {:org} && tags ~ {:oldTag}',
           '',
           100000,
           0,
-          { org: activeOrg, oldTagExact: `"${oldTag}"` },
+          { org: activeOrg, oldTag: oldTag },
         )
 
         for (let i = 0; i < cases.length; i++) {
@@ -87,7 +87,7 @@ routerAdd(
           const newTagsArray = []
 
           for (let j = 0; j < tagsArray.length; j++) {
-            const t = tagsArray[j]
+            let t = tagsArray[j]
 
             // Strict string processing
             if (typeof t !== 'string') {
@@ -95,8 +95,10 @@ routerAdd(
               continue // Just drop non-strings
             }
 
+            t = t.trim()
+
             // Drop purely numeric tags
-            if (/^\d+$/.test(t.trim())) {
+            if (/^\d+$/.test(t)) {
               changed = true
               continue
             }

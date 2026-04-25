@@ -11,37 +11,61 @@ onRecordAfterUpdateSuccess((e) => {
     '',
     10000,
     0,
-    { old: `"${originalName}"`, org: org },
+    { old: originalName, org: org },
   )
 
   $app.runInTransaction((txApp) => {
     for (let record of cases) {
       let tags = record.get('tags')
+
+      let tagsArray = []
       if (typeof tags === 'string') {
         try {
-          tags = JSON.parse(tags)
+          tagsArray = JSON.parse(tags)
         } catch (err) {
-          tags = []
+          tagsArray = []
         }
+      } else if (Array.isArray(tags)) {
+        tagsArray = tags
       }
-      if (!Array.isArray(tags)) tags = []
+
+      if (!Array.isArray(tagsArray)) continue
 
       let updated = false
-      let newTags = tags.map((t) => {
-        if (typeof t === 'string' && t === originalName) {
-          updated = true
-          return newName
-        }
-        return t
-      })
+      const newTagsArray = []
 
-      const cleanedTags = newTags.filter((t) => typeof t === 'string' && !/^\d+$/.test(t))
-      if (cleanedTags.length !== newTags.length) {
-        updated = true
+      for (let j = 0; j < tagsArray.length; j++) {
+        let t = tagsArray[j]
+
+        if (typeof t !== 'string') {
+          updated = true
+          continue
+        }
+
+        t = t.trim()
+
+        if (/^\d+$/.test(t)) {
+          updated = true
+          continue
+        }
+
+        if (t === originalName) {
+          updated = true
+          newTagsArray.push(newName)
+        } else {
+          newTagsArray.push(t)
+        }
       }
 
       if (updated) {
-        const uniqueTags = [...new Set(cleanedTags)]
+        const uniqueTags = []
+        for (let j = 0; j < newTagsArray.length; j++) {
+          const val = newTagsArray[j]
+          if (val && typeof val === 'string' && val.trim() !== '' && !uniqueTags.includes(val)) {
+            uniqueTags.push(val)
+          }
+        }
+
         record.set('tags', uniqueTags)
         txApp.saveNoValidate(record)
       }
