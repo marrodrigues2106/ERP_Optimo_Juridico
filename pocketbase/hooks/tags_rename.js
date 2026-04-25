@@ -116,7 +116,8 @@ routerAdd(
             }
 
             record.set('tags', uniqueTags)
-            txApp.save(record)
+            // Use saveNoValidate so other unrelated missing fields don't block the tag update
+            txApp.saveNoValidate(record)
           }
         }
       })

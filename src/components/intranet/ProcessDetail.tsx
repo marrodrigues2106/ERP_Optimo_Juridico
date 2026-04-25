@@ -85,6 +85,12 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import pb from '@/lib/pocketbase/client'
 import { Badge } from '@/components/ui/badge'
 import { useRealtime } from '@/hooks/use-realtime'
@@ -98,14 +104,14 @@ const MovementItem = ({
   isNew,
   recordId,
   caseNumber,
-  client,
+  clients,
   organization,
 }: {
   mov: any
   isNew: boolean
   recordId: string
   caseNumber?: string
-  client?: any
+  clients?: any | any[]
   organization?: any
 }) => {
   const [isExpanded, setIsExpanded] = useState(false)
@@ -120,11 +126,16 @@ const MovementItem = ({
     return null
   }
 
-  const clientPhone = getPrimaryPhone(client)
-  const hasPhone = !!clientPhone
-  const hasEmail = !!client?.email
+  const clientsArray = Array.isArray(clients) ? clients : clients ? [clients] : []
+  const validPhones = clientsArray
+    .map((c) => ({ client: c, phone: getPrimaryPhone(c) }))
+    .filter((x) => x.phone)
+  const validEmails = clientsArray.filter((c) => c.email)
 
-  const clientName = client?.name || client?.fullName || 'Cliente'
+  const hasPhone = validPhones.length > 0
+  const hasEmail = validEmails.length > 0
+
+  const firstClientName = clientsArray[0]?.name || clientsArray[0]?.fullName || 'Cliente'
   const orgName = organization?.name || 'Moraes Rodrigues Advocacia'
   const orgPhone = organization?.phone || ''
   const orgPhoneMessage = orgPhone
@@ -135,30 +146,34 @@ const MovementItem = ({
     ? new Date(mov.event_date).toLocaleDateString('pt-BR')
     : 'Data não informada'
   const movDesc = mov.description || 'Andamento atualizado'
-  const messageText = `Prezado(a) ${clientName}, informamos um novo andamento em seu processo: ${movDesc}.\n\nData: ${eventDateStr}.${orgPhoneMessage}\n\nAtenciosamente, ${orgName}.`
 
-  const handleWhatsApp = () => {
-    if (!clientPhone) return
-    let cleanPhone = String(clientPhone).replace(/\D/g, '')
+  const getMessageText = (cName: string) =>
+    `Prezado(a) ${cName}, informamos um novo andamento em seu processo: ${movDesc}.\n\nData: ${eventDateStr}.${orgPhoneMessage}\n\nAtenciosamente, ${orgName}.`
+
+  const handleWhatsApp = (phoneStr: string, cName: string) => {
+    if (!phoneStr) return
+    let cleanPhone = String(phoneStr).replace(/\D/g, '')
     if (cleanPhone.length === 10 || cleanPhone.length === 11) {
       cleanPhone = '55' + cleanPhone
     }
-    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`
+    const text = getMessageText(cName)
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`
     window.open(url, '_blank')
   }
 
-  const handleEmail = async () => {
-    if (!client?.email) return
+  const handleEmail = async (targetClient: any) => {
+    if (!targetClient?.email) return
     setIsSendingEmail(true)
+    const text = getMessageText(targetClient.name || targetClient.fullName || 'Cliente')
     try {
       await pb.send('/backend/v1/email/send', {
         method: 'POST',
         body: {
-          to: [client.email],
+          to: [targetClient.email],
           subject: `Andamento Processual - ${caseNumber || 'Sem número'}`,
-          text: messageText,
-          html: `<p>${messageText.replace(/\n/g, '<br>')}</p>`,
-          body: `<p>${messageText.replace(/\n/g, '<br>')}</p>`,
+          text: text,
+          html: `<p>${text.replace(/\n/g, '<br>')}</p>`,
+          body: `<p>${text.replace(/\n/g, '<br>')}</p>`,
         },
       })
       toast({ title: 'E-mail enviado com sucesso.' })
@@ -353,53 +368,110 @@ const MovementItem = ({
             )}
             <div className="flex items-center gap-1 ml-2 border-l pl-2 border-slate-200">
               <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        'h-6 w-6 transition-colors',
-                        hasPhone
-                          ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
-                          : 'text-slate-300 cursor-not-allowed hover:bg-transparent',
-                      )}
-                      disabled={!hasPhone}
-                      onClick={handleWhatsApp}
-                    >
-                      <MessageCircle className="h-3.5 w-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {hasPhone ? 'Enviar via WhatsApp' : 'Cliente sem telefone cadastrado'}
-                  </TooltipContent>
-                </Tooltip>
+                {validPhones.length > 1 ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 transition-colors text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {validPhones.map((vp, idx) => (
+                        <DropdownMenuItem
+                          key={idx}
+                          onClick={() => handleWhatsApp(vp.phone, vp.client.name)}
+                        >
+                          {vp.client.name} ({vp.phone})
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          'h-6 w-6 transition-colors',
+                          hasPhone
+                            ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
+                            : 'text-slate-300 cursor-not-allowed hover:bg-transparent',
+                        )}
+                        disabled={!hasPhone}
+                        onClick={() =>
+                          hasPhone &&
+                          handleWhatsApp(validPhones[0].phone, validPhones[0].client.name)
+                        }
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {hasPhone
+                        ? `Enviar via WhatsApp para ${validPhones[0].client.name}`
+                        : 'Nenhum cliente com telefone'}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        'h-6 w-6 transition-colors',
-                        hasEmail && !isSendingEmail
-                          ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
-                          : 'text-slate-300 cursor-not-allowed hover:bg-transparent',
-                      )}
-                      disabled={!hasEmail || isSendingEmail}
-                      onClick={handleEmail}
-                    >
-                      {isSendingEmail ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />
-                      ) : (
-                        <Mail className="h-3.5 w-3.5" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {hasEmail ? 'Enviar via E-mail' : 'Cliente sem e-mail cadastrado'}
-                  </TooltipContent>
-                </Tooltip>
+                {validEmails.length > 1 ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 transition-colors text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        disabled={isSendingEmail}
+                      >
+                        {isSendingEmail ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Mail className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {validEmails.map((c, idx) => (
+                        <DropdownMenuItem key={idx} onClick={() => handleEmail(c)}>
+                          {c.name} ({c.email})
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          'h-6 w-6 transition-colors',
+                          hasEmail && !isSendingEmail
+                            ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
+                            : 'text-slate-300 cursor-not-allowed hover:bg-transparent',
+                        )}
+                        disabled={!hasEmail || isSendingEmail}
+                        onClick={() => hasEmail && handleEmail(validEmails[0])}
+                      >
+                        {isSendingEmail ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />
+                        ) : (
+                          <Mail className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {hasEmail
+                        ? `Enviar via E-mail para ${validEmails[0].name}`
+                        : 'Nenhum cliente com e-mail'}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
               </TooltipProvider>
             </div>
           </div>
@@ -743,6 +815,10 @@ export default function ProcessDetail() {
     if (e.record.linked_lawsuit === id) {
       loadData()
     }
+  })
+
+  useRealtime('clients', () => {
+    loadData()
   })
 
   useRealtime('case_labels', () => {
@@ -1270,16 +1346,28 @@ export default function ProcessDetail() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-slate-100">
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <User className="w-4 h-4 text-slate-400" />
-                  <span className="font-medium text-slate-500">Cliente:</span>
-                  <span
-                    className="font-semibold text-slate-800 truncate"
-                    title={legalCase.expand?.client?.name}
-                  >
-                    {legalCase.expand?.client?.name || 'Não informado'}
-                  </span>
+                  <User className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="font-medium text-slate-500 shrink-0">Cliente(s):</span>
+                  <div className="flex flex-wrap items-center gap-1">
+                    {legalCase.expand?.client ? (
+                      (Array.isArray(legalCase.expand.client)
+                        ? legalCase.expand.client
+                        : [legalCase.expand.client]
+                      ).map((c: any, i: number, arr: any[]) => (
+                        <span key={c.id} className="font-semibold text-slate-800" title={c.name}>
+                          {c.name}
+                          {i < arr.length - 1 ? ', ' : ''}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="font-semibold text-slate-800">Não informado</span>
+                    )}
+                  </div>
                 </div>
-                {legalCase.expand?.client?.email && (
+                {(Array.isArray(legalCase.expand?.client)
+                  ? legalCase.expand.client
+                  : [legalCase.expand?.client]
+                ).some((c: any) => c?.email) && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1422,7 +1510,7 @@ export default function ProcessDetail() {
                             isNew={isNew}
                             recordId={id!}
                             caseNumber={legalCase.case_number}
-                            client={legalCase.expand?.client}
+                            clients={legalCase.expand?.client}
                             organization={legalCase.expand?.organization}
                           />
                         )
@@ -1582,10 +1670,17 @@ export default function ProcessDetail() {
           <EmailSenderModal
             open={emailModalOpen}
             onOpenChange={setEmailModalOpen}
-            client={legalCase.expand?.client}
+            client={
+              Array.isArray(legalCase.expand?.client)
+                ? legalCase.expand.client.find((c: any) => c.email)
+                : legalCase.expand?.client
+            }
             context={{
               case_number: legalCase.case_number || '',
-              client_name: legalCase.expand?.client?.name || '',
+              client_name:
+                (Array.isArray(legalCase.expand?.client)
+                  ? legalCase.expand.client[0]?.name
+                  : legalCase.expand?.client?.name) || '',
               org_phone:
                 legalCase.expand?.organization?.phone ||
                 pb.authStore.record?.expand?.active_organization?.phone ||

@@ -50,12 +50,12 @@ export default function AtendimentosManager() {
   const [editingInt, setEditingInt] = useState<any>(null)
 
   const [selectedClient, setSelectedClient] = useState<string>('none')
-  const [linkedCase, setLinkedCase] = useState<string>('none')
+  const [reference, setReference] = useState<string>('none')
   const [description, setDescription] = useState('')
   const [tags, setTags] = useState('')
 
   const [openClientCombo, setOpenClientCombo] = useState(false)
-  const [openCaseCombo, setOpenCaseCombo] = useState(false)
+  const [openRefCombo, setOpenRefCombo] = useState(false)
 
   const { toast } = useToast()
 
@@ -91,7 +91,7 @@ export default function AtendimentosManager() {
   const handleNew = () => {
     setEditingInt(null)
     setSelectedClient('none')
-    setLinkedCase('none')
+    setReference('none')
     setDescription('')
     setTags('')
     setFormOpen(true)
@@ -100,7 +100,10 @@ export default function AtendimentosManager() {
   const handleEdit = (int: any) => {
     setEditingInt(int)
     setSelectedClient(int.client || 'none')
-    setLinkedCase(int.linked_case || 'none')
+    if (int.linked_case) setReference(`case_${int.linked_case}`)
+    else if (int.parent_interaction) setReference(`int_${int.parent_interaction}`)
+    else setReference('none')
+
     setDescription(int.description || '')
     setTags(int.tags ? int.tags.join(', ') : '')
     setFormOpen(true)
@@ -118,6 +121,17 @@ export default function AtendimentosManager() {
     const files = fd.getAll('attachments') as File[]
     const validFiles = files.filter((f) => f.size > 0)
 
+    let linkedCase = null
+    let parentInteraction = null
+
+    if (reference !== 'none') {
+      if (reference.startsWith('case_')) {
+        linkedCase = reference.replace('case_', '')
+      } else if (reference.startsWith('int_')) {
+        parentInteraction = reference.replace('int_', '')
+      }
+    }
+
     try {
       const dateVal = editingInt ? editingInt.date : new Date().toISOString()
       const data: any = {
@@ -129,10 +143,9 @@ export default function AtendimentosManager() {
         follow_up_date: fd.get('follow_up_date')
           ? new Date(fd.get('follow_up_date') as string).toISOString()
           : null,
-        linked_case: linkedCase !== 'none' ? linkedCase : null,
+        linked_case: linkedCase,
+        parent_interaction: parentInteraction,
         status: fd.get('status') || 'open',
-        parent_interaction:
-          fd.get('parent_interaction') !== 'none' ? fd.get('parent_interaction') : null,
         tags: tags ? tags.split(',').map((t) => t.trim()) : [],
       }
       if (validFiles.length > 0) {
@@ -396,107 +409,114 @@ export default function AtendimentosManager() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <Label>Processo Vinculado</Label>
-                <Popover open={openCaseCombo} onOpenChange={setOpenCaseCombo}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      className="w-full justify-between font-normal text-left px-3"
-                    >
-                      <span className="truncate pr-4">
-                        {linkedCase !== 'none'
-                          ? cases.find((c) => c.id === linkedCase)?.parties ||
-                            cases.find((c) => c.id === linkedCase)?.case_number
-                          : 'Nenhum'}
-                      </span>
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="w-[var(--radix-popover-trigger-width)] p-0"
-                    align="start"
+            <div className="flex flex-col gap-2">
+              <Label>Vínculo (Processo, Serviço ou Atendimento Pai)</Label>
+              <Popover open={openRefCombo} onOpenChange={setOpenRefCombo}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openRefCombo}
+                    className="w-full justify-between font-normal bg-white h-auto min-h-10 py-2 px-3"
                   >
-                    <Command>
-                      <CommandInput placeholder="Buscar processo..." />
-                      <CommandList>
-                        <CommandEmpty>Nenhum processo encontrado.</CommandEmpty>
-                        <CommandGroup>
-                          <CommandItem
-                            value="none"
-                            onSelect={() => {
-                              setLinkedCase('none')
-                              setOpenCaseCombo(false)
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                'mr-2 h-4 w-4',
-                                linkedCase === 'none' ? 'opacity-100' : 'opacity-0',
-                              )}
-                            />
-                            Nenhum
-                          </CommandItem>
-                          {cases
-                            .filter((c) => selectedClient === 'none' || c.client === selectedClient)
-                            .map((c) => (
-                              <CommandItem
-                                key={c.id}
-                                value={`${c.parties} ${c.case_number || ''}`}
-                                onSelect={() => {
-                                  setLinkedCase(c.id)
-                                  setOpenCaseCombo(false)
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    'mr-2 h-4 w-4',
-                                    linkedCase === c.id ? 'opacity-100' : 'opacity-0',
-                                  )}
-                                />
-                                <div className="flex flex-col overflow-hidden">
-                                  <span className="truncate">{c.parties}</span>
-                                  {c.case_number && (
-                                    <span className="text-xs text-slate-500">{c.case_number}</span>
-                                  )}
-                                </div>
-                              </CommandItem>
-                            ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label>Atendimento Pai (Sub-serviço)</Label>
-                <Select
-                  name="parent_interaction"
-                  defaultValue={editingInt?.parent_interaction || 'none'}
+                    <span className="truncate">
+                      {reference !== 'none'
+                        ? reference.startsWith('case_')
+                          ? `Processo/Serviço: ${cases.find((c) => c.id === reference.replace('case_', ''))?.case_number || cases.find((c) => c.id === reference.replace('case_', ''))?.title || cases.find((c) => c.id === reference.replace('case_', ''))?.parties || 'Desconhecido'}`
+                          : `Atendimento: ${new Date(interactions.find((i) => i.id === reference.replace('int_', ''))?.date || '').toLocaleDateString('pt-BR')} - ${interactions.find((i) => i.id === reference.replace('int_', ''))?.type}`
+                        : 'Nenhum'}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-[var(--radix-popover-trigger-width)] p-0"
+                  align="start"
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Nenhum" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum (Raiz)</SelectItem>
-                    {interactions
-                      .filter(
-                        (i) =>
-                          !i.parent_interaction &&
-                          i.id !== editingInt?.id &&
-                          (selectedClient === 'none' || i.client === selectedClient),
-                      )
-                      .map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {new Date(c.date).toLocaleDateString()} - {c.title || c.type}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                  <Command>
+                    <CommandInput placeholder="Buscar processo ou atendimento..." />
+                    <CommandList className="max-h-[250px]">
+                      <CommandEmpty>Nenhuma referência encontrada.</CommandEmpty>
+                      <CommandGroup heading="Nenhuma">
+                        <CommandItem
+                          value="none"
+                          onSelect={() => {
+                            setReference('none')
+                            setOpenRefCombo(false)
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              'mr-2 h-4 w-4',
+                              reference === 'none' ? 'opacity-100' : 'opacity-0',
+                            )}
+                          />
+                          Nenhum vínculo
+                        </CommandItem>
+                      </CommandGroup>
+                      <CommandGroup heading="Processos e Serviços">
+                        {cases
+                          .filter(
+                            (c) => selectedClient === 'none' || c.client?.includes(selectedClient),
+                          )
+                          .map((c) => (
+                            <CommandItem
+                              key={`case_${c.id}`}
+                              value={`case_${c.id} ${c.case_number} ${c.title} ${c.parties}`}
+                              onSelect={() => {
+                                setReference(`case_${c.id}`)
+                                setOpenRefCombo(false)
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  'mr-2 h-4 w-4',
+                                  reference === `case_${c.id}` ? 'opacity-100' : 'opacity-0',
+                                )}
+                              />
+                              <div className="flex flex-col">
+                                <span className="font-medium text-sm">
+                                  {c.title || c.parties || 'Sem título'}
+                                </span>
+                                <span className="text-xs text-slate-500">
+                                  {c.case_number || 'Sem número'}
+                                </span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                      </CommandGroup>
+                      <CommandGroup heading="Atendimentos (Pai)">
+                        {interactions
+                          .filter(
+                            (i) =>
+                              i.id !== editingInt?.id &&
+                              !i.parent_interaction &&
+                              (selectedClient === 'none' || i.client === selectedClient),
+                          )
+                          .map((i) => (
+                            <CommandItem
+                              key={`int_${i.id}`}
+                              value={`int_${i.id} ${i.type} ${i.expand?.client?.name}`}
+                              onSelect={() => {
+                                setReference(`int_${i.id}`)
+                                setOpenRefCombo(false)
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  'mr-2 h-4 w-4',
+                                  reference === `int_${i.id}` ? 'opacity-100' : 'opacity-0',
+                                )}
+                              />
+                              {new Date(i.date).toLocaleDateString('pt-BR')} - {i.type}{' '}
+                              {i.expand?.client?.name ? `(${i.expand.client.name})` : ''}
+                            </CommandItem>
+                          ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div>
