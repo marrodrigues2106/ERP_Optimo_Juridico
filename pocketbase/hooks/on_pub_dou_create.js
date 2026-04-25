@@ -58,7 +58,7 @@ onRecordAfterCreateSuccess((e) => {
             matchedKeywords = matches.map((m) => m[0])
           }
         } catch (err) {}
-      } else if (tipo === 'frase' || isExactSearch) {
+      } else if (tipo === 'frase' || isExactSearch || tipo === 'OAB') {
         const normalTerm = termoStr
           .toLowerCase()
           .normalize('NFD')
@@ -78,9 +78,10 @@ onRecordAfterCreateSuccess((e) => {
         let evalExpr = normalTerm
         for (const op of operands) {
           if (!op) continue
+          const safeOp = op.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
           const opMatch = texto_normalizado.includes(op)
           evalExpr = evalExpr.replace(
-            new RegExp('\\b' + op + '\\b', 'g'),
+            new RegExp('\\b' + safeOp + '\\b', 'g'),
             opMatch ? 'true' : 'false',
           )
           if (opMatch) matchedKeywords.push(op)

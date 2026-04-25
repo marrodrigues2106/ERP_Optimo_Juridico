@@ -649,15 +649,8 @@ routerAdd(
                   }
 
                   if (pass && numeroOab) {
-                    const cleanOab = cleanNumbersOnly(numeroOab)
-                    if (cleanOab) {
-                      const cleanFullTextDigits = cleanNumbersOnly(rawFullText)
-                      pass =
-                        cleanFullTextDigits.includes(cleanOab) ||
-                        fullTextNormalized.includes(normalizeText(numeroOab))
-                    } else {
-                      pass = fullTextNormalized.includes(normalizeText(numeroOab))
-                    }
+                    const oabNorm = normalizeText(numeroOab)
+                    pass = fullTextNormalized.includes(oabNorm)
                     if (!pass && !discardReason)
                       discardReason = `ausencia_campo_obrigatorio: OAB '${numeroOab}' não corresponde`
                   }
