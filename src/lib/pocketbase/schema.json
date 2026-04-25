@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-25T02:00:19.175Z",
+  "generatedAt": "2026-04-25T02:21:18.365Z",
   "collections": [
     {
       "name": "users",
@@ -1088,6 +1088,12 @@
           "required": false,
           "system": false,
           "collectionRef": "crm_interactions"
+        },
+        {
+          "name": "is_all_day",
+          "type": "bool",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -1797,6 +1803,12 @@
           "required": false,
           "system": false,
           "selectValues": ["Pending", "Completed", "open", "closed"]
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": []

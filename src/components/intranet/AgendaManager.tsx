@@ -403,13 +403,17 @@ export default function AgendaManager() {
 function TaskEditModal({ task, open, onOpenChange, onSuccess }: any) {
   const { toast } = useToast()
   const [title, setTitle] = useState(task?.title || '')
-  const [dueDate, setDueDate] = useState(task?.due_date ? task.due_date.substring(0, 16) : '')
+  const [isAllDay, setIsAllDay] = useState(task?.is_all_day || false)
+  const [dueDate, setDueDate] = useState(
+    task?.due_date ? task.due_date.substring(0, task?.is_all_day ? 10 : 16) : '',
+  )
   const [priority, setPriority] = useState(task?.priority || 'medium')
 
   useEffect(() => {
     if (open && task) {
       setTitle(task.title || '')
-      setDueDate(task.due_date ? task.due_date.substring(0, 16) : '')
+      setIsAllDay(task.is_all_day || false)
+      setDueDate(task.due_date ? task.due_date.substring(0, task.is_all_day ? 10 : 16) : '')
       setPriority(task.priority || 'medium')
     }
   }, [open, task])
@@ -417,10 +421,15 @@ function TaskEditModal({ task, open, onOpenChange, onSuccess }: any) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      let finalDate = dueDate ? new Date(dueDate).toISOString() : null
+      if (isAllDay && dueDate) {
+        finalDate = new Date(`${dueDate}T12:00:00`).toISOString()
+      }
       await pb.collection('tasks').update(task.id, {
         title,
-        due_date: dueDate ? new Date(dueDate).toISOString() : null,
+        due_date: finalDate,
         priority,
+        is_all_day: isAllDay,
       })
       toast({ title: 'Tarefa atualizada com sucesso' })
       onSuccess()
@@ -457,10 +466,25 @@ function TaskEditModal({ task, open, onOpenChange, onSuccess }: any) {
             <Label>Título</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} required />
           </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isAllDay"
+              checked={isAllDay}
+              onChange={(e) => {
+                setIsAllDay(e.target.checked)
+                if (e.target.checked && dueDate.length > 10) {
+                  setDueDate(dueDate.substring(0, 10))
+                }
+              }}
+              className="w-4 h-4 text-primary rounded border-slate-300"
+            />
+            <Label htmlFor="isAllDay">Dia Inteiro</Label>
+          </div>
           <div>
             <Label>Data de Vencimento</Label>
             <Input
-              type="datetime-local"
+              type={isAllDay ? 'date' : 'datetime-local'}
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
             />

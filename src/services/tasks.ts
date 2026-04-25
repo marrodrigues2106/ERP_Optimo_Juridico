@@ -23,6 +23,7 @@ const sanitizeTask = (data: any) => {
   if (data.linked_interaction === 'none') data.linked_interaction = null
   if (data.priority && !['low', 'medium', 'high'].includes(data.priority)) data.priority = 'medium'
   if (data.status && !['todo', 'completed'].includes(data.status)) data.status = 'todo'
+  if (data.is_all_day === undefined) data.is_all_day = false
   return data
 }
 

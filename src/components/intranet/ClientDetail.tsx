@@ -38,6 +38,9 @@ export default function ClientDetail() {
   const navigate = useNavigate()
   const { toast } = useToast()
 
+  const urlParams = new URLSearchParams(window.location.search)
+  const defaultTab = urlParams.get('tab') || 'overview'
+
   const [client, setClient] = useState<any>(null)
   const [editClientOpen, setEditClientOpen] = useState(false)
 
@@ -109,7 +112,7 @@ export default function ClientDetail() {
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="w-full">
+      <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList className="mb-4 flex-wrap h-auto">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <UserCircle className="w-4 h-4" /> Visão Geral

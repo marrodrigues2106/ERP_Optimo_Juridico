@@ -49,6 +49,8 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
   const [formOpen, setFormOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
+  const [statusFilter, setStatusFilter] = useState('all')
+
   const [openCaseCombo, setOpenCaseCombo] = useState(false)
   const [linkedCase, setLinkedCase] = useState<string>('none')
   const [description, setDescription] = useState('')
@@ -87,6 +89,7 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
 
     try {
       const data: any = {
+        title: fd.get('title'),
         client: clientId,
         type: fd.get('type'),
         description: description || fd.get('description'),
@@ -147,7 +150,10 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
         <div className="bg-white p-4 border border-slate-100 rounded-lg shadow-sm hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start gap-4">
             <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
+              <h4 className="text-base font-bold text-slate-800 mb-1">
+                {int.title || 'Sem Assunto'}
+              </h4>
+              <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600">
                   {int.type}
                 </span>
@@ -243,15 +249,30 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
     )
   }
 
-  const rootInteractions = interactions.filter((i) => !i.parent_interaction)
+  const filteredInteractions = interactions.filter(
+    (i) => statusFilter === 'all' || i.status === statusFilter,
+  )
+  const rootInteractions = filteredInteractions.filter((i) => !i.parent_interaction)
 
   return (
     <Card className="shadow-sm border-slate-200">
-      <CardHeader className="bg-slate-50/50 border-b flex flex-row items-center justify-between py-4">
+      <CardHeader className="bg-slate-50/50 border-b flex flex-row items-center justify-between py-4 gap-4 flex-wrap">
         <CardTitle className="text-lg">Linha do Tempo de Atendimentos</CardTitle>
-        <Button size="sm" onClick={() => setFormOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" /> Registrar Interação
-        </Button>
+        <div className="flex items-center gap-3">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[140px] bg-white">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="open">Em Andamento</SelectItem>
+              <SelectItem value="closed">Fechado</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" onClick={() => setFormOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" /> Registrar Interação
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="pt-6">
         {rootInteractions.length === 0 ? (
@@ -272,6 +293,11 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
             <DialogTitle>Registrar Interação / Atendimento</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+            <div>
+              <Label>Assunto *</Label>
+              <Input name="title" required placeholder="Ex: Reunião de Alinhamento" />
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label>Tipo *</Label>

@@ -149,7 +149,11 @@ export function DashboardAgenda() {
                         <div
                           className={cn(
                             'absolute left-0 top-0 bottom-0 w-1',
-                            isDelayed ? 'bg-red-500' : 'bg-emerald-500',
+                            t.priority === 'high'
+                              ? 'bg-red-500'
+                              : t.priority === 'medium'
+                                ? 'bg-amber-500'
+                                : 'bg-blue-500',
                           )}
                         />
                         <div className="flex-1 min-w-0">
@@ -169,9 +173,12 @@ export function DashboardAgenda() {
                                 isDelayed ? 'text-red-600' : 'text-slate-500',
                               )}
                             >
-                              Prazo: {format(new Date(t.due_date), 'dd/MM/yyyy')}
+                              Prazo: {format(new Date(t.due_date), 'dd/MM/yyyy')}{' '}
+                              {t.is_all_day
+                                ? '(Dia Inteiro)'
+                                : format(new Date(t.due_date), 'HH:mm')}
                             </div>
-                          )}
+                          )}{' '}
                           {t.expand?.linked_lawsuit && (
                             <div className="text-[10px] text-slate-400 truncate mt-0.5">
                               Processo: {t.expand.linked_lawsuit.case_number || 'S/N'}

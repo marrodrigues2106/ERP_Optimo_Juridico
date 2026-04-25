@@ -64,20 +64,16 @@ export default function KanbanManager() {
         .getFullList({ filter: `organization = "${orgId}"`, sort: 'order_index' })
       setColumns(cols)
 
-      const tsks = await pb
-        .collection('tasks')
-        .getFullList({
-          filter: `deleted_at = "" && kanban_column != ""`,
-          expand: 'collaborator,linked_interaction',
-        })
+      const tsks = await pb.collection('tasks').getFullList({
+        filter: `deleted_at = "" && kanban_column != ""`,
+        expand: 'collaborator,linked_interaction',
+      })
       setTasks(tsks)
 
-      const evs = await pb
-        .collection('agenda_events')
-        .getFullList({
-          filter: `deleted_at = "" && kanban_column != ""`,
-          expand: 'collaborator,linked_interaction',
-        })
+      const evs = await pb.collection('agenda_events').getFullList({
+        filter: `deleted_at = "" && kanban_column != ""`,
+        expand: 'collaborator,linked_interaction',
+      })
       setEvents(evs)
     } catch (e) {
       console.error(e)
@@ -172,7 +168,7 @@ export default function KanbanManager() {
           setEditingItem({ ...item, isTask: type === 'task' })
           setEventModalOpen(true)
         }}
-        className={`p-3 cursor-grab hover:shadow-md mb-3 border-l-4 ${type === 'task' ? (item.priority === 'high' ? 'border-l-red-500' : item.priority === 'low' ? 'border-l-blue-400' : 'border-l-amber-400') : 'border-l-indigo-500'}`}
+        className={`p-3 cursor-grab hover:shadow-md mb-3 border-l-4 ${type === 'task' ? (item.priority === 'high' ? 'border-l-red-500' : item.priority === 'medium' ? 'border-l-amber-500' : 'border-l-blue-500') : 'border-l-indigo-500'}`}
       >
         <div className="flex items-start justify-between mb-2">
           <div className="flex items-center gap-1.5 font-semibold text-sm">
