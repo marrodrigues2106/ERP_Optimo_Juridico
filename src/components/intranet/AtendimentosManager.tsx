@@ -547,4 +547,17 @@ export default function AtendimentosManager() {
                 />
               </div>
               <div>
-              
+                <Label>Anexos</Label>
+                <Input type="file" name="attachments" multiple className="cursor-pointer" />
+              </div>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? 'Salvando...' : 'Salvar Atendimento'}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
