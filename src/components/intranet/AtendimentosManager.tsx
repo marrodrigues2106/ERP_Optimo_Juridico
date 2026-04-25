@@ -116,8 +116,21 @@ export default function AtendimentosManager() {
       return
     }
 
-    setSubmitting(true)
     const fd = new FormData(e.currentTarget)
+    const finalDescription = description || (fd.get('description') as string) || ''
+
+    const isEmptyDescription =
+      !finalDescription ||
+      finalDescription.trim() === '' ||
+      finalDescription === '<p></p>' ||
+      finalDescription === '<p><br></p>'
+
+    if (isEmptyDescription) {
+      toast({ title: 'Aviso', description: 'A descrição é obrigatória.', variant: 'destructive' })
+      return
+    }
+
+    setSubmitting(true)
     const files = fd.getAll('attachments') as File[]
     const validFiles = files.filter((f) => f.size > 0)
 
@@ -138,7 +151,7 @@ export default function AtendimentosManager() {
         title: fd.get('title'),
         client: selectedClient,
         type: fd.get('type'),
-        description: description || fd.get('description'),
+        description: finalDescription,
         date: dateVal,
         follow_up_date: fd.get('follow_up_date')
           ? new Date(fd.get('follow_up_date') as string).toISOString()
