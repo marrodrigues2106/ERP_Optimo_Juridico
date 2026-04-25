@@ -5,8 +5,20 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
-import { Save, Loader2, Mail, ShieldCheck, Zap } from 'lucide-react'
+import { Save, Loader2, Mail, ShieldCheck, Zap, AlertTriangle, Trash2 } from 'lucide-react'
 import { getSettingByKey, setSettingByKey } from '@/services/settings'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 import { extractFieldErrors } from '@/lib/pocketbase/errors'
 import { useAuth } from '@/hooks/use-auth'
 import { Navigate } from 'react-router-dom'
@@ -19,6 +31,12 @@ export default function IntegrationsManager() {
   const [resendFromEmail, setResendFromEmail] = useState('onboarding@resend.dev')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [isPurging, setIsPurging] = useState(false)
+  const [purgeSelection, setPurgeSelection] = useState({
+    crm_interactions: false,
+    tasks: false,
+    agenda_events: false,
+  })
 
   const isAuthorized = user?.role === 'admin' || user?.role === 'manager' || user?.isAdmin
 
@@ -74,6 +92,32 @@ export default function IntegrationsManager() {
       toast({ title: 'Erro ao salvar configurações', variant: 'destructive' })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handlePurgeData = async () => {
+    const collections = Object.entries(purgeSelection)
+      .filter(([_, isSelected]) => isSelected)
+      .map(([col]) => col)
+
+    if (collections.length === 0) {
+      toast({ title: 'Selecione ao menos um módulo para limpeza.', variant: 'destructive' })
+      return
+    }
+
+    setIsPurging(true)
+    try {
+      const res = await pb.send('/backend/v1/admin/purge-data', {
+        method: 'POST',
+        body: JSON.stringify({ collections })
+      })
+      if (res.error) throw new Error(res.message)
+      toast({ title: 'Limpeza concluída!', description: `${res.deletedCount} registros removidos com sucesso.` })
+      setPurgeSelection({ crm_interactions: false, tasks: false, agenda_events: false })
+    } catch (err: any) {
+      toast({ title: 'Erro na limpeza de dados', description: err.message, variant: 'destructive' })
+    } finally {
+      setIsPurging(false)
     }
   }
 
@@ -153,6 +197,72 @@ export default function IntegrationsManager() {
                 </Button>
               </div>
             </form>
+          </CardContent>
+        </Card>
+
+        {/* Danger Zone */}
+        <Card className="border-red-200 shadow-sm mt-8">
+          <CardHeader className="bg-red-50/50 rounded-t-xl border-b border-red-100">
+            <CardTitle className="text-2xl flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-6 h-6" /> Zona de Perigo (Limpeza de Dados)
+            </CardTitle>
+            <CardDescription className="text-base text-red-600/80">
+              Atenção: Ações realizadas nesta seção são irreversíveis e afetam o ambiente de produção da sua organização.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-6">
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600 font-medium">Selecione os módulos operacionais para limpar o histórico (Ex: Preparação para início de produção oficial):</p>
+              
+              <div className="flex items-center space-x-3 bg-red-50/30 p-3 rounded-lg border border-red-100">
+                <Checkbox 
+                  id="purge-crm" 
+                  checked={purgeSelection.crm_interactions} 
+                  onCheckedChange={(c) => setPurgeSelection(prev => ({ ...prev, crm_interactions: c === true }))} 
+                />
+                <Label htmlFor="purge-crm" className="text-base font-medium cursor-pointer">Atendimentos e Interações (CRM)</Label>
+              </div>
+              <div className="flex items-center space-x-3 bg-red-50/30 p-3 rounded-lg border border-red-100">
+                <Checkbox 
+                  id="purge-tasks" 
+                  checked={purgeSelection.tasks} 
+                  onCheckedChange={(c) => setPurgeSelection(prev => ({ ...prev, tasks: c === true }))} 
+                />
+                <Label htmlFor="purge-tasks" className="text-base font-medium cursor-pointer">Atividades e Kanban (Tasks)</Label>
+              </div>
+              <div className="flex items-center space-x-3 bg-red-50/30 p-3 rounded-lg border border-red-100">
+                <Checkbox 
+                  id="purge-agenda" 
+                  checked={purgeSelection.agenda_events} 
+                  onCheckedChange={(c) => setPurgeSelection(prev => ({ ...prev, agenda_events: c === true }))} 
+                />
+                <Label htmlFor="purge-agenda" className="text-base font-medium cursor-pointer">Eventos e Prazos (Agenda Events)</Label>
+              </div>
+            </div>
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="mt-4" disabled={!Object.values(purgeSelection).some(Boolean) || isPurging}>
+                  {isPurging ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                  Purgar Dados Selecionados
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Tem certeza absoluta?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta ação apagará <strong>todos</strong> os registros dos módulos selecionados para a organização ativa. 
+                    O histórico será completamente destruído e esta operação <strong>não pode ser desfeita</strong>.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar operação</AlertDialogCancel>
+                  <AlertDialogAction onClick={handlePurgeData} className="bg-red-600 hover:bg-red-700 text-white">
+                    Sim, apagar dados permanentemente
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardContent>
         </Card>
       )}
