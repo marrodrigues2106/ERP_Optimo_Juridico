@@ -99,6 +99,180 @@ import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { deleteLegalCase } from '@/services/legal_cases'
 import { getCaseLabels, createCaseLabel } from '@/services/case_labels'
 
+function MovementWhatsAppModal({ open, onOpenChange, validPhones, getMessageText }: any) {
+  const [selectedClientIndex, setSelectedClientIndex] = useState(0)
+  const [phone, setPhone] = useState('')
+  const [text, setText] = useState('')
+
+  useEffect(() => {
+    if (open && validPhones.length > 0) {
+      const target = validPhones[selectedClientIndex] || validPhones[0]
+      setPhone(target.phone || '')
+      setText(getMessageText(target.client.name || target.client.fullName || 'Cliente'))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, selectedClientIndex])
+
+  const handleOpenWhatsApp = () => {
+    let cleanPhone = String(phone).replace(/\D/g, '')
+    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+      cleanPhone = '55' + cleanPhone
+    }
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`
+    window.open(url, '_blank')
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Enviar Mensagem WhatsApp</DialogTitle>
+          <DialogDescription>Confirme os dados antes de enviar a mensagem.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          {validPhones.length > 1 && (
+            <div className="space-y-2">
+              <Label>Selecionar Cliente</Label>
+              <Select
+                value={selectedClientIndex.toString()}
+                onValueChange={(val) => setSelectedClientIndex(parseInt(val))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {validPhones.map((vp: any, idx: number) => (
+                    <SelectItem key={idx} value={idx.toString()}>
+                      {vp.client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label>Número do WhatsApp</Label>
+            <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Mensagem</Label>
+            <Textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              className="min-h-[150px]"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={handleOpenWhatsApp}>Abrir WhatsApp</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function MovementEmailModal({ open, onOpenChange, validEmails, caseNumber, getMessageText }: any) {
+  const [selectedClientIndex, setSelectedClientIndex] = useState(0)
+  const [email, setEmail] = useState('')
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [isSending, setIsSending] = useState(false)
+  const { toast } = useToast()
+
+  useEffect(() => {
+    if (open && validEmails.length > 0) {
+      const target = validEmails[selectedClientIndex] || validEmails[0]
+      setEmail(target.email || '')
+      setSubject(`Andamento Processual - ${caseNumber || 'Sem número'}`)
+      setBody(getMessageText(target.name || target.fullName || 'Cliente'))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, selectedClientIndex])
+
+  const handleSend = async () => {
+    setIsSending(true)
+    try {
+      await pb.send('/backend/v1/email/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          to: [email],
+          subject: subject,
+          text: body,
+          html: `<p>${body.replace(/\n/g, '<br>')}</p>`,
+        }),
+      })
+      toast({ title: 'E-mail enviado com sucesso.' })
+      onOpenChange(false)
+    } catch (err: any) {
+      toast({ title: 'Erro ao enviar e-mail', description: err.message, variant: 'destructive' })
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Enviar E-mail</DialogTitle>
+          <DialogDescription>Confirme os dados antes de enviar o e-mail.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          {validEmails.length > 1 && (
+            <div className="space-y-2">
+              <Label>Selecionar Cliente</Label>
+              <Select
+                value={selectedClientIndex.toString()}
+                onValueChange={(val) => setSelectedClientIndex(parseInt(val))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {validEmails.map((c: any, idx: number) => (
+                    <SelectItem key={idx} value={idx.toString()}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="space-y-2">
+            <Label>Destinatário (E-mail)</Label>
+            <Input value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Assunto</Label>
+            <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Mensagem</Label>
+            <Textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              className="min-h-[150px]"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSend} disabled={isSending}>
+            {isSending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+            Enviar E-mail
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 const MovementItem = ({
   mov,
   isNew,
@@ -115,7 +289,6 @@ const MovementItem = ({
   organization?: any
 }) => {
   const [isExpanded, setIsExpanded] = useState(false)
-  const [isSendingEmail, setIsSendingEmail] = useState(false)
   const { toast } = useToast()
 
   const getPrimaryPhone = (c: any) => {
@@ -150,39 +323,8 @@ const MovementItem = ({
   const getMessageText = (cName: string) =>
     `Prezado(a) ${cName}, informamos um novo andamento em seu processo: ${movDesc}.\n\nData: ${eventDateStr}.${orgPhoneMessage}\n\nAtenciosamente, ${orgName}.`
 
-  const handleWhatsApp = (phoneStr: string, cName: string) => {
-    if (!phoneStr) return
-    let cleanPhone = String(phoneStr).replace(/\D/g, '')
-    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
-      cleanPhone = '55' + cleanPhone
-    }
-    const text = getMessageText(cName)
-    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`
-    window.open(url, '_blank')
-  }
-
-  const handleEmail = async (targetClient: any) => {
-    if (!targetClient?.email) return
-    setIsSendingEmail(true)
-    const text = getMessageText(targetClient.name || targetClient.fullName || 'Cliente')
-    try {
-      await pb.send('/backend/v1/email/send', {
-        method: 'POST',
-        body: {
-          to: [targetClient.email],
-          subject: `Andamento Processual - ${caseNumber || 'Sem número'}`,
-          text: text,
-          html: `<p>${text.replace(/\n/g, '<br>')}</p>`,
-          body: `<p>${text.replace(/\n/g, '<br>')}</p>`,
-        },
-      })
-      toast({ title: 'E-mail enviado com sucesso.' })
-    } catch (err: any) {
-      toast({ title: 'Erro ao enviar e-mail', description: err.message, variant: 'destructive' })
-    } finally {
-      setIsSendingEmail(false)
-    }
-  }
+  const [waModalOpen, setWaModalOpen] = useState(false)
+  const [emailModalOpen, setEmailModalOpen] = useState(false)
 
   const [viewingDoc, setViewingDoc] = useState<any>(null)
   const [docContent, setDocContent] = useState<{ tipo: string; conteudo: string } | null>(null)
@@ -315,6 +457,20 @@ const MovementItem = ({
 
   return (
     <div className="relative pl-6 md:pl-8 group">
+      <MovementWhatsAppModal
+        open={waModalOpen}
+        onOpenChange={setWaModalOpen}
+        validPhones={validPhones}
+        getMessageText={getMessageText}
+      />
+      <MovementEmailModal
+        open={emailModalOpen}
+        onOpenChange={setEmailModalOpen}
+        validEmails={validEmails}
+        caseNumber={caseNumber}
+        getMessageText={getMessageText}
+      />
+
       <div
         className={`absolute w-4 h-4 rounded-full -left-[9px] top-1.5 ring-4 shadow-sm ${dotColorClass}`}
       />
@@ -368,110 +524,49 @@ const MovementItem = ({
             )}
             <div className="flex items-center gap-1 ml-2 border-l pl-2 border-slate-200">
               <TooltipProvider>
-                {validPhones.length > 1 ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 transition-colors text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                      >
-                        <MessageCircle className="h-3.5 w-3.5" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {validPhones.map((vp, idx) => (
-                        <DropdownMenuItem
-                          key={idx}
-                          onClick={() => handleWhatsApp(vp.phone, vp.client.name)}
-                        >
-                          {vp.client.name} ({vp.phone})
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={cn(
-                          'h-6 w-6 transition-colors',
-                          hasPhone
-                            ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
-                            : 'text-slate-300 cursor-not-allowed hover:bg-transparent',
-                        )}
-                        disabled={!hasPhone}
-                        onClick={() =>
-                          hasPhone &&
-                          handleWhatsApp(validPhones[0].phone, validPhones[0].client.name)
-                        }
-                      >
-                        <MessageCircle className="h-3.5 w-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {hasPhone
-                        ? `Enviar via WhatsApp para ${validPhones[0].client.name}`
-                        : 'Nenhum cliente com telefone'}
-                    </TooltipContent>
-                  </Tooltip>
-                )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        'h-6 w-6 transition-colors',
+                        hasPhone
+                          ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
+                          : 'text-slate-300 cursor-not-allowed hover:bg-transparent',
+                      )}
+                      disabled={!hasPhone}
+                      onClick={() => hasPhone && setWaModalOpen(true)}
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {hasPhone ? `Enviar via WhatsApp` : 'Nenhum cliente com telefone'}
+                  </TooltipContent>
+                </Tooltip>
 
-                {validEmails.length > 1 ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 transition-colors text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                        disabled={isSendingEmail}
-                      >
-                        {isSendingEmail ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Mail className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {validEmails.map((c, idx) => (
-                        <DropdownMenuItem key={idx} onClick={() => handleEmail(c)}>
-                          {c.name} ({c.email})
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={cn(
-                          'h-6 w-6 transition-colors',
-                          hasEmail && !isSendingEmail
-                            ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
-                            : 'text-slate-300 cursor-not-allowed hover:bg-transparent',
-                        )}
-                        disabled={!hasEmail || isSendingEmail}
-                        onClick={() => hasEmail && handleEmail(validEmails[0])}
-                      >
-                        {isSendingEmail ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />
-                        ) : (
-                          <Mail className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {hasEmail
-                        ? `Enviar via E-mail para ${validEmails[0].name}`
-                        : 'Nenhum cliente com e-mail'}
-                    </TooltipContent>
-                  </Tooltip>
-                )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        'h-6 w-6 transition-colors',
+                        hasEmail
+                          ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
+                          : 'text-slate-300 cursor-not-allowed hover:bg-transparent',
+                      )}
+                      disabled={!hasEmail}
+                      onClick={() => hasEmail && setEmailModalOpen(true)}
+                    >
+                      <Mail className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {hasEmail ? `Enviar via E-mail` : 'Nenhum cliente com e-mail'}
+                  </TooltipContent>
+                </Tooltip>
               </TooltipProvider>
             </div>
           </div>
