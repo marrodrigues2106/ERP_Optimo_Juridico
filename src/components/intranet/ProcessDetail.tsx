@@ -72,8 +72,10 @@ import {
   Trash2,
   X,
   Plus,
+  MessageCircle,
 } from 'lucide-react'
 import { EmailSenderModal } from './EmailSenderModal'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   Command,
   CommandEmpty,
@@ -96,14 +98,71 @@ const MovementItem = ({
   isNew,
   recordId,
   caseNumber,
+  client,
+  organization,
 }: {
   mov: any
   isNew: boolean
   recordId: string
   caseNumber?: string
+  client?: any
+  organization?: any
 }) => {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [isSendingEmail, setIsSendingEmail] = useState(false)
   const { toast } = useToast()
+
+  const getPrimaryPhone = (c: any) => {
+    if (c?.phone) return c.phone
+    if (c?.phone_numbers && Array.isArray(c.phone_numbers) && c.phone_numbers.length > 0) {
+      return c.phone_numbers[0].number || c.phone_numbers[0]
+    }
+    return null
+  }
+
+  const clientPhone = getPrimaryPhone(client)
+  const hasPhone = !!clientPhone
+  const hasEmail = !!client?.email
+
+  const clientName = client?.name || client?.fullName || 'Cliente'
+  const orgName = organization?.name || 'Moraes Rodrigues Advocacia'
+  const eventDateStr = mov.event_date
+    ? new Date(mov.event_date).toLocaleDateString('pt-BR')
+    : 'Data não informada'
+  const movDesc = mov.description || 'Andamento atualizado'
+  const messageText = `Prezado(a) ${clientName}, informamos um novo andamento em seu processo: ${movDesc}. Data: ${eventDateStr}. Atenciosamente, ${orgName}.`
+
+  const handleWhatsApp = () => {
+    if (!clientPhone) return
+    let cleanPhone = String(clientPhone).replace(/\D/g, '')
+    if (cleanPhone.length === 10 || cleanPhone.length === 11) {
+      cleanPhone = '55' + cleanPhone
+    }
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`
+    window.open(url, '_blank')
+  }
+
+  const handleEmail = async () => {
+    if (!client?.email) return
+    setIsSendingEmail(true)
+    try {
+      await pb.send('/backend/v1/webmail/send', {
+        method: 'POST',
+        body: {
+          to: client.email,
+          subject: `Andamento Processual - ${caseNumber || 'Sem número'}`,
+          text: messageText,
+          html: `<p>${messageText.replace(/\n/g, '<br>')}</p>`,
+          body: `<p>${messageText.replace(/\n/g, '<br>')}</p>`,
+        },
+      })
+      toast({ title: 'E-mail enviado com sucesso.' })
+    } catch (err: any) {
+      toast({ title: 'Erro ao enviar e-mail', description: err.message, variant: 'destructive' })
+    } finally {
+      setIsSendingEmail(false)
+    }
+  }
 
   const [viewingDoc, setViewingDoc] = useState<any>(null)
   const [docContent, setDocContent] = useState<{ tipo: string; conteudo: string } | null>(null)
@@ -287,6 +346,47 @@ const MovementItem = ({
                 <AlertTriangle className="w-3 h-3" /> Aviso
               </Badge>
             )}
+            <div className="flex items-center gap-1 ml-2 border-l pl-2 border-slate-200">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-50 disabled:opacity-30"
+                      disabled={!hasPhone}
+                      onClick={handleWhatsApp}
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {hasPhone ? 'Enviar via WhatsApp' : 'Cliente sem telefone cadastrado'}
+                  </TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-50 disabled:opacity-30"
+                      disabled={!hasEmail || isSendingEmail}
+                      onClick={handleEmail}
+                    >
+                      {isSendingEmail ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Mail className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {hasEmail ? 'Enviar via E-mail' : 'Cliente sem e-mail cadastrado'}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           </div>
         </div>
 
@@ -1307,6 +1407,8 @@ export default function ProcessDetail() {
                             isNew={isNew}
                             recordId={id!}
                             caseNumber={legalCase.case_number}
+                            client={legalCase.expand?.client}
+                            organization={legalCase.expand?.organization}
                           />
                         )
                       })

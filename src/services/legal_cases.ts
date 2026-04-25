@@ -13,7 +13,7 @@ export const getLegalCases = async () => {
 export const getLegalCase = (id: string) =>
   pb
     .collection('legal_cases')
-    .getOne(id, { expand: 'client,responsible_collaborator,related_cases' })
+    .getOne(id, { expand: 'client,responsible_collaborator,related_cases,organization' })
 
 const sanitizeCase = (data: any) => {
   if (data.lifecycle_status !== undefined) {
