@@ -23,8 +23,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
-import { Loader2, Mail } from 'lucide-react'
-import { EmailSenderModal } from '../EmailSenderModal'
+import { Loader2 } from 'lucide-react'
 
 const formSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
@@ -69,8 +68,6 @@ export function EventFormModal({
   const [interactions, setInteractions] = useState<any[]>([])
   const isEditing = !!editingEvent && !!editingEvent.id
 
-  const [emailModalOpen, setEmailModalOpen] = useState(false)
-
   const {
     register,
     handleSubmit,
@@ -93,8 +90,7 @@ export function EventFormModal({
   })
 
   const watchType = watch('type')
-  const watchClient = watch('client')
-  const watchLawsuit = watch('linked_lawsuit')
+  const watchIsAllDay = watch('is_all_day')
   const watchIsRecurring = watch('is_recurring')
 
   useEffect(() => {
@@ -126,12 +122,18 @@ export function EventFormModal({
           type: editingEvent.type || 'Task',
           start_date:
             editingEvent.start_date || editingEvent.due_date
-              ? new Date(editingEvent.start_date || editingEvent.due_date)
-                  .toISOString()
-                  .substring(0, 16)
+              ? editingEvent.is_all_day
+                ? new Date(editingEvent.start_date || editingEvent.due_date)
+                    .toISOString()
+                    .substring(0, 10)
+                : new Date(editingEvent.start_date || editingEvent.due_date)
+                    .toISOString()
+                    .substring(0, 16)
               : '',
           end_date: editingEvent.end_date
-            ? new Date(editingEvent.end_date).toISOString().substring(0, 16)
+            ? editingEvent.is_all_day
+              ? new Date(editingEvent.end_date).toISOString().substring(0, 10)
+              : new Date(editingEvent.end_date).toISOString().substring(0, 16)
             : '',
           collaborator: editingEvent.collaborator || 'none',
           client: editingEvent.client || 'none',
@@ -197,6 +199,7 @@ export function EventFormModal({
         linked_lawsuit: data.linked_lawsuit !== 'none' ? data.linked_lawsuit : null,
         linked_interaction: data.linked_interaction !== 'none' ? data.linked_interaction : null,
         is_recurring: data.is_recurring,
+        is_all_day: data.is_all_day,
       }
 
       if (data.is_recurring) {
@@ -221,7 +224,6 @@ export function EventFormModal({
         if (data.end_date) payload.end_date = new Date(data.end_date).toISOString()
         payload.sync_provider = data.sync_provider
         payload.sync_status = data.sync_provider === 'Local' ? 'Local Only' : 'Pending'
-        payload.is_all_day = data.is_all_day
         payload.modality = data.modality
         payload.location = data.location
         payload.alert_time = data.alert_time
@@ -304,31 +306,48 @@ export function EventFormModal({
 
             <div className="grid grid-cols-2 gap-2 md:col-span-2 border p-3 rounded-lg bg-slate-50/50">
               <div>
-                <Label>Data/Hora Inicial *</Label>
+                <Label>{watchIsAllDay ? 'Data Inicial *' : 'Data/Hora Inicial *'}</Label>
                 <Input
-                  type={watch('is_all_day') ? 'date' : 'datetime-local'}
+                  type={watchIsAllDay ? 'date' : 'datetime-local'}
                   {...register('start_date')}
                 />
               </div>
               <div>
-                <Label>Data/Hora Final</Label>
-                <Input
-                  type={watch('is_all_day') ? 'date' : 'datetime-local'}
-                  {...register('end_date')}
-                />
+                <Label>{watchIsAllDay ? 'Data Final' : 'Data/Hora Final'}</Label>
+                <Input type={watchIsAllDay ? 'date' : 'datetime-local'} {...register('end_date')} />
               </div>
-              {watchType !== 'Task' && (
-                <div className="col-span-2 flex items-center space-x-2 mt-2">
-                  <Controller
-                    name="is_all_day"
-                    control={control}
-                    render={({ field }) => (
-                      <Switch checked={field.value} onCheckedChange={field.onChange} id="all-day" />
-                    )}
-                  />
-                  <Label htmlFor="all-day">Dia Inteiro</Label>
-                </div>
-              )}
+              <div className="col-span-2 flex items-center space-x-2 mt-2">
+                <Controller
+                  name="is_all_day"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={(val) => {
+                        field.onChange(val)
+                        const currentStart = watch('start_date')
+                        if (currentStart) {
+                          if (val && currentStart.length > 10) {
+                            setValue('start_date', currentStart.substring(0, 10))
+                          } else if (!val && currentStart.length === 10) {
+                            setValue('start_date', `${currentStart}T09:00`)
+                          }
+                        }
+                        const currentEnd = watch('end_date')
+                        if (currentEnd) {
+                          if (val && currentEnd.length > 10) {
+                            setValue('end_date', currentEnd.substring(0, 10))
+                          } else if (!val && currentEnd.length === 10) {
+                            setValue('end_date', `${currentEnd}T10:00`)
+                          }
+                        }
+                      }}
+                      id="all-day"
+                    />
+                  )}
+                />
+                <Label htmlFor="all-day">Dia Inteiro</Label>
+              </div>
             </div>
 
             {watchType === 'Task' && (

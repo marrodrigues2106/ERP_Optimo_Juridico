@@ -130,7 +130,7 @@ export default function Layout() {
         items: [
           { title: 'Processos', url: '/intranet/processos', icon: Scale },
           { title: 'Clientes', url: '/intranet/crm', icon: Users },
-          { title: 'Atendimentos', url: '/intranet/crm?tab=interactions', icon: Briefcase },
+          { title: 'Atendimentos', url: '/intranet/atendimentos', icon: Briefcase },
           { title: 'Agenda', url: '/intranet/agenda', icon: Calendar },
           { title: 'Kanban', url: '/intranet/rotina', icon: LayoutDashboard },
         ],

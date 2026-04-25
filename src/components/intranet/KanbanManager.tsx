@@ -168,7 +168,7 @@ export default function KanbanManager() {
           setEditingItem({ ...item, isTask: type === 'task' })
           setEventModalOpen(true)
         }}
-        className={`p-3 cursor-grab hover:shadow-md mb-3 border-l-4 ${type === 'task' ? (item.priority === 'high' ? 'border-l-red-500' : item.priority === 'medium' ? 'border-l-amber-500' : 'border-l-blue-500') : 'border-l-indigo-500'}`}
+        className={`p-3 cursor-grab hover:shadow-md mb-3 border-l-4 ${type === 'task' ? (item.priority === 'high' ? 'border-l-red-500' : item.priority === 'medium' ? 'border-l-orange-500' : 'border-l-blue-500') : 'border-l-indigo-500'}`}
       >
         <div className="flex items-start justify-between mb-2">
           <div className="flex items-center gap-1.5 font-semibold text-sm">

@@ -13,7 +13,11 @@ import {
 } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
-import { getClientInteractions, createInteraction } from '@/services/crm_interactions'
+import {
+  getClientInteractions,
+  createInteraction,
+  updateInteraction,
+} from '@/services/crm_interactions'
 import {
   Plus,
   MessageSquare,
@@ -48,6 +52,7 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
   const [collaborators, setCollaborators] = useState<any[]>([])
   const [formOpen, setFormOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [editingInt, setEditingInt] = useState<any>(null)
 
   const [statusFilter, setStatusFilter] = useState('all')
 
@@ -80,6 +85,22 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
   }, [clientId])
   useRealtime('crm_interactions', loadData)
 
+  const handleNew = () => {
+    setEditingInt(null)
+    setLinkedCase('none')
+    setDescription('')
+    setTags('')
+    setFormOpen(true)
+  }
+
+  const handleEdit = (int: any) => {
+    setEditingInt(int)
+    setLinkedCase(int.linked_case || 'none')
+    setDescription(int.description || '')
+    setTags(int.tags ? int.tags.join(', ') : '')
+    setFormOpen(true)
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setSubmitting(true)
@@ -88,12 +109,13 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
     const validFiles = files.filter((f) => f.size > 0)
 
     try {
+      const dateVal = editingInt ? editingInt.date : new Date().toISOString()
       const data: any = {
         title: fd.get('title'),
         client: clientId,
         type: fd.get('type'),
         description: description || fd.get('description'),
-        date: new Date().toISOString(),
+        date: dateVal,
         follow_up_date: fd.get('follow_up_date')
           ? new Date(fd.get('follow_up_date') as string).toISOString()
           : null,
@@ -108,15 +130,18 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
         data.attachments = validFiles
       }
 
-      await createInteraction(data)
-      toast({ title: 'Interação registrada com sucesso.' })
+      if (editingInt) {
+        await updateInteraction(editingInt.id, data)
+        toast({ title: 'Interação atualizada com sucesso.' })
+      } else {
+        await createInteraction(data)
+        toast({ title: 'Interação registrada com sucesso.' })
+      }
+
       setFormOpen(false)
-      setLinkedCase('none')
-      setDescription('')
-      setTags('')
       loadData()
     } catch (err: any) {
-      toast({ title: 'Erro ao registrar', description: err.message, variant: 'destructive' })
+      toast({ title: 'Erro ao salvar', description: err.message, variant: 'destructive' })
     } finally {
       setSubmitting(false)
     }
@@ -150,9 +175,17 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
         <div className="bg-white p-4 border border-slate-100 rounded-lg shadow-sm hover:shadow-md transition-shadow">
           <div className="flex justify-between items-start gap-4">
             <div className="flex-1">
-              <h4 className="text-base font-bold text-slate-800 mb-1">
-                {int.title || 'Sem Assunto'}
-              </h4>
+              <div className="flex items-center gap-2 mb-1">
+                <h4 className="text-base font-bold text-slate-800">{int.title || 'Sem Assunto'}</h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs ml-auto text-blue-600 hover:text-blue-700"
+                  onClick={() => handleEdit(int)}
+                >
+                  Editar
+                </Button>
+              </div>
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600">
                   {int.type}
@@ -166,7 +199,7 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
                         : 'bg-blue-50 text-blue-700',
                     )}
                   >
-                    {int.status === 'closed' ? 'Fechado' : 'Em andamento'}
+                    {int.status === 'closed' ? 'Fechado' : 'Aberto'}
                   </span>
                 )}
                 {int.tags &&
@@ -185,7 +218,7 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
                 dangerouslySetInnerHTML={{ __html: int.description }}
               />
             </div>
-            <span className="text-xs font-medium text-slate-400 whitespace-nowrap bg-slate-50 px-2 py-1 rounded">
+            <span className="text-xs font-medium text-slate-400 whitespace-nowrap bg-slate-50 px-2 py-1 rounded mt-1">
               {new Date(int.date).toLocaleString()}
             </span>
           </div>
@@ -265,11 +298,11 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value="open">Em Andamento</SelectItem>
+              <SelectItem value="open">Aberto</SelectItem>
               <SelectItem value="closed">Fechado</SelectItem>
             </SelectContent>
           </Select>
-          <Button size="sm" onClick={() => setFormOpen(true)}>
+          <Button size="sm" onClick={handleNew}>
             <Plus className="w-4 h-4 mr-2" /> Registrar Interação
           </Button>
         </div>
@@ -290,18 +323,25 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Registrar Interação / Atendimento</DialogTitle>
+            <DialogTitle>
+              {editingInt ? 'Editar Interação' : 'Registrar Interação / Atendimento'}
+            </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+          <form key={editingInt?.id || 'new'} onSubmit={handleSubmit} className="space-y-4 pt-4">
             <div>
               <Label>Assunto *</Label>
-              <Input name="title" required placeholder="Ex: Reunião de Alinhamento" />
+              <Input
+                name="title"
+                defaultValue={editingInt?.title}
+                required
+                placeholder="Ex: Reunião de Alinhamento"
+              />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label>Tipo *</Label>
-                <Select name="type" defaultValue="Meeting">
+                <Select name="type" defaultValue={editingInt?.type || 'Meeting'}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -316,19 +356,25 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
               </div>
               <div>
                 <Label>Status</Label>
-                <Select name="status" defaultValue="open">
+                <Select name="status" defaultValue={editingInt?.status || 'open'}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="open">Em Andamento</SelectItem>
-                    <SelectItem value="closed">Concluído / Fechado</SelectItem>
+                    <SelectItem value="open">Aberto</SelectItem>
+                    <SelectItem value="closed">Fechado</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
                 <Label>Follow-up</Label>
-                <Input type="date" name="follow_up_date" />
+                <Input
+                  type="date"
+                  name="follow_up_date"
+                  defaultValue={
+                    editingInt?.follow_up_date ? editingInt.follow_up_date.substring(0, 10) : ''
+                  }
+                />
               </div>
             </div>
 
@@ -408,17 +454,20 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
 
               <div className="flex flex-col gap-2">
                 <Label>Atendimento Pai (Sub-interação)</Label>
-                <Select name="parent_interaction" defaultValue="none">
+                <Select
+                  name="parent_interaction"
+                  defaultValue={editingInt?.parent_interaction || 'none'}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Nenhum" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Nenhum (Raiz)</SelectItem>
                     {interactions
-                      .filter((i) => !i.parent_interaction)
+                      .filter((i) => !i.parent_interaction && i.id !== editingInt?.id)
                       .map((c) => (
                         <SelectItem key={c.id} value={c.id}>
-                          {new Date(c.date).toLocaleDateString()} - {c.type}
+                          {new Date(c.date).toLocaleDateString()} - {c.title || c.type}
                         </SelectItem>
                       ))}
                   </SelectContent>
