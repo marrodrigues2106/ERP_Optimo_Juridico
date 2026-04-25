@@ -97,6 +97,13 @@ export default function IntegrationsManager() {
         title:
           'Sincronização iniciada com sucesso. Os resultados aparecerão em breve no painel de notificações.',
       })
+
+      try {
+        const douLog = await pb.collection('logs_processamento').getList(1, 1, { sort: '-created' })
+        if (douLog.items.length > 0) setLastDouSync(douLog.items[0].created)
+      } catch {
+        // ignore
+      }
     } catch (err: any) {
       toast({
         title: 'Erro ao iniciar sincronização. Verifique os logs do sistema.',
@@ -115,6 +122,15 @@ export default function IntegrationsManager() {
         title:
           'Sincronização iniciada com sucesso. Os resultados aparecerão em breve no painel de notificações.',
       })
+
+      try {
+        const pjeLog = await pb
+          .collection('system_logs')
+          .getList(1, 1, { filter: 'module~"pje" || module~"PJe"', sort: '-created' })
+        if (pjeLog.items.length > 0) setLastPjeSync(pjeLog.items[0].created)
+      } catch {
+        // ignore
+      }
     } catch (err: any) {
       toast({
         title: 'Erro ao iniciar sincronização. Verifique os logs do sistema.',

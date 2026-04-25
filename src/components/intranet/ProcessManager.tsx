@@ -71,9 +71,15 @@ export default function ProcessManager() {
 
   // Advanced filters
   const [statusFilter, setStatusFilter] = useState<string[]>(['Ativo'])
+  const [typeFilter, setTypeFilter] = useState<string[]>([])
   const [tagFilter, setTagFilter] = useState<string[]>([])
   const [syncFilter, setSyncFilter] = useState<string[]>([])
   const [showFavorites, setShowFavorites] = useState(false)
+
+  const [counts, setCounts] = useState({
+    status: { Ativo: 0, Inativo: 0, Suspenso: 0, Arquivado: 0 } as Record<string, number>,
+    type: { Processo: 0, 'Serviço Jurídico': 0 } as Record<string, number>,
+  })
   const [allTags, setAllTags] = useState<string[]>([])
 
   const [manageTagsOpen, setManageTagsOpen] = useState(false)
@@ -136,12 +142,9 @@ export default function ProcessManager() {
       setLoading(true)
       const orgId = pb.authStore.record?.active_organization
 
-      const filterParts = [`deleted_at = ""`]
-      if (orgId) filterParts.push(`organization = "${orgId}"`)
+      const baseFilterParts = [`deleted_at = ""`]
+      if (orgId) baseFilterParts.push(`organization = "${orgId}"`)
 
-      if (statusFilter.length > 0) {
-        filterParts.push(`(${statusFilter.map((s) => `lifecycle_status = "${s}"`).join(' || ')})`)
-      }
       if (syncFilter.length > 0) {
         const mappedSyncFilters: string[] = []
         if (syncFilter.includes('Atualizado')) mappedSyncFilters.push('sync_status = "updated"')
@@ -152,21 +155,58 @@ export default function ProcessManager() {
         if (syncFilter.includes('Pendente')) mappedSyncFilters.push('sync_status = "pending"')
         if (syncFilter.includes('Erro')) mappedSyncFilters.push('sync_status = "error"')
         if (mappedSyncFilters.length > 0) {
-          filterParts.push(`(${mappedSyncFilters.join(' || ')})`)
+          baseFilterParts.push(`(${mappedSyncFilters.join(' || ')})`)
         }
       }
       if (showFavorites) {
-        filterParts.push(`is_favorite = true`)
+        baseFilterParts.push(`is_favorite = true`)
       }
       if (tagFilter.length > 0) {
-        filterParts.push(`(${tagFilter.map((t) => `tags ?~ "${t}"`).join(' && ')})`)
+        baseFilterParts.push(`(${tagFilter.map((t) => `tags ?~ "${t}"`).join(' && ')})`)
       }
 
       if (searchTerm) {
         const safeTerm = searchTerm.replace(/"/g, '\\"')
-        filterParts.push(
+        baseFilterParts.push(
           `(case_number ~ "${safeTerm}" || parties ~ "${safeTerm}" || title ~ "${safeTerm}" || client.name ?~ "${safeTerm}" || client.fullName ?~ "${safeTerm}")`,
         )
+      }
+
+      const baseFilterStr = baseFilterParts.join(' && ')
+
+      const allForCounts = await pb.collection('legal_cases').getFullList({
+        filter: baseFilterStr,
+        fields: 'lifecycle_status,type',
+      })
+
+      const newCounts = {
+        status: { Ativo: 0, Inativo: 0, Suspenso: 0, Arquivado: 0 } as Record<string, number>,
+        type: { Processo: 0, 'Serviço Jurídico': 0 } as Record<string, number>,
+      }
+
+      allForCounts.forEach((c) => {
+        const st = c.lifecycle_status || 'Ativo'
+        const ty = c.type || 'Processo'
+
+        if (typeFilter.length === 0 || typeFilter.includes(ty)) {
+          if (newCounts.status[st] !== undefined) newCounts.status[st]++
+        }
+
+        if (statusFilter.length === 0 || statusFilter.includes(st)) {
+          if (newCounts.type[ty] !== undefined) newCounts.type[ty]++
+        }
+      })
+
+      setCounts(newCounts)
+
+      const filterParts = [...baseFilterParts]
+
+      if (statusFilter.length > 0) {
+        filterParts.push(`(${statusFilter.map((s) => `lifecycle_status = "${s}"`).join(' || ')})`)
+      }
+
+      if (typeFilter.length > 0) {
+        filterParts.push(`(${typeFilter.map((t) => `type = "${t}"`).join(' || ')})`)
       }
 
       const filterStr = filterParts.join(' && ')
@@ -480,17 +520,57 @@ export default function ProcessManager() {
               {['Ativo', 'Inativo', 'Suspenso', 'Arquivado'].map((st) => (
                 <label
                   key={st}
-                  className="flex items-center gap-2.5 text-sm text-slate-600 cursor-pointer"
+                  className="flex items-center justify-between text-sm text-slate-600 cursor-pointer group"
                 >
-                  <Checkbox
-                    checked={statusFilter.includes(st)}
-                    onCheckedChange={(c) => {
-                      if (c) setStatusFilter([...statusFilter, st])
-                      else setStatusFilter(statusFilter.filter((x) => x !== st))
-                    }}
-                    className="border-slate-300"
-                  />
-                  {st}
+                  <div className="flex items-center gap-2.5">
+                    <Checkbox
+                      checked={statusFilter.includes(st)}
+                      onCheckedChange={(c) => {
+                        if (c) setStatusFilter([...statusFilter, st])
+                        else setStatusFilter(statusFilter.filter((x) => x !== st))
+                      }}
+                      className="border-slate-300"
+                    />
+                    {st}
+                  </div>
+                  <Badge
+                    variant="secondary"
+                    className="text-xs font-normal text-slate-500 bg-slate-100 group-hover:bg-slate-200 transition-colors"
+                  >
+                    {counts.status[st] || 0}
+                  </Badge>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-sm text-slate-800 mb-3 flex items-center gap-2">
+              <Circle className="w-4 h-4 text-slate-400" /> Tipo
+            </h3>
+            <div className="space-y-2.5">
+              {['Processo', 'Serviço Jurídico'].map((ty) => (
+                <label
+                  key={ty}
+                  className="flex items-center justify-between text-sm text-slate-600 cursor-pointer group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Checkbox
+                      checked={typeFilter.includes(ty)}
+                      onCheckedChange={(c) => {
+                        if (c) setTypeFilter([...typeFilter, ty])
+                        else setTypeFilter(typeFilter.filter((x) => x !== ty))
+                      }}
+                      className="border-slate-300"
+                    />
+                    {ty}
+                  </div>
+                  <Badge
+                    variant="secondary"
+                    className="text-xs font-normal text-slate-500 bg-slate-100 group-hover:bg-slate-200 transition-colors"
+                  >
+                    {counts.type[ty] || 0}
+                  </Badge>
                 </label>
               ))}
             </div>
