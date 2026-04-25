@@ -902,10 +902,7 @@ export default function ProcessDetail() {
 
   useRealtime('legal_cases', (e) => {
     if (e.record.id === id) {
-      setLegalCase((prev: any) => {
-        if (!prev) return prev
-        return { ...prev, ...e.record }
-      })
+      loadData()
     }
   })
 
@@ -1454,7 +1451,10 @@ export default function ProcessDetail() {
                   <User className="w-4 h-4 text-slate-400 shrink-0" />
                   <span className="font-medium text-slate-500 shrink-0">Cliente(s):</span>
                   <div className="flex flex-wrap items-center gap-1">
-                    {legalCase.expand?.client ? (
+                    {legalCase.expand?.client &&
+                    (Array.isArray(legalCase.expand.client)
+                      ? legalCase.expand.client.length > 0
+                      : true) ? (
                       (Array.isArray(legalCase.expand.client)
                         ? legalCase.expand.client
                         : [legalCase.expand.client]
@@ -1465,7 +1465,7 @@ export default function ProcessDetail() {
                         </span>
                       ))
                     ) : (
-                      <span className="font-semibold text-slate-800">Não informado</span>
+                      <span className="font-semibold text-slate-800">Nenhum cliente vinculado</span>
                     )}
                   </div>
                 </div>

@@ -875,15 +875,28 @@ export function CaseFormModal({
                                 {selectedIds.length > 0 ? (
                                   selectedIds.map((id) => {
                                     const c = localClients.find((x) => x.id === id)
-                                    return c ? (
+                                    return (
                                       <Badge
                                         variant="secondary"
                                         key={id}
-                                        className="text-xs font-medium"
+                                        className={cn(
+                                          'text-xs font-medium flex items-center gap-1',
+                                          !c && 'text-red-500 border-red-200 bg-red-50',
+                                        )}
                                       >
-                                        {c.name}
+                                        {c ? c.name : 'Cliente excluído'}
+                                        <button
+                                          type="button"
+                                          className="hover:bg-slate-200 rounded-full p-0.5"
+                                          onPointerDown={(e) => {
+                                            e.stopPropagation()
+                                            field.onChange(selectedIds.filter((sid) => sid !== id))
+                                          }}
+                                        >
+                                          <X className="w-3 h-3" />
+                                        </button>
                                       </Badge>
-                                    ) : null
+                                    )
                                   })
                                 ) : (
                                   <span className="text-slate-500">Selecionar clientes...</span>
@@ -969,15 +982,28 @@ export function CaseFormModal({
                               {selectedIds.length > 0 ? (
                                 selectedIds.map((id) => {
                                   const c = collaborators.find((x) => x.id === id)
-                                  return c ? (
+                                  return (
                                     <Badge
                                       variant="secondary"
                                       key={id}
-                                      className="text-xs font-medium"
+                                      className={cn(
+                                        'text-xs font-medium flex items-center gap-1',
+                                        !c && 'text-red-500 border-red-200 bg-red-50',
+                                      )}
                                     >
-                                      {c.name}
+                                      {c ? c.name : 'Membro excluído'}
+                                      <button
+                                        type="button"
+                                        className="hover:bg-slate-200 rounded-full p-0.5"
+                                        onPointerDown={(e) => {
+                                          e.stopPropagation()
+                                          field.onChange(selectedIds.filter((sid) => sid !== id))
+                                        }}
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
                                     </Badge>
-                                  ) : null
+                                  )
                                 })
                               ) : (
                                 <span className="text-slate-500">Selecionar equipe...</span>
