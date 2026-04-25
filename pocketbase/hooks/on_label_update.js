@@ -11,7 +11,7 @@ onRecordAfterUpdateSuccess((e) => {
     '',
     10000,
     0,
-    { old: originalName, org: org },
+    { old: `"${originalName}"`, org: org },
   )
 
   $app.runInTransaction((txApp) => {
@@ -47,6 +47,17 @@ onRecordAfterUpdateSuccess((e) => {
       }
     }
   })
+
+  try {
+    const logCol = $app.findCollectionByNameOrId('system_logs')
+    const log = new Record(logCol)
+    log.set('level', 'info')
+    log.set('module', 'on_label_update')
+    log.set('message', 'Etiqueta renomeada com sucesso via case_labels')
+    log.set('details', { oldTag: originalName, newTag: newName, updatedCases: cases.length })
+    if (org) log.set('organization', org)
+    $app.saveNoValidate(log)
+  } catch (_) {}
 
   return e.next()
 }, 'case_labels')

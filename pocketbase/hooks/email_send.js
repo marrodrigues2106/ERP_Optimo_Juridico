@@ -127,13 +127,14 @@ routerAdd(
     }
 
     if (res.statusCode !== 200 && res.statusCode !== 201) {
-      $app.logger().error('Resend API error', 'status', res.statusCode, 'body', res.raw)
+      const responseBody = res.json || new TextDecoder().decode(res.body)
+      $app.logger().error('Resend API error', 'status', res.statusCode, 'body', responseBody)
 
       const log = new Record($app.findCollectionByNameOrId('system_logs'))
       log.set('level', 'error')
       log.set('module', 'email_send')
       log.set('message', 'Resend API retornou erro status ' + res.statusCode)
-      log.set('details', { status: res.statusCode, response: res.json || res.raw })
+      log.set('details', { status: res.statusCode, response: responseBody })
       if (orgId) log.set('organization', orgId)
       log.set('user', user.id)
       $app.save(log)

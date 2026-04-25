@@ -125,6 +125,18 @@ routerAdd(
         }
       })
 
+      try {
+        const logCol = $app.findCollectionByNameOrId('system_logs')
+        const log = new Record(logCol)
+        log.set('level', 'info')
+        log.set('module', 'tags_rename')
+        log.set('message', 'Etiqueta renomeada com sucesso via API')
+        log.set('details', { oldTag, newTag })
+        if (activeOrg) log.set('organization', activeOrg)
+        log.set('user', authRecord.id)
+        $app.saveNoValidate(log)
+      } catch (_) {}
+
       return e.json(200, { success: true })
     } catch (err) {
       try {
