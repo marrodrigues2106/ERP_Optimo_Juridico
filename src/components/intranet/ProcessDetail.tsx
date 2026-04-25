@@ -109,27 +109,56 @@ import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { deleteLegalCase } from '@/services/legal_cases'
 import { getCaseLabels, createCaseLabel } from '@/services/case_labels'
 
-function MovementWhatsAppModal({ open, onOpenChange, validPhones, getMessageText }: any) {
+function MovementWhatsAppModal({
+  open,
+  onOpenChange,
+  validPhones,
+  getMessageText,
+  caseId,
+  movDesc,
+}: any) {
   const [selectedClientIndex, setSelectedClientIndex] = useState(0)
   const [phone, setPhone] = useState('')
   const [text, setText] = useState('')
+  const { toast } = useToast()
 
   useEffect(() => {
     if (open && validPhones.length > 0) {
-      const target = validPhones[selectedClientIndex] || validPhones[0]
+      const idx = selectedClientIndex < validPhones.length ? selectedClientIndex : 0
+      setSelectedClientIndex(idx)
+      const target = validPhones[idx] || validPhones[0]
       setPhone(target.phone || '')
       setText(getMessageText(target.client.name || target.client.fullName || 'Cliente'))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, selectedClientIndex])
+  }, [open, selectedClientIndex, validPhones, getMessageText])
 
-  const handleOpenWhatsApp = () => {
+  const handleOpenWhatsApp = async () => {
     let cleanPhone = String(phone).replace(/\D/g, '')
     if (cleanPhone.length === 10 || cleanPhone.length === 11) {
       cleanPhone = '55' + cleanPhone
     }
     const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`
     window.open(url, '_blank')
+
+    try {
+      const targetClient = validPhones[selectedClientIndex]?.client
+      if (targetClient && caseId) {
+        await pb.collection('crm_interactions').create({
+          client: targetClient.id,
+          type: 'WhatsApp',
+          description: `WhatsApp enviado - Andamento Processual: ${movDesc}`,
+          date: new Date().toISOString(),
+          status: 'Completed',
+          linked_case: caseId,
+          organization: pb.authStore.record?.active_organization,
+        })
+        toast({ title: 'Interação registrada no CRM' })
+      }
+    } catch (e) {
+      console.error('Failed to log interaction', e)
+    }
+
     onOpenChange(false)
   }
 
@@ -185,9 +214,16 @@ function MovementWhatsAppModal({ open, onOpenChange, validPhones, getMessageText
   )
 }
 
-function MovementEmailModal({ open, onOpenChange, validEmails, caseNumber, getMessageText }: any) {
-  const [selectedClientIndex, setSelectedClientIndex] = useState(0)
-  const [email, setEmail] = useState('')
+function MovementEmailModal({
+  open,
+  onOpenChange,
+  validEmails,
+  caseNumber,
+  getMessageText,
+  caseId,
+  movDesc,
+}: any) {
+  const [selectedClientIndexes, setSelectedClientIndexes] = useState<number[]>([])
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [isSending, setIsSending] = useState(false)
@@ -195,27 +231,57 @@ function MovementEmailModal({ open, onOpenChange, validEmails, caseNumber, getMe
 
   useEffect(() => {
     if (open && validEmails.length > 0) {
-      const target = validEmails[selectedClientIndex] || validEmails[0]
-      setEmail(target.email || '')
+      setSelectedClientIndexes(validEmails.map((_: any, i: number) => i))
       setSubject(`Andamento Processual - ${caseNumber || 'Sem número'}`)
-      setBody(getMessageText(target.name || target.fullName || 'Cliente'))
+
+      const genericGreeting =
+        validEmails.length > 1
+          ? 'Cliente'
+          : validEmails[0].name || validEmails[0].fullName || 'Cliente'
+      setBody(getMessageText(genericGreeting))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, selectedClientIndex])
+  }, [open, validEmails, caseNumber, getMessageText])
 
   const handleSend = async () => {
+    if (selectedClientIndexes.length === 0) {
+      return toast({ title: 'Selecione pelo menos um cliente', variant: 'destructive' })
+    }
+
     setIsSending(true)
     try {
+      const targetEmails = selectedClientIndexes.map((i) => validEmails[i].email).filter(Boolean)
+
       await pb.send('/backend/v1/email/send', {
         method: 'POST',
         body: JSON.stringify({
-          to: [email],
+          to: targetEmails,
           subject: subject,
           text: body,
           html: `<p>${body.replace(/\n/g, '<br>')}</p>`,
         }),
       })
       toast({ title: 'E-mail enviado com sucesso.' })
+
+      try {
+        for (const idx of selectedClientIndexes) {
+          const targetClient = validEmails[idx]
+          if (targetClient && caseId) {
+            await pb.collection('crm_interactions').create({
+              client: targetClient.id,
+              type: 'Email',
+              description: `E-mail enviado - Andamento Processual: ${movDesc}`,
+              date: new Date().toISOString(),
+              status: 'Completed',
+              linked_case: caseId,
+              organization: pb.authStore.record?.active_organization,
+            })
+          }
+        }
+      } catch (e) {
+        console.error('Failed to log interaction', e)
+      }
+
       onOpenChange(false)
     } catch (err: any) {
       toast({ title: 'Erro ao enviar e-mail', description: err.message, variant: 'destructive' })
@@ -234,28 +300,33 @@ function MovementEmailModal({ open, onOpenChange, validEmails, caseNumber, getMe
         <div className="space-y-4 py-4">
           {validEmails.length > 1 && (
             <div className="space-y-2">
-              <Label>Selecionar Cliente</Label>
-              <Select
-                value={selectedClientIndex.toString()}
-                onValueChange={(val) => setSelectedClientIndex(parseInt(val))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {validEmails.map((c: any, idx: number) => (
-                    <SelectItem key={idx} value={idx.toString()}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Selecionar Clientes</Label>
+              <div className="flex flex-wrap gap-2">
+                {validEmails.map((c: any, idx: number) => (
+                  <Badge
+                    key={idx}
+                    variant={selectedClientIndexes.includes(idx) ? 'default' : 'outline'}
+                    className="cursor-pointer"
+                    onClick={() => {
+                      if (selectedClientIndexes.includes(idx)) {
+                        setSelectedClientIndexes((prev) => prev.filter((i) => i !== idx))
+                      } else {
+                        setSelectedClientIndexes((prev) => [...prev, idx])
+                      }
+                    }}
+                  >
+                    {c.name}
+                  </Badge>
+                ))}
+              </div>
             </div>
           )}
-          <div className="space-y-2">
-            <Label>Destinatário (E-mail)</Label>
-            <Input value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
+          {validEmails.length === 1 && (
+            <div className="space-y-2">
+              <Label>Destinatário (E-mail)</Label>
+              <Input value={validEmails[0].email} readOnly disabled className="bg-slate-50" />
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Assunto</Label>
             <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
@@ -273,7 +344,7 @@ function MovementEmailModal({ open, onOpenChange, validEmails, caseNumber, getMe
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending}>
             Cancelar
           </Button>
-          <Button onClick={handleSend} disabled={isSending}>
+          <Button onClick={handleSend} disabled={isSending || selectedClientIndexes.length === 0}>
             {isSending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
             Enviar E-mail
           </Button>
@@ -329,9 +400,6 @@ const MovementItem = ({
     ? new Date(mov.event_date).toLocaleDateString('pt-BR')
     : 'Data não informada'
   const movDesc = mov.description || 'Andamento atualizado'
-
-  const getMessageText = (cName: string) =>
-    `Prezado(a) ${cName}, informamos um novo andamento em seu processo: ${movDesc}.\n\nData: ${eventDateStr}.${orgPhoneMessage}\n\nAtenciosamente, ${orgName}.`
 
   const [waModalOpen, setWaModalOpen] = useState(false)
   const [emailModalOpen, setEmailModalOpen] = useState(false)
@@ -432,6 +500,15 @@ const MovementItem = ({
   const hasDetailedContent =
     textContent.trim().length > 0 && textContent !== 'Movimento sem descrição'
 
+  const cleanDetails = textContent.replace(/<[^>]*>?/gm, '').trim()
+  const movDetails =
+    cleanDetails.length > 0 && cleanDetails !== 'Movimento sem descrição'
+      ? `\n\nDetalhes:\n${cleanDetails}`
+      : ''
+
+  const getMessageText = (cName: string) =>
+    `Prezado(a) ${cName}, informamos um novo andamento em seu processo: ${movDesc}.${movDetails}\n\nData: ${eventDateStr}.${orgPhoneMessage}\n\nAtenciosamente, ${orgName}.`
+
   const isLongText = textContent.length > 400
 
   const hasAdditionalMeta =
@@ -472,6 +549,8 @@ const MovementItem = ({
         onOpenChange={setWaModalOpen}
         validPhones={validPhones}
         getMessageText={getMessageText}
+        caseId={recordId}
+        movDesc={movDesc}
       />
       <MovementEmailModal
         open={emailModalOpen}
@@ -479,6 +558,8 @@ const MovementItem = ({
         validEmails={validEmails}
         caseNumber={caseNumber}
         getMessageText={getMessageText}
+        caseId={recordId}
+        movDesc={movDesc}
       />
 
       <div
@@ -1790,6 +1871,7 @@ export default function ProcessDetail() {
                 legalCase.expand?.organization?.phone ||
                 pb.authStore.record?.expand?.active_organization?.phone ||
                 '',
+              movement_description: 'Atualização geral do processo',
             }}
           />
 
