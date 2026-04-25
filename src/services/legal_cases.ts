@@ -27,11 +27,20 @@ const sanitizeCase = (data: any) => {
       data.type = 'Processo'
     }
   }
-  if (data.client === 'none') data.client = null
-  if (data.client && !Array.isArray(data.client)) {
+  if (data.client === 'none' || data.client === null || data.client === '') {
+    data.client = []
+  } else if (data.client && !Array.isArray(data.client)) {
     data.client = [data.client]
   }
-  if (data.responsible_collaborator === 'none') data.responsible_collaborator = null
+  if (
+    data.responsible_collaborator === 'none' ||
+    data.responsible_collaborator === null ||
+    data.responsible_collaborator === ''
+  ) {
+    data.responsible_collaborator = []
+  } else if (data.responsible_collaborator && !Array.isArray(data.responsible_collaborator)) {
+    data.responsible_collaborator = [data.responsible_collaborator]
+  }
   return data
 }
 

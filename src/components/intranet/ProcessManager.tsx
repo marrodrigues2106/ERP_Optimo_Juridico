@@ -404,7 +404,7 @@ export default function ProcessManager() {
       observations: fd.get('observations'),
       tags,
       distribution_date,
-      client: selectedClientIds.length > 0 ? selectedClientIds : null,
+      client: selectedClientIds,
       metadata: {
         ...editingMetadataCase.metadata,
         distribution_date,
@@ -927,7 +927,7 @@ export default function ProcessManager() {
                             return (
                               <CommandItem
                                 key={c.id}
-                                value={c.name}
+                                value={`${c.name} ${c.id}`}
                                 onSelect={() => {
                                   if (isSelected) {
                                     setSelectedClientIds(

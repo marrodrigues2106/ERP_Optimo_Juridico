@@ -164,7 +164,11 @@ export function CaseFormModal({
             : editingCase.client
               ? [editingCase.client]
               : [],
-          responsible_collaborator: editingCase.responsible_collaborator || [],
+          responsible_collaborator: Array.isArray(editingCase.responsible_collaborator)
+            ? editingCase.responsible_collaborator
+            : editingCase.responsible_collaborator
+              ? [editingCase.responsible_collaborator]
+              : [],
           deadline: editingCase.deadline ? editingCase.deadline.substring(0, 10) : '',
           subject: editingCase.metadata?.subject || '',
           action_class: editingCase.metadata?.action_class || '',
@@ -301,10 +305,13 @@ export function CaseFormModal({
   }
 
   const onSubmit = async (data: CaseFormValues) => {
-    let finalClients = data.client
+    let finalClients = data.client || []
     if (finalClients === 'none') finalClients = []
     else if (typeof finalClients === 'string') finalClients = [finalClients]
-    if (Array.isArray(finalClients) && finalClients.length === 0) finalClients = null as any
+
+    let finalCollabs = data.responsible_collaborator || []
+    if (finalCollabs === 'none') finalCollabs = []
+    else if (typeof finalCollabs === 'string') finalCollabs = [finalCollabs]
 
     const payload = {
       title: data.title,
@@ -316,13 +323,7 @@ export function CaseFormModal({
       status: data.status,
       lifecycle_status: data.lifecycle_status,
       client: finalClients,
-      responsible_collaborator:
-        !data.responsible_collaborator ||
-        (Array.isArray(data.responsible_collaborator) &&
-          data.responsible_collaborator.length === 0) ||
-        data.responsible_collaborator === 'none'
-          ? null
-          : data.responsible_collaborator,
+      responsible_collaborator: finalCollabs,
       deadline:
         data.deadline && !isNaN(new Date(data.deadline).getTime())
           ? new Date(data.deadline).toISOString()
@@ -905,7 +906,7 @@ export function CaseFormModal({
                                     return (
                                       <CommandItem
                                         key={c.id}
-                                        value={c.name}
+                                        value={`${c.name} ${c.id}`}
                                         onSelect={() => {
                                           if (isSelected) {
                                             field.onChange(selectedIds.filter((id) => id !== c.id))
@@ -999,7 +1000,7 @@ export function CaseFormModal({
                                   return (
                                     <CommandItem
                                       key={c.id}
-                                      value={c.name}
+                                      value={`${c.name} ${c.id}`}
                                       onSelect={() => {
                                         if (isSelected) {
                                           field.onChange(selectedIds.filter((id) => id !== c.id))
