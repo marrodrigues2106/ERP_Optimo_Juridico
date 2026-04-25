@@ -26,7 +26,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const initAuth = async () => {
       try {
         if (pb.authStore.isValid) {
-          await pb.collection('users').authRefresh()
+          await pb.collection('users').authRefresh({ expand: 'active_organization' })
           setUser(pb.authStore.record)
         } else {
           pb.authStore.clear()
@@ -53,7 +53,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     try {
-      await pb.collection('users').authWithPassword(email, password)
+      await pb
+        .collection('users')
+        .authWithPassword(email, password, { expand: 'active_organization' })
       return { error: null }
     } catch (error) {
       return { error }

@@ -126,11 +126,16 @@ const MovementItem = ({
 
   const clientName = client?.name || client?.fullName || 'Cliente'
   const orgName = organization?.name || 'Moraes Rodrigues Advocacia'
+  const orgPhone = organization?.phone || ''
+  const orgPhoneMessage = orgPhone
+    ? `\n\nPara maiores informações, entrar em contato com o telefone whatsapp do escritório: ${orgPhone}`
+    : '\n\n(Configure o WhatsApp do escritório nas configurações para exibir aqui)'
+
   const eventDateStr = mov.event_date
     ? new Date(mov.event_date).toLocaleDateString('pt-BR')
     : 'Data não informada'
   const movDesc = mov.description || 'Andamento atualizado'
-  const messageText = `Prezado(a) ${clientName}, informamos um novo andamento em seu processo: ${movDesc}. Data: ${eventDateStr}. Atenciosamente, ${orgName}.`
+  const messageText = `Prezado(a) ${clientName}, informamos um novo andamento em seu processo: ${movDesc}.\n\nData: ${eventDateStr}.${orgPhoneMessage}\n\nAtenciosamente, ${orgName}.`
 
   const handleWhatsApp = () => {
     if (!clientPhone) return
@@ -146,10 +151,10 @@ const MovementItem = ({
     if (!client?.email) return
     setIsSendingEmail(true)
     try {
-      await pb.send('/backend/v1/webmail/send', {
+      await pb.send('/backend/v1/email/send', {
         method: 'POST',
         body: {
-          to: client.email,
+          to: [client.email],
           subject: `Andamento Processual - ${caseNumber || 'Sem número'}`,
           text: messageText,
           html: `<p>${messageText.replace(/\n/g, '<br>')}</p>`,
@@ -353,7 +358,12 @@ const MovementItem = ({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-50 disabled:opacity-30"
+                      className={cn(
+                        'h-6 w-6 transition-colors',
+                        hasPhone
+                          ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
+                          : 'text-slate-300 cursor-not-allowed hover:bg-transparent',
+                      )}
                       disabled={!hasPhone}
                       onClick={handleWhatsApp}
                     >
@@ -370,12 +380,17 @@ const MovementItem = ({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-50 disabled:opacity-30"
+                      className={cn(
+                        'h-6 w-6 transition-colors',
+                        hasEmail && !isSendingEmail
+                          ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
+                          : 'text-slate-300 cursor-not-allowed hover:bg-transparent',
+                      )}
                       disabled={!hasEmail || isSendingEmail}
                       onClick={handleEmail}
                     >
                       {isSendingEmail ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />
                       ) : (
                         <Mail className="h-3.5 w-3.5" />
                       )}
@@ -1571,6 +1586,10 @@ export default function ProcessDetail() {
             context={{
               case_number: legalCase.case_number || '',
               client_name: legalCase.expand?.client?.name || '',
+              org_phone:
+                legalCase.expand?.organization?.phone ||
+                pb.authStore.record?.expand?.active_organization?.phone ||
+                '',
             }}
           />
 

@@ -50,6 +50,7 @@ export default function ProfileManager() {
   const [avatarUrl, setAvatarUrl] = useState<string>(
     user?.avatar ? pb.files.getUrl(user, user.avatar) : '',
   )
+  const [orgPhone, setOrgPhone] = useState(user?.expand?.active_organization?.phone || '')
 
   // Password form
   const [oldPassword, setOldPassword] = useState('')
@@ -112,6 +113,10 @@ export default function ProfileManager() {
 
       const updated = await pb.collection('users').update(user.id, formData)
       if (updated.avatar) setAvatarUrl(pb.files.getUrl(updated, updated.avatar))
+
+      if (user?.active_organization && orgPhone !== user?.expand?.active_organization?.phone) {
+        await pb.collection('organizations').update(user.active_organization, { phone: orgPhone })
+      }
 
       toast({ title: 'Perfil atualizado com sucesso!' })
     } catch (err: any) {
@@ -304,6 +309,27 @@ export default function ProfileManager() {
                     <Label>Endereço Completo</Label>
                     <Input value={address} onChange={(e) => setAddress(e.target.value)} />
                   </div>
+
+                  {user?.active_organization && (
+                    <>
+                      <div className="col-span-1 sm:col-span-2 pt-4 mt-2 border-t border-slate-100">
+                        <h4 className="text-sm font-semibold text-slate-800 mb-4">
+                          Dados da Organização
+                        </h4>
+                      </div>
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label>WhatsApp do Escritório</Label>
+                        <Input
+                          value={orgPhone}
+                          onChange={(e) => setOrgPhone(e.target.value)}
+                          placeholder="Ex: (11) 99999-9999"
+                        />
+                        <p className="text-xs text-slate-500">
+                          Este número será incluído no rodapé das mensagens enviadas aos clientes.
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
               </CardContent>
               <CardFooter>

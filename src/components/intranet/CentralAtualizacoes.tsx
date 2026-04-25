@@ -78,6 +78,7 @@ type UnifiedItem = {
   clientId?: string
   clientName?: string
   clientPhone?: string
+  clientEmail?: string
   raw: any
 }
 
@@ -150,7 +151,13 @@ export default function CentralAtualizacoes() {
   const generateShareMessage = (cId: string, tpl: string, item: UnifiedItem | null) => {
     const c = shareClients.find((x) => x.id === cId)
     const cName = c?.fullName || c?.name || item?.clientName || ''
-    const orgName = pb.authStore.record?.expand?.active_organization?.name || 'Nosso Escritório'
+    const org = pb.authStore.record?.expand?.active_organization
+    const orgName = org?.name || 'Nosso Escritório'
+    const orgPhone = org?.phone || ''
+    const orgPhoneMessage = orgPhone
+      ? `\n\nPara maiores informações, entrar em contato com o telefone whatsapp do escritório: ${orgPhone}`
+      : '\n\n(Configure o WhatsApp do escritório nas configurações para exibir aqui)'
+
     const dataAlerta = item?.date
       ? format(new Date(item.date), 'dd/MM/yyyy')
       : format(new Date(), 'dd/MM/yyyy')
@@ -163,9 +170,9 @@ export default function CentralAtualizacoes() {
       const processInfo = item.caseNumber
         ? `${item.caseNumber} (${item.parties || item.caseTitle || ''})`
         : item.caseTitle || ''
-      msg = `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação no processo ${processInfo}:\n\nData do Alerta: ${dataAlerta}\nAndamento: ${movementDesc}\n\nAtt. Equipe ${orgName}`
+      msg = `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação no processo ${processInfo}:\n\nData do Alerta: ${dataAlerta}\nAndamento: ${movementDesc}${orgPhoneMessage}\n\nAtt. Equipe ${orgName}`
     } else if (tpl === 'financeiro' && item) {
-      msg = `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${item.title}\n${movementDesc}\n\nAtt. Equipe ${orgName}`
+      msg = `Olá, ${cName}.\n\nInformamos sobre a seguinte movimentação financeira:\n\n*Descrição:* ${item.title}\n${movementDesc}${orgPhoneMessage}\n\nAtt. Equipe ${orgName}`
     }
 
     return msg
@@ -310,6 +317,7 @@ export default function CentralAtualizacoes() {
           clientId: caseObj?.client,
           clientName: clientObj?.fullName || clientObj?.name,
           clientPhone: clientObj?.phone,
+          clientEmail: clientObj?.email,
           raw: i,
         }
       })
@@ -340,6 +348,7 @@ export default function CentralAtualizacoes() {
           clientId: linkedCase?.client,
           clientName: clientObj?.fullName || clientObj?.name,
           clientPhone: clientObj?.phone,
+          clientEmail: clientObj?.email,
           raw: i,
         }
       })
@@ -375,6 +384,7 @@ export default function CentralAtualizacoes() {
           clientId: cObj?.client,
           clientName: clientObj?.fullName || clientObj?.name,
           clientPhone: clientObj?.phone,
+          clientEmail: clientObj?.email,
           raw: i,
         }
       })
@@ -465,6 +475,7 @@ export default function CentralAtualizacoes() {
         clientId: i.client,
         clientName: i.expand?.client?.fullName || i.expand?.client?.name,
         clientPhone: i.expand?.client?.phone,
+        clientEmail: i.expand?.client?.email,
         raw: i,
       }))
 
@@ -1116,7 +1127,13 @@ export default function CentralAtualizacoes() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="hidden sm:flex border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                      className={cn(
+                        'hidden sm:flex transition-colors',
+                        selectedItem?.clientPhone
+                          ? 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'
+                          : 'border-slate-200 text-slate-400 cursor-not-allowed hover:bg-transparent opacity-50',
+                      )}
+                      disabled={!selectedItem?.clientPhone}
                       onClick={() => handleShareWhatsApp(selectedItem)}
                     >
                       <MessageCircle className="w-4 h-4 mr-2" /> WhatsApp
@@ -1124,7 +1141,13 @@ export default function CentralAtualizacoes() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="hidden sm:flex border-blue-200 text-blue-600 hover:bg-blue-50"
+                      className={cn(
+                        'hidden sm:flex transition-colors',
+                        selectedItem?.clientEmail
+                          ? 'border-blue-200 text-blue-600 hover:bg-blue-50'
+                          : 'border-slate-200 text-slate-400 cursor-not-allowed hover:bg-transparent opacity-50',
+                      )}
+                      disabled={!selectedItem?.clientEmail}
                       onClick={() => setEmailModalOpen(true)}
                     >
                       <Mail className="w-4 h-4 mr-2" /> Email
@@ -1140,6 +1163,7 @@ export default function CentralAtualizacoes() {
                         <DropdownMenuItem
                           className="sm:hidden"
                           onClick={() => handleShareWhatsApp(selectedItem)}
+                          disabled={!selectedItem?.clientPhone}
                         >
                           <MessageCircle className="w-4 h-4 mr-2 text-emerald-600" /> Enviar
                           WhatsApp
@@ -1147,6 +1171,7 @@ export default function CentralAtualizacoes() {
                         <DropdownMenuItem
                           className="sm:hidden"
                           onClick={() => setEmailModalOpen(true)}
+                          disabled={!selectedItem?.clientEmail}
                         >
                           <Mail className="w-4 h-4 mr-2 text-blue-600" /> Enviar Email
                         </DropdownMenuItem>
@@ -1464,6 +1489,7 @@ export default function CentralAtualizacoes() {
               : format(new Date(), 'dd/MM/yyyy'),
             movement_description: selectedItem?.description?.replace(/<[^>]*>?/gm, '') || '',
             org_name: pb.authStore.record?.expand?.active_organization?.name || 'Nosso Escritório',
+            org_phone: pb.authStore.record?.expand?.active_organization?.phone || '',
           }}
         />
 
