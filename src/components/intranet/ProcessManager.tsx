@@ -1033,6 +1033,14 @@ export default function ProcessManager() {
                               className="w-full justify-start px-2 py-1.5 text-sm font-medium text-primary"
                               onClick={async () => {
                                 const newTag = metadataTagInput.trim()
+                                if (/^\d+$/.test(newTag)) {
+                                  toast({
+                                    title: 'Etiqueta inválida',
+                                    description: 'A etiqueta não pode conter apenas números.',
+                                    variant: 'destructive',
+                                  })
+                                  return
+                                }
                                 if (!editingTags.includes(newTag)) {
                                   setEditingTags([...editingTags, newTag])
                                   if (!allTags.includes(newTag)) {
@@ -1084,6 +1092,14 @@ export default function ProcessManager() {
                                 value={metadataTagInput.trim()}
                                 onSelect={async () => {
                                   const newTag = metadataTagInput.trim()
+                                  if (/^\d+$/.test(newTag)) {
+                                    toast({
+                                      title: 'Etiqueta inválida',
+                                      description: 'A etiqueta não pode conter apenas números.',
+                                      variant: 'destructive',
+                                    })
+                                    return
+                                  }
                                   if (!editingTags.includes(newTag)) {
                                     setEditingTags([...editingTags, newTag])
                                     if (!allTags.includes(newTag)) {

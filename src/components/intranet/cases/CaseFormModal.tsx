@@ -57,7 +57,11 @@ const formSchema = z
     process_type: z.string().optional(),
     distribution_date: z.string().optional(),
     court_alias: z.string().optional(),
-    tags: z.array(z.string()).optional(),
+    tags: z
+      .array(
+        z.string().refine((val) => !/^\d+$/.test(val), { message: 'Não pode ser apenas números' }),
+      )
+      .optional(),
     estimated_duration: z.coerce.number().min(0).optional(),
     duration_unit: z.enum(['semanas', 'meses']).optional(),
     allocated_fixed_cost: z.coerce.number().min(0).optional(),
@@ -709,10 +713,19 @@ export function CaseFormModal({
                                 className="w-full justify-start px-2 py-1.5 text-sm font-medium text-primary"
                                 onClick={() => {
                                   const current = watch('tags') || []
-                                  if (!current.includes(tagInput.trim())) {
-                                    setValue('tags', [...current, tagInput.trim()])
+                                  const newTag = tagInput.trim()
+                                  if (/^\d+$/.test(newTag)) {
+                                    toast({
+                                      title: 'Inválido',
+                                      description: 'Etiquetas não podem ser puramente numéricas.',
+                                      variant: 'destructive',
+                                    })
+                                    return
+                                  }
+                                  if (!current.includes(newTag)) {
+                                    setValue('tags', [...current, newTag])
                                     setAllTags((prev) =>
-                                      Array.from(new Set([...prev, tagInput.trim()])).sort(),
+                                      Array.from(new Set([...prev, newTag])).sort(),
                                     )
                                   }
                                   setTagInput('')
@@ -751,10 +764,19 @@ export function CaseFormModal({
                                   value={tagInput.trim()}
                                   onSelect={() => {
                                     const current = watch('tags') || []
-                                    if (!current.includes(tagInput.trim())) {
-                                      setValue('tags', [...current, tagInput.trim()])
+                                    const newTag = tagInput.trim()
+                                    if (/^\d+$/.test(newTag)) {
+                                      toast({
+                                        title: 'Inválido',
+                                        description: 'Etiquetas não podem ser puramente numéricas.',
+                                        variant: 'destructive',
+                                      })
+                                      return
+                                    }
+                                    if (!current.includes(newTag)) {
+                                      setValue('tags', [...current, newTag])
                                       setAllTags((prev) =>
-                                        Array.from(new Set([...prev, tagInput.trim()])).sort(),
+                                        Array.from(new Set([...prev, newTag])).sort(),
                                       )
                                     }
                                     setTagInput('')

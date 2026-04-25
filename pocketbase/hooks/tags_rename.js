@@ -27,101 +27,119 @@ routerAdd(
       throw new BadRequestError('newTag is required.')
     }
 
-    $app.runInTransaction((txApp) => {
-      // 1. Update case_labels
-      try {
-        const label = txApp.findFirstRecordByFilter(
-          'case_labels',
-          'name = {:oldTag} && organization = {:org}',
-          { oldTag: oldTag, org: activeOrg },
+    try {
+      $app.runInTransaction((txApp) => {
+        // 1. Update case_labels
+        try {
+          const label = txApp.findFirstRecordByFilter(
+            'case_labels',
+            'name = {:oldTag} && organization = {:org}',
+            { oldTag: oldTag, org: activeOrg },
+          )
+
+          try {
+            txApp.findFirstRecordByFilter(
+              'case_labels',
+              'name = {:newTag} && organization = {:org}',
+              { newTag: newTag, org: activeOrg },
+            )
+            // If the new tag already exists, delete the old tag to prevent UNIQUE constraint failure
+            txApp.delete(label)
+          } catch (_) {
+            // If the new tag doesn't exist, safely rename the old tag
+            label.set('name', newTag)
+            txApp.save(label)
+          }
+        } catch (_) {
+          // oldTag not found in case_labels, continue to update cases regardless
+        }
+
+        // 2. Update legal_cases
+        const cases = txApp.findRecordsByFilter(
+          'legal_cases',
+          'organization = {:org} && tags ~ {:oldTagExact}',
+          '',
+          100000,
+          0,
+          { org: activeOrg, oldTagExact: `"${oldTag}"` },
         )
 
-        try {
-          txApp.findFirstRecordByFilter(
-            'case_labels',
-            'name = {:newTag} && organization = {:org}',
-            { newTag: newTag, org: activeOrg },
-          )
-          // If the new tag already exists, delete the old tag to prevent UNIQUE constraint failure
-          txApp.delete(label)
-        } catch (_) {
-          // If the new tag doesn't exist, safely rename the old tag
-          label.set('name', newTag)
-          txApp.save(label)
-        }
-      } catch (_) {
-        // oldTag not found in case_labels, continue to update cases regardless
-      }
+        for (let i = 0; i < cases.length; i++) {
+          const record = cases[i]
+          let tags = record.get('tags')
 
-      // 2. Update legal_cases
-      const cases = txApp.findRecordsByFilter(
-        'legal_cases',
-        'organization = {:org} && tags ~ {:oldTagExact}',
-        '',
-        100000,
-        0,
-        { org: activeOrg, oldTagExact: `"${oldTag}"` },
-      )
+          if (!tags) continue
 
-      for (let i = 0; i < cases.length; i++) {
-        const record = cases[i]
-        let tags = record.get('tags')
-
-        if (!tags) continue
-
-        let tagsArray = []
-        if (typeof tags === 'string') {
-          try {
-            tagsArray = JSON.parse(tags)
-          } catch (_) {
-            continue
+          let tagsArray = []
+          if (typeof tags === 'string') {
+            try {
+              tagsArray = JSON.parse(tags)
+            } catch (_) {
+              continue
+            }
+          } else if (Array.isArray(tags)) {
+            tagsArray = tags
           }
-        } else if (Array.isArray(tags)) {
-          tagsArray = tags
-        }
 
-        if (!Array.isArray(tagsArray)) continue
+          if (!Array.isArray(tagsArray)) continue
 
-        let changed = false
-        const newTagsArray = []
+          let changed = false
+          const newTagsArray = []
 
-        for (let j = 0; j < tagsArray.length; j++) {
-          const t = tagsArray[j]
+          for (let j = 0; j < tagsArray.length; j++) {
+            const t = tagsArray[j]
 
-          // Data Integrity Guard: Enforce string-only processing for tags
-          if (typeof t !== 'string') {
-            if (t !== null && t !== undefined) {
-              newTagsArray.push(String(t))
+            // Strict string processing
+            if (typeof t !== 'string') {
               changed = true
+              continue // Just drop non-strings
             }
-            continue
-          }
 
-          if (t === oldTag) {
-            changed = true
-            newTagsArray.push(newTag)
-          } else {
-            newTagsArray.push(t)
-          }
-        }
+            // Drop purely numeric tags
+            if (/^\d+$/.test(t.trim())) {
+              changed = true
+              continue
+            }
 
-        if (changed) {
-          // Remove duplicates and ensure proper clean strings
-          const uniqueTags = []
-          for (let j = 0; j < newTagsArray.length; j++) {
-            const val = newTagsArray[j]
-            if (typeof val === 'string' && val.trim() !== '' && !uniqueTags.includes(val)) {
-              uniqueTags.push(val)
+            if (t === oldTag) {
+              changed = true
+              newTagsArray.push(newTag)
+            } else {
+              newTagsArray.push(t)
             }
           }
 
-          record.set('tags', uniqueTags)
-          txApp.save(record)
-        }
-      }
-    })
+          if (changed) {
+            // Remove duplicates and ensure proper clean strings
+            const uniqueTags = []
+            for (let j = 0; j < newTagsArray.length; j++) {
+              const val = newTagsArray[j]
+              if (typeof val === 'string' && val.trim() !== '' && !uniqueTags.includes(val)) {
+                uniqueTags.push(val)
+              }
+            }
 
-    return e.json(200, { success: true })
+            record.set('tags', uniqueTags)
+            txApp.save(record)
+          }
+        }
+      })
+
+      return e.json(200, { success: true })
+    } catch (err) {
+      try {
+        const log = new Record($app.findCollectionByNameOrId('system_logs'))
+        log.set('level', 'error')
+        log.set('module', 'tags_rename')
+        log.set('message', 'Erro ao renomear etiqueta: ' + err.message)
+        log.set('details', { oldTag, newTag })
+        if (activeOrg) log.set('organization', activeOrg)
+        log.set('user', authRecord.id)
+        $app.saveNoValidate(log)
+      } catch (_) {}
+
+      throw new InternalServerError('Erro interno ao renomear etiqueta.')
+    }
   },
   $apis.requireAuth(),
 )

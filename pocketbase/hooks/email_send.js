@@ -58,15 +58,23 @@ routerAdd(
       )
     }
 
-    let apiKey = ''
+    let apiKey = $secrets.get('RESEND_API_KEY')
+
+    if (!apiKey) {
+      try {
+        const keyRec = $app.findFirstRecordByData('settings', 'key', 'resend_api_key')
+        apiKey = keyRec.getString('value')
+      } catch (_) {}
+    }
+
     let fromEmail = 'onboarding@resend.dev'
     let fromName = 'Escritório de Advocacia'
 
     try {
-      const keyRec = $app.findFirstRecordByData('settings', 'key', 'resend_api_key')
-      apiKey = keyRec.getString('value')
       const fromRec = $app.findFirstRecordByData('settings', 'key', 'resend_from_email')
-      fromEmail = fromRec.getString('value') || 'onboarding@resend.dev'
+      if (fromRec && fromRec.getString('value')) {
+        fromEmail = fromRec.getString('value')
+      }
 
       if (orgId) {
         const org = $app.findRecordById('organizations', orgId)
@@ -78,35 +86,59 @@ routerAdd(
 
     if (!apiKey || apiKey === 'pending') {
       const log = new Record($app.findCollectionByNameOrId('system_logs'))
-      log.set('level', 'warning')
-      log.set('module', 'email')
+      log.set('level', 'error')
+      log.set('module', 'email_send')
       log.set(
         'message',
         'Tentativa de envio de email falhou: RESEND_API_KEY ausente ou não configurada.',
       )
+      if (orgId) log.set('organization', orgId)
+      log.set('user', user.id)
       $app.save(log)
       return e.badRequestError('Configuração da API do Resend não encontrada.')
     }
 
-    const res = $http.send({
-      url: 'https://api.resend.com/emails',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + apiKey,
-      },
-      body: JSON.stringify({
-        from: `${fromName} <${fromEmail}>`,
-        to: toList,
-        subject: body.subject,
-        html: body.body,
-      }),
-      timeout: 15,
-    })
+    let res
+    try {
+      res = $http.send({
+        url: 'https://api.resend.com/emails',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + apiKey,
+        },
+        body: JSON.stringify({
+          from: `${fromName} <${fromEmail}>`,
+          to: toList,
+          subject: body.subject,
+          html: body.body,
+        }),
+        timeout: 15,
+      })
+    } catch (err) {
+      const log = new Record($app.findCollectionByNameOrId('system_logs'))
+      log.set('level', 'error')
+      log.set('module', 'email_send')
+      log.set('message', 'Erro de rede ao conectar com Resend: ' + err.message)
+      if (orgId) log.set('organization', orgId)
+      log.set('user', user.id)
+      $app.save(log)
+      throw new InternalServerError('Falha de conexão ao tentar enviar e-mail.')
+    }
 
     if (res.statusCode !== 200 && res.statusCode !== 201) {
       $app.logger().error('Resend API error', 'status', res.statusCode, 'body', res.raw)
-      const errorMsg = res.json?.message || 'Falha ao enviar e-mail pelo Resend.'
+
+      const log = new Record($app.findCollectionByNameOrId('system_logs'))
+      log.set('level', 'error')
+      log.set('module', 'email_send')
+      log.set('message', 'Resend API retornou erro status ' + res.statusCode)
+      log.set('details', { status: res.statusCode, response: res.json || res.raw })
+      if (orgId) log.set('organization', orgId)
+      log.set('user', user.id)
+      $app.save(log)
+
+      const errorMsg = res.json?.message || 'Falha ao enviar e-mail pelo provedor.'
       throw new BadRequestError(errorMsg)
     }
 
@@ -124,14 +156,14 @@ routerAdd(
     const logCol = $app.findCollectionByNameOrId('system_logs')
     const sentLog = new Record(logCol)
     sentLog.set('level', 'info')
-    sentLog.set('module', 'email')
+    sentLog.set('module', 'email_send')
     sentLog.set('message', 'email_sent')
-    sentLog.set('details', { to: toList, subject: body.subject })
+    sentLog.set('details', { to: toList, subject: body.subject, resend_id: res.json?.id })
     if (orgId) sentLog.set('organization', orgId)
     sentLog.set('user', user.id)
     $app.save(sentLog)
 
-    return e.json(200, { success: true })
+    return e.json(200, { success: true, id: res.json?.id })
   },
   $apis.requireAuth(),
 )
