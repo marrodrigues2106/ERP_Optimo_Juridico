@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useForm, Controller, useWatch } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -28,7 +29,7 @@ import { EmailSenderModal } from '../EmailSenderModal'
 const formSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
   description: z.string().optional(),
-  type: z.enum(['Meeting', 'Call', 'Hearing', 'Task', 'Email']),
+  type: z.enum(['Meeting', 'Call', 'Hearing', 'Task', 'Email', 'Reminder', 'Note']),
   start_date: z.string().min(1, 'Data de início é obrigatória'),
   end_date: z.string().optional(),
   collaborator: z.string().optional(),
@@ -36,19 +37,18 @@ const formSchema = z.object({
   client: z.string().optional(),
   sync_provider: z.enum(['Google', 'iCloud', 'Outlook', 'Local']).optional(),
   priority: z.enum(['low', 'medium', 'high']).optional(),
+  is_all_day: z.boolean().optional(),
+  modality: z.enum(['Presencial', 'Virtual', 'Híbrido', 'N/A']).optional(),
+  location: z.string().optional(),
+  alert_time: z.enum(['none', '15m', '30m', '1h', '1d']).optional(),
+  alert_type: z.enum(['none', 'in-app', 'email', 'both']).optional(),
+  is_recurring: z.boolean().optional(),
+  recurrence_type: z.enum(['daily', 'weekly', 'monthly', 'annual', 'custom']).optional(),
+  recurrence_end: z.string().optional(),
+  kanban_column: z.string().optional(),
 })
 
 type EventFormValues = z.infer<typeof formSchema>
-
-interface Props {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  lawsuitId?: string
-  prefilledDescription?: string
-  defaultDate?: Date
-  onSuccess?: () => void
-  editingEvent?: any
-}
 
 export function EventFormModal({
   open,
@@ -58,12 +58,14 @@ export function EventFormModal({
   defaultDate,
   onSuccess,
   editingEvent,
-}: Props) {
+  defaultColumn,
+}: any) {
   const { toast } = useToast()
   const [collaborators, setCollaborators] = useState<any[]>([])
   const [clients, setClients] = useState<any[]>([])
   const [cases, setCases] = useState<any[]>([])
-  const isEditing = !!editingEvent
+  const [columns, setColumns] = useState<any[]>([])
+  const isEditing = !!editingEvent && !!editingEvent.id
 
   const [emailModalOpen, setEmailModalOpen] = useState(false)
 
@@ -77,30 +79,21 @@ export function EventFormModal({
     formState: { errors, isSubmitting },
   } = useForm<EventFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { type: 'Task', sync_provider: 'Local' },
+    defaultValues: {
+      type: 'Task',
+      sync_provider: 'Local',
+      alert_time: 'none',
+      alert_type: 'none',
+      modality: 'N/A',
+      is_recurring: false,
+      is_all_day: false,
+    },
   })
 
   const watchType = watch('type')
   const watchClient = watch('client')
   const watchLawsuit = watch('linked_lawsuit')
-
-  useEffect(() => {
-    if (watchType === 'Email' && !isEditing) {
-      const selectedCase = cases.find((c) => c.id === watchLawsuit)
-      const selectedClient =
-        clients.find((c) => c.id === watchClient) ||
-        clients.find((c) => c.id === selectedCase?.client)
-
-      if (selectedCase) {
-        const caseNumber = selectedCase.case_number || ''
-        const clientName = selectedClient?.name || selectedClient?.fullName || ''
-        const currentTitle = control._formValues.title || ''
-        if (!currentTitle || currentTitle.startsWith('Atualização: Processo')) {
-          setValue('title', `Atualização: Processo ${caseNumber} - ${clientName}`)
-        }
-      }
-    }
-  }, [watchType, watchLawsuit, watchClient, cases, clients, isEditing, setValue, control])
+  const watchIsRecurring = watch('is_recurring')
 
   useEffect(() => {
     if (open) {
@@ -108,11 +101,13 @@ export function EventFormModal({
         pb.collection('collaborators').getFullList(),
         pb.collection('clients').getFullList(),
         pb.collection('legal_cases').getFullList(),
+        pb.collection('kanban_columns').getFullList({ expand: 'board' }),
       ])
-        .then(([colRes, cliRes, caseRes]) => {
+        .then(([colRes, cliRes, caseRes, colCols]) => {
           setCollaborators(colRes)
           setClients(cliRes)
           setCases(caseRes)
+          setColumns(colCols)
         })
         .catch(console.error)
     }
@@ -120,28 +115,41 @@ export function EventFormModal({
 
   useEffect(() => {
     if (open) {
-      if (isEditing) {
+      if (editingEvent) {
         reset({
           title: editingEvent.title || '',
-          description: editingEvent.description || '',
+          description: editingEvent.description || prefilledDescription || '',
           type: editingEvent.type || 'Task',
-          start_date: editingEvent.start_date
-            ? new Date(editingEvent.start_date).toISOString().substring(0, 16)
-            : '',
+          start_date:
+            editingEvent.start_date || editingEvent.due_date
+              ? new Date(editingEvent.start_date || editingEvent.due_date)
+                  .toISOString()
+                  .substring(0, 16)
+              : '',
           end_date: editingEvent.end_date
             ? new Date(editingEvent.end_date).toISOString().substring(0, 16)
             : '',
           collaborator: editingEvent.collaborator || 'none',
           client: editingEvent.client || 'none',
-          linked_lawsuit: editingEvent.linked_lawsuit || 'none',
+          linked_lawsuit: editingEvent.linked_lawsuit || lawsuitId || 'none',
           sync_provider: editingEvent.sync_provider || 'Local',
           priority: editingEvent.priority || 'medium',
+          is_all_day: editingEvent.is_all_day || false,
+          modality: editingEvent.modality || 'N/A',
+          location: editingEvent.location || '',
+          alert_time: editingEvent.alert_time || 'none',
+          alert_type: editingEvent.alert_type || 'none',
+          is_recurring: editingEvent.is_recurring || false,
+          recurrence_type: editingEvent.recurrence_type || 'weekly',
+          recurrence_end: editingEvent.recurrence_end
+            ? editingEvent.recurrence_end.substring(0, 10)
+            : '',
+          kanban_column: editingEvent.kanban_column || defaultColumn || 'none',
         })
       } else {
         const initDate = defaultDate ? new Date(defaultDate) : new Date()
-        if (defaultDate && initDate.getHours() === 0 && initDate.getMinutes() === 0) {
+        if (defaultDate && initDate.getHours() === 0 && initDate.getMinutes() === 0)
           initDate.setHours(9, 0, 0, 0)
-        }
         const tzOffset = initDate.getTimezoneOffset() * 60000
 
         reset({
@@ -157,10 +165,16 @@ export function EventFormModal({
           linked_lawsuit: lawsuitId || 'none',
           sync_provider: 'Local',
           priority: 'medium',
+          alert_time: 'none',
+          alert_type: 'none',
+          modality: 'N/A',
+          is_all_day: false,
+          is_recurring: false,
+          kanban_column: defaultColumn || 'none',
         })
       }
     }
-  }, [open, prefilledDescription, lawsuitId, defaultDate, reset, editingEvent, isEditing])
+  }, [open, defaultDate, reset, editingEvent, defaultColumn, prefilledDescription, lawsuitId])
 
   const onSubmit = async (data: EventFormValues) => {
     try {
@@ -170,123 +184,74 @@ export function EventFormModal({
       const payload: any = {
         title: data.title,
         description: data.description,
-        type: data.type,
-        start_date: startD.toISOString(),
         organization: pb.authStore.record?.active_organization,
-        sync_provider: data.sync_provider,
-        sync_status: data.sync_provider === 'Local' ? 'Local Only' : 'Pending',
+        kanban_column: data.kanban_column !== 'none' ? data.kanban_column : null,
+        collaborator: data.collaborator !== 'none' ? data.collaborator : null,
+        client: data.client !== 'none' ? data.client : null,
+        linked_lawsuit: data.linked_lawsuit !== 'none' ? data.linked_lawsuit : null,
+        is_recurring: data.is_recurring,
       }
 
-      if (data.end_date) {
-        const endD = new Date(data.end_date)
-        if (!isNaN(endD.getTime())) payload.end_date = endD.toISOString()
+      if (data.is_recurring) {
+        payload.recurrence_type = data.recurrence_type
+        if (data.recurrence_end)
+          payload.recurrence_end = new Date(data.recurrence_end).toISOString()
       }
-
-      if (data.collaborator && data.collaborator !== 'none')
-        payload.collaborator = data.collaborator
-      else payload.collaborator = null
-
-      if (data.linked_lawsuit && data.linked_lawsuit !== 'none')
-        payload.linked_lawsuit = data.linked_lawsuit
-      else payload.linked_lawsuit = null
-
-      if (data.client && data.client !== 'none') payload.client = data.client
-      else payload.client = null
 
       if (data.type === 'Task') {
-        const taskPayload = {
-          title: data.title,
-          description: data.description,
-          due_date: startD.toISOString(),
-          priority: data.priority || 'medium',
-          collaborator: payload.collaborator,
-          client: payload.client,
-          linked_lawsuit: payload.linked_lawsuit,
-          organization: payload.organization,
-          status: 'todo',
-        }
+        payload.due_date = startD.toISOString()
+        payload.priority = data.priority || 'medium'
+        payload.status = 'todo'
+
         if (isEditing && editingEvent.isTask) {
-          await pb.collection('tasks').update(editingEvent.id, taskPayload)
-          toast({ title: 'Tarefa atualizada com sucesso' })
+          await pb.collection('tasks').update(editingEvent.id, payload)
         } else {
-          await pb.collection('tasks').create(taskPayload)
-          toast({ title: 'Tarefa criada com sucesso' })
+          await pb.collection('tasks').create(payload)
         }
       } else {
+        payload.type = data.type
+        payload.start_date = startD.toISOString()
+        if (data.end_date) payload.end_date = new Date(data.end_date).toISOString()
+        payload.sync_provider = data.sync_provider
+        payload.sync_status = data.sync_provider === 'Local' ? 'Local Only' : 'Pending'
+        payload.is_all_day = data.is_all_day
+        payload.modality = data.modality
+        payload.location = data.location
+        payload.alert_time = data.alert_time
+        payload.alert_type = data.alert_type
+
         if (isEditing && !editingEvent.isTask) {
           await pb.collection('agenda_events').update(editingEvent.id, payload)
-          toast({ title: 'Evento atualizado com sucesso' })
         } else {
           await pb.collection('agenda_events').create(payload)
-          toast({ title: 'Evento criado com sucesso' })
         }
       }
 
+      toast({ title: 'Salvo com sucesso' })
       if (onSuccess) onSuccess()
       onOpenChange(false)
     } catch (e: any) {
-      toast({
-        title: isEditing ? 'Erro ao atualizar evento' : 'Erro ao criar evento',
-        description: getErrorMessage(e),
-        variant: 'destructive',
-      })
-    }
-  }
-
-  const handleDelete = async () => {
-    if (confirm('Tem certeza que deseja remover este item?')) {
-      try {
-        const collection = editingEvent.isTask ? 'tasks' : 'agenda_events'
-        await pb
-          .collection(collection)
-          .update(editingEvent.id, { deleted_at: new Date().toISOString() })
-        toast({ title: 'Item excluído com sucesso.' })
-        if (onSuccess) onSuccess()
-        onOpenChange(false)
-      } catch (e) {
-        toast({
-          title: 'Erro ao excluir evento',
-          description: getErrorMessage(e),
-          variant: 'destructive',
-        })
-      }
+      toast({ title: 'Erro ao salvar', description: getErrorMessage(e), variant: 'destructive' })
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Editar Evento/Alerta' : 'Vincular Evento/Alerta'}</DialogTitle>
-          <DialogDescription>
-            {isEditing
-              ? 'Atualize as informações do evento na agenda.'
-              : 'Crie um evento na agenda integrado ao sistema e notificações.'}
-          </DialogDescription>
+          <DialogTitle>{isEditing ? 'Editar Atividade' : 'Nova Atividade'}</DialogTitle>
+          <DialogDescription>Crie uma tarefa ou agende um evento.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 mt-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <Label>Título / Assunto *</Label>
-              <Input {...register('title')} placeholder="Ex: Audiência de Conciliação..." />
+              <Input {...register('title')} placeholder="Ex: Protocolar recurso..." />
               {errors.title && <p className="text-xs text-red-500 mt-1">{errors.title.message}</p>}
             </div>
 
             <div>
-              <Label>Data Inicial *</Label>
-              <Input type="datetime-local" {...register('start_date')} />
-              {errors.start_date && (
-                <p className="text-xs text-red-500 mt-1">{errors.start_date.message}</p>
-              )}
-            </div>
-
-            <div>
-              <Label>Data Final</Label>
-              <Input type="datetime-local" {...register('end_date')} />
-            </div>
-
-            <div>
-              <Label>Tipo de Evento</Label>
+              <Label>Tipo</Label>
               <Controller
                 name="type"
                 control={control}
@@ -296,18 +261,70 @@ export function EventFormModal({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Hearing">Audiência</SelectItem>
+                      <SelectItem value="Task">Tarefa / Rotina</SelectItem>
                       <SelectItem value="Meeting">Reunião</SelectItem>
+                      <SelectItem value="Hearing">Audiência</SelectItem>
                       <SelectItem value="Call">Ligação</SelectItem>
-                      <SelectItem value="Email">Email</SelectItem>
-                      <SelectItem value="Task">Tarefa</SelectItem>
-                    </SelectContent>{' '}
+                      <SelectItem value="Reminder">Lembrete</SelectItem>
+                    </SelectContent>
                   </Select>
                 )}
               />
             </div>
 
-            {control._formValues.type === 'Task' && (
+            <div>
+              <Label>Coluna Kanban (Opcional)</Label>
+              <Controller
+                name="kanban_column"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value || 'none'}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Nenhuma" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhuma</SelectItem>
+                      {columns.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.expand?.board?.name} - {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 md:col-span-2 border p-3 rounded-lg bg-slate-50/50">
+              <div>
+                <Label>Data/Hora Inicial *</Label>
+                <Input
+                  type={watch('is_all_day') ? 'date' : 'datetime-local'}
+                  {...register('start_date')}
+                />
+              </div>
+              <div>
+                <Label>Data/Hora Final</Label>
+                <Input
+                  type={watch('is_all_day') ? 'date' : 'datetime-local'}
+                  {...register('end_date')}
+                />
+              </div>
+              {watchType !== 'Task' && (
+                <div className="col-span-2 flex items-center space-x-2 mt-2">
+                  <Controller
+                    name="is_all_day"
+                    control={control}
+                    render={({ field }) => (
+                      <Switch checked={field.value} onCheckedChange={field.onChange} id="all-day" />
+                    )}
+                  />
+                  <Label htmlFor="all-day">Dia Inteiro</Label>
+                </div>
+              )}
+            </div>
+
+            {watchType === 'Task' && (
               <div>
                 <Label>Prioridade da Tarefa</Label>
                 <Controller
@@ -329,49 +346,122 @@ export function EventFormModal({
               </div>
             )}
 
-            <div>
-              <Label>Provedor de Nuvem</Label>
-              <Controller
-                name="sync_provider"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Local">Somente Local</SelectItem>
-                      <SelectItem value="Google">Google Calendar</SelectItem>
-                      <SelectItem value="Outlook">Outlook 365</SelectItem>
-                      <SelectItem value="iCloud">Apple iCloud</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
+            {watchType !== 'Task' && (
+              <>
+                <div>
+                  <Label>Modalidade</Label>
+                  <Controller
+                    name="modality"
+                    control={control}
+                    render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={field.value || 'N/A'}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="N/A">N/A</SelectItem>
+                          <SelectItem value="Presencial">Presencial</SelectItem>
+                          <SelectItem value="Virtual">Virtual</SelectItem>
+                          <SelectItem value="Híbrido">Híbrido</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+                <div>
+                  <Label>Local / Link</Label>
+                  <Input {...register('location')} placeholder="Sala 3 ou Link do Meet" />
+                </div>
+              </>
+            )}
+
+            <div className="md:col-span-2 flex flex-col gap-3 border p-3 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <Controller
+                  name="is_recurring"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch checked={field.value} onCheckedChange={field.onChange} id="recurring" />
+                  )}
+                />
+                <Label htmlFor="recurring">Repetir esta atividade</Label>
+              </div>
+
+              {watchIsRecurring && (
+                <div className="grid grid-cols-2 gap-4 mt-2">
+                  <div>
+                    <Label>Repetição</Label>
+                    <Controller
+                      name="recurrence_type"
+                      control={control}
+                      render={({ field }) => (
+                        <Select onValueChange={field.onChange} value={field.value || 'weekly'}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="daily">Diariamente</SelectItem>
+                            <SelectItem value="weekly">Semanalmente</SelectItem>
+                            <SelectItem value="monthly">Mensalmente</SelectItem>
+                            <SelectItem value="annual">Anualmente</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+                  <div>
+                    <Label>Fim da repetição (Opcional)</Label>
+                    <Input type="date" {...register('recurrence_end')} />
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div>
-              <Label>Cliente Vinculado</Label>
-              <Controller
-                name="client"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value || 'none'}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {clients.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name || c.fullName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
+            {watchType !== 'Task' && (
+              <div className="grid grid-cols-2 gap-4 md:col-span-2 border p-3 rounded-lg">
+                <div>
+                  <Label>Alerta Prévio</Label>
+                  <Controller
+                    name="alert_time"
+                    control={control}
+                    render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={field.value || 'none'}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhum</SelectItem>
+                          <SelectItem value="15m">15 minutos antes</SelectItem>
+                          <SelectItem value="30m">30 minutos antes</SelectItem>
+                          <SelectItem value="1h">1 hora antes</SelectItem>
+                          <SelectItem value="1d">1 dia antes</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+                <div>
+                  <Label>Tipo de Alerta</Label>
+                  <Controller
+                    name="alert_type"
+                    control={control}
+                    render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={field.value || 'none'}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhum</SelectItem>
+                          <SelectItem value="in-app">Notificação no Sistema</SelectItem>
+                          <SelectItem value="email">Por E-mail</SelectItem>
+                          <SelectItem value="both">Ambos</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+              </div>
+            )}
 
             <div>
               <Label>Processo Vinculado</Label>
@@ -381,7 +471,7 @@ export function EventFormModal({
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value || 'none'}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione..." />
+                      <SelectValue placeholder="Nenhum" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Nenhum</SelectItem>
@@ -396,15 +486,15 @@ export function EventFormModal({
               />
             </div>
 
-            <div className="md:col-span-2">
-              <Label>Responsável Primário</Label>
+            <div>
+              <Label>Responsável</Label>
               <Controller
                 name="collaborator"
                 control={control}
                 render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value || 'none'}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione..." />
+                      <SelectValue placeholder="Nenhum" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Nenhum</SelectItem>
@@ -420,63 +510,25 @@ export function EventFormModal({
             </div>
 
             <div className="md:col-span-2">
-              <Label>Descrição / Links</Label>
-              <Input {...register('description')} placeholder="Pauta da reunião, link do meet..." />
+              <Label>Descrição / Notas</Label>
+              <Input
+                {...register('description')}
+                className="h-20"
+                placeholder="Pauta, anotações rápidas..."
+              />
             </div>
           </div>
 
-          <div className="flex justify-between pt-4 gap-4">
-            {isEditing && (
-              <Button type="button" variant="destructive" onClick={handleDelete}>
-                Excluir
-              </Button>
-            )}
-            {watchType === 'Email' && (
-              <Button
-                type="button"
-                variant="secondary"
-                className="flex-1 bg-blue-50 text-blue-600 hover:bg-blue-100 border-blue-200"
-                onClick={() => setEmailModalOpen(true)}
-              >
-                <Mail className="w-4 h-4 mr-2" /> Compor E-mail Agora
-              </Button>
-            )}
-            <Button type="submit" className="flex-1" disabled={isSubmitting}>
+          <div className="flex justify-between pt-4">
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Salvando...
-                </>
-              ) : isEditing ? (
-                'Salvar Alterações'
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : (
-                'Confirmar Agendamento'
+                'Salvar Atividade'
               )}
             </Button>
           </div>
         </form>
-
-        <EmailSenderModal
-          open={emailModalOpen}
-          onOpenChange={setEmailModalOpen}
-          client={
-            watchClient !== 'none'
-              ? { id: watchClient }
-              : watchLawsuit !== 'none'
-                ? { id: cases.find((c) => c.id === watchLawsuit)?.client }
-                : null
-          }
-          context={{
-            type: 'Atualização Processual',
-            case_number:
-              watchLawsuit !== 'none' ? cases.find((c) => c.id === watchLawsuit)?.case_number : '',
-            client_name:
-              watchClient !== 'none' ? clients.find((c) => c.id === watchClient)?.name : '',
-            org_name: pb.authStore.record?.expand?.active_organization?.name || 'Nosso Escritório',
-            data_alerta: new Date().toLocaleDateString('pt-BR'),
-            movement_description: control._formValues.description || '',
-          }}
-        />
       </DialogContent>
     </Dialog>
   )

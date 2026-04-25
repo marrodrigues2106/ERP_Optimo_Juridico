@@ -4,7 +4,9 @@ import { Users, BarChart3, Mail, Maximize2, Minimize2 } from 'lucide-react'
 import { CrmContactsTab } from './crm/CrmContactsTab'
 import { CrmTemplatesTab } from './crm/CrmTemplatesTab'
 import { CrmProductivityTab } from './crm/CrmProductivityTab'
+import { CrmServicesTab } from './crm/CrmServicesTab'
 import { Button } from '@/components/ui/button'
+import { MessageSquareText } from 'lucide-react'
 
 export default function CrmManager() {
   const [activeTab, setActiveTab] = useState('contacts')
@@ -51,6 +53,12 @@ export default function CrmManager() {
             <Users className="w-4 h-4" /> Contatos & Funil
           </TabsTrigger>
           <TabsTrigger
+            value="services"
+            className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-2 pb-3 text-sm font-semibold flex items-center gap-2 transition-colors"
+          >
+            <MessageSquareText className="w-4 h-4" /> Atendimentos
+          </TabsTrigger>
+          <TabsTrigger
             value="productivity"
             className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none data-[state=active]:bg-transparent data-[state=active]:text-primary rounded-none px-2 pb-3 text-sm font-semibold flex items-center gap-2 transition-colors"
           >
@@ -66,6 +74,9 @@ export default function CrmManager() {
 
         <TabsContent value="contacts">
           <CrmContactsTab />
+        </TabsContent>
+        <TabsContent value="services">
+          <CrmServicesTab />
         </TabsContent>
         <TabsContent value="productivity">
           <CrmProductivityTab />

@@ -19,13 +19,14 @@ const sanitizeInteraction = (data: any) => {
   if (data.responsible === 'none') data.responsible = null
   if (data.linked_case === 'none') data.linked_case = null
   if (data.client === 'none') data.client = null
+  if (data.parent_interaction === 'none') data.parent_interaction = null
   if (
     data.type &&
     !['Call', 'Email', 'Meeting', 'Follow-up', 'Note', 'Task', 'WhatsApp'].includes(data.type)
   ) {
     data.type = 'Note'
   }
-  if (data.status && !['Pending', 'Completed'].includes(data.status)) {
+  if (data.status && !['Pending', 'Completed', 'open', 'closed'].includes(data.status)) {
     data.status = 'Pending'
   }
   return data
@@ -45,7 +46,23 @@ export const createInteraction = (data: any) => {
     if (!isNaN(d.getTime())) data.follow_up_date = d.toISOString()
   }
   const sanitized = sanitizePayload('crm_interactions', data, orgId)
-  return pb.collection('crm_interactions').create(sanitized)
+
+  const formData = new FormData()
+  Object.entries(sanitized).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      if (key === 'attachments' && Array.isArray(value)) {
+        value.forEach((file: File) => formData.append('attachments', file))
+      } else if (typeof value === 'object' && key === 'tags') {
+        formData.append(key, JSON.stringify(value))
+      } else if (typeof value === 'object') {
+        formData.append(key, JSON.stringify(value))
+      } else {
+        formData.append(key, String(value))
+      }
+    }
+  })
+
+  return pb.collection('crm_interactions').create(formData)
 }
 
 export const updateInteraction = (id: string, data: any) => {

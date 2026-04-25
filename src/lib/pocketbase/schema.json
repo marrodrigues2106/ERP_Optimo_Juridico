@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-25T01:33:33.294Z",
+  "generatedAt": "2026-04-25T01:49:55.811Z",
   "collections": [
     {
       "name": "users",
@@ -867,6 +867,77 @@
           "type": "date",
           "required": false,
           "system": false
+        },
+        {
+          "name": "kanban_column",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "kanban_columns"
+        },
+        {
+          "name": "is_all_day",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "modality",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Presencial", "Virtual", "Híbrido", "N/A"]
+        },
+        {
+          "name": "location",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "alert_time",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["none", "15m", "30m", "1h", "1d"]
+        },
+        {
+          "name": "alert_type",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["none", "in-app", "email", "both"]
+        },
+        {
+          "name": "alert_sent",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "is_recurring",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "recurrence_type",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["daily", "weekly", "monthly", "annual", "custom"]
+        },
+        {
+          "name": "recurrence_end",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "next_instance_generated",
+          "type": "bool",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -964,6 +1035,45 @@
           "required": false,
           "system": false,
           "collectionRef": "clients"
+        },
+        {
+          "name": "kanban_column",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "kanban_columns"
+        },
+        {
+          "name": "is_recurring",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "recurrence_type",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["daily", "weekly", "monthly", "annual", "custom"]
+        },
+        {
+          "name": "recurrence_end",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "next_instance_generated",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "collaborators",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "collaborators"
         }
       ],
       "indexes": [
@@ -1628,13 +1738,6 @@
           "collectionRef": "legal_cases"
         },
         {
-          "name": "status",
-          "type": "select",
-          "required": false,
-          "system": false,
-          "selectValues": ["Pending", "Completed"]
-        },
-        {
           "name": "created",
           "type": "autodate",
           "required": false,
@@ -1654,6 +1757,32 @@
           "required": false,
           "system": false,
           "collectionRef": "organizations"
+        },
+        {
+          "name": "parent_interaction",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "crm_interactions"
+        },
+        {
+          "name": "tags",
+          "type": "json",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "attachments",
+          "type": "file",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Pending", "Completed", "open", "closed"]
         }
       ],
       "indexes": []
@@ -2928,6 +3057,108 @@
       "indexes": [
         "CREATE UNIQUE INDEX idx_case_labels_name_org ON case_labels (name, organization)"
       ]
+    },
+    {
+      "name": "kanban_boards",
+      "type": "base",
+      "apiRules": {
+        "list": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "view": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "create": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "update": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "delete": "(@request.auth.id != '') && organization = @request.auth.active_organization"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "visibility",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["Public", "Team", "Restricted"]
+        },
+        {
+          "name": "organization",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "organizations"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "kanban_columns",
+      "type": "base",
+      "apiRules": {
+        "list": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "view": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "create": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "update": "(@request.auth.id != '') && organization = @request.auth.active_organization",
+        "delete": "(@request.auth.id != '') && organization = @request.auth.active_organization"
+      },
+      "fields": [
+        {
+          "name": "name",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "board",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "kanban_boards"
+        },
+        {
+          "name": "order_index",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "organization",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "organizations"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
     }
   ]
 }

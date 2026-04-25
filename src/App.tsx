@@ -26,6 +26,7 @@ import CollaboratorDetail from '@/components/intranet/CollaboratorDetail'
 import UsersManager from '@/components/intranet/UsersManager'
 import ProfileManager from '@/components/intranet/ProfileManager'
 import AgendaManager from '@/components/intranet/AgendaManager'
+import KanbanManager from '@/components/intranet/KanbanManager'
 import AuditLogs from '@/components/intranet/AuditLogs'
 import LabelsManager from '@/components/intranet/LabelsManager'
 import DouSearch from '@/components/intranet/DouSearch'
@@ -80,6 +81,7 @@ function App() {
                 <Route path="equipe/:id" element={<CollaboratorDetail />} />
                 <Route path="crm" element={<CrmManager />} />
                 <Route path="agenda" element={<AgendaManager />} />
+                <Route path="rotina" element={<KanbanManager />} />
                 <Route path="finance" element={<FinanceManager />} />
                 <Route path="library" element={<LibraryManager />} />
                 <Route path="blog" element={<BlogManager />} />
