@@ -23,8 +23,11 @@ import {
   Paperclip,
   Tag,
   Briefcase,
+  CheckSquare,
+  Calendar,
 } from 'lucide-react'
 import { createInteraction, updateInteraction } from '@/services/crm_interactions'
+import { EventFormModal } from './cases/EventFormModal'
 import { RichTextEditor } from './RichTextEditor'
 import { cn } from '@/lib/utils'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -56,6 +59,9 @@ export default function AtendimentosManager() {
 
   const [openClientCombo, setOpenClientCombo] = useState(false)
   const [openRefCombo, setOpenRefCombo] = useState(false)
+
+  const [taskModalOpen, setTaskModalOpen] = useState(false)
+  const [taskPreFill, setTaskPreFill] = useState<any>({})
 
   const { toast } = useToast()
 
@@ -182,6 +188,22 @@ export default function AtendimentosManager() {
     }
   }
 
+  const openTaskOrEvent = (int: any, type: 'Task' | 'Meeting') => {
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = int.description || ''
+    const text = tempDiv.textContent || tempDiv.innerText || ''
+
+    setTaskPreFill({
+      type,
+      client: int.client || 'none',
+      linked_lawsuit: int.linked_case || 'none',
+      linked_interaction: int.id,
+      description: `[Ref: Atendimento do dia ${new Date(int.date).toLocaleDateString()}] \n${text.substring(0, 200)}...`,
+      title: `Acompanhamento: ${int.title || int.type}`,
+    })
+    setTaskModalOpen(true)
+  }
+
   const filtered = interactions.filter((int) => {
     if (statusFilter !== 'all' && int.status !== statusFilter) return false
     if (search) {
@@ -284,7 +306,28 @@ export default function AtendimentosManager() {
                           Follow-up: {new Date(int.follow_up_date).toLocaleDateString()}
                         </div>
                       )}
-                      <Button variant="ghost" size="sm" onClick={() => handleEdit(int)}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs text-slate-500 hover:text-slate-800"
+                        onClick={() => openTaskOrEvent(int, 'Task')}
+                      >
+                        <CheckSquare className="w-3 h-3 mr-1.5" /> Tarefa
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs text-slate-500 hover:text-slate-800"
+                        onClick={() => openTaskOrEvent(int, 'Meeting')}
+                      >
+                        <Calendar className="w-3 h-3 mr-1.5" /> Evento
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => handleEdit(int)}
+                      >
                         Editar
                       </Button>
                     </div>
@@ -558,6 +601,24 @@ export default function AtendimentosManager() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {taskModalOpen && (
+        <EventFormModal
+          open={taskModalOpen}
+          onOpenChange={setTaskModalOpen}
+          lawsuitId={taskPreFill.linked_lawsuit !== 'none' ? taskPreFill.linked_lawsuit : undefined}
+          prefilledDescription={taskPreFill.description}
+          editingEvent={{
+            type: taskPreFill.type,
+            title: taskPreFill.title,
+            client: taskPreFill.client,
+            linked_lawsuit: taskPreFill.linked_lawsuit,
+            linked_interaction: taskPreFill.linked_interaction,
+            description: taskPreFill.description,
+          }}
+          onSuccess={loadData}
+        />
+      )}
     </div>
   )
 }

@@ -148,12 +148,17 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
   }
 
   const openTaskOrEvent = (int: any, type: 'Task' | 'Meeting') => {
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = int.description || ''
+    const text = tempDiv.textContent || tempDiv.innerText || ''
+
     setTaskPreFill({
       type,
       client: clientId,
-      linked_lawsuit: int.linked_case,
-      description: `[Ref: Atendimento ${int.id}] \n${int.description.substring(0, 100)}...`,
-      title: `Acompanhamento: ${int.type}`,
+      linked_lawsuit: int.linked_case || 'none',
+      linked_interaction: int.id,
+      description: `[Ref: Atendimento do dia ${new Date(int.date).toLocaleDateString()}] \n${text.substring(0, 200)}...`,
+      title: `Acompanhamento: ${int.title || int.type}`,
     })
     setTaskModalOpen(true)
   }
@@ -513,6 +518,7 @@ export function ClientHistoryTab({ clientId }: { clientId: string }) {
             title: taskPreFill.title,
             client: taskPreFill.client,
             linked_lawsuit: taskPreFill.linked_lawsuit,
+            linked_interaction: taskPreFill.linked_interaction,
             description: taskPreFill.description,
           }}
           onSuccess={loadData}
