@@ -129,8 +129,10 @@ export default function Layout() {
         label: 'Jurídico',
         items: [
           { title: 'Processos', url: '/intranet/processos', icon: Scale },
-          { title: 'Clientes', url: '/intranet/crm', icon: Briefcase },
+          { title: 'Clientes', url: '/intranet/crm', icon: Users },
+          { title: 'Atendimentos', url: '/intranet/crm?tab=interactions', icon: Briefcase },
           { title: 'Agenda', url: '/intranet/agenda', icon: Calendar },
+          { title: 'Kanban', url: '/intranet/rotina', icon: LayoutDashboard },
         ],
       },
       {

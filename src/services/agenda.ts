@@ -39,6 +39,7 @@ export const createAgendaEvent = async (data: any) => {
   if (data.client === 'none') data.client = null
   if (data.linked_lawsuit === 'none') data.linked_lawsuit = null
   if (data.collaborator === 'none') data.collaborator = null
+  if (data.linked_interaction === 'none') data.linked_interaction = null
 
   const sanitized = sanitizePayload('agenda_events', data, orgId)
   const record = await pb.collection('agenda_events').create(sanitized)
@@ -67,6 +68,7 @@ export const updateAgendaEvent = async (id: string, data: any) => {
   if (data.client === 'none') data.client = null
   if (data.linked_lawsuit === 'none') data.linked_lawsuit = null
   if (data.collaborator === 'none') data.collaborator = null
+  if (data.linked_interaction === 'none') data.linked_interaction = null
 
   const sanitized = sanitizePayload('agenda_events', data, orgId)
   const record = await pb.collection('agenda_events').update(id, sanitized)

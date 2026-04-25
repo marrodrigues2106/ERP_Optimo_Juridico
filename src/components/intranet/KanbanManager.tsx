@@ -22,6 +22,7 @@ import pb from '@/lib/pocketbase/client'
 import { useRealtime } from '@/hooks/use-realtime'
 import { useToast } from '@/hooks/use-toast'
 import { EventFormModal } from './cases/EventFormModal'
+import { MessageSquare } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -65,12 +66,18 @@ export default function KanbanManager() {
 
       const tsks = await pb
         .collection('tasks')
-        .getFullList({ filter: `deleted_at = "" && kanban_column != ""`, expand: 'collaborator' })
+        .getFullList({
+          filter: `deleted_at = "" && kanban_column != ""`,
+          expand: 'collaborator,linked_interaction',
+        })
       setTasks(tsks)
 
       const evs = await pb
         .collection('agenda_events')
-        .getFullList({ filter: `deleted_at = "" && kanban_column != ""`, expand: 'collaborator' })
+        .getFullList({
+          filter: `deleted_at = "" && kanban_column != ""`,
+          expand: 'collaborator,linked_interaction',
+        })
       setEvents(evs)
     } catch (e) {
       console.error(e)
@@ -87,13 +94,11 @@ export default function KanbanManager() {
 
   const handleCreateBoard = async () => {
     try {
-      await pb
-        .collection('kanban_boards')
-        .create({
-          name: boardName,
-          visibility: 'Team',
-          organization: pb.authStore.record?.active_organization,
-        })
+      await pb.collection('kanban_boards').create({
+        name: boardName,
+        visibility: 'Team',
+        organization: pb.authStore.record?.active_organization,
+      })
       setBoardName('')
       setBoardModal(false)
       loadData()
@@ -105,14 +110,12 @@ export default function KanbanManager() {
   const handleCreateColumn = async () => {
     try {
       const bCols = columns.filter((c) => c.board === activeBoard)
-      await pb
-        .collection('kanban_columns')
-        .create({
-          name: colName,
-          board: activeBoard,
-          order_index: bCols.length,
-          organization: pb.authStore.record?.active_organization,
-        })
+      await pb.collection('kanban_columns').create({
+        name: colName,
+        board: activeBoard,
+        order_index: bCols.length,
+        organization: pb.authStore.record?.active_organization,
+      })
       setColName('')
       setColModal(false)
       loadData()
@@ -200,6 +203,11 @@ export default function KanbanManager() {
             </span>
           )}
         </div>
+        {item.linked_interaction && (
+          <div className="mt-2 text-[10px] text-slate-500 flex items-center gap-1 bg-indigo-50 px-1.5 py-0.5 rounded w-fit border border-indigo-100">
+            <MessageSquare className="w-3 h-3 text-indigo-500" /> Atendimento Vinculado
+          </div>
+        )}
       </Card>
     )
   }

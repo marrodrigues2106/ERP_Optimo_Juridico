@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-25T01:49:55.811Z",
+  "generatedAt": "2026-04-25T02:00:19.175Z",
   "collections": [
     {
       "name": "users",
@@ -938,6 +938,13 @@
           "type": "bool",
           "required": false,
           "system": false
+        },
+        {
+          "name": "linked_interaction",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "crm_interactions"
         }
       ],
       "indexes": [
@@ -1074,6 +1081,13 @@
           "required": false,
           "system": false,
           "collectionRef": "collaborators"
+        },
+        {
+          "name": "linked_interaction",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "crm_interactions"
         }
       ],
       "indexes": [

@@ -46,6 +46,7 @@ const formSchema = z.object({
   recurrence_type: z.enum(['daily', 'weekly', 'monthly', 'annual', 'custom']).optional(),
   recurrence_end: z.string().optional(),
   kanban_column: z.string().optional(),
+  linked_interaction: z.string().optional(),
 })
 
 type EventFormValues = z.infer<typeof formSchema>
@@ -65,6 +66,7 @@ export function EventFormModal({
   const [clients, setClients] = useState<any[]>([])
   const [cases, setCases] = useState<any[]>([])
   const [columns, setColumns] = useState<any[]>([])
+  const [interactions, setInteractions] = useState<any[]>([])
   const isEditing = !!editingEvent && !!editingEvent.id
 
   const [emailModalOpen, setEmailModalOpen] = useState(false)
@@ -102,12 +104,14 @@ export function EventFormModal({
         pb.collection('clients').getFullList(),
         pb.collection('legal_cases').getFullList(),
         pb.collection('kanban_columns').getFullList({ expand: 'board' }),
+        pb.collection('crm_interactions').getFullList({ sort: '-date', expand: 'client' }),
       ])
-        .then(([colRes, cliRes, caseRes, colCols]) => {
+        .then(([colRes, cliRes, caseRes, colCols, intRes]) => {
           setCollaborators(colRes)
           setClients(cliRes)
           setCases(caseRes)
           setColumns(colCols)
+          setInteractions(intRes)
         })
         .catch(console.error)
     }
@@ -145,6 +149,7 @@ export function EventFormModal({
             ? editingEvent.recurrence_end.substring(0, 10)
             : '',
           kanban_column: editingEvent.kanban_column || defaultColumn || 'none',
+          linked_interaction: editingEvent.linked_interaction || 'none',
         })
       } else {
         const initDate = defaultDate ? new Date(defaultDate) : new Date()
@@ -171,6 +176,7 @@ export function EventFormModal({
           is_all_day: false,
           is_recurring: false,
           kanban_column: defaultColumn || 'none',
+          linked_interaction: 'none',
         })
       }
     }
@@ -189,6 +195,7 @@ export function EventFormModal({
         collaborator: data.collaborator !== 'none' ? data.collaborator : null,
         client: data.client !== 'none' ? data.client : null,
         linked_lawsuit: data.linked_lawsuit !== 'none' ? data.linked_lawsuit : null,
+        linked_interaction: data.linked_interaction !== 'none' ? data.linked_interaction : null,
         is_recurring: data.is_recurring,
       }
 
@@ -462,6 +469,30 @@ export function EventFormModal({
                 </div>
               </div>
             )}
+
+            <div>
+              <Label>Atendimento Vinculado</Label>
+              <Controller
+                name="linked_interaction"
+                control={control}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value || 'none'}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Nenhum" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {interactions.map((i) => (
+                        <SelectItem key={i.id} value={i.id}>
+                          {new Date(i.date).toLocaleDateString('pt-BR')} - {i.type}{' '}
+                          {i.expand?.client?.name ? `(${i.expand.client.name})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
 
             <div>
               <Label>Processo Vinculado</Label>
