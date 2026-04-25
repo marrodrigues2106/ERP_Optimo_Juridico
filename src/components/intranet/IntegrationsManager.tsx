@@ -5,7 +5,17 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
-import { Save, Loader2, Mail, ShieldCheck, Zap, AlertTriangle, Trash2 } from 'lucide-react'
+import {
+  Save,
+  Loader2,
+  Mail,
+  ShieldCheck,
+  Zap,
+  AlertTriangle,
+  Trash2,
+  RefreshCw,
+  Clock,
+} from 'lucide-react'
 import { getSettingByKey, setSettingByKey } from '@/services/settings'
 import {
   AlertDialog,
@@ -38,6 +48,11 @@ export default function IntegrationsManager() {
     agenda_events: false,
   })
 
+  const [syncingDou, setSyncingDou] = useState(false)
+  const [syncingPje, setSyncingPje] = useState(false)
+  const [lastDouSync, setLastDouSync] = useState<string | null>(null)
+  const [lastPjeSync, setLastPjeSync] = useState<string | null>(null)
+
   const isAuthorized = user?.role === 'admin' || user?.role === 'manager' || user?.isAdmin
 
   useEffect(() => {
@@ -54,9 +69,61 @@ export default function IntegrationsManager() {
       } finally {
         setLoading(false)
       }
+
+      try {
+        const douLog = await pb.collection('logs_processamento').getList(1, 1, { sort: '-created' })
+        if (douLog.items.length > 0) setLastDouSync(douLog.items[0].created)
+      } catch {
+        /* intentionally ignored */
+      }
+
+      try {
+        const pjeLog = await pb
+          .collection('system_logs')
+          .getList(1, 1, { filter: 'module~"pje" || module~"PJe"', sort: '-created' })
+        if (pjeLog.items.length > 0) setLastPjeSync(pjeLog.items[0].created)
+      } catch {
+        /* intentionally ignored */
+      }
     }
     loadSettings()
   }, [isAuthorized])
+
+  const handleSyncDou = async () => {
+    setSyncingDou(true)
+    try {
+      await pb.send('/backend/v1/sync/dou', { method: 'POST' })
+      toast({
+        title:
+          'Sincronização iniciada com sucesso. Os resultados aparecerão em breve no painel de notificações.',
+      })
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao iniciar sincronização. Verifique os logs do sistema.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSyncingDou(false)
+    }
+  }
+
+  const handleSyncPje = async () => {
+    setSyncingPje(true)
+    try {
+      await pb.send('/backend/v1/sync/pje', { method: 'POST' })
+      toast({
+        title:
+          'Sincronização iniciada com sucesso. Os resultados aparecerão em breve no painel de notificações.',
+      })
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao iniciar sincronização. Verifique os logs do sistema.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSyncingPje(false)
+    }
+  }
 
   const handleTestEmail = async () => {
     setSaving(true)
@@ -202,6 +269,74 @@ export default function IntegrationsManager() {
                   </Button>
                 </div>
               </form>
+            </CardContent>
+          </Card>
+
+          {/* Monitoramento Automático */}
+          <Card className="border-slate-200 shadow-sm mt-8">
+            <CardHeader>
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <RefreshCw className="w-6 h-6 text-primary" /> Monitoramento Automático
+              </CardTitle>
+              <CardDescription className="text-base">
+                Acione manualmente a sincronização de diários oficiais (DOU) e processos eletrônicos
+                (PJe). Os termos monitorados (incluindo OAB e UF) serão respeitados durante a busca.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* DOU Sync */}
+                <div className="border rounded-xl p-6 bg-slate-50/50 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-slate-800">
+                      Diário Oficial da União (DOU)
+                    </h3>
+                    <Zap className="w-5 h-5 text-amber-500" />
+                  </div>
+                  <p className="text-sm text-slate-600">
+                    Busca por novas publicações no DOU baseadas nos termos ativos.
+                  </p>
+                  <div className="flex items-center text-xs text-slate-500 mb-4">
+                    <Clock className="w-4 h-4 mr-1" />
+                    Última sincronização:{' '}
+                    {lastDouSync ? new Date(lastDouSync).toLocaleString('pt-BR') : 'Desconhecida'}
+                  </div>
+                  <Button onClick={handleSyncDou} disabled={syncingDou} className="w-full">
+                    {syncingDou ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                    )}
+                    Sincronizar DOU Agora
+                  </Button>
+                </div>
+
+                {/* PJe Sync */}
+                <div className="border rounded-xl p-6 bg-slate-50/50 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-slate-800">
+                      Processo Judicial Eletrônico (PJe)
+                    </h3>
+                    <Zap className="w-5 h-5 text-blue-500" />
+                  </div>
+                  <p className="text-sm text-slate-600">
+                    Sincroniza andamentos e comunicações dos tribunais configurados.
+                  </p>
+                  <div className="flex items-center text-xs text-slate-500 mb-4">
+                    <Clock className="w-4 h-4 mr-1" />
+                    Última sincronização:{' '}
+                    {lastPjeSync ? new Date(lastPjeSync).toLocaleString('pt-BR') : 'Desconhecida'}
+                  </div>
+                  <Button onClick={handleSyncPje} disabled={syncingPje} className="w-full">
+                    {syncingPje ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                    )}
+                    Sincronizar PJe Agora
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
