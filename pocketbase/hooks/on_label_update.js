@@ -15,7 +15,8 @@ onRecordAfterUpdateSuccess((e) => {
   )
 
   $app.runInTransaction((txApp) => {
-    for (let record of cases) {
+    for (let i = 0; i < cases.length; i++) {
+      let record = cases[i]
       let tags = record.get('tags')
 
       let tagsArray = []
@@ -49,6 +50,7 @@ onRecordAfterUpdateSuccess((e) => {
           continue
         }
 
+        // Exact match string comparison
         if (t === originalName) {
           updated = true
           newTagsArray.push(newName)
@@ -67,6 +69,7 @@ onRecordAfterUpdateSuccess((e) => {
         }
 
         record.set('tags', uniqueTags)
+        // txApp ensures updates are committed atomically
         txApp.saveNoValidate(record)
       }
     }

@@ -20,6 +20,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 const COLORS = [
   '#f87171',
@@ -98,8 +99,8 @@ export default function LabelsManager() {
         toast({ title: 'Etiqueta criada' })
       }
       setDialogOpen(false)
-    } catch (e) {
-      toast({ title: 'Erro ao salvar (verifique se o nome já existe)', variant: 'destructive' })
+    } catch (e: any) {
+      toast({ title: 'Erro ao salvar', description: getErrorMessage(e), variant: 'destructive' })
     } finally {
       setSubmitting(false)
     }
@@ -110,8 +111,8 @@ export default function LabelsManager() {
     try {
       await deleteCaseLabel(id)
       toast({ title: 'Etiqueta excluída' })
-    } catch (e) {
-      toast({ title: 'Erro ao excluir', variant: 'destructive' })
+    } catch (e: any) {
+      toast({ title: 'Erro ao excluir', description: getErrorMessage(e), variant: 'destructive' })
     }
   }
 

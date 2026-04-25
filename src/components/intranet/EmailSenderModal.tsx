@@ -29,6 +29,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import pb from '@/lib/pocketbase/client'
 import { useToast } from '@/hooks/use-toast'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { Loader2, Mail, AlertTriangle, Check, ChevronsUpDown, X } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { cn } from '@/lib/utils'
@@ -199,7 +200,11 @@ export function EmailSenderModal({ open, onOpenChange, client, context }: EmailS
       setMonthlyCount((prev) => prev + toEmails.length)
       onOpenChange(false)
     } catch (err: any) {
-      toast({ title: 'Erro ao enviar email', description: err.message, variant: 'destructive' })
+      toast({
+        title: 'Erro ao enviar email',
+        description: getErrorMessage(err),
+        variant: 'destructive',
+      })
     } finally {
       setIsSending(false)
     }

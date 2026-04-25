@@ -7,7 +7,9 @@ routerAdd(
 
     const body = e.requestInfo().body || {}
     const errors = {}
-    if (!body.to) errors.to = new ValidationError('required', 'Destinatário é obrigatório')
+
+    if (!body.to || (Array.isArray(body.to) && body.to.length === 0))
+      errors.to = new ValidationError('required', 'Destinatário é obrigatório')
     if (!body.subject) errors.subject = new ValidationError('required', 'Assunto é obrigatório')
     if (!body.body) errors.body = new ValidationError('required', 'Corpo da mensagem é obrigatório')
 
@@ -85,17 +87,22 @@ routerAdd(
     } catch (err) {}
 
     if (!apiKey || apiKey === 'pending') {
-      const log = new Record($app.findCollectionByNameOrId('system_logs'))
-      log.set('level', 'error')
-      log.set('module', 'email_send')
-      log.set(
-        'message',
-        'Tentativa de envio de email falhou: RESEND_API_KEY ausente ou não configurada.',
+      try {
+        const log = new Record($app.findCollectionByNameOrId('system_logs'))
+        log.set('level', 'error')
+        log.set('module', 'email_send')
+        log.set(
+          'message',
+          'Tentativa de envio de email falhou: RESEND_API_KEY ausente ou não configurada.',
+        )
+        if (orgId) log.set('organization', orgId)
+        log.set('user', user.id)
+        $app.saveNoValidate(log)
+      } catch (_) {}
+
+      throw new BadRequestError(
+        'Configuração da API do Resend não encontrada. Verifique as configurações de ambiente.',
       )
-      if (orgId) log.set('organization', orgId)
-      log.set('user', user.id)
-      $app.save(log)
-      return e.badRequestError('Configuração da API do Resend não encontrada.')
     }
 
     let res
@@ -116,53 +123,67 @@ routerAdd(
         timeout: 15,
       })
     } catch (err) {
-      const log = new Record($app.findCollectionByNameOrId('system_logs'))
-      log.set('level', 'error')
-      log.set('module', 'email_send')
-      log.set('message', 'Erro de rede ao conectar com Resend: ' + err.message)
-      if (orgId) log.set('organization', orgId)
-      log.set('user', user.id)
-      $app.save(log)
-      throw new InternalServerError('Falha de conexão ao tentar enviar e-mail.')
+      try {
+        const log = new Record($app.findCollectionByNameOrId('system_logs'))
+        log.set('level', 'error')
+        log.set('module', 'email_send')
+        log.set('message', 'Erro de rede ao conectar com Resend: ' + err.message)
+        if (orgId) log.set('organization', orgId)
+        log.set('user', user.id)
+        $app.saveNoValidate(log)
+      } catch (_) {}
+
+      throw new InternalServerError(
+        'Falha de conexão ao tentar enviar e-mail. O provedor pode estar indisponível.',
+      )
     }
 
     if (res.statusCode !== 200 && res.statusCode !== 201) {
+      // Using native res.json method exclusively for JSON parsed API responses
       const responseBody = res.json || { message: 'Erro desconhecido (sem body parseável)' }
+
       $app.logger().error('Resend API error', 'status', res.statusCode, 'body', responseBody)
 
-      const log = new Record($app.findCollectionByNameOrId('system_logs'))
-      log.set('level', 'error')
-      log.set('module', 'email_send')
-      log.set('message', 'Resend API retornou erro status ' + res.statusCode)
-      log.set('details', { status: res.statusCode, response: responseBody })
-      if (orgId) log.set('organization', orgId)
-      log.set('user', user.id)
-      $app.save(log)
+      try {
+        const log = new Record($app.findCollectionByNameOrId('system_logs'))
+        log.set('level', 'error')
+        log.set('module', 'email_send')
+        log.set('message', 'Resend API retornou erro status ' + res.statusCode)
+        log.set('details', { status: res.statusCode, response: responseBody })
+        if (orgId) log.set('organization', orgId)
+        log.set('user', user.id)
+        $app.saveNoValidate(log)
+      } catch (_) {}
 
-      const errorMsg = res.json?.message || 'Falha ao enviar e-mail pelo provedor.'
-      throw new BadRequestError(errorMsg)
+      const errorMsg = responseBody.message || 'Falha ao enviar e-mail pelo provedor externo.'
+      throw new BadRequestError(`Erro no envio: ${errorMsg}`)
     }
 
     try {
-      const emailLogsCol = $app.findCollectionByNameOrId('email_logs')
-      for (const email of toList) {
-        const eLog = new Record(emailLogsCol)
-        if (orgId) eLog.set('organization', orgId)
-        if (user) eLog.set('user', user.id)
-        eLog.set('sent_at', new Date().toISOString())
-        $app.save(eLog)
-      }
+      $app.runInTransaction((txApp) => {
+        const emailLogsCol = txApp.findCollectionByNameOrId('email_logs')
+        for (let i = 0; i < toList.length; i++) {
+          const email = toList[i]
+          const eLog = new Record(emailLogsCol)
+          if (orgId) eLog.set('organization', orgId)
+          if (user) eLog.set('user', user.id)
+          eLog.set('sent_at', new Date().toISOString())
+          txApp.saveNoValidate(eLog)
+        }
+      })
     } catch (_) {}
 
-    const logCol = $app.findCollectionByNameOrId('system_logs')
-    const sentLog = new Record(logCol)
-    sentLog.set('level', 'info')
-    sentLog.set('module', 'email_send')
-    sentLog.set('message', 'email_sent')
-    sentLog.set('details', { to: toList, subject: body.subject, resend_id: res.json?.id })
-    if (orgId) sentLog.set('organization', orgId)
-    sentLog.set('user', user.id)
-    $app.save(sentLog)
+    try {
+      const logCol = $app.findCollectionByNameOrId('system_logs')
+      const sentLog = new Record(logCol)
+      sentLog.set('level', 'info')
+      sentLog.set('module', 'email_send')
+      sentLog.set('message', 'email_sent')
+      sentLog.set('details', { to: toList, subject: body.subject, resend_id: res.json?.id })
+      if (orgId) sentLog.set('organization', orgId)
+      sentLog.set('user', user.id)
+      $app.saveNoValidate(sentLog)
+    } catch (_) {}
 
     return e.json(200, { success: true, id: res.json?.id })
   },

@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Mail, Edit, Send, Inbox, Loader2, ChevronsUpDown, Check, X } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import pb from '@/lib/pocketbase/client'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { useEffect } from 'react'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import {
@@ -64,12 +65,9 @@ export default function WebmailManager() {
       setComposeOpen(false)
       setSelectedClientIds([])
     } catch (err: any) {
-      const errorMsg = err.response?.data
-        ? Object.values(err.response.data)[0]?.message
-        : err.message
       toast({
         title: 'Erro ao enviar e-mail',
-        description: errorMsg || err.message,
+        description: getErrorMessage(err),
         variant: 'destructive',
       })
     } finally {
