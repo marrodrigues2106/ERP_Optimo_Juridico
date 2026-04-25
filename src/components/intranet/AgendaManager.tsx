@@ -34,6 +34,17 @@ import {
 } from 'lucide-react'
 import pb from '@/lib/pocketbase/client'
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { ChevronsUpDown, Check } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import {
   format,
   addDays,
   startOfWeek,
@@ -408,6 +419,25 @@ function TaskEditModal({ task, open, onOpenChange, onSuccess }: any) {
     task?.due_date ? task.due_date.substring(0, task?.is_all_day ? 10 : 16) : '',
   )
   const [priority, setPriority] = useState(task?.priority || 'medium')
+  const [cases, setCases] = useState<any[]>([])
+  const [interactions, setInteractions] = useState<any[]>([])
+  const [openRefCombo, setOpenRefCombo] = useState(false)
+  const [linkedLawsuit, setLinkedLawsuit] = useState<string>('none')
+  const [linkedInteraction, setLinkedInteraction] = useState<string>('none')
+
+  useEffect(() => {
+    if (open) {
+      Promise.all([
+        pb.collection('legal_cases').getFullList({ filter: `deleted_at = ""` }),
+        pb.collection('crm_interactions').getFullList({ sort: '-date', expand: 'client' }),
+      ])
+        .then(([caseRes, intRes]) => {
+          setCases(caseRes)
+          setInteractions(intRes)
+        })
+        .catch(console.error)
+    }
+  }, [open])
 
   useEffect(() => {
     if (open && task) {
@@ -415,8 +445,15 @@ function TaskEditModal({ task, open, onOpenChange, onSuccess }: any) {
       setIsAllDay(task.is_all_day || false)
       setDueDate(task.due_date ? task.due_date.substring(0, task.is_all_day ? 10 : 16) : '')
       setPriority(task.priority || 'medium')
+      setLinkedLawsuit(task.linked_lawsuit || 'none')
+      setLinkedInteraction(task.linked_interaction || 'none')
     }
   }, [open, task])
+
+  let selectedRefValue = 'none'
+  if (linkedLawsuit && linkedLawsuit !== 'none') selectedRefValue = `case_${linkedLawsuit}`
+  else if (linkedInteraction && linkedInteraction !== 'none')
+    selectedRefValue = `int_${linkedInteraction}`
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -430,6 +467,8 @@ function TaskEditModal({ task, open, onOpenChange, onSuccess }: any) {
         due_date: finalDate,
         priority,
         is_all_day: isAllDay,
+        linked_lawsuit: linkedLawsuit !== 'none' ? linkedLawsuit : null,
+        linked_interaction: linkedInteraction !== 'none' ? linkedInteraction : null,
       })
       toast({ title: 'Tarefa atualizada com sucesso' })
       onSuccess()
@@ -501,6 +540,104 @@ function TaskEditModal({ task, open, onOpenChange, onSuccess }: any) {
                 <SelectItem value="high">Alta</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div>
+            <Label>Referência Vinculada</Label>
+            <Popover open={openRefCombo} onOpenChange={setOpenRefCombo}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openRefCombo}
+                  className="w-full justify-between font-normal bg-white h-auto min-h-10 py-2 px-3"
+                >
+                  <span className="truncate">
+                    {selectedRefValue !== 'none'
+                      ? selectedRefValue.startsWith('case_')
+                        ? `Processo: ${cases.find((c) => c.id === selectedRefValue.replace('case_', ''))?.case_number || cases.find((c) => c.id === selectedRefValue.replace('case_', ''))?.title || cases.find((c) => c.id === selectedRefValue.replace('case_', ''))?.parties || 'Desconhecido'}`
+                        : `Atendimento: ${new Date(interactions.find((i) => i.id === selectedRefValue.replace('int_', ''))?.date || '').toLocaleDateString('pt-BR')} - ${interactions.find((i) => i.id === selectedRefValue.replace('int_', ''))?.type}`
+                      : 'Nenhuma'}
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Buscar processo ou atendimento..." />
+                  <CommandList className="max-h-[250px]">
+                    <CommandEmpty>Nenhuma referência encontrada.</CommandEmpty>
+                    <CommandGroup heading="Nenhuma">
+                      <CommandItem
+                        value="none"
+                        onSelect={() => {
+                          setLinkedLawsuit('none')
+                          setLinkedInteraction('none')
+                          setOpenRefCombo(false)
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            'mr-2 h-4 w-4',
+                            selectedRefValue === 'none' ? 'opacity-100' : 'opacity-0',
+                          )}
+                        />
+                        Nenhuma
+                      </CommandItem>
+                    </CommandGroup>
+                    <CommandGroup heading="Processos e Serviços">
+                      {cases.map((c) => (
+                        <CommandItem
+                          key={`case_${c.id}`}
+                          value={`case_${c.id} ${c.case_number} ${c.title} ${c.parties}`}
+                          onSelect={() => {
+                            setLinkedLawsuit(c.id)
+                            setLinkedInteraction('none')
+                            setOpenRefCombo(false)
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              'mr-2 h-4 w-4',
+                              selectedRefValue === `case_${c.id}` ? 'opacity-100' : 'opacity-0',
+                            )}
+                          />
+                          <div className="flex flex-col">
+                            <span className="font-medium text-sm">
+                              {c.title || c.parties || 'Sem título'}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              {c.case_number || 'Sem número'}
+                            </span>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                    <CommandGroup heading="Atendimentos">
+                      {interactions.map((i) => (
+                        <CommandItem
+                          key={`int_${i.id}`}
+                          value={`int_${i.id} ${i.type} ${i.expand?.client?.name}`}
+                          onSelect={() => {
+                            setLinkedInteraction(i.id)
+                            setLinkedLawsuit('none')
+                            setOpenRefCombo(false)
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              'mr-2 h-4 w-4',
+                              selectedRefValue === `int_${i.id}` ? 'opacity-100' : 'opacity-0',
+                            )}
+                          />
+                          {new Date(i.date).toLocaleDateString('pt-BR')} - {i.type}{' '}
+                          {i.expand?.client?.name ? `(${i.expand.client.name})` : ''}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
           <div className="flex justify-between pt-4">
             <Button type="button" variant="destructive" onClick={handleDelete}>

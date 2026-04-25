@@ -21,9 +21,19 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { ChevronsUpDown, Check, Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import pb from '@/lib/pocketbase/client'
 import { getErrorMessage } from '@/lib/pocketbase/errors'
-import { Loader2 } from 'lucide-react'
 
 const formSchema = z.object({
   title: z.string().min(1, 'Título é obrigatório'),
@@ -66,6 +76,7 @@ export function EventFormModal({
   const [cases, setCases] = useState<any[]>([])
   const [columns, setColumns] = useState<any[]>([])
   const [interactions, setInteractions] = useState<any[]>([])
+  const [openRefCombo, setOpenRefCombo] = useState(false)
   const isEditing = !!editingEvent && !!editingEvent.id
 
   const {
@@ -92,6 +103,14 @@ export function EventFormModal({
   const watchType = watch('type')
   const watchIsAllDay = watch('is_all_day')
   const watchIsRecurring = watch('is_recurring')
+
+  const linkedLawsuit = watch('linked_lawsuit')
+  const linkedInteraction = watch('linked_interaction')
+
+  let selectedRefValue = 'none'
+  if (linkedLawsuit && linkedLawsuit !== 'none') selectedRefValue = `case_${linkedLawsuit}`
+  else if (linkedInteraction && linkedInteraction !== 'none')
+    selectedRefValue = `int_${linkedInteraction}`
 
   useEffect(() => {
     if (open) {
@@ -489,51 +508,106 @@ export function EventFormModal({
               </div>
             )}
 
-            <div>
-              <Label>Atendimento Vinculado</Label>
-              <Controller
-                name="linked_interaction"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value || 'none'}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Nenhum" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {interactions.map((i) => (
-                        <SelectItem key={i.id} value={i.id}>
-                          {new Date(i.date).toLocaleDateString('pt-BR')} - {i.type}{' '}
-                          {i.expand?.client?.name ? `(${i.expand.client.name})` : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
-
-            <div>
-              <Label>Processo Vinculado</Label>
-              <Controller
-                name="linked_lawsuit"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value || 'none'}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Nenhum" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {cases.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.case_number || c.parties}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
+            <div className="md:col-span-2">
+              <Label>Referência Vinculada</Label>
+              <Popover open={openRefCombo} onOpenChange={setOpenRefCombo}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openRefCombo}
+                    className="w-full justify-between font-normal bg-white h-auto min-h-10 py-2 px-3"
+                  >
+                    <span className="truncate">
+                      {selectedRefValue !== 'none'
+                        ? selectedRefValue.startsWith('case_')
+                          ? `Processo/Serviço: ${cases.find((c) => c.id === selectedRefValue.replace('case_', ''))?.case_number || cases.find((c) => c.id === selectedRefValue.replace('case_', ''))?.title || cases.find((c) => c.id === selectedRefValue.replace('case_', ''))?.parties || 'Desconhecido'}`
+                          : `Atendimento: ${new Date(interactions.find((i) => i.id === selectedRefValue.replace('int_', ''))?.date || '').toLocaleDateString('pt-BR')} - ${interactions.find((i) => i.id === selectedRefValue.replace('int_', ''))?.type}`
+                        : 'Nenhuma'}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-[var(--radix-popover-trigger-width)] p-0"
+                  align="start"
+                >
+                  <Command>
+                    <CommandInput placeholder="Buscar processo ou atendimento..." />
+                    <CommandList className="max-h-[250px]">
+                      <CommandEmpty>Nenhuma referência encontrada.</CommandEmpty>
+                      <CommandGroup heading="Nenhuma">
+                        <CommandItem
+                          value="none"
+                          onSelect={() => {
+                            setValue('linked_lawsuit', 'none', { shouldDirty: true })
+                            setValue('linked_interaction', 'none', { shouldDirty: true })
+                            setOpenRefCombo(false)
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              'mr-2 h-4 w-4',
+                              selectedRefValue === 'none' ? 'opacity-100' : 'opacity-0',
+                            )}
+                          />
+                          Nenhuma
+                        </CommandItem>
+                      </CommandGroup>
+                      <CommandGroup heading="Processos e Serviços">
+                        {cases.map((c) => (
+                          <CommandItem
+                            key={`case_${c.id}`}
+                            value={`case_${c.id} ${c.case_number} ${c.title} ${c.parties}`}
+                            onSelect={() => {
+                              setValue('linked_lawsuit', c.id, { shouldDirty: true })
+                              setValue('linked_interaction', 'none', { shouldDirty: true })
+                              setOpenRefCombo(false)
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                'mr-2 h-4 w-4',
+                                selectedRefValue === `case_${c.id}` ? 'opacity-100' : 'opacity-0',
+                              )}
+                            />
+                            <div className="flex flex-col">
+                              <span className="font-medium text-sm">
+                                {c.title || c.parties || 'Sem título'}
+                              </span>
+                              <span className="text-xs text-slate-500">
+                                {c.case_number || 'Sem número'}
+                              </span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                      <CommandGroup heading="Atendimentos">
+                        {interactions.map((i) => (
+                          <CommandItem
+                            key={`int_${i.id}`}
+                            value={`int_${i.id} ${i.type} ${i.expand?.client?.name}`}
+                            onSelect={() => {
+                              setValue('linked_interaction', i.id, { shouldDirty: true })
+                              setValue('linked_lawsuit', 'none', { shouldDirty: true })
+                              setOpenRefCombo(false)
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                'mr-2 h-4 w-4',
+                                selectedRefValue === `int_${i.id}` ? 'opacity-100' : 'opacity-0',
+                              )}
+                            />
+                            {new Date(i.date).toLocaleDateString('pt-BR')} - {i.type}{' '}
+                            {i.expand?.client?.name ? `(${i.expand.client.name})` : ''}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div>

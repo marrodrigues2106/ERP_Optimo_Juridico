@@ -69,10 +69,10 @@ export const toggleFavoriteLegalCase = async (id: string, is_favorite: boolean) 
   return record
 }
 
-export const bulkFavoriteLegalCases = async (ids: string[]) => {
+export const bulkFavoriteLegalCases = async (ids: string[], is_favorite: boolean = true) => {
   const promises = ids.map(async (id) => {
-    const record = await pb.collection('legal_cases').update(id, { is_favorite: true })
-    await logAudit('legal_cases', record.id, 'update', { is_favorite: true })
+    const record = await pb.collection('legal_cases').update(id, { is_favorite })
+    await logAudit('legal_cases', record.id, 'update', { is_favorite })
     return record
   })
   return Promise.all(promises)

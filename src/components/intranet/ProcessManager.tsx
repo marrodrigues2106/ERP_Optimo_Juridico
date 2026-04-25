@@ -296,12 +296,21 @@ export default function ProcessManager() {
     }
   }
 
-  const handleBulkFavorite = async () => {
+  const handleBulkFavorite = async (is_favorite: boolean = true) => {
     if (selectedIds.length === 0) return
     try {
-      await bulkFavoriteLegalCases(selectedIds)
-      toast({ title: 'Processos favoritados com sucesso' })
+      await bulkFavoriteLegalCases(selectedIds, is_favorite)
+      toast({ title: `Processos ${is_favorite ? 'favoritados' : 'desfavoritados'} com sucesso` })
       setSelectedIds([])
+      loadData()
+    } catch (err: any) {
+      toast({ title: 'Erro ao favoritar', description: err.message, variant: 'destructive' })
+    }
+  }
+
+  const handleToggleFavorite = async (id: string, is_favorite: boolean) => {
+    try {
+      await pb.collection('legal_cases').update(id, { is_favorite })
       loadData()
     } catch (err: any) {
       toast({ title: 'Erro ao favoritar', description: err.message, variant: 'destructive' })
@@ -599,12 +608,20 @@ export default function ProcessManager() {
                         {selectedIds.length} selecionado(s)
                       </span>
                       <Button
-                        onClick={handleBulkFavorite}
+                        onClick={() => handleBulkFavorite(true)}
                         variant="outline"
                         className="border-amber-200 text-amber-600 hover:bg-amber-50 hover:text-amber-700 bg-white"
                       >
-                        <Star className="w-4 h-4 mr-2" />
+                        <Star className="w-4 h-4 mr-2 fill-current" />
                         <span className="hidden sm:inline">Favoritar</span>
+                      </Button>
+                      <Button
+                        onClick={() => handleBulkFavorite(false)}
+                        variant="outline"
+                        className="border-slate-200 text-slate-600 hover:bg-slate-50 bg-white"
+                      >
+                        <Star className="w-4 h-4 mr-2 opacity-50" />
+                        <span className="hidden sm:inline">Desfavoritar</span>
                       </Button>
                     </>
                   )}
@@ -679,9 +696,28 @@ export default function ProcessManager() {
                                 >
                                   {c.title || c.parties || 'Sem título'}
                                 </Link>
-                                {c.is_favorite && (
-                                  <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                                )}
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    handleToggleFavorite(c.id, !c.is_favorite)
+                                  }}
+                                  className="focus:outline-none focus:ring-2 focus:ring-primary rounded-sm"
+                                  title={
+                                    c.is_favorite
+                                      ? 'Remover dos favoritos'
+                                      : 'Adicionar aos favoritos'
+                                  }
+                                >
+                                  <Star
+                                    className={cn(
+                                      'w-4 h-4 transition-colors',
+                                      c.is_favorite
+                                        ? 'text-amber-400 fill-amber-400'
+                                        : 'text-slate-300 hover:text-amber-400 hover:fill-amber-100',
+                                    )}
+                                  />
+                                </button>
                                 {c.lifecycle_status === 'Arquivado' && (
                                   <Badge
                                     variant="secondary"

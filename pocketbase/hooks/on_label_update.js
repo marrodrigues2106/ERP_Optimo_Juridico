@@ -39,18 +39,17 @@ onRecordAfterUpdateSuccess((e) => {
         let t = tagsArray[j]
 
         if (typeof t !== 'string') {
-          updated = true
+          newTagsArray.push(t)
           continue
         }
 
-        t = t.trim()
+        const tTrimmed = t.trim()
 
-        // Exact match string comparison
-        if (t === originalName) {
+        if (tTrimmed === originalName) {
           updated = true
           newTagsArray.push(newName)
         } else {
-          newTagsArray.push(t)
+          newTagsArray.push(tTrimmed)
         }
       }
 
@@ -58,13 +57,18 @@ onRecordAfterUpdateSuccess((e) => {
         const uniqueTags = []
         for (let j = 0; j < newTagsArray.length; j++) {
           const val = newTagsArray[j]
-          if (val && typeof val === 'string' && val.trim() !== '' && !uniqueTags.includes(val)) {
+          if (typeof val === 'string' && val.trim() === '') continue
+
+          const isDuplicate = uniqueTags.some((ut) =>
+            typeof ut === 'string' && typeof val === 'string' ? ut === val : ut === val,
+          )
+
+          if (!isDuplicate) {
             uniqueTags.push(val)
           }
         }
 
         record.set('tags', uniqueTags)
-        // txApp ensures updates are committed atomically
         txApp.saveNoValidate(record)
       }
     }
