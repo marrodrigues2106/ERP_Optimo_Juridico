@@ -53,22 +53,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -188,12 +173,12 @@ function MovementWhatsAppModal({ open, onOpenChange, validPhones, getMessageText
             />
           </div>
         </div>
-        <div className="flex justify-end gap-2">
+        <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
           <Button onClick={handleOpenWhatsApp}>Abrir WhatsApp</Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
@@ -283,7 +268,7 @@ function MovementEmailModal({ open, onOpenChange, validEmails, caseNumber, getMe
             />
           </div>
         </div>
-        <div className="flex justify-end gap-2">
+        <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending}>
             Cancelar
           </Button>
@@ -291,7 +276,7 @@ function MovementEmailModal({ open, onOpenChange, validEmails, caseNumber, getMe
             {isSending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
             Enviar E-mail
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
