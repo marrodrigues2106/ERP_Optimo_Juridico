@@ -8,6 +8,7 @@ routerAdd(
     const publishTo = body.publishTo || ''
     const orgPrin = body.orgPrin || ''
     const secao = body.secao || 'todos'
+    const searchMode = body.searchMode || 'exact'
 
     const user = e.auth
     if (!user) return e.unauthorizedError('Não autorizado')
@@ -76,7 +77,13 @@ routerAdd(
       const orgId = user.getString('active_organization') || ''
       const terms = q
         .split(' OR ')
-        .map((t) => t.trim())
+        .map((t) => {
+          let cleanT = t.trim()
+          if (searchMode === 'exact') {
+            cleanT = cleanT.replace(/^"|"$/g, '')
+          }
+          return cleanT
+        })
         .filter(Boolean)
       const termsFilters =
         terms.length > 0
@@ -86,7 +93,7 @@ routerAdd(
                 return `(texto_normalizado ~ '${safeT}' || titulo ~ '${safeT}')`
               })
               .join(' || ')
-          : `(texto_normalizado ~ '${q.replace(/'/g, "''")}' || titulo ~ '${q.replace(/'/g, "''")}')`
+          : `(texto_normalizado ~ '${q.replace(/'/g, "''").replace(/^"|"$/g, '')}' || titulo ~ '${q.replace(/'/g, "''").replace(/^"|"$/g, '')}')`
 
       let filter = `data_publicacao >= '${publishFrom} 00:00:00.000Z' && data_publicacao <= '${publishTo} 23:59:59.999Z' && (${termsFilters})`
 

@@ -6,10 +6,11 @@ export const searchDouInit = async (
   publishTo?: string,
   orgPrin?: string,
   secao?: string,
+  searchMode?: string,
 ) => {
   return pb.send('/backend/v1/dou/search', {
     method: 'POST',
-    body: JSON.stringify({ q, publishFrom, publishTo, orgPrin, secao }),
+    body: JSON.stringify({ q, publishFrom, publishTo, orgPrin, secao, searchMode }),
   })
 }
 
@@ -20,9 +21,10 @@ export const searchDouRun = async (
   publishTo?: string,
   orgPrin?: string,
   secao?: string,
+  searchMode?: string,
 ) => {
   return pb.send('/backend/v1/dou/search/run', {
     method: 'POST',
-    body: JSON.stringify({ jobId, q, publishFrom, publishTo, orgPrin, secao }),
+    body: JSON.stringify({ jobId, q, publishFrom, publishTo, orgPrin, secao, searchMode }),
   })
 }

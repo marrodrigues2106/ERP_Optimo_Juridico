@@ -10,6 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/hooks/use-toast'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -31,6 +33,9 @@ export function DouSearch() {
   const [orgPrin, setOrgPrin] = useState('')
   const [secao, setSecao] = useState('todos')
 
+  const [searchMode, setSearchMode] = useState<'exact' | 'flexible'>('exact')
+  const [forceExternal, setForceExternal] = useState(false)
+
   const [jobId, setJobId] = useState<string | null>(null)
   const [progressMsg, setProgressMsg] = useState('')
   const [progressValue, setProgressValue] = useState(0)
@@ -46,7 +51,13 @@ export function DouSearch() {
             const page = e.record.metadados?.page || 1
             setProgressValue(Math.min(90, 20 + page * 5))
           }
-          if (e.record.etapa === 'Finalizado') setProgressValue(100)
+          if (e.record.etapa === 'Finalizado') {
+            setProgressValue(100)
+            setLoading(false)
+            if (source.includes('Buscando')) {
+              setSource((prev) => prev.replace('Buscando Novos (API)...', 'API (DOU)'))
+            }
+          }
         }
       }
     },
@@ -101,55 +112,90 @@ export function DouSearch() {
     setProgressValue(5)
     setJobId(null)
 
-    // Format terms with OR if separated by comma
-    const formattedQ = q.includes(',')
-      ? q
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean)
-          .join(' OR ')
-      : q
+    const isExact = searchMode === 'exact'
+    const terms = q
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean)
+
+    const formattedQ = terms
+      .map((t) => {
+        if (isExact && !t.startsWith('"') && !t.endsWith('"')) {
+          return `"${t}"`
+        }
+        return t
+      })
+      .join(' OR ')
 
     try {
-      const res = await searchDouInit(formattedQ, publishFrom, publishTo, orgPrin, secao)
+      const res = await searchDouInit(
+        formattedQ,
+        publishFrom,
+        publishTo,
+        orgPrin,
+        secao,
+        searchMode,
+      )
 
-      if (res.localItems && res.localItems.length > 0) {
+      let localResultsCount = res.localItems?.length || 0
+
+      if (localResultsCount > 0) {
         setResults(res.localItems)
-        setSource('Cache Local + Buscando Novos...')
         toast({
           title: 'Resultados Locais',
-          description: `${res.localItems.length} publicações em cache exibidas imediatamente.`,
+          description: `${localResultsCount} publicações em cache exibidas imediatamente.`,
         })
-      } else {
-        setSource('Buscando Novos...')
       }
 
-      const newJobId = res.jobId
-      setJobId(newJobId)
-      setProgressValue(10)
+      if (localResultsCount === 0 || forceExternal) {
+        setSource(
+          localResultsCount > 0 ? 'Cache Local + Buscando Novos (API)' : 'Buscando Novos (API)...',
+        )
+        const newJobId = res.jobId
+        setJobId(newJobId)
+        setProgressValue(10)
 
-      searchDouRun(newJobId, formattedQ, publishFrom, publishTo, orgPrin, secao)
-        .then((runRes) => {
-          setLoading(false)
-          setProgressMsg('Busca concluída.')
-          setProgressValue(100)
-          setSource((prev) =>
-            prev.replace(' + Buscando Novos...', '').replace('Buscando Novos...', 'Origem (DOU)'),
-          )
-          if (runRes.count > 0) {
-            toast({
-              title: 'Busca Concluída',
-              description: `Novas publicações encontradas e salvas.`,
-            })
-          } else {
-            toast({ title: 'Busca Concluída', description: 'Nenhuma nova publicação na origem.' })
-          }
-        })
-        .catch((err) => {
-          setLoading(false)
-          setProgressMsg('Erro no processamento em segundo plano.')
-          toast({ title: 'Erro', description: err.message, variant: 'destructive' })
-        })
+        searchDouRun(newJobId, formattedQ, publishFrom, publishTo, orgPrin, secao, searchMode)
+          .then((runRes) => {
+            setLoading(false)
+            setProgressMsg('Busca concluída.')
+            setProgressValue(100)
+            setSource((prev) =>
+              prev
+                .replace(' + Buscando Novos (API)', '')
+                .replace(
+                  'Buscando Novos (API)...',
+                  runRes.source === 'DOU_API' ? 'API (DOU)' : 'Scraping (DOU)',
+                ),
+            )
+            if (runRes.count > 0) {
+              toast({
+                title: 'Busca Concluída',
+                description: `${runRes.count} novas publicações encontradas e salvas.`,
+              })
+            } else if (localResultsCount === 0) {
+              toast({ title: 'Busca Concluída', description: 'Nenhuma nova publicação na origem.' })
+            }
+          })
+          .catch((err) => {
+            if (err.status === 0 || err.isAbort || err.message?.toLowerCase().includes('timeout')) {
+              toast({
+                title: 'Aviso de Tempo',
+                description:
+                  'A busca no DOU está demorando, mas continua rodando em segundo plano. Os resultados aparecerão automaticamente quando encontrados.',
+              })
+            } else {
+              setLoading(false)
+              setProgressMsg('Erro no processamento.')
+              toast({ title: 'Erro', description: err.message, variant: 'destructive' })
+            }
+          })
+      } else {
+        setLoading(false)
+        setSource('Local (Banco de Dados)')
+        setProgressMsg('Busca concluída usando cache local.')
+        setProgressValue(100)
+      }
     } catch (err: any) {
       setLoading(false)
       setProgressMsg('')
@@ -168,7 +214,7 @@ export function DouSearch() {
           <BookOpen className="w-7 h-7 md:w-8 md:h-8 text-emerald-600" /> Motor de Busca DOU
         </h1>
         <p className="text-sm md:text-base text-slate-500 mt-2">
-          Busca otimizada e assíncrona no Diário Oficial da União.
+          Busca otimizada e precisa no Diário Oficial da União.
         </p>
       </div>
 
@@ -182,16 +228,43 @@ export function DouSearch() {
         <CardContent>
           <form onSubmit={handleSearch} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+              <div className="md:col-span-12 flex flex-col gap-3 mb-2">
+                <Label className="text-base font-semibold">Modo de Busca</Label>
+                <RadioGroup
+                  value={searchMode}
+                  onValueChange={(v) => setSearchMode(v as 'exact' | 'flexible')}
+                  className="flex flex-col sm:flex-row gap-4 sm:gap-6"
+                >
+                  <div className="flex items-center space-x-2 bg-white p-3 rounded-md border border-slate-200 cursor-pointer w-full sm:w-auto hover:bg-slate-50 transition-colors">
+                    <RadioGroupItem value="exact" id="mode-exact" />
+                    <Label htmlFor="mode-exact" className="font-medium cursor-pointer">
+                      Busca Exata <span className="text-slate-500 font-normal">(Frase exata)</span>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2 bg-white p-3 rounded-md border border-slate-200 cursor-pointer w-full sm:w-auto hover:bg-slate-50 transition-colors">
+                    <RadioGroupItem value="flexible" id="mode-flexible" />
+                    <Label htmlFor="mode-flexible" className="font-medium cursor-pointer">
+                      Busca Flexível{' '}
+                      <span className="text-slate-500 font-normal">(Termos amplos)</span>
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
               <div className="md:col-span-6 flex flex-col gap-2">
                 <Label>Termo de Busca *</Label>
                 <Input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder="Ex: Termo 1, Termo 2"
+                  placeholder={
+                    searchMode === 'exact' ? 'Ex: Marcelo Moraes Rodrigues' : 'Ex: Marcelo, Moraes'
+                  }
                   required
                 />
                 <p className="text-xs text-slate-500 mt-1">
-                  Separe os termos por vírgula para buscar qualquer um deles (OR).
+                  {searchMode === 'exact'
+                    ? 'O sistema adicionará aspas automaticamente. Separe por vírgula para múltiplos termos (OR).'
+                    : 'Separe os termos por vírgula para buscar qualquer um deles (OR).'}
                 </p>
               </div>
               <div className="md:col-span-3 flex flex-col gap-2">
@@ -237,6 +310,21 @@ export function DouSearch() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="md:col-span-12 flex items-center space-x-2 mt-2 bg-slate-50 p-3 rounded-md border border-slate-100">
+                <Checkbox
+                  id="force-external"
+                  checked={forceExternal}
+                  onCheckedChange={(checked) => setForceExternal(!!checked)}
+                />
+                <Label
+                  htmlFor="force-external"
+                  className="font-normal cursor-pointer text-sm text-slate-700"
+                >
+                  Forçar nova busca na origem (Ignorar resultados em cache e buscar atualizações no
+                  DOU)
+                </Label>
+              </div>
             </div>
 
             {loading && (
@@ -260,7 +348,7 @@ export function DouSearch() {
                 ) : (
                   <Search className="w-4 h-4 mr-2" />
                 )}
-                {loading ? 'Buscando...' : 'Pesquisar no DOU'}
+                {loading ? 'Processando Busca...' : 'Pesquisar no DOU'}
               </Button>
             </div>
           </form>
@@ -299,10 +387,12 @@ export function DouSearch() {
                       <Badge variant="secondary" className="text-[10px] uppercase">
                         <Activity className="w-3 h-3 mr-1" />
                         {r.fonte_coleta === 'LOCAL_DB'
-                          ? 'Cache Local'
-                          : r.fonte_coleta === 'DOU_SCRAPING'
-                            ? 'Origem (DOU)'
-                            : r.fonte_coleta}
+                          ? 'Local (Banco de Dados)'
+                          : r.fonte_coleta === 'DOU_API'
+                            ? 'API (DOU)'
+                            : r.fonte_coleta === 'DOU_SCRAPING'
+                              ? 'Scraping (DOU)'
+                              : r.fonte_coleta}
                       </Badge>
                     </div>
                   </div>

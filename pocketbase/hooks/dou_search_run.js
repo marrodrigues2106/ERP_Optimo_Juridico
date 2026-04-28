@@ -8,6 +8,7 @@ routerAdd(
     const publishTo = body.publishTo || ''
     const orgPrin = body.orgPrin || ''
     const secao = body.secao || 'todos'
+    const searchMode = body.searchMode || 'exact'
     const jobId = body.jobId || 'unknown'
 
     const user = e.auth
@@ -346,7 +347,7 @@ routerAdd(
             texto_normalizado: content,
             url_origem: url,
             hash_conteudo: hash,
-            fonte_coleta: 'DOU_SCRAPING',
+            fonte_coleta: 'DOU_API',
             data_publicacao: parsedDate,
             data_coleta: new Date().toISOString().replace('T', ' '),
             status_processamento: 'processado',
@@ -412,7 +413,7 @@ routerAdd(
       } catch (e) {}
     }
 
-    return e.json(200, { success: true, count: scrapedItems.length, source: 'DOU_SCRAPING' })
+    return e.json(200, { success: true, count: scrapedItems.length, source: 'DOU_API' })
   },
   $apis.requireAuth(),
 )
