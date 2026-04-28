@@ -223,10 +223,24 @@ routerAdd(
         })
 
         if (res && res.headers) {
-          const setCookie = res.headers['set-cookie'] || res.headers['Set-Cookie']
+          let setCookie = res.headers['set-cookie'] || res.headers['Set-Cookie']
           if (setCookie) {
-            const newCookies = setCookie.split(',').map((c) => c.split(';')[0].trim())
-            activeCookies = [...new Set([...activeCookies, ...newCookies])]
+            try {
+              if (Array.isArray(setCookie)) {
+                setCookie = setCookie.join(',')
+              }
+              if (typeof setCookie === 'string') {
+                const newCookies = setCookie.split(',').map((c) => c.split(';')[0].trim())
+                activeCookies = [...new Set([...activeCookies, ...newCookies])]
+              }
+            } catch (cookieErr) {
+              logAction(
+                'Erro ao processar cookies',
+                { error: cookieErr.toString() },
+                'Aviso',
+                'request',
+              )
+            }
           }
         }
       } catch (err) {
@@ -313,7 +327,7 @@ routerAdd(
       let forceNoCache = false
       let useCursor = true
 
-      while (keepPaginating && pagesCount < 50) {
+      while (keepPaginating && pagesCount < 15) {
         pagesCount++
         const params = new URLSearchParams()
         params.append('q', q)
@@ -357,17 +371,33 @@ routerAdd(
 
         if (jsonArrayMatch && jsonArrayMatch[1]) {
           let jsonArray = []
+          let rawJsonStr = jsonArrayMatch[1]
           try {
-            jsonArray = JSON.parse(jsonArrayMatch[1])
+            jsonArray = JSON.parse(rawJsonStr)
           } catch (err) {
-            logAction(
-              'Erro ao fazer parse do jsonArray',
-              { error: err.toString() },
-              'Falha',
-              'parsing',
-            )
-            keepPaginating = false
-            break
+            try {
+              let sanitized = rawJsonStr.replace(/,\s*\]$/, ']')
+              const lastBracket = sanitized.lastIndexOf(']')
+              if (lastBracket !== -1) {
+                sanitized = sanitized.substring(0, lastBracket + 1)
+              }
+              jsonArray = JSON.parse(sanitized)
+            } catch (err2) {
+              logAction(
+                'Erro ao fazer parse do jsonArray',
+                {
+                  error: err2.toString(),
+                  snippet:
+                    rawJsonStr.length > 200
+                      ? rawJsonStr.substring(rawJsonStr.length - 200)
+                      : rawJsonStr,
+                },
+                'error',
+                'parse_json',
+              )
+              keepPaginating = false
+              break
+            }
           }
 
           if (jsonArray.length === 0) {
