@@ -40,7 +40,7 @@ onRecordAfterCreateSuccess((e) => {
       return defaultEmail
     }
 
-    const orgao = gazette.getString('orgao') || 'DOU'
+    const orgao = gazette.getString('orgao') || 'Diário Oficial'
     let numList = gazette.get('numero_processo')
     let primaryNum = 'Publicação'
     if (numList) {
@@ -95,7 +95,7 @@ onRecordAfterCreateSuccess((e) => {
             body: JSON.stringify({
               from: fromEmail,
               to: to,
-              subject: `Publicação DOU: ${primaryNum}`,
+              subject: `Nova Publicação: ${primaryNum}`,
               html: htmlBody,
             }),
             timeout: 15,
