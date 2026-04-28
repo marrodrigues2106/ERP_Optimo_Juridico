@@ -27,6 +27,7 @@ export function DouSearch() {
   const [publishFrom, setPublishFrom] = useState('')
   const [publishTo, setPublishTo] = useState('')
   const [searchType, setSearchType] = useState('palavras_chave')
+  const [orgPrin, setOrgPrin] = useState('')
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -43,7 +44,7 @@ export function DouSearch() {
     setResults([])
     setSource('')
     try {
-      const res = await searchDou(q, publishFrom, publishTo, searchType)
+      const res = await searchDou(q, publishFrom, publishTo, searchType, orgPrin)
 
       if (res.items && res.items.length > 0) {
         setResults(res.items)
@@ -126,6 +127,14 @@ export function DouSearch() {
                   value={publishTo}
                   onChange={(e) => setPublishTo(e.target.value)}
                   required
+                />
+              </div>
+              <div className="md:col-span-4 flex flex-col gap-2">
+                <Label>Órgão (Opcional)</Label>
+                <Input
+                  value={orgPrin}
+                  onChange={(e) => setOrgPrin(e.target.value)}
+                  placeholder="Ex: Ministério da Fazenda, Receita Federal..."
                 />
               </div>
             </div>

@@ -7,6 +7,7 @@ routerAdd(
     const publishFrom = body.publishFrom || ''
     const publishTo = body.publishTo || ''
     const searchType = body.searchType || 'palavras_chave'
+    const orgPrin = body.orgPrin || ''
 
     const user = e.auth
     if (!user) return e.unauthorizedError('Não autorizado')
@@ -78,13 +79,57 @@ routerAdd(
 
     function cleanContent(text) {
       if (!text) return ''
-      let cleaned = text.replace(/<[^>]*>?/gm, ' ')
+      let cleaned = text
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, ' ')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+      cleaned = cleaned.replace(/<[^>]*>?/gm, ' ')
       cleaned = cleaned.replace(/\s+/g, ' ').trim()
       cleaned = cleaned.replace(
         /Este documento pode ser verificado no endereço eletrônico[^\.]*\./gi,
         '',
       )
       return cleaned.trim()
+    }
+
+    function mapArtType(artTypeRaw) {
+      if (!artTypeRaw) return ''
+      const map = {
+        SOLUCAO_CONSULTA: 'Solução de Consulta',
+        PORTARIA: 'Portaria',
+        RESOLUCAO: 'Resolução',
+        INSTRUCAO_NORMATIVA: 'Instrução Normativa',
+        ATO_DECLARATORIO: 'Ato Declaratório',
+        ATO_DECLARATORIO_EXECUTIVO: 'Ato Declaratório Executivo',
+        DECISAO: 'Decisão',
+        DECRETO: 'Decreto',
+        LEI: 'Lei',
+        MEDIDA_PROVISORIA: 'Medida Provisória',
+        EMENDA_CONSTITUCIONAL: 'Emenda Constitucional',
+        SULACO_DE_DIVERGENCIA: 'Solução de Divergência',
+        ACORDAO: 'Acórdão',
+        PARECER: 'Parecer',
+        DESPACHO: 'Despacho',
+        EXTRATO: 'Extrato',
+        AVISO: 'Aviso',
+        COMUNICADO: 'Comunicado',
+        EDITAL: 'Edital',
+        ATA: 'Ata',
+        CONTRATO: 'Contrato',
+        TERMO_ADITIVO: 'Termo Aditivo',
+        LICITACAO: 'Licitação',
+        HOMOLOGACAO: 'Homologação',
+        RESULTADO: 'Resultado',
+        RETIFICACAO: 'Retificação',
+      }
+      if (map[artTypeRaw]) return map[artTypeRaw]
+      return artTypeRaw
+        .split('_')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ')
     }
 
     function isMatch(rawText, term, type) {
@@ -324,6 +369,7 @@ routerAdd(
       let consecutiveEmptyPages = 0
       let forceNoCache = false
       let useCursor = true
+      let lastCursor = null
 
       while (keepPaginating && pagesCount < 15) {
         pagesCount++
@@ -334,12 +380,20 @@ routerAdd(
         params.append('sortType', '0')
         params.append('delta', delta.toString())
         params.append('start', start.toString())
-        if (!useCursor) {
+
+        if (useCursor && lastCursor) {
+          params.append('useCursor', 'true')
+          if (lastCursor.score) params.append('score', lastCursor.score.toString())
+          if (lastCursor.id) params.append('id', lastCursor.id.toString())
+          if (lastCursor.displayDate)
+            params.append('displayDate', lastCursor.displayDate.toString())
+        } else if (!useCursor) {
           params.append('useCursor', 'false')
         }
 
         if (chunk.from) params.append('publishFrom', chunk.from)
         if (chunk.to) params.append('publishTo', chunk.to)
+        if (orgPrin) params.append('orgPrin', orgPrin)
 
         const inUrl = `https://www.in.gov.br/consulta/-/buscar/dou?${params.toString()}`
 
@@ -366,7 +420,7 @@ routerAdd(
               message: 'Bloqueio de WAF, Manutenção ou CAPTCHA detectado.',
               snippet: html.substring(0, 200),
             },
-            'warning',
+            'error',
             'request',
           )
           keepPaginating = false
@@ -422,7 +476,7 @@ routerAdd(
             jsonArray = JSON.parse(rawJsonStr)
           } catch (err) {
             logAction(
-              'partial_response',
+              'parse_error',
               {
                 message: 'Falha ao fazer parse do jsonArray (resposta incompleta ou truncada)',
                 error: err?.toString(),
@@ -431,7 +485,7 @@ routerAdd(
                     ? rawJsonStr.substring(rawJsonStr.length - 200)
                     : rawJsonStr,
               },
-              'warning',
+              'error',
               'parse_json',
             )
             keepPaginating = false
@@ -443,10 +497,14 @@ routerAdd(
             break
           }
 
-          const currentPageLastId =
-            jsonArray[jsonArray.length - 1].urlTitle ||
-            jsonArray[jsonArray.length - 1].id ||
-            'unknown'
+          const lastItem = jsonArray[jsonArray.length - 1]
+          lastCursor = {
+            score: lastItem.score,
+            id: lastItem.id,
+            displayDate: lastItem.displayDate || lastItem.pubDate,
+          }
+
+          const currentPageLastId = lastItem.urlTitle || lastItem.id || 'unknown'
 
           if (currentPageLastId === lastPageId && currentPageLastId !== 'unknown') {
             consecutiveIdenticalId++
@@ -614,7 +672,7 @@ routerAdd(
               editionNumber: cleanContent(item.editionNumber || ''),
               numberPage: cleanContent(item.numberPage || ''),
               hierarchyStr: cleanContent(item.hierarchyStr || ''),
-              artType: cleanContent(item.artType || ''),
+              artType: mapArtType(cleanContent(item.artType || '')),
               organization: orgId,
             }
 
