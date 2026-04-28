@@ -20,7 +20,7 @@ routerAdd(
       return e.badRequestError("Parâmetro 'q' é obrigatório.")
     }
 
-    function logAction(mensagem, metadados, status = 'info', etapa = 'geral') {
+    function logAction(mensagem, metadados, status = 'Sucesso', etapa = 'request') {
       try {
         const sysCol = $app.findCollectionByNameOrId('logs_processamento')
         const sysR = new Record(sysCol)
@@ -124,7 +124,7 @@ routerAdd(
       for (const t of tokens) {
         if (normText.includes(t)) matchCount++
       }
-      if (matchCount / tokens.length >= 0.5) return { match: true }
+      if (matchCount === tokens.length) return { match: true }
 
       return { match: false, reason: 'baixa_relevancia' }
     }
@@ -181,6 +181,8 @@ routerAdd(
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
     ]
 
+    let activeCookies = []
+
     function fetchWithRetry(url, attempt = 1, uaIndex = 0, forceNoCache = false) {
       const headers = {
         'User-Agent': uas[uaIndex % uas.length],
@@ -193,6 +195,9 @@ routerAdd(
         headers['Pragma'] = 'no-cache'
         headers['Expires'] = '0'
       }
+      if (activeCookies.length > 0) {
+        headers['Cookie'] = activeCookies.join('; ')
+      }
 
       let res = null
       try {
@@ -202,13 +207,21 @@ routerAdd(
           headers: headers,
           timeout: 30,
         })
+
+        if (res && res.headers) {
+          const setCookie = res.headers['set-cookie'] || res.headers['Set-Cookie']
+          if (setCookie) {
+            const newCookies = setCookie.split(',').map((c) => c.split(';')[0].trim())
+            activeCookies = [...new Set([...activeCookies, ...newCookies])]
+          }
+        }
       } catch (err) {
         if (attempt >= 3) {
           logAction(
             'Falha ao buscar após tentativas máximas (Network/Timeout)',
             { url, error: err.toString() },
-            'error',
-            'fetchWithRetry',
+            'Falha',
+            'request',
           )
           return { statusCode: 0, body: null }
         }
@@ -216,8 +229,8 @@ routerAdd(
         logAction(
           `Erro de rede/timeout. Retentando em ${delay}ms (tentativa ${attempt + 1})`,
           { url },
-          'warning',
-          'fetchWithRetry',
+          'Aviso',
+          'request',
         )
         sleep(delay)
         return fetchWithRetry(url, attempt + 1, uaIndex + 1, forceNoCache)
@@ -229,8 +242,8 @@ routerAdd(
         logAction(
           'Falha ao buscar após tentativas máximas (HTTP)',
           { url, statusCode: res ? res.statusCode : 0 },
-          'error',
-          'fetchWithRetry',
+          'Falha',
+          'request',
         )
         return res || { statusCode: 0, body: null }
       }
@@ -245,8 +258,8 @@ routerAdd(
       logAction(
         `Erro HTTP ${res ? res.statusCode : 0}. Retentando em ${delay}ms (tentativa ${attempt + 1})`,
         { url },
-        'warning',
-        'fetchWithRetry',
+        'Aviso',
+        'request',
       )
       sleep(delay)
       return fetchWithRetry(url, attempt + 1, uaIndex + 1, forceNoCache)
@@ -255,15 +268,15 @@ routerAdd(
     logAction(
       'Iniciando busca DOU',
       { q, publishFrom, publishTo, searchType },
-      'info',
-      'iniciar_busca',
+      'Sucesso',
+      'request',
     )
 
     let scrapedItems = []
     let fallbackItems = []
 
     const dateChunks = generateChunks(publishFrom, publishTo)
-    logAction('Partições geradas', { chunksCount: dateChunks.length }, 'info', 'particionamento')
+    logAction('Partições geradas', { chunksCount: dateChunks.length }, 'Sucesso', 'request')
 
     const col = $app.findCollectionByNameOrId('publicacoes_dou')
     const orgId = e.auth?.getString('active_organization') || ''
@@ -332,8 +345,8 @@ routerAdd(
             logAction(
               'Erro ao fazer parse do jsonArray',
               { error: err.toString() },
-              'error',
-              'parse_json',
+              'Falha',
+              'parsing',
             )
             keepPaginating = false
             break
@@ -354,43 +367,34 @@ routerAdd(
             logAction(
               'Loop de paginação detectado',
               { consecutiveIdenticalId, start, currentPageLastId },
-              'warning',
-              'paginacao',
+              'Aviso',
+              'request',
             )
 
             if (consecutiveIdenticalId === 1) {
               start += 1
-              logAction(
-                'Aplicando Estratégia 1: Pulo Temporal',
-                { start },
-                'info',
-                'recuperacao_loop',
-              )
+              logAction('Aplicando Estratégia 1: Pulo Temporal', { start }, 'Aviso', 'request')
             } else if (consecutiveIdenticalId === 2) {
               delta = 21
-              logAction(
-                'Aplicando Estratégia 2: Quebra de Cache',
-                { delta },
-                'info',
-                'recuperacao_loop',
-              )
+              logAction('Aplicando Estratégia 2: Quebra de Cache', { delta }, 'Aviso', 'request')
             } else if (consecutiveIdenticalId === 3) {
               uaIndex++
               forceNoCache = true
+              activeCookies = []
               delta = 25
               start += delta
               logAction(
                 'Aplicando Estratégia 3: Reset de Sessão',
                 { uaIndex, delta, start },
-                'info',
-                'recuperacao_loop',
+                'Aviso',
+                'request',
               )
             } else {
               logAction(
                 'Loop irrecuperável, abortando paginação desta partição',
                 {},
-                'error',
-                'paginacao',
+                'Falha',
+                'request',
               )
               keepPaginating = false
               break
@@ -418,8 +422,8 @@ routerAdd(
                   discardReason: 'url_duplicada_na_sessao',
                   discardSnippet: title.substring(0, 150),
                 },
-                'info',
-                'deduplicacao',
+                'Sucesso',
+                'normalization',
               )
               continue
             }
@@ -440,8 +444,8 @@ routerAdd(
                   discardReason: matchResult.reason,
                   discardSnippet: content.substring(0, 150),
                 },
-                'info',
-                'filtragem_match',
+                'Sucesso',
+                'normalization',
               )
               continue
             }
@@ -462,15 +466,10 @@ routerAdd(
                   if (pTo && dObj > pTo) isValidDate = false
                 }
               } else {
-                logAction(
-                  'Aviso de Data Inconsistente',
-                  { url, pubDate },
-                  'warning',
-                  'filtragem_temporal',
-                )
+                logAction('Aviso de Data Inconsistente', { url, pubDate }, 'Aviso', 'normalization')
               }
             } else {
-              logAction('Aviso de Data Ausente', { url }, 'warning', 'filtragem_temporal')
+              logAction('Aviso de Data Ausente', { url }, 'Aviso', 'normalization')
             }
 
             if (!isValidDate) {
@@ -482,8 +481,8 @@ routerAdd(
                   discardReason: 'fora_do_periodo',
                   discardSnippet: content.substring(0, 150),
                 },
-                'info',
-                'filtragem_temporal',
+                'Sucesso',
+                'normalization',
               )
               continue
             }
@@ -525,8 +524,8 @@ routerAdd(
                     discardReason: 'duplicado_em_publicacoes_dou',
                     discardSnippet: content.substring(0, 150),
                   },
-                  'info',
-                  'deduplicacao',
+                  'Sucesso',
+                  'normalization',
                 )
                 scrapedItems.push({
                   id: existing.id,
@@ -562,8 +561,8 @@ routerAdd(
                       discardReason: 'duplicado_em_gazette_publications',
                       discardSnippet: content.substring(0, 150),
                     },
-                    'info',
-                    'deduplicacao',
+                    'Sucesso',
+                    'normalization',
                   )
                 }
               } catch (_) {}
@@ -584,8 +583,8 @@ routerAdd(
                 logAction(
                   'Erro ao salvar publicação',
                   { error: saveErr.toString(), url },
-                  'error',
-                  'salvamento',
+                  'Falha',
+                  'normalization',
                 )
               }
             }
@@ -597,8 +596,8 @@ routerAdd(
               logAction(
                 'Muitas páginas vazias consecutivas, abortando partição',
                 { chunk, pagesCount },
-                'warning',
-                'paginacao',
+                'Aviso',
+                'request',
               )
               keepPaginating = false
               break
@@ -625,8 +624,8 @@ routerAdd(
       logAction(
         'Scraping concluído com sucesso',
         { count: scrapedItems.length },
-        'info',
-        'finalizacao',
+        'Sucesso',
+        'request',
       )
       const uniqueItems = []
       const seenIds = new Set()
@@ -636,13 +635,18 @@ routerAdd(
           uniqueItems.push(item)
         }
       }
-      return e.json(200, { source: 'DOU_SCRAPING', items: uniqueItems })
+      return e.json(200, {
+        success: true,
+        count: uniqueItems.length,
+        source: 'DOU_SCRAPING',
+        items: uniqueItems,
+      })
     } else if (hasScrapingSuccess && scrapedItems.length === 0) {
-      return e.json(200, { source: 'DOU_SCRAPING', items: [] })
+      return e.json(200, { success: true, count: 0, source: 'DOU_SCRAPING', items: [] })
     }
 
     try {
-      logAction('Iniciando fallback Querido Diário', { q }, 'info', 'fallback')
+      logAction('Iniciando fallback Querido Diário', { q }, 'Sucesso', 'request')
       const qdUrl = `https://queridodiario.ok.org.br/api/gazettes?querystring=${encodeURIComponent(q)}`
 
       let res
@@ -685,8 +689,8 @@ routerAdd(
                   discardReason: matchResult.reason,
                   discardSnippet: content.substring(0, 150),
                 },
-                'info',
-                'fallback',
+                'Sucesso',
+                'normalization',
               )
               continue
             }
@@ -718,8 +722,8 @@ routerAdd(
                   discardReason: 'fora_do_periodo',
                   discardSnippet: content.substring(0, 150),
                 },
-                'info',
-                'fallback',
+                'Sucesso',
+                'normalization',
               )
               continue
             }
@@ -790,16 +794,21 @@ routerAdd(
         }
       }
     } catch (err) {
-      logAction('Erro fallback QD', { error: err.toString() }, 'error', 'fallback')
+      logAction('Erro fallback QD', { error: err.toString() }, 'Falha', 'request')
     }
 
     logAction(
       'Busca finalizada',
       { count: fallbackItems.length, source: 'QUERIDO_DIARIO' },
-      'info',
-      'finalizacao',
+      'Sucesso',
+      'request',
     )
-    return e.json(200, { source: 'QUERIDO_DIARIO', items: fallbackItems })
+    return e.json(200, {
+      success: true,
+      count: fallbackItems.length,
+      source: 'QUERIDO_DIARIO',
+      items: fallbackItems,
+    })
   },
   $apis.requireAuth(),
 )
