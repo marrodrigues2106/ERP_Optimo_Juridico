@@ -19,6 +19,9 @@ routerAdd(
     if (!q) {
       return e.badRequestError("Parâmetro 'q' é obrigatório.")
     }
+    if (!publishFrom || !publishTo) {
+      return e.badRequestError("Os parâmetros 'publishFrom' e 'publishTo' são obrigatórios.")
+    }
 
     function logAction(mensagem, metadados, status = 'Sucesso', etapa = 'request') {
       try {
@@ -131,9 +134,13 @@ routerAdd(
 
     function parseDate(dStr) {
       if (!dStr) return null
-      const parts = dStr.split(' ')[0].split('-')
+      let parts = dStr.split(' ')[0].split('-')
       if (parts.length === 3) {
         return new Date(parts[0], parts[1] - 1, parts[2])
+      }
+      parts = dStr.split('/')
+      if (parts.length === 3) {
+        return new Date(parts[2], parts[1] - 1, parts[0])
       }
       return null
     }
@@ -143,6 +150,13 @@ routerAdd(
       const mm = String(d.getMonth() + 1).padStart(2, '0')
       const yyyy = d.getFullYear()
       return `${dd}/${mm}/${yyyy}`
+    }
+
+    function formatDateStandard(d) {
+      const dd = String(d.getDate()).padStart(2, '0')
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const yyyy = d.getFullYear()
+      return `${yyyy}-${mm}-${dd}`
     }
 
     function generateChunks(fromStr, toStr) {
@@ -297,6 +311,7 @@ routerAdd(
       let pagesCount = 0
       let consecutiveEmptyPages = 0
       let forceNoCache = false
+      let useCursor = true
 
       while (keepPaginating && pagesCount < 50) {
         pagesCount++
@@ -307,6 +322,9 @@ routerAdd(
         params.append('sortType', '0')
         params.append('delta', delta.toString())
         params.append('start', start.toString())
+        if (!useCursor) {
+          params.append('useCursor', 'false')
+        }
 
         if (chunk.from) params.append('publishFrom', chunk.from)
         if (chunk.to) params.append('publishTo', chunk.to)
@@ -373,19 +391,32 @@ routerAdd(
 
             if (consecutiveIdenticalId === 1) {
               start += 1
-              logAction('Aplicando Estratégia 1: Pulo Temporal', { start }, 'Aviso', 'request')
+              useCursor = false
+              logAction(
+                'Aplicando Estratégia 1: Desabilitar Cursor e Pulo Temporal',
+                { start, useCursor },
+                'Aviso',
+                'request',
+              )
             } else if (consecutiveIdenticalId === 2) {
               delta = 21
-              logAction('Aplicando Estratégia 2: Quebra de Cache', { delta }, 'Aviso', 'request')
+              useCursor = false
+              logAction(
+                'Aplicando Estratégia 2: Quebra de Cache e Delta',
+                { delta, useCursor },
+                'Aviso',
+                'request',
+              )
             } else if (consecutiveIdenticalId === 3) {
               uaIndex++
               forceNoCache = true
               activeCookies = []
               delta = 25
               start += delta
+              useCursor = false
               logAction(
-                'Aplicando Estratégia 3: Reset de Sessão',
-                { uaIndex, delta, start },
+                'Aplicando Estratégia 3: Reset de Sessão e Rotação de UA',
+                { uaIndex, delta, start, useCursor },
                 'Aviso',
                 'request',
               )
@@ -404,6 +435,7 @@ routerAdd(
             lastPageId = currentPageLastId
             forceNoCache = false
             delta = 20
+            useCursor = true
           }
 
           let pageValidItems = 0
@@ -413,13 +445,19 @@ routerAdd(
             const urlTitleStr = item.urlTitle || ''
             const url = urlTitleStr ? `https://www.in.gov.br/web/dou/-/${urlTitleStr}` : ''
 
-            if (uniqueUrls.has(url)) {
+            let contentRaw = item.abstractContent || item.content || ''
+            const content = cleanContent(contentRaw)
+
+            const hashInput = title + contentRaw + url
+            const hash = $security.md5(hashInput)
+
+            if (uniqueUrls.has(hash)) {
               logAction(
                 'Publicação descartada',
                 {
                   url,
                   page: pagesCount,
-                  discardReason: 'url_duplicada_na_sessao',
+                  discardReason: 'Duplicate',
                   discardSnippet: title.substring(0, 150),
                 },
                 'Sucesso',
@@ -427,11 +465,9 @@ routerAdd(
               )
               continue
             }
-            uniqueUrls.add(url)
+            uniqueUrls.add(hash)
 
             const pubDate = item.pubDate || ''
-            let contentRaw = item.abstractContent || item.content || ''
-            const content = cleanContent(contentRaw)
 
             const matchResult = isMatch(content + ' ' + title, q, searchType)
 
@@ -453,10 +489,9 @@ routerAdd(
             let parsedDate = ''
             let isValidDate = true
             if (pubDate) {
-              const dParts = pubDate.split('/')
-              if (dParts.length === 3) {
-                parsedDate = `${dParts[2]}-${dParts[1]}-${dParts[0]} 00:00:00.000Z`
-                const dObj = new Date(dParts[2], dParts[1] - 1, dParts[0])
+              const dObj = parseDate(pubDate)
+              if (dObj) {
+                parsedDate = `${formatDateStandard(dObj)} 00:00:00.000Z`
                 if (publishFrom) {
                   const pFrom = parseDate(publishFrom)
                   if (pFrom && dObj < pFrom) isValidDate = false
@@ -466,9 +501,11 @@ routerAdd(
                   if (pTo && dObj > pTo) isValidDate = false
                 }
               } else {
+                isValidDate = false
                 logAction('Aviso de Data Inconsistente', { url, pubDate }, 'Aviso', 'normalization')
               }
             } else {
+              isValidDate = false
               logAction('Aviso de Data Ausente', { url }, 'Aviso', 'normalization')
             }
 
@@ -478,7 +515,7 @@ routerAdd(
                 {
                   url,
                   page: pagesCount,
-                  discardReason: 'fora_do_periodo',
+                  discardReason: 'Out of Date',
                   discardSnippet: content.substring(0, 150),
                 },
                 'Sucesso',
@@ -488,9 +525,6 @@ routerAdd(
             }
 
             pageValidItems++
-
-            const hashInput = title + contentRaw + urlTitleStr
-            const hash = $security.md5(hashInput)
 
             const scrapedItem = {
               titulo: title,
@@ -521,7 +555,7 @@ routerAdd(
                   {
                     url,
                     page: pagesCount,
-                    discardReason: 'duplicado_em_publicacoes_dou',
+                    discardReason: 'ja_no_banco',
                     discardSnippet: content.substring(0, 150),
                   },
                   'Sucesso',
@@ -558,7 +592,7 @@ routerAdd(
                     {
                       url,
                       page: pagesCount,
-                      discardReason: 'duplicado_em_gazette_publications',
+                      discardReason: 'ja_no_banco',
                       discardSnippet: content.substring(0, 150),
                     },
                     'Sucesso',
@@ -719,7 +753,7 @@ routerAdd(
                 'Publicação QD descartada',
                 {
                   url,
-                  discardReason: 'fora_do_periodo',
+                  discardReason: 'Out of Date',
                   discardSnippet: content.substring(0, 150),
                 },
                 'Sucesso',

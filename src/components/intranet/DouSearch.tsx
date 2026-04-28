@@ -111,19 +111,21 @@ export function DouSearch() {
                 </Select>
               </div>
               <div className="md:col-span-2 flex flex-col gap-2">
-                <Label>Data Inicial</Label>
+                <Label>Data Inicial *</Label>
                 <Input
                   type="date"
                   value={publishFrom}
                   onChange={(e) => setPublishFrom(e.target.value)}
+                  required
                 />
               </div>
               <div className="md:col-span-2 flex flex-col gap-2">
-                <Label>Data Final</Label>
+                <Label>Data Final *</Label>
                 <Input
                   type="date"
                   value={publishTo}
                   onChange={(e) => setPublishTo(e.target.value)}
+                  required
                 />
               </div>
             </div>
