@@ -31,6 +31,67 @@ routerAdd(
       }
     }
 
+    function sleep(seconds) {
+      const end = new Date().getTime() + seconds * 1000
+      while (new Date().getTime() < end) {}
+    }
+
+    function decodeISO(bytes) {
+      let s = ''
+      for (let i = 0; i < bytes.length; i++) {
+        s += String.fromCharCode(bytes[i])
+      }
+      try {
+        return decodeURIComponent(escape(s))
+      } catch (err) {
+        return s
+      }
+    }
+
+    function cleanContent(text) {
+      if (!text) return ''
+      let cleaned = text.replace(/<[^>]*>?/gm, ' ')
+      cleaned = cleaned.replace(/\s+/g, ' ').trim()
+      cleaned = cleaned.replace(
+        /Este documento pode ser verificado no endereço eletrônico[^\.]*\./gi,
+        '',
+      )
+      return cleaned.trim()
+    }
+
+    function isMatch(text, term) {
+      if (!text) return false
+      const normText = text.toLowerCase()
+      const normTerm = term.toLowerCase()
+
+      const termNum = term.replace(/\D/g, '')
+      const isProcesso = /^\d{7}-?\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/.test(term)
+      const isCPF =
+        /^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(term) || (term.length === 11 && /^\d+$/.test(term))
+      const isNumericTarget =
+        isProcesso ||
+        isCPF ||
+        (termNum.length >= 4 &&
+          termNum.length <= 20 &&
+          term.replace(/\s/g, '').length === termNum.length)
+
+      if (isNumericTarget) {
+        if (termNum.length > 0) {
+          const textNum = text.replace(/\D/g, '')
+          return textNum.includes(termNum)
+        }
+      }
+
+      const tokens = normTerm.split(/\s+/).filter((t) => t.length > 2)
+      if (tokens.length === 0) return normText.includes(normTerm)
+
+      let matchCount = 0
+      for (const t of tokens) {
+        if (normText.includes(t)) matchCount++
+      }
+      return matchCount / tokens.length >= 0.5
+    }
+
     logAction('Iniciando busca DOU', { q, publishFrom, publishTo })
 
     let localResults = []
@@ -54,20 +115,22 @@ routerAdd(
         0,
         bindParams,
       )
-      localResults = records.map((r) => ({
-        id: r.id,
-        titulo: r.getString('titulo'),
-        secao: r.getString('secao'),
-        orgao: r.getString('orgao'),
-        texto_normalizado: r.getString('texto_normalizado'),
-        url_origem: r.getString('url_origem'),
-        data_publicacao: r.getString('data_publicacao'),
-        fonte_coleta: 'LOCAL_DB',
-        editionNumber: r.getString('editionNumber'),
-        numberPage: r.getString('numberPage'),
-        hierarchyStr: r.getString('hierarchyStr'),
-        artType: r.getString('artType'),
-      }))
+      localResults = records
+        .filter((r) => isMatch(r.getString('texto_normalizado'), q))
+        .map((r) => ({
+          id: r.id,
+          titulo: r.getString('titulo'),
+          secao: r.getString('secao'),
+          orgao: r.getString('orgao'),
+          texto_normalizado: r.getString('texto_normalizado'),
+          url_origem: r.getString('url_origem'),
+          data_publicacao: r.getString('data_publicacao'),
+          fonte_coleta: 'LOCAL_DB',
+          editionNumber: r.getString('editionNumber'),
+          numberPage: r.getString('numberPage'),
+          hierarchyStr: r.getString('hierarchyStr'),
+          artType: r.getString('artType'),
+        }))
     } catch (err) {
       console.log('Erro busca local', err)
     }
@@ -105,42 +168,69 @@ routerAdd(
       }
 
       const inUrl = `https://www.in.gov.br/consulta/-/buscar/dou?${params.toString()}`
-      const res = $http.send({
-        url: inUrl,
-        method: 'GET',
-        timeout: 30,
-      })
 
-      if (res.statusCode === 200) {
-        let html = ''
-        const bytes = res.body
-        for (let i = 0; i < bytes.length; i++) {
-          html += String.fromCharCode(bytes[i])
+      let res
+      let attempt = 0
+      let delay = 4
+      const maxRetries = 3
+
+      while (attempt < maxRetries) {
+        res = $http.send({
+          url: inUrl,
+          method: 'GET',
+          timeout: 30,
+        })
+
+        if (res.statusCode === 200) {
+          break
+        } else if ([401, 403, 429].includes(res.statusCode) || res.statusCode >= 500) {
+          attempt++
+          logAction('DOU Scraping: erro ou bloqueio, tentando novamente', {
+            attempt,
+            statusCode: res.statusCode,
+          })
+          if (attempt >= maxRetries) break
+          sleep(delay)
+          delay *= 2
+        } else {
+          break
+        }
+      }
+
+      if (res && res.statusCode === 200) {
+        let html = decodeISO(res.body)
+
+        let jsonArrayMatch =
+          html.match(/"jsonArray":\s*(\[.*?\])\s*,\s*"q"/s) ||
+          html.match(/"jsonArray":\s*(\[.*?\])\s*\}/s)
+        if (!jsonArrayMatch) {
+          const scripts = html.match(/<script[^>]*>([\s\S]*?)<\/script>/gi) || []
+          for (const s of scripts) {
+            const m = s.match(/"jsonArray":\s*(\[.*?\])\s*(,|})/s)
+            if (m) {
+              jsonArrayMatch = m
+              break
+            }
+          }
         }
 
-        const scriptMatch =
-          html.match(
-            /<script[^>]*id=["']_br_com_seatecnologia_in_buscadou_BuscaDouPortlet_params["'][^>]*>([\s\S]*?)<\/script>/i,
-          ) || []
-        const scriptContent = scriptMatch[1] || html
-
-        const match =
-          scriptContent.match(/"jsonArray":\s*(\[.*?\])\s*,\s*"q"/s) ||
-          scriptContent.match(/"jsonArray":\s*(\[.*?\])\s*\}/s)
-
-        if (match && match[1]) {
-          const jsonArray = JSON.parse(match[1])
+        if (jsonArrayMatch && jsonArrayMatch[1]) {
+          const jsonArray = JSON.parse(jsonArrayMatch[1])
           scrapingSuccess = true
 
           const col = $app.findCollectionByNameOrId('publicacoes_dou')
           const orgId = e.auth?.getString('active_organization') || ''
 
           for (const item of jsonArray) {
-            const title = item.title || ''
+            const title = cleanContent(item.title || '')
             const url = item.urlTitle ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}` : ''
             const pubDate = item.pubDate || ''
-            const content = item.abstractContent || item.content || ''
-            const hashInput = title + url + pubDate + content
+            let contentRaw = item.abstractContent || item.content || ''
+            const content = cleanContent(contentRaw)
+
+            if (!isMatch(content, q) && !isMatch(title, q)) continue
+
+            const hashInput = title + url + pubDate + contentRaw
             const hash = $security.md5(hashInput)
 
             let parsedDate = ''
@@ -153,8 +243,8 @@ routerAdd(
 
             const scrapedItem = {
               titulo: title,
-              secao: item.secaoDoDiario || '',
-              orgao: item.pubName || item.hierarchyStr || '',
+              secao: cleanContent(item.secaoDoDiario || ''),
+              orgao: cleanContent(item.pubName || item.hierarchyStr || ''),
               texto_bruto: content,
               texto_normalizado: content,
               url_origem: url,
@@ -163,10 +253,10 @@ routerAdd(
               data_publicacao: parsedDate,
               data_coleta: new Date().toISOString().replace('T', ' '),
               status_processamento: 'processado',
-              editionNumber: item.editionNumber || '',
-              numberPage: item.numberPage || '',
-              hierarchyStr: item.hierarchyStr || '',
-              artType: item.artType || '',
+              editionNumber: cleanContent(item.editionNumber || ''),
+              numberPage: cleanContent(item.numberPage || ''),
+              hierarchyStr: cleanContent(item.hierarchyStr || ''),
+              artType: cleanContent(item.artType || ''),
               organization: orgId,
             }
 
@@ -221,30 +311,53 @@ routerAdd(
     try {
       logAction('Iniciando fallback Querido Diário', { q })
       const qdUrl = `https://queridodiario.ok.org.br/api/gazettes?querystring=${encodeURIComponent(q)}`
-      const res = $http.send({
-        url: qdUrl,
-        method: 'GET',
-        timeout: 30,
-      })
-      if (res.statusCode === 200) {
+
+      let res
+      let attempt = 0
+      let delay = 4
+      const maxRetries = 3
+
+      while (attempt < maxRetries) {
+        res = $http.send({
+          url: qdUrl,
+          method: 'GET',
+          timeout: 30,
+        })
+        if (res.statusCode === 200) {
+          break
+        } else if ([401, 403, 429].includes(res.statusCode) || res.statusCode >= 500) {
+          attempt++
+          if (attempt >= maxRetries) break
+          sleep(delay)
+          delay *= 2
+        } else {
+          break
+        }
+      }
+
+      if (res && res.statusCode === 200) {
         const data = res.json
         if (data && data.gazettes) {
           const col = $app.findCollectionByNameOrId('publicacoes_dou')
           const orgId = e.auth?.getString('active_organization') || ''
 
           for (const item of data.gazettes) {
-            const title = `Diário de ${item.territory_name}`
+            const title = cleanContent(`Diário de ${item.territory_name}`)
             const url = item.url || ''
-            const content = item.excerpts ? item.excerpts.join('\n') : ''
+            let contentRaw = item.excerpts ? item.excerpts.join('\n') : ''
+            const content = cleanContent(contentRaw)
+
+            if (!isMatch(content, q) && !isMatch(title, q)) continue
+
             const pubDate = item.date ? `${item.date} 00:00:00.000Z` : ''
 
-            const hashInput = title + url + pubDate + content
+            const hashInput = title + url + pubDate + contentRaw
             const hash = $security.md5(hashInput)
 
             const qdItem = {
               titulo: title,
               secao: '',
-              orgao: item.territory_name || '',
+              orgao: cleanContent(item.territory_name || ''),
               texto_bruto: content,
               texto_normalizado: content,
               url_origem: url,

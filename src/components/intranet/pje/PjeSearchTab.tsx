@@ -129,8 +129,8 @@ export function PjeSearchTab() {
   }
 
   const handleSave = async (r: any) => {
-    const numProcesso = r.numero_processo || r.numeroProcesso
-    const dataDisp = r.data_disponibilizacao || r.dataDisponibilizacao
+    const numProcesso = r.numero_processo || r.numeroProcesso || r.processo || r.numero_unico || ''
+    const dataDisp = r.data_disponibilizacao || r.dataDisponibilizacao || r.data || ''
 
     if (!numProcesso) {
       toast({
@@ -262,15 +262,19 @@ export function PjeSearchTab() {
                         {r.sigla_tribunal || r.siglaTribunal || 'Tribunal'}
                       </Badge>
                       <span className="text-sm font-medium text-slate-700">
-                        {r.numero_processo || r.numeroProcesso}
+                        {r.numero_processo ||
+                          r.numeroProcesso ||
+                          r.processo ||
+                          r.numero_unico ||
+                          'Sem Número'}
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-sm text-slate-500 flex items-center gap-1">
                         <Clock className="w-4 h-4" />
-                        {r.data_disponibilizacao || r.dataDisponibilizacao
+                        {r.data_disponibilizacao || r.dataDisponibilizacao || r.data
                           ? new Date(
-                              r.data_disponibilizacao || r.dataDisponibilizacao,
+                              r.data_disponibilizacao || r.dataDisponibilizacao || r.data,
                             ).toLocaleDateString('pt-BR')
                           : 'Data indisponível'}
                       </div>

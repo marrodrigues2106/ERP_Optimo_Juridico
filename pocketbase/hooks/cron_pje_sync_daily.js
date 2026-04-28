@@ -47,8 +47,17 @@ cronAdd('pje_sync_daily', '0 8,20 * * *', () => {
                 isNewComm = true
                 const pjeCol = $app.findCollectionByNameOrId('pje_communications')
                 const record = new Record(pjeCol)
-                record.set('numeroProcesso', item.numeroProcesso || c.getString('case_number'))
-                record.set('dataDisponibilizacao', item.dataDisponibilizacao || '')
+                record.set(
+                  'numeroProcesso',
+                  item.numeroProcesso ||
+                    item.numero_processo ||
+                    item.processo ||
+                    c.getString('case_number'),
+                )
+                record.set(
+                  'dataDisponibilizacao',
+                  item.dataDisponibilizacao || item.data_disponibilizacao || item.data || '',
+                )
                 record.set('texto', item.texto || item.conteudo || '')
                 record.set('tipoComunicacao', item.tipoComunicacao || 'Comunicação')
                 record.set('siglaTribunal', item.siglaTribunal || '')
@@ -68,7 +77,13 @@ cronAdd('pje_sync_daily', '0 8,20 * * *', () => {
               } catch (_) {
                 const mov = new Record($app.findCollectionByNameOrId('case_movements'))
                 mov.set('case', c.id)
-                mov.set('event_date', item.dataDisponibilizacao || new Date().toISOString())
+                mov.set(
+                  'event_date',
+                  item.dataDisponibilizacao ||
+                    item.data_disponibilizacao ||
+                    item.data ||
+                    new Date().toISOString(),
+                )
                 mov.set('description', item.tipoComunicacao || 'Comunicação PJe (Automático)')
                 mov.set('source', 'PJe')
                 mov.set('external_id', extId)

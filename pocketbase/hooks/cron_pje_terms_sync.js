@@ -66,8 +66,14 @@ cronAdd('pje_terms_sync_daily', '0 5 * * *', () => {
 
       const pjeCol = $app.findCollectionByNameOrId('pje_communications')
       const record = new Record(pjeCol)
-      record.set('numeroProcesso', item.numeroProcesso || '')
-      record.set('dataDisponibilizacao', item.dataDisponibilizacao || '')
+      record.set(
+        'numeroProcesso',
+        item.numeroProcesso || item.numero_processo || item.processo || '',
+      )
+      record.set(
+        'dataDisponibilizacao',
+        item.dataDisponibilizacao || item.data_disponibilizacao || item.data || '',
+      )
       record.set('texto', item.texto || item.conteudo || '')
       record.set('tipoComunicacao', item.tipoComunicacao || 'Comunicação')
       record.set('siglaTribunal', item.siglaTribunal || '')
