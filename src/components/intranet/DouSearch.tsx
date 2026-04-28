@@ -104,6 +104,9 @@ export function DouSearch() {
                     <SelectItem value="palavras_chave">Palavras-chave</SelectItem>
                     <SelectItem value="frase_exata">Frase Exata</SelectItem>
                     <SelectItem value="regex">Expressão Regular</SelectItem>
+                    <SelectItem value="numeroProcesso">Número de Processo</SelectItem>
+                    <SelectItem value="numeroOab">Número da OAB</SelectItem>
+                    <SelectItem value="cpfCnpj">CPF / CNPJ</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -22,14 +22,24 @@ routerAdd(
 
     function logAction(msg, details) {
       try {
-        const sysCol = $app.findCollectionByNameOrId('system_logs')
+        const sysCol = $app.findCollectionByNameOrId('logs_processamento')
         const sysR = new Record(sysCol)
         sysR.set('level', 'info')
         sysR.set('module', 'dou_search')
         sysR.set('message', msg)
         sysR.set('details', details)
         $app.saveNoValidate(sysR)
-      } catch (err) {}
+      } catch (err) {
+        try {
+          const sysCol2 = $app.findCollectionByNameOrId('system_logs')
+          const sysR2 = new Record(sysCol2)
+          sysR2.set('level', 'info')
+          sysR2.set('module', 'dou_search')
+          sysR2.set('message', msg)
+          sysR2.set('details', details)
+          $app.saveNoValidate(sysR2)
+        } catch (e2) {}
+      }
     }
 
     function sleep(ms) {
@@ -67,6 +77,11 @@ routerAdd(
       return norm.replace(/\s+/g, ' ').trim()
     }
 
+    function stripNonAlphaNumericAndLeadingZeros(str) {
+      if (!str) return ''
+      return str.replace(/[^a-zA-Z0-9]/g, '').replace(/^0+/, '')
+    }
+
     function cleanContent(text) {
       if (!text) return ''
       let cleaned = text.replace(/<[^>]*>?/gm, ' ')
@@ -84,6 +99,15 @@ routerAdd(
       const normText = normalizeText(rawText)
       const normTerm = normalizeText(term)
 
+      if (['numeroProcesso', 'numeroOab', 'cpfCnpj'].includes(type)) {
+        const cleanTerm = stripNonAlphaNumericAndLeadingZeros(term)
+        const cleanText = stripNonAlphaNumericAndLeadingZeros(rawText)
+        if (cleanTerm && cleanText.includes(cleanTerm)) {
+          return { match: true }
+        }
+        return { match: false, reason: 'nao_corresponde_identificador' }
+      }
+
       const termNum = term.replace(/\D/g, '')
       const isProcesso = /^\d{7}-?\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/.test(term)
       const isCPF =
@@ -99,9 +123,10 @@ routerAdd(
           termNum.length <= 20 &&
           term.replace(/\s/g, '').length === termNum.length)
 
-      if (isNumericTarget && termNum.length > 0) {
-        const textNum = rawText.replace(/\D/g, '')
-        if (textNum.includes(termNum)) {
+      if (isNumericTarget && termNum.length > 0 && type !== 'regex' && type !== 'frase_exata') {
+        const cleanTerm = stripNonAlphaNumericAndLeadingZeros(term)
+        const cleanText = stripNonAlphaNumericAndLeadingZeros(rawText)
+        if (cleanText.includes(cleanTerm)) {
           return { match: true }
         } else {
           return { match: false, reason: 'nao_corresponde_identificador' }
@@ -259,9 +284,7 @@ routerAdd(
     let hasScrapingSuccess = false
 
     for (let cIdx = 0; cIdx < dateChunks.length; cIdx++) {
-      if (cIdx > 0) {
-        sleep(3000)
-      }
+      if (cIdx > 0) sleep(3000)
 
       const chunk = dateChunks[cIdx]
       let start = 0
@@ -270,8 +293,11 @@ routerAdd(
       let lastPageId = null
       let consecutiveIdenticalId = 0
       let uaIndex = 0
+      let pagesCount = 0
+      let consecutiveEmptyPages = 0
 
-      while (keepPaginating) {
+      while (keepPaginating && pagesCount < 50) {
+        pagesCount++
         const params = new URLSearchParams()
         params.append('q', q)
         params.append('s', 'todos')
@@ -349,9 +375,12 @@ routerAdd(
             lastPageId = currentPageLastId
           }
 
+          let pageValidItems = 0
+
           for (const item of jsonArray) {
             const title = cleanContent(item.title || '')
-            const url = item.urlTitle ? `https://www.in.gov.br/web/dou/-/${item.urlTitle}` : ''
+            const urlTitleStr = item.urlTitle || ''
+            const url = urlTitleStr ? `https://www.in.gov.br/web/dou/-/${urlTitleStr}` : ''
             const pubDate = item.pubDate || ''
             let contentRaw = item.abstractContent || item.content || ''
             const content = cleanContent(contentRaw)
@@ -361,13 +390,16 @@ routerAdd(
             if (!matchResult.match) {
               logAction('Publicação descartada', {
                 url,
+                page: pagesCount,
                 discardReason: matchResult.reason,
                 discardSnippet: content.substring(0, 150),
               })
               continue
             }
 
-            const hashInput = title + url + pubDate + contentRaw
+            pageValidItems++
+
+            const hashInput = title + contentRaw + urlTitleStr
             const hash = $security.md5(hashInput)
 
             let parsedDate = ''
@@ -397,12 +429,15 @@ routerAdd(
               organization: orgId,
             }
 
+            let isDuplicate = false
             try {
               const existing = $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash)
               if (existing) {
+                isDuplicate = true
                 logAction('Publicação descartada', {
                   url,
-                  discardReason: 'ja_no_banco',
+                  page: pagesCount,
+                  discardReason: 'duplicado_em_publicacoes_dou',
                   discardSnippet: content.substring(0, 150),
                 })
                 scrapedItems.push({
@@ -420,7 +455,28 @@ routerAdd(
                   artType: existing.getString('artType'),
                 })
               }
-            } catch (_) {
+            } catch (_) {}
+
+            if (!isDuplicate) {
+              try {
+                const existingGaz = $app.findFirstRecordByData(
+                  'gazette_publications',
+                  'hash_conteudo',
+                  hash,
+                )
+                if (existingGaz) {
+                  isDuplicate = true
+                  logAction('Publicação descartada', {
+                    url,
+                    page: pagesCount,
+                    discardReason: 'duplicado_em_gazette_publications',
+                    discardSnippet: content.substring(0, 150),
+                  })
+                }
+              } catch (_) {}
+            }
+
+            if (!isDuplicate) {
               try {
                 const record = new Record(col)
                 Object.keys(scrapedItem).forEach((k) => {
@@ -435,6 +491,20 @@ routerAdd(
                 logAction('Erro ao salvar publicação', { error: saveErr.toString(), url })
               }
             }
+          }
+
+          if (pageValidItems === 0) {
+            consecutiveEmptyPages++
+            if (consecutiveEmptyPages >= 10) {
+              logAction('Muitas páginas vazias consecutivas, abortando partição', {
+                chunk,
+                pagesCount,
+              })
+              keepPaginating = false
+              break
+            }
+          } else {
+            consecutiveEmptyPages = 0
           }
 
           if (jsonArray.length < 20) {
@@ -510,7 +580,7 @@ routerAdd(
             }
 
             const pubDate = item.date ? `${item.date} 00:00:00.000Z` : ''
-            const hashInput = title + url + pubDate + contentRaw
+            const hashInput = title + contentRaw + url
             const hash = $security.md5(hashInput)
 
             const qdItem = {
@@ -528,9 +598,11 @@ routerAdd(
               organization: orgId,
             }
 
+            let isDuplicate = false
             try {
               const existing = $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash)
               if (existing) {
+                isDuplicate = true
                 fallbackItems.push({
                   id: existing.id,
                   titulo: existing.getString('titulo'),
@@ -542,7 +614,22 @@ routerAdd(
                   fonte_coleta: 'LOCAL_DB',
                 })
               }
-            } catch (_) {
+            } catch (_) {}
+
+            if (!isDuplicate) {
+              try {
+                const existingGaz = $app.findFirstRecordByData(
+                  'gazette_publications',
+                  'hash_conteudo',
+                  hash,
+                )
+                if (existingGaz) {
+                  isDuplicate = true
+                }
+              } catch (_) {}
+            }
+
+            if (!isDuplicate) {
               try {
                 const record = new Record(col)
                 Object.keys(qdItem).forEach((k) => {
