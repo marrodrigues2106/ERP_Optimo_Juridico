@@ -9,6 +9,13 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { format } from 'date-fns'
 import { searchDou } from '@/services/dou'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 export function DouSearch() {
   const [loading, setLoading] = useState(false)
@@ -19,6 +26,7 @@ export function DouSearch() {
   const [q, setQ] = useState('')
   const [publishFrom, setPublishFrom] = useState('')
   const [publishTo, setPublishTo] = useState('')
+  const [searchType, setSearchType] = useState('palavras_chave')
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,7 +43,7 @@ export function DouSearch() {
     setResults([])
     setSource('')
     try {
-      const res = await searchDou(q, publishFrom, publishTo)
+      const res = await searchDou(q, publishFrom, publishTo, searchType)
 
       if (res.items && res.items.length > 0) {
         setResults(res.items)
@@ -76,8 +84,8 @@ export function DouSearch() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSearch} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-3 flex flex-col gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="md:col-span-2 flex flex-col gap-2">
                 <Label>Termo de Busca *</Label>
                 <Input
                   value={q}
@@ -86,7 +94,20 @@ export function DouSearch() {
                   required
                 />
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="md:col-span-2 flex flex-col gap-2">
+                <Label>Tipo de Busca</Label>
+                <Select value={searchType} onValueChange={setSearchType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tipo de busca" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="palavras_chave">Palavras-chave</SelectItem>
+                    <SelectItem value="frase_exata">Frase Exata</SelectItem>
+                    <SelectItem value="regex">Expressão Regular</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2 flex flex-col gap-2">
                 <Label>Data Inicial</Label>
                 <Input
                   type="date"
@@ -94,7 +115,7 @@ export function DouSearch() {
                   onChange={(e) => setPublishFrom(e.target.value)}
                 />
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="md:col-span-2 flex flex-col gap-2">
                 <Label>Data Final</Label>
                 <Input
                   type="date"
