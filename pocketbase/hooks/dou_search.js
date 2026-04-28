@@ -6,7 +6,6 @@ routerAdd(
     const q = (body.q || '').trim()
     const publishFrom = body.publishFrom || ''
     const publishTo = body.publishTo || ''
-    const searchType = body.searchType || 'palavras_chave'
     const orgPrin = body.orgPrin || ''
 
     const user = e.auth
@@ -66,6 +65,18 @@ routerAdd(
       return cleaned
     }
 
+    function superNormalize(str) {
+      if (!str) return ''
+      let s = str.toLowerCase()
+      const accents = 'áàãâäéèêëíìîïóòõôöúùûüçñ'
+      const without = 'aaaaaeeeeiiiiooooouuuucn'
+      for (let i = 0; i < accents.length; i++) {
+        s = s.split(accents[i]).join(without[i])
+      }
+      s = s.replace(/[^a-z0-9\s]/g, ' ')
+      return s.replace(/\s+/g, ' ').trim()
+    }
+
     function mapArtType(artTypeRaw) {
       if (!artTypeRaw) return ''
       const map = {
@@ -104,46 +115,34 @@ routerAdd(
         .join(' ')
     }
 
-    function isMatch(rawText, term, type) {
+    function isMatch(rawText, term) {
       if (!rawText) return { match: false, reason: 'empty_content' }
 
-      const normText = cleanText(rawText).toLowerCase()
-      const normTerm = cleanText(term).toLowerCase()
+      const normText = superNormalize(rawText)
 
-      if (['numeroProcesso', 'numeroOab', 'cpfCnpj'].includes(type)) {
-        const cleanTerm = stripNonNumeric(term)
-        const cleanText = stripNonNumeric(rawText)
-        if (cleanTerm && cleanText.includes(cleanTerm)) {
+      const exactMatchRegex = /^"([^"]+)"$/
+      const match = term.trim().match(exactMatchRegex)
+
+      if (match) {
+        const exactPhrase = superNormalize(match[1])
+        if (normText.includes(exactPhrase)) {
           return { match: true }
         }
-        return { match: false, reason: 'nao_corresponde_identificador' }
+        return { match: false, reason: 'nao_corresponde_frase_exata' }
       }
 
-      if (type === 'frase_exata') {
-        if (normText.includes(normTerm)) return { match: true }
-        return { match: false, reason: 'nao_corresponde_frase' }
-      }
+      const normTerm = superNormalize(term)
+      const tokens = normTerm.split(/\s+/).filter((t) => t.length > 0)
 
-      if (type === 'regex') {
-        try {
-          const re = new RegExp(term, 'i')
-          if (re.test(rawText)) return { match: true }
-          return { match: false, reason: 'nao_corresponde_regex' }
-        } catch (e) {
-          return { match: false, reason: 'regex_invalido' }
-        }
-      }
-
-      const tokens = normTerm.split(/\s+/).filter((t) => t.length > 2)
       if (tokens.length === 0) {
-        if (normText.includes(normTerm)) return { match: true }
-        return { match: false, reason: 'nao_corresponde_termo' }
+        return { match: false, reason: 'termo_vazio' }
       }
 
       let matchCount = 0
       for (const t of tokens) {
         if (normText.includes(t)) matchCount++
       }
+
       if (matchCount === tokens.length) return { match: true }
 
       return { match: false, reason: 'baixa_relevancia' }
@@ -242,19 +241,14 @@ routerAdd(
       return fetchWithRetry(url, attempt + 1, uaIndex + 1)
     }
 
-    logAction(
-      'Iniciando busca DOU',
-      { q, publishFrom, publishTo, searchType, orgPrin },
-      'info',
-      'request',
-    )
+    logAction('Iniciando busca DOU', { q, publishFrom, publishTo, orgPrin }, 'info', 'request')
 
     let searchRecord = null
     try {
       const searchesCol = $app.findCollectionByNameOrId('searches')
       searchRecord = new Record(searchesCol)
       searchRecord.set('term', q)
-      searchRecord.set('search_type', searchType)
+      searchRecord.set('search_type', 'Livre')
       searchRecord.set('status', 'running')
       searchRecord.set('results_count', 0)
       searchRecord.set('start_date', publishFrom)
@@ -474,7 +468,7 @@ routerAdd(
         uniqueUrls.add(hash)
 
         const pubDate = item.pubDate || ''
-        const matchResult = isMatch(content + ' ' + title, q, searchType)
+        const matchResult = isMatch(content + ' ' + title, q)
 
         if (!matchResult.match) {
           logAction(

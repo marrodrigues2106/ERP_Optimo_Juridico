@@ -9,14 +9,6 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { format } from 'date-fns'
 import { searchDou } from '@/services/dou'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-
 export function DouSearch() {
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<any[]>([])
@@ -26,7 +18,6 @@ export function DouSearch() {
   const [q, setQ] = useState('')
   const [publishFrom, setPublishFrom] = useState('')
   const [publishTo, setPublishTo] = useState('')
-  const [searchType, setSearchType] = useState('palavras_chave')
   const [orgPrin, setOrgPrin] = useState('')
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -44,7 +35,7 @@ export function DouSearch() {
     setResults([])
     setSource('')
     try {
-      const res = await searchDou(q, publishFrom, publishTo, searchType, orgPrin)
+      const res = await searchDou(q, publishFrom, publishTo, orgPrin)
 
       if (res.items && res.items.length > 0) {
         setResults(res.items)
@@ -91,27 +82,15 @@ export function DouSearch() {
                 <Input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder="Ex: Nome da Parte, CPF, Termo Específico..."
+                  placeholder="Ex: Moraes Rodrigues"
                   required
                 />
+                <p className="text-xs text-slate-500 mt-1">
+                  Use aspas para termos exatos (ex: "Moraes Rodrigues"). Sem aspas a busca é
+                  flexível.
+                </p>
               </div>
-              <div className="md:col-span-2 flex flex-col gap-2">
-                <Label>Tipo de Busca</Label>
-                <Select value={searchType} onValueChange={setSearchType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o tipo de busca" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="palavras_chave">Palavras-chave</SelectItem>
-                    <SelectItem value="frase_exata">Frase Exata</SelectItem>
-                    <SelectItem value="regex">Expressão Regular</SelectItem>
-                    <SelectItem value="numeroProcesso">Número de Processo</SelectItem>
-                    <SelectItem value="numeroOab">Número da OAB</SelectItem>
-                    <SelectItem value="cpfCnpj">CPF / CNPJ</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="md:col-span-2 flex flex-col gap-2">
+              <div className="md:col-span-1 flex flex-col gap-2">
                 <Label>Data Inicial *</Label>
                 <Input
                   type="date"
@@ -120,7 +99,7 @@ export function DouSearch() {
                   required
                 />
               </div>
-              <div className="md:col-span-2 flex flex-col gap-2">
+              <div className="md:col-span-1 flex flex-col gap-2">
                 <Label>Data Final *</Label>
                 <Input
                   type="date"
