@@ -20,26 +20,17 @@ routerAdd(
       return e.badRequestError("Parâmetro 'q' é obrigatório.")
     }
 
-    function logAction(msg, details) {
+    function logAction(mensagem, metadados, status = 'info', etapa = 'geral') {
       try {
         const sysCol = $app.findCollectionByNameOrId('logs_processamento')
         const sysR = new Record(sysCol)
-        sysR.set('level', 'info')
-        sysR.set('module', 'dou_search')
-        sysR.set('message', msg)
-        sysR.set('details', details)
+        sysR.set('etapa', etapa)
+        sysR.set('status', status)
+        sysR.set('mensagem', mensagem)
+        sysR.set('data_hora', new Date().toISOString().replace('T', ' '))
+        sysR.set('metadados', metadados)
         $app.saveNoValidate(sysR)
-      } catch (err) {
-        try {
-          const sysCol2 = $app.findCollectionByNameOrId('system_logs')
-          const sysR2 = new Record(sysCol2)
-          sysR2.set('level', 'info')
-          sysR2.set('module', 'dou_search')
-          sysR2.set('message', msg)
-          sysR2.set('details', details)
-          $app.saveNoValidate(sysR2)
-        } catch (e2) {}
-      }
+      } catch (err) {}
     }
 
     function sleep(ms) {
@@ -77,9 +68,9 @@ routerAdd(
       return norm.replace(/\s+/g, ' ').trim()
     }
 
-    function stripNonAlphaNumericAndLeadingZeros(str) {
+    function stripNonNumeric(str) {
       if (!str) return ''
-      return str.replace(/[^a-zA-Z0-9]/g, '').replace(/^0+/, '')
+      return str.replace(/\D/g, '')
     }
 
     function cleanContent(text) {
@@ -100,37 +91,12 @@ routerAdd(
       const normTerm = normalizeText(term)
 
       if (['numeroProcesso', 'numeroOab', 'cpfCnpj'].includes(type)) {
-        const cleanTerm = stripNonAlphaNumericAndLeadingZeros(term)
-        const cleanText = stripNonAlphaNumericAndLeadingZeros(rawText)
+        const cleanTerm = stripNonNumeric(term)
+        const cleanText = stripNonNumeric(rawText)
         if (cleanTerm && cleanText.includes(cleanTerm)) {
           return { match: true }
         }
         return { match: false, reason: 'nao_corresponde_identificador' }
-      }
-
-      const termNum = term.replace(/\D/g, '')
-      const isProcesso = /^\d{7}-?\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/.test(term)
-      const isCPF =
-        /^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(term) || (term.length === 11 && /^\d+$/.test(term))
-      const isCNPJ =
-        /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(term) ||
-        (term.length === 14 && /^\d+$/.test(term))
-      const isNumericTarget =
-        isProcesso ||
-        isCPF ||
-        isCNPJ ||
-        (termNum.length >= 4 &&
-          termNum.length <= 20 &&
-          term.replace(/\s/g, '').length === termNum.length)
-
-      if (isNumericTarget && termNum.length > 0 && type !== 'regex' && type !== 'frase_exata') {
-        const cleanTerm = stripNonAlphaNumericAndLeadingZeros(term)
-        const cleanText = stripNonAlphaNumericAndLeadingZeros(rawText)
-        if (cleanText.includes(cleanTerm)) {
-          return { match: true }
-        } else {
-          return { match: false, reason: 'nao_corresponde_identificador' }
-        }
       }
 
       if (type === 'frase_exata') {
@@ -211,14 +177,21 @@ routerAdd(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Safari/605.1.15',
       'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/113.0',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
     ]
 
-    function fetchWithRetry(url, attempt = 1, uaIndex = 0) {
+    function fetchWithRetry(url, attempt = 1, uaIndex = 0, forceNoCache = false) {
       const headers = {
         'User-Agent': uas[uaIndex % uas.length],
         Accept:
           'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+      }
+      if (forceNoCache) {
+        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        headers['Pragma'] = 'no-cache'
+        headers['Expires'] = '0'
       }
 
       let res = null
@@ -231,57 +204,72 @@ routerAdd(
         })
       } catch (err) {
         if (attempt >= 3) {
-          logAction('Falha ao buscar após tentativas máximas (Network/Timeout)', {
-            url,
-            error: err.toString(),
-          })
+          logAction(
+            'Falha ao buscar após tentativas máximas (Network/Timeout)',
+            { url, error: err.toString() },
+            'error',
+            'fetchWithRetry',
+          )
           return { statusCode: 0, body: null }
         }
         let delay = 2000 * attempt
-        logAction(`Erro de rede/timeout. Retentando em ${delay}ms (tentativa ${attempt + 1})`, {
-          url,
-        })
+        logAction(
+          `Erro de rede/timeout. Retentando em ${delay}ms (tentativa ${attempt + 1})`,
+          { url },
+          'warning',
+          'fetchWithRetry',
+        )
         sleep(delay)
-        return fetchWithRetry(url, attempt + 1, uaIndex)
+        return fetchWithRetry(url, attempt + 1, uaIndex + 1, forceNoCache)
       }
 
       if (res && res.statusCode === 200) return res
 
       if (attempt >= 3) {
-        logAction('Falha ao buscar após tentativas máximas (HTTP)', {
-          url,
-          statusCode: res ? res.statusCode : 0,
-        })
+        logAction(
+          'Falha ao buscar após tentativas máximas (HTTP)',
+          { url, statusCode: res ? res.statusCode : 0 },
+          'error',
+          'fetchWithRetry',
+        )
         return res || { statusCode: 0, body: null }
       }
 
       let delay = 2000 * attempt
-      if (res && (res.statusCode === 403 || res.statusCode === 429)) {
+      if (res && [403, 429].includes(res.statusCode)) {
         delay = 5000 * attempt
       } else if (res && [502, 503, 504].includes(res.statusCode)) {
-        delay = 2000 * attempt
+        delay = 3000 * attempt
       }
 
       logAction(
         `Erro HTTP ${res ? res.statusCode : 0}. Retentando em ${delay}ms (tentativa ${attempt + 1})`,
         { url },
+        'warning',
+        'fetchWithRetry',
       )
       sleep(delay)
-      return fetchWithRetry(url, attempt + 1, uaIndex)
+      return fetchWithRetry(url, attempt + 1, uaIndex + 1, forceNoCache)
     }
 
-    logAction('Iniciando busca DOU', { q, publishFrom, publishTo, searchType })
+    logAction(
+      'Iniciando busca DOU',
+      { q, publishFrom, publishTo, searchType },
+      'info',
+      'iniciar_busca',
+    )
 
     let scrapedItems = []
     let fallbackItems = []
 
     const dateChunks = generateChunks(publishFrom, publishTo)
-    logAction('Partições geradas', { chunksCount: dateChunks.length })
+    logAction('Partições geradas', { chunksCount: dateChunks.length }, 'info', 'particionamento')
 
     const col = $app.findCollectionByNameOrId('publicacoes_dou')
     const orgId = e.auth?.getString('active_organization') || ''
 
     let hasScrapingSuccess = false
+    let uniqueUrls = new Set()
 
     for (let cIdx = 0; cIdx < dateChunks.length; cIdx++) {
       if (cIdx > 0) sleep(3000)
@@ -295,6 +283,7 @@ routerAdd(
       let uaIndex = 0
       let pagesCount = 0
       let consecutiveEmptyPages = 0
+      let forceNoCache = false
 
       while (keepPaginating && pagesCount < 50) {
         pagesCount++
@@ -311,7 +300,7 @@ routerAdd(
 
         const inUrl = `https://www.in.gov.br/consulta/-/buscar/dou?${params.toString()}`
 
-        const res = fetchWithRetry(inUrl, 1, uaIndex)
+        const res = fetchWithRetry(inUrl, 1, uaIndex, forceNoCache)
 
         if (res.statusCode !== 200) {
           keepPaginating = false
@@ -340,7 +329,12 @@ routerAdd(
           try {
             jsonArray = JSON.parse(jsonArrayMatch[1])
           } catch (err) {
-            logAction('Erro ao fazer parse do jsonArray', { error: err.toString() })
+            logAction(
+              'Erro ao fazer parse do jsonArray',
+              { error: err.toString() },
+              'error',
+              'parse_json',
+            )
             keepPaginating = false
             break
           }
@@ -354,25 +348,58 @@ routerAdd(
             jsonArray[jsonArray.length - 1].urlTitle ||
             jsonArray[jsonArray.length - 1].id ||
             'unknown'
+
           if (currentPageLastId === lastPageId && currentPageLastId !== 'unknown') {
             consecutiveIdenticalId++
-            logAction('Loop de paginação detectado', { consecutiveIdenticalId, start })
+            logAction(
+              'Loop de paginação detectado',
+              { consecutiveIdenticalId, start, currentPageLastId },
+              'warning',
+              'paginacao',
+            )
 
             if (consecutiveIdenticalId === 1) {
-              delta = 21
               start += 1
+              logAction(
+                'Aplicando Estratégia 1: Pulo Temporal',
+                { start },
+                'info',
+                'recuperacao_loop',
+              )
             } else if (consecutiveIdenticalId === 2) {
+              delta = 21
+              logAction(
+                'Aplicando Estratégia 2: Quebra de Cache',
+                { delta },
+                'info',
+                'recuperacao_loop',
+              )
+            } else if (consecutiveIdenticalId === 3) {
               uaIndex++
-              delta = 20
-              start += 20
+              forceNoCache = true
+              delta = 25
+              start += delta
+              logAction(
+                'Aplicando Estratégia 3: Reset de Sessão',
+                { uaIndex, delta, start },
+                'info',
+                'recuperacao_loop',
+              )
             } else {
-              logAction('Loop irrecuperável, abortando paginação desta partição', {})
+              logAction(
+                'Loop irrecuperável, abortando paginação desta partição',
+                {},
+                'error',
+                'paginacao',
+              )
               keepPaginating = false
               break
             }
           } else {
             consecutiveIdenticalId = 0
             lastPageId = currentPageLastId
+            forceNoCache = false
+            delta = 20
           }
 
           let pageValidItems = 0
@@ -381,6 +408,23 @@ routerAdd(
             const title = cleanContent(item.title || '')
             const urlTitleStr = item.urlTitle || ''
             const url = urlTitleStr ? `https://www.in.gov.br/web/dou/-/${urlTitleStr}` : ''
+
+            if (uniqueUrls.has(url)) {
+              logAction(
+                'Publicação descartada',
+                {
+                  url,
+                  page: pagesCount,
+                  discardReason: 'url_duplicada_na_sessao',
+                  discardSnippet: title.substring(0, 150),
+                },
+                'info',
+                'deduplicacao',
+              )
+              continue
+            }
+            uniqueUrls.add(url)
+
             const pubDate = item.pubDate || ''
             let contentRaw = item.abstractContent || item.content || ''
             const content = cleanContent(contentRaw)
@@ -388,12 +432,59 @@ routerAdd(
             const matchResult = isMatch(content + ' ' + title, q, searchType)
 
             if (!matchResult.match) {
-              logAction('Publicação descartada', {
-                url,
-                page: pagesCount,
-                discardReason: matchResult.reason,
-                discardSnippet: content.substring(0, 150),
-              })
+              logAction(
+                'Publicação descartada',
+                {
+                  url,
+                  page: pagesCount,
+                  discardReason: matchResult.reason,
+                  discardSnippet: content.substring(0, 150),
+                },
+                'info',
+                'filtragem_match',
+              )
+              continue
+            }
+
+            let parsedDate = ''
+            let isValidDate = true
+            if (pubDate) {
+              const dParts = pubDate.split('/')
+              if (dParts.length === 3) {
+                parsedDate = `${dParts[2]}-${dParts[1]}-${dParts[0]} 00:00:00.000Z`
+                const dObj = new Date(dParts[2], dParts[1] - 1, dParts[0])
+                if (publishFrom) {
+                  const pFrom = parseDate(publishFrom)
+                  if (pFrom && dObj < pFrom) isValidDate = false
+                }
+                if (publishTo) {
+                  const pTo = parseDate(publishTo)
+                  if (pTo && dObj > pTo) isValidDate = false
+                }
+              } else {
+                logAction(
+                  'Aviso de Data Inconsistente',
+                  { url, pubDate },
+                  'warning',
+                  'filtragem_temporal',
+                )
+              }
+            } else {
+              logAction('Aviso de Data Ausente', { url }, 'warning', 'filtragem_temporal')
+            }
+
+            if (!isValidDate) {
+              logAction(
+                'Publicação descartada',
+                {
+                  url,
+                  page: pagesCount,
+                  discardReason: 'fora_do_periodo',
+                  discardSnippet: content.substring(0, 150),
+                },
+                'info',
+                'filtragem_temporal',
+              )
               continue
             }
 
@@ -401,14 +492,6 @@ routerAdd(
 
             const hashInput = title + contentRaw + urlTitleStr
             const hash = $security.md5(hashInput)
-
-            let parsedDate = ''
-            if (pubDate) {
-              const dParts = pubDate.split('/')
-              if (dParts.length === 3) {
-                parsedDate = `${dParts[2]}-${dParts[1]}-${dParts[0]} 00:00:00.000Z`
-              }
-            }
 
             const scrapedItem = {
               titulo: title,
@@ -434,12 +517,17 @@ routerAdd(
               const existing = $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash)
               if (existing) {
                 isDuplicate = true
-                logAction('Publicação descartada', {
-                  url,
-                  page: pagesCount,
-                  discardReason: 'duplicado_em_publicacoes_dou',
-                  discardSnippet: content.substring(0, 150),
-                })
+                logAction(
+                  'Publicação descartada',
+                  {
+                    url,
+                    page: pagesCount,
+                    discardReason: 'duplicado_em_publicacoes_dou',
+                    discardSnippet: content.substring(0, 150),
+                  },
+                  'info',
+                  'deduplicacao',
+                )
                 scrapedItems.push({
                   id: existing.id,
                   titulo: existing.getString('titulo'),
@@ -466,12 +554,17 @@ routerAdd(
                 )
                 if (existingGaz) {
                   isDuplicate = true
-                  logAction('Publicação descartada', {
-                    url,
-                    page: pagesCount,
-                    discardReason: 'duplicado_em_gazette_publications',
-                    discardSnippet: content.substring(0, 150),
-                  })
+                  logAction(
+                    'Publicação descartada',
+                    {
+                      url,
+                      page: pagesCount,
+                      discardReason: 'duplicado_em_gazette_publications',
+                      discardSnippet: content.substring(0, 150),
+                    },
+                    'info',
+                    'deduplicacao',
+                  )
                 }
               } catch (_) {}
             }
@@ -488,7 +581,12 @@ routerAdd(
                   ...scrapedItem,
                 })
               } catch (saveErr) {
-                logAction('Erro ao salvar publicação', { error: saveErr.toString(), url })
+                logAction(
+                  'Erro ao salvar publicação',
+                  { error: saveErr.toString(), url },
+                  'error',
+                  'salvamento',
+                )
               }
             }
           }
@@ -496,10 +594,12 @@ routerAdd(
           if (pageValidItems === 0) {
             consecutiveEmptyPages++
             if (consecutiveEmptyPages >= 10) {
-              logAction('Muitas páginas vazias consecutivas, abortando partição', {
-                chunk,
-                pagesCount,
-              })
+              logAction(
+                'Muitas páginas vazias consecutivas, abortando partição',
+                { chunk, pagesCount },
+                'warning',
+                'paginacao',
+              )
               keepPaginating = false
               break
             }
@@ -507,10 +607,12 @@ routerAdd(
             consecutiveEmptyPages = 0
           }
 
-          if (jsonArray.length < 20) {
+          if (jsonArray.length < 20 && consecutiveIdenticalId === 0) {
             keepPaginating = false
           } else {
-            start += delta
+            if (consecutiveIdenticalId === 0) {
+              start += delta
+            }
             sleep(2000)
           }
         } else {
@@ -520,7 +622,12 @@ routerAdd(
     }
 
     if (hasScrapingSuccess && scrapedItems.length > 0) {
-      logAction('Scraping concluído com sucesso', { count: scrapedItems.length })
+      logAction(
+        'Scraping concluído com sucesso',
+        { count: scrapedItems.length },
+        'info',
+        'finalizacao',
+      )
       const uniqueItems = []
       const seenIds = new Set()
       for (const item of scrapedItems) {
@@ -535,7 +642,7 @@ routerAdd(
     }
 
     try {
-      logAction('Iniciando fallback Querido Diário', { q })
+      logAction('Iniciando fallback Querido Diário', { q }, 'info', 'fallback')
       const qdUrl = `https://queridodiario.ok.org.br/api/gazettes?querystring=${encodeURIComponent(q)}`
 
       let res
@@ -571,15 +678,52 @@ routerAdd(
 
             const matchResult = isMatch(content + ' ' + title, q, searchType)
             if (!matchResult.match) {
-              logAction('Publicação QD descartada', {
-                url,
-                discardReason: matchResult.reason,
-                discardSnippet: content.substring(0, 150),
-              })
+              logAction(
+                'Publicação QD descartada',
+                {
+                  url,
+                  discardReason: matchResult.reason,
+                  discardSnippet: content.substring(0, 150),
+                },
+                'info',
+                'fallback',
+              )
               continue
             }
 
             const pubDate = item.date ? `${item.date} 00:00:00.000Z` : ''
+
+            let parsedDate = ''
+            let isValidDate = true
+            if (item.date) {
+              const dParts = item.date.split('-')
+              if (dParts.length === 3) {
+                const dObj = new Date(dParts[0], dParts[1] - 1, dParts[2])
+                if (publishFrom) {
+                  const pFrom = parseDate(publishFrom)
+                  if (pFrom && dObj < pFrom) isValidDate = false
+                }
+                if (publishTo) {
+                  const pTo = parseDate(publishTo)
+                  if (pTo && dObj > pTo) isValidDate = false
+                }
+              }
+            }
+
+            if (!isValidDate) {
+              logAction(
+                'Publicação QD descartada',
+                {
+                  url,
+                  discardReason: 'fora_do_periodo',
+                  discardSnippet: content.substring(0, 150),
+                },
+                'info',
+                'fallback',
+              )
+              continue
+            }
+
             const hashInput = title + contentRaw + url
             const hash = $security.md5(hashInput)
 
@@ -646,10 +790,15 @@ routerAdd(
         }
       }
     } catch (err) {
-      logAction('Erro fallback QD', { error: err.toString() })
+      logAction('Erro fallback QD', { error: err.toString() }, 'error', 'fallback')
     }
 
-    logAction('Busca finalizada', { count: fallbackItems.length, source: 'QUERIDO_DIARIO' })
+    logAction(
+      'Busca finalizada',
+      { count: fallbackItems.length, source: 'QUERIDO_DIARIO' },
+      'info',
+      'finalizacao',
+    )
     return e.json(200, { source: 'QUERIDO_DIARIO', items: fallbackItems })
   },
   $apis.requireAuth(),
