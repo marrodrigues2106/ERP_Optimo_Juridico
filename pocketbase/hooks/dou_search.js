@@ -7,6 +7,7 @@ routerAdd(
     const publishFrom = body.publishFrom || ''
     const publishTo = body.publishTo || ''
     const orgPrin = body.orgPrin || ''
+    const secao = body.secao || 'todos'
 
     const user = e.auth
     if (!user) return e.unauthorizedError('Não autorizado')
@@ -72,8 +73,31 @@ routerAdd(
 
     let cacheItems = []
     try {
-      const safeQ = q.replace(/'/g, "''")
-      const filter = `data_publicacao >= '${publishFrom} 00:00:00.000Z' && data_publicacao <= '${publishTo} 23:59:59.999Z' && (texto_normalizado ~ '${safeQ}' || titulo ~ '${safeQ}')`
+      const orgId = user.getString('active_organization') || ''
+      const terms = q
+        .split(' OR ')
+        .map((t) => t.trim())
+        .filter(Boolean)
+      const termsFilters =
+        terms.length > 0
+          ? terms
+              .map((t) => {
+                const safeT = t.replace(/'/g, "''")
+                return `(texto_normalizado ~ '${safeT}' || titulo ~ '${safeT}')`
+              })
+              .join(' || ')
+          : `(texto_normalizado ~ '${q.replace(/'/g, "''")}' || titulo ~ '${q.replace(/'/g, "''")}')`
+
+      let filter = `data_publicacao >= '${publishFrom} 00:00:00.000Z' && data_publicacao <= '${publishTo} 23:59:59.999Z' && (${termsFilters})`
+
+      if (orgId) {
+        filter += ` && organization = '${orgId}'`
+      }
+
+      if (secao && secao !== 'todos') {
+        filter += ` && secao = '${secao.toUpperCase()}'`
+      }
+
       const localRecords = $app.findRecordsByFilter(
         'publicacoes_dou',
         filter,

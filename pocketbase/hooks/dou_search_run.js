@@ -7,6 +7,7 @@ routerAdd(
     const publishFrom = body.publishFrom || ''
     const publishTo = body.publishTo || ''
     const orgPrin = body.orgPrin || ''
+    const secao = body.secao || 'todos'
     const jobId = body.jobId || 'unknown'
 
     const user = e.auth
@@ -27,11 +28,6 @@ routerAdd(
       } catch (err) {}
     }
 
-    function sleep(ms) {
-      const end = new Date().getTime() + ms
-      while (new Date().getTime() < end) {}
-    }
-
     function decodeISO(bytes) {
       let s = ''
       for (let i = 0; i < bytes.length; i++) {
@@ -48,18 +44,6 @@ routerAdd(
       if (!text) return ''
       let cleaned = text.replace(/<[^>]*>?/gm, ' ')
       return cleaned.replace(/\s+/g, ' ').trim()
-    }
-
-    function superNormalize(str) {
-      if (!str) return ''
-      let s = str.toLowerCase()
-      const accents = 'áàãâäéèêëíìîïóòõôöúùûüçñ'
-      const without = 'aaaaaeeeeiiiiooooouuuucn'
-      for (let i = 0; i < accents.length; i++) {
-        s = s.split(accents[i]).join(without[i])
-      }
-      s = s.replace(/[^a-z0-9\s]/g, ' ')
-      return s.replace(/\s+/g, ' ').trim()
     }
 
     function mapArtType(artTypeRaw) {
@@ -100,30 +84,6 @@ routerAdd(
         .join(' ')
     }
 
-    function isMatch(rawText, term) {
-      if (!rawText) return { match: false, reason: 'empty_content' }
-      const normText = superNormalize(rawText)
-      const exactMatchRegex = /^"([^"]+)"$/
-      const match = term.trim().match(exactMatchRegex)
-
-      if (match) {
-        const exactPhrase = superNormalize(match[1])
-        if (normText.includes(exactPhrase)) return { match: true }
-        return { match: false, reason: 'nao_corresponde_frase_exata' }
-      }
-
-      const normTerm = superNormalize(term)
-      const tokens = normTerm.split(/\s+/).filter((t) => t.length > 0)
-      if (tokens.length === 0) return { match: false, reason: 'termo_vazio' }
-
-      let matchCount = 0
-      for (const t of tokens) {
-        if (normText.includes(t)) matchCount++
-      }
-      if (matchCount === tokens.length) return { match: true }
-      return { match: false, reason: 'baixa_relevancia' }
-    }
-
     function parseDate(dStr) {
       if (!dStr) return null
       let parts = dStr.split(' ')[0].split('-')
@@ -149,26 +109,18 @@ routerAdd(
       return `${yyyy}-${mm}-${dd}`
     }
 
-    const uas = [
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Safari/605.1.15',
-      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36',
-    ]
-
     let activeCookies = []
 
-    function fetchWithRetry(url, attempt = 1, uaIndex = 0) {
+    function fetchAPI(url) {
       const headers = {
-        'User-Agent': uas[uaIndex % uas.length],
-        Accept:
-          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/114.0.0.0 Safari/537.36',
+        Accept: 'application/json, text/plain, */*',
+        'Accept-Language': 'pt-BR,pt;q=0.9',
       }
       if (activeCookies.length > 0) headers['Cookie'] = activeCookies.join('; ')
 
-      let res = null
       try {
-        res = $http.send({ url: url, method: 'GET', headers: headers, timeout: 30 })
+        const res = $http.send({ url: url, method: 'GET', headers: headers, timeout: 30 })
         if (res?.headers) {
           let setCookie = res?.headers['set-cookie'] || res?.headers['Set-Cookie']
           if (setCookie) {
@@ -184,30 +136,18 @@ routerAdd(
             } catch (cookieErr) {}
           }
         }
+        return res
       } catch (err) {
-        if (attempt >= 3) return { statusCode: 0, body: null }
-        sleep(2000 * attempt)
-        return fetchWithRetry(url, attempt + 1, uaIndex + 1)
+        return { statusCode: 0, body: null }
       }
-
-      if (res && res.statusCode === 200) return res
-      if (attempt >= 3) return res || { statusCode: 0, body: null }
-
-      let delay = 2000 * attempt
-      if (res && [403, 429].includes(res.statusCode)) delay = 5000 * attempt
-      else if (res && [502, 503, 504].includes(res.statusCode)) delay = 3000 * attempt
-
-      sleep(delay)
-      return fetchWithRetry(url, attempt + 1, uaIndex + 1)
     }
 
-    logAction('Conectando ao Portal', { q }, 'info', 'Conectando')
+    logAction('Conectando ao Portal', { q, secao }, 'info', 'Conectando')
 
     let scrapedItems = []
     const col = $app.findCollectionByNameOrId('publicacoes_dou')
     const orgId = e.auth?.getString('active_organization') || ''
 
-    let hasScrapingSuccess = false
     let uniqueUrls = new Set()
 
     let currentPage = 0
@@ -216,13 +156,13 @@ routerAdd(
     let keepPaginating = true
     let pagesCount = 0
 
-    while (keepPaginating && pagesCount < 15) {
+    while (keepPaginating && pagesCount < 20) {
       pagesCount++
       logAction(`Lendo Página ${pagesCount}`, { page: pagesCount }, 'info', 'Lendo Página')
 
       const params = new URLSearchParams()
       params.append('q', q)
-      params.append('s', 'todos')
+      params.append('s', secao)
       params.append('exactDate', 'personalizado')
       params.append('sortType', '0')
       params.append('currentPage', currentPage.toString())
@@ -244,7 +184,7 @@ routerAdd(
 
       const inUrl = `https://www.in.gov.br/consulta/-/buscar/dou?${params.toString()}`
 
-      const res = fetchWithRetry(inUrl, 1, 0)
+      const res = fetchAPI(inUrl)
 
       if (res.statusCode !== 200) {
         logAction(
@@ -257,20 +197,10 @@ routerAdd(
         break
       }
 
-      hasScrapingSuccess = true
       let html = decodeISO(res.body)
 
-      if (
-        html.toLowerCase().includes('captcha') ||
-        html.toLowerCase().includes('acesso negado') ||
-        html.toLowerCase().includes('cloudflare')
-      ) {
-        logAction(
-          'portal_blocked',
-          { message: 'Bloqueio detectado.', snippet: html.substring(0, 200) },
-          'error',
-          'request',
-        )
+      if (html.toLowerCase().includes('captcha') || html.toLowerCase().includes('acesso negado')) {
+        logAction('portal_blocked', { message: 'Bloqueio detectado.' }, 'error', 'request')
         keepPaginating = false
         break
       }
@@ -394,9 +324,6 @@ routerAdd(
         uniqueUrls.add(hash)
 
         const pubDate = item.pubDate || ''
-        const matchResult = isMatch(content + ' ' + title, q)
-
-        if (!matchResult.match) continue
 
         let parsedDate = ''
         if (pubDate) {
@@ -404,11 +331,16 @@ routerAdd(
           if (dObj) parsedDate = `${formatDateStandard(dObj)} 00:00:00.000Z`
         }
 
+        const secaoDoDiario = cleanText(item.secaoDoDiario || '')
+        if (secao !== 'todos' && secaoDoDiario.toLowerCase() !== secao.toLowerCase()) {
+          continue
+        }
+
         pendingItems.push({
           hash: hash,
           data: {
             titulo: title,
-            secao: cleanText(item.secaoDoDiario || ''),
+            secao: secaoDoDiario,
             orgao: cleanText(item.pubName || item.hierarchyStr || ''),
             texto_bruto: contentRaw,
             texto_normalizado: content,
@@ -451,7 +383,6 @@ routerAdd(
         } catch (e) {}
       }
 
-      let savedCount = 0
       for (const p of pendingItems) {
         if (!existingHashes.has(p.hash)) {
           try {
@@ -461,7 +392,6 @@ routerAdd(
             })
             $app.save(record)
             scrapedItems.push({ id: record.id, ...p.data })
-            savedCount++
           } catch (saveErr) {}
         }
       }

@@ -3,6 +3,13 @@ import { Search, Loader2, BookOpen, Calendar, ExternalLink, Activity } from 'luc
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -22,6 +29,7 @@ export function DouSearch() {
   const [publishFrom, setPublishFrom] = useState('')
   const [publishTo, setPublishTo] = useState('')
   const [orgPrin, setOrgPrin] = useState('')
+  const [secao, setSecao] = useState('todos')
 
   const [jobId, setJobId] = useState<string | null>(null)
   const [progressMsg, setProgressMsg] = useState('')
@@ -52,6 +60,7 @@ export function DouSearch() {
         const pubDate = e.record.data_publicacao
         if (publishFrom && pubDate < publishFrom) return
         if (publishTo && pubDate > publishTo + 'T23:59:59') return
+        if (secao !== 'todos' && e.record.secao?.toLowerCase() !== secao.toLowerCase()) return
 
         setResults((prev) => {
           if (prev.find((r) => r.id === e.record.id)) return prev
@@ -92,8 +101,17 @@ export function DouSearch() {
     setProgressValue(5)
     setJobId(null)
 
+    // Format terms with OR if separated by comma
+    const formattedQ = q.includes(',')
+      ? q
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean)
+          .join(' OR ')
+      : q
+
     try {
-      const res = await searchDouInit(q, publishFrom, publishTo, orgPrin)
+      const res = await searchDouInit(formattedQ, publishFrom, publishTo, orgPrin, secao)
 
       if (res.localItems && res.localItems.length > 0) {
         setResults(res.localItems)
@@ -110,7 +128,7 @@ export function DouSearch() {
       setJobId(newJobId)
       setProgressValue(10)
 
-      searchDouRun(newJobId, q, publishFrom, publishTo, orgPrin)
+      searchDouRun(newJobId, formattedQ, publishFrom, publishTo, orgPrin, secao)
         .then((runRes) => {
           setLoading(false)
           setProgressMsg('Busca concluída.')
@@ -163,20 +181,20 @@ export function DouSearch() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSearch} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="md:col-span-2 flex flex-col gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+              <div className="md:col-span-6 flex flex-col gap-2">
                 <Label>Termo de Busca *</Label>
                 <Input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder="Ex: Moraes Rodrigues"
+                  placeholder="Ex: Termo 1, Termo 2"
                   required
                 />
                 <p className="text-xs text-slate-500 mt-1">
-                  Use aspas para termos exatos. Sem aspas a busca é flexível.
+                  Separe os termos por vírgula para buscar qualquer um deles (OR).
                 </p>
               </div>
-              <div className="md:col-span-1 flex flex-col gap-2">
+              <div className="md:col-span-3 flex flex-col gap-2">
                 <Label>Data Inicial *</Label>
                 <Input
                   type="date"
@@ -185,7 +203,7 @@ export function DouSearch() {
                   required
                 />
               </div>
-              <div className="md:col-span-1 flex flex-col gap-2">
+              <div className="md:col-span-3 flex flex-col gap-2">
                 <Label>Data Final *</Label>
                 <Input
                   type="date"
@@ -194,13 +212,30 @@ export function DouSearch() {
                   required
                 />
               </div>
-              <div className="md:col-span-4 flex flex-col gap-2">
+              <div className="md:col-span-6 flex flex-col gap-2">
                 <Label>Órgão (Opcional)</Label>
                 <Input
                   value={orgPrin}
                   onChange={(e) => setOrgPrin(e.target.value)}
-                  placeholder="Ex: Ministério da Fazenda, Receita Federal..."
+                  placeholder="Ex: Ministério da Fazenda..."
                 />
+              </div>
+              <div className="md:col-span-6 flex flex-col gap-2">
+                <Label>Seção</Label>
+                <Select value={secao} onValueChange={setSecao}>
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Todas as Seções" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todas as Seções</SelectItem>
+                    <SelectItem value="do1">Seção 1 (DO1)</SelectItem>
+                    <SelectItem value="do2">Seção 2 (DO2)</SelectItem>
+                    <SelectItem value="do3">Seção 3 (DO3)</SelectItem>
+                    <SelectItem value="do1e">Seção 1 Extra (DO1e)</SelectItem>
+                    <SelectItem value="do2e">Seção 2 Extra (DO2e)</SelectItem>
+                    <SelectItem value="do3e">Seção 3 Extra (DO3e)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
