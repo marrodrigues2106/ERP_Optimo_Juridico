@@ -54,45 +54,16 @@ routerAdd(
       }
     }
 
-    function normalizeText(text) {
-      if (!text) return ''
-      let norm = text.toLowerCase()
-      try {
-        norm = norm.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      } catch (err) {
-        norm = norm
-          .replace(/[áàâãä]/g, 'a')
-          .replace(/[éèêë]/g, 'e')
-          .replace(/[íìîï]/g, 'i')
-          .replace(/[óòôõö]/g, 'o')
-          .replace(/[úùûü]/g, 'u')
-          .replace(/[ç]/g, 'c')
-          .replace(/[ñ]/g, 'n')
-      }
-      return norm.replace(/\s+/g, ' ').trim()
-    }
-
     function stripNonNumeric(str) {
       if (!str) return ''
       return str.replace(/\D/g, '')
     }
 
-    function cleanContent(text) {
+    function cleanText(text) {
       if (!text) return ''
-      let cleaned = text
-        .replace(/&nbsp;/gi, ' ')
-        .replace(/&amp;/gi, ' ')
-        .replace(/&lt;/gi, '<')
-        .replace(/&gt;/gi, '>')
-        .replace(/&quot;/gi, '"')
-        .replace(/&#39;/gi, "'")
-      cleaned = cleaned.replace(/<[^>]*>?/gm, ' ')
+      let cleaned = text.replace(/<[^>]*>?/gm, ' ')
       cleaned = cleaned.replace(/\s+/g, ' ').trim()
-      cleaned = cleaned.replace(
-        /Este documento pode ser verificado no endereço eletrônico[^\.]*\./gi,
-        '',
-      )
-      return cleaned.trim()
+      return cleaned
     }
 
     function mapArtType(artTypeRaw) {
@@ -124,6 +95,7 @@ routerAdd(
         HOMOLOGACAO: 'Homologação',
         RESULTADO: 'Resultado',
         RETIFICACAO: 'Retificação',
+        ATO: 'Ato',
       }
       if (map[artTypeRaw]) return map[artTypeRaw]
       return artTypeRaw
@@ -135,8 +107,8 @@ routerAdd(
     function isMatch(rawText, term, type) {
       if (!rawText) return { match: false, reason: 'empty_content' }
 
-      const normText = normalizeText(rawText)
-      const normTerm = normalizeText(term)
+      const normText = cleanText(rawText).toLowerCase()
+      const normTerm = cleanText(term).toLowerCase()
 
       if (['numeroProcesso', 'numeroOab', 'cpfCnpj'].includes(type)) {
         const cleanTerm = stripNonNumeric(term)
@@ -191,6 +163,7 @@ routerAdd(
     }
 
     function formatDateForIN(d) {
+      if (!d) return ''
       const dd = String(d.getDate()).padStart(2, '0')
       const mm = String(d.getMonth() + 1).padStart(2, '0')
       const yyyy = d.getFullYear()
@@ -198,62 +171,29 @@ routerAdd(
     }
 
     function formatDateStandard(d) {
+      if (!d) return ''
       const dd = String(d.getDate()).padStart(2, '0')
       const mm = String(d.getMonth() + 1).padStart(2, '0')
       const yyyy = d.getFullYear()
       return `${yyyy}-${mm}-${dd}`
     }
 
-    function generateChunks(fromStr, toStr) {
-      const chunks = []
-      const dFrom = parseDate(fromStr)
-      const dTo = parseDate(toStr)
-
-      if (!dFrom || !dTo) {
-        chunks.push({
-          from: fromStr ? formatDateForIN(dFrom) : '',
-          to: toStr ? formatDateForIN(dTo) : '',
-        })
-        return chunks
-      }
-
-      let current = new Date(dFrom.getTime())
-      while (current <= dTo) {
-        let chunkEnd = new Date(current.getTime() + 9 * 24 * 60 * 60 * 1000)
-        if (chunkEnd > dTo) chunkEnd = new Date(dTo.getTime())
-
-        chunks.push({
-          from: formatDateForIN(current),
-          to: formatDateForIN(chunkEnd),
-        })
-
-        current = new Date(chunkEnd.getTime() + 24 * 60 * 60 * 1000)
-      }
-      return chunks
-    }
-
     const uas = [
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Safari/605.1.15',
       'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/113.0',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
     ]
 
     let activeCookies = []
 
-    function fetchWithRetry(url, attempt = 1, uaIndex = 0, forceNoCache = false) {
+    function fetchWithRetry(url, attempt = 1, uaIndex = 0) {
       const headers = {
         'User-Agent': uas[uaIndex % uas.length],
         Accept:
           'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
       }
-      if (forceNoCache) {
-        headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        headers['Pragma'] = 'no-cache'
-        headers['Expires'] = '0'
-      }
+
       if (activeCookies.length > 0) {
         headers['Cookie'] = activeCookies.join('; ')
       }
@@ -271,9 +211,7 @@ routerAdd(
           let setCookie = res?.headers['set-cookie'] || res?.headers['Set-Cookie']
           if (setCookie) {
             try {
-              if (Array.isArray(setCookie)) {
-                setCookie = setCookie.join(',')
-              }
+              if (Array.isArray(setCookie)) setCookie = setCookie.join(',')
               if (typeof setCookie === 'string') {
                 const newCookies = setCookie
                   .split(',')
@@ -281,508 +219,352 @@ routerAdd(
                   .filter(Boolean)
                 activeCookies = [...new Set([...activeCookies, ...newCookies])]
               }
-            } catch (cookieErr) {
-              logAction(
-                'Erro ao processar cookies',
-                { error: cookieErr?.toString() },
-                'warning',
-                'request',
-              )
-            }
+            } catch (cookieErr) {}
           }
         }
       } catch (err) {
         if (attempt >= 3) {
-          logAction(
-            'Falha ao buscar após tentativas máximas (Network/Timeout)',
-            { url, error: err?.toString() },
-            'error',
-            'request',
-          )
           return { statusCode: 0, body: null }
         }
-        let delay = 2000 * attempt
-        logAction(
-          `Erro de rede/timeout. Retentando em ${delay}ms (tentativa ${attempt + 1})`,
-          { url },
-          'warning',
-          'request',
-        )
-        sleep(delay)
-        return fetchWithRetry(url, attempt + 1, uaIndex + 1, forceNoCache)
+        sleep(2000 * attempt)
+        return fetchWithRetry(url, attempt + 1, uaIndex + 1)
       }
 
       if (res && res.statusCode === 200) return res
 
-      if (attempt >= 3) {
-        logAction(
-          'Falha ao buscar após tentativas máximas (HTTP)',
-          { url, statusCode: res ? res.statusCode : 0 },
-          'error',
-          'request',
-        )
-        return res || { statusCode: 0, body: null }
-      }
+      if (attempt >= 3) return res || { statusCode: 0, body: null }
 
       let delay = 2000 * attempt
-      if (res && [403, 429].includes(res.statusCode)) {
-        delay = 5000 * attempt
-      } else if (res && [502, 503, 504].includes(res.statusCode)) {
-        delay = 3000 * attempt
-      }
+      if (res && [403, 429].includes(res.statusCode)) delay = 5000 * attempt
+      else if (res && [502, 503, 504].includes(res.statusCode)) delay = 3000 * attempt
 
-      logAction(
-        `Erro HTTP ${res ? res.statusCode : 0}. Retentando em ${delay}ms (tentativa ${attempt + 1})`,
-        { url },
-        'warning',
-        'request',
-      )
       sleep(delay)
-      return fetchWithRetry(url, attempt + 1, uaIndex + 1, forceNoCache)
+      return fetchWithRetry(url, attempt + 1, uaIndex + 1)
     }
 
-    logAction('Iniciando busca DOU', { q, publishFrom, publishTo, searchType }, 'info', 'request')
+    logAction(
+      'Iniciando busca DOU',
+      { q, publishFrom, publishTo, searchType, orgPrin },
+      'info',
+      'request',
+    )
+
+    let searchRecord = null
+    try {
+      const searchesCol = $app.findCollectionByNameOrId('searches')
+      searchRecord = new Record(searchesCol)
+      searchRecord.set('term', q)
+      searchRecord.set('search_type', searchType)
+      searchRecord.set('status', 'running')
+      searchRecord.set('results_count', 0)
+      searchRecord.set('start_date', publishFrom)
+      searchRecord.set('end_date', publishTo)
+      $app.save(searchRecord)
+    } catch (e) {
+      logAction('Erro ao criar registro em searches', { error: e.toString() }, 'error', 'request')
+    }
 
     let scrapedItems = []
-    let fallbackItems = []
-
-    const dateChunks = generateChunks(publishFrom, publishTo)
-    logAction('Partições geradas', { chunksCount: dateChunks.length }, 'info', 'request')
-
     const col = $app.findCollectionByNameOrId('publicacoes_dou')
     const orgId = e.auth?.getString('active_organization') || ''
 
     let hasScrapingSuccess = false
     let uniqueUrls = new Set()
 
-    for (let cIdx = 0; cIdx < dateChunks.length; cIdx++) {
-      if (cIdx > 0) sleep(3000)
+    let currentPage = 0
+    let newPage = 1
+    let lastCursor = null // { score, id, displayDateSortable }
+    let keepPaginating = true
+    let pagesCount = 0
 
-      const chunk = dateChunks[cIdx]
-      let start = 0
-      let delta = 20
-      let keepPaginating = true
-      let lastPageId = null
-      let consecutiveIdenticalId = 0
-      let uaIndex = 0
-      let pagesCount = 0
-      let consecutiveEmptyPages = 0
-      let forceNoCache = false
-      let useCursor = true
-      let lastCursor = null
+    while (keepPaginating && pagesCount < 15) {
+      pagesCount++
+      const params = new URLSearchParams()
+      params.append('q', q)
+      params.append('s', 'todos')
+      params.append('exactDate', 'personalizado')
+      params.append('sortType', '0')
+      params.append('currentPage', currentPage.toString())
+      params.append('newPage', newPage.toString())
 
-      while (keepPaginating && pagesCount < 15) {
-        pagesCount++
-        const params = new URLSearchParams()
-        params.append('q', q)
-        params.append('s', 'todos')
-        params.append('exactDate', 'personalizado')
-        params.append('sortType', '0')
-        params.append('delta', delta.toString())
-        params.append('start', start.toString())
+      if (lastCursor) {
+        params.append('useCursor', 'true')
+        if (lastCursor.score) params.append('score', lastCursor.score.toString())
+        if (lastCursor.id) params.append('id', lastCursor.id.toString())
+        if (lastCursor.displayDateSortable)
+          params.append('displayDate', lastCursor.displayDateSortable.toString())
+      } else {
+        params.append('useCursor', 'false')
+      }
 
-        if (useCursor && lastCursor) {
-          params.append('useCursor', 'true')
-          if (lastCursor.score) params.append('score', lastCursor.score.toString())
-          if (lastCursor.id) params.append('id', lastCursor.id.toString())
-          if (lastCursor.displayDate)
-            params.append('displayDate', lastCursor.displayDate.toString())
-        } else if (!useCursor) {
-          params.append('useCursor', 'false')
-        }
+      if (publishFrom) params.append('publishFrom', formatDateForIN(parseDate(publishFrom)))
+      if (publishTo) params.append('publishTo', formatDateForIN(parseDate(publishTo)))
+      if (orgPrin) params.append('orgPrin', orgPrin)
 
-        if (chunk.from) params.append('publishFrom', chunk.from)
-        if (chunk.to) params.append('publishTo', chunk.to)
-        if (orgPrin) params.append('orgPrin', orgPrin)
+      const inUrl = `https://www.in.gov.br/consulta/-/buscar/dou?${params.toString()}`
 
-        const inUrl = `https://www.in.gov.br/consulta/-/buscar/dou?${params.toString()}`
+      const res = fetchWithRetry(inUrl, 1, 0)
 
-        const res = fetchWithRetry(inUrl, 1, uaIndex, forceNoCache)
+      if (res.statusCode !== 200) {
+        keepPaginating = false
+        break
+      }
 
-        if (res.statusCode !== 200) {
-          keepPaginating = false
-          break
-        }
+      hasScrapingSuccess = true
+      let html = decodeISO(res.body)
 
-        hasScrapingSuccess = true
-        let html = decodeISO(res.body)
+      if (
+        html.toLowerCase().includes('captcha') ||
+        html.toLowerCase().includes('acesso negado') ||
+        html.toLowerCase().includes('cloudflare') ||
+        html.toLowerCase().includes('incapsula') ||
+        html.toLowerCase().includes('bloqueio')
+      ) {
+        logAction(
+          'portal_blocked',
+          {
+            message: 'Bloqueio de WAF, Manutenção ou CAPTCHA detectado.',
+            snippet: html.substring(0, 200),
+          },
+          'error',
+          'request',
+        )
+        keepPaginating = false
+        break
+      }
 
-        if (
-          html.toLowerCase().includes('captcha') ||
-          html.toLowerCase().includes('acesso negado') ||
-          html.toLowerCase().includes('cloudflare') ||
-          html.toLowerCase().includes('incapsula') ||
-          html.toLowerCase().includes('bloqueio')
-        ) {
-          logAction(
-            'portal_blocked',
-            {
-              message: 'Bloqueio de WAF, Manutenção ou CAPTCHA detectado.',
-              snippet: html.substring(0, 200),
-            },
-            'error',
-            'request',
-          )
-          keepPaginating = false
-          break
-        }
+      let rawJsonStr = null
+      let startIdx = html.indexOf('params = {')
+      if (startIdx === -1) {
+        startIdx = html.indexOf('{"jsonArray":')
+      } else {
+        startIdx = html.indexOf('{', startIdx)
+      }
 
-        let rawJsonStr = null
-        const searchStr = '"jsonArray":'
-        const idx = html.indexOf(searchStr)
-        if (idx !== -1) {
-          const startIdx = html.indexOf('[', idx + searchStr.length)
-          if (startIdx !== -1) {
-            let brackets = 0
-            let inString = false
-            let escapeNext = false
-            let endIdx = -1
+      if (startIdx !== -1) {
+        let brackets = 0
+        let inString = false
+        let escapeNext = false
+        let endIdx = -1
 
-            for (let i = startIdx; i < html.length; i++) {
-              const char = html[i]
-              if (escapeNext) {
-                escapeNext = false
-                continue
+        for (let i = startIdx; i < html.length; i++) {
+          const char = html[i]
+          if (escapeNext) {
+            escapeNext = false
+            continue
+          }
+          if (char === '\\') {
+            escapeNext = true
+            continue
+          }
+          if (char === '"') {
+            inString = !inString
+            continue
+          }
+          if (!inString) {
+            if (char === '{') brackets++
+            else if (char === '}') {
+              brackets--
+              if (brackets === 0) {
+                endIdx = i
+                break
               }
-              if (char === '\\') {
-                escapeNext = true
-                continue
-              }
-              if (char === '"') {
-                inString = !inString
-                continue
-              }
-              if (!inString) {
-                if (char === '[') brackets++
-                else if (char === ']') {
-                  brackets--
-                  if (brackets === 0) {
-                    endIdx = i
-                    break
-                  }
-                }
-              }
-            }
-
-            if (endIdx !== -1) {
-              rawJsonStr = html.substring(startIdx, endIdx + 1)
             }
           }
         }
 
-        if (rawJsonStr) {
-          let jsonArray = []
-          try {
-            jsonArray = JSON.parse(rawJsonStr)
-          } catch (err) {
+        if (endIdx !== -1) {
+          rawJsonStr = html.substring(startIdx, endIdx + 1)
+        }
+      }
+
+      let jsonArray = []
+      if (rawJsonStr) {
+        try {
+          const parsedObj = JSON.parse(rawJsonStr)
+          jsonArray = parsedObj.jsonArray || []
+        } catch (err) {
+          const searchStr = '"jsonArray":'
+          const idx = html.indexOf(searchStr)
+          if (idx !== -1) {
+            const arrStart = html.indexOf('[', idx)
+            if (arrStart !== -1) {
+              let arrBrackets = 0
+              let arrInStr = false
+              let arrEsc = false
+              let arrEnd = -1
+              for (let i = arrStart; i < html.length; i++) {
+                const c = html[i]
+                if (arrEsc) {
+                  arrEsc = false
+                  continue
+                }
+                if (c === '\\') {
+                  arrEsc = true
+                  continue
+                }
+                if (c === '"') {
+                  arrInStr = !arrInStr
+                  continue
+                }
+                if (!arrInStr) {
+                  if (c === '[') arrBrackets++
+                  else if (c === ']') {
+                    arrBrackets--
+                    if (arrBrackets === 0) {
+                      arrEnd = i
+                      break
+                    }
+                  }
+                }
+              }
+              if (arrEnd !== -1) {
+                try {
+                  jsonArray = JSON.parse(html.substring(arrStart, arrEnd + 1))
+                } catch (e2) {}
+              }
+            }
+          }
+
+          if (jsonArray.length === 0) {
             logAction(
               'parse_error',
-              {
-                message: 'Falha ao fazer parse do jsonArray (resposta incompleta ou truncada)',
-                error: err?.toString(),
-                snippet:
-                  rawJsonStr.length > 200
-                    ? rawJsonStr.substring(rawJsonStr.length - 200)
-                    : rawJsonStr,
-              },
+              { message: 'Falha ao fazer parse do params', error: err?.toString() },
               'error',
               'parse_json',
             )
             keepPaginating = false
             break
           }
+        }
+      } else {
+        keepPaginating = false
+        break
+      }
 
-          if (jsonArray.length === 0) {
-            keepPaginating = false
-            break
+      if (jsonArray.length === 0) {
+        keepPaginating = false
+        break
+      }
+
+      const lastItem = jsonArray[jsonArray.length - 1]
+      lastCursor = {
+        score: lastItem.score,
+        id: lastItem.classPK || lastItem.id,
+        displayDateSortable:
+          lastItem.displayDateSortable || lastItem.displayDate || lastItem.pubDate,
+      }
+      currentPage = newPage
+      newPage++
+
+      for (const item of jsonArray) {
+        const title = cleanText(item.title || '')
+        const urlTitleStr = item.urlTitle || ''
+        const url = urlTitleStr ? `https://www.in.gov.br/web/dou/-/${urlTitleStr}` : item.url || ''
+
+        let contentRaw = item.abstractContent || item.content || ''
+        const content = cleanText(contentRaw)
+
+        const hashInput = title + contentRaw + url
+        const hash = $security.md5(hashInput)
+
+        if (uniqueUrls.has(hash)) {
+          continue
+        }
+        uniqueUrls.add(hash)
+
+        const pubDate = item.pubDate || ''
+        const matchResult = isMatch(content + ' ' + title, q, searchType)
+
+        if (!matchResult.match) {
+          logAction(
+            'Publicação descartada',
+            {
+              url,
+              page: pagesCount,
+              discardReason: matchResult.reason,
+              discardSnippet: content.substring(0, 150),
+            },
+            'info',
+            'normalization',
+          )
+          continue
+        }
+
+        let parsedDate = ''
+        if (pubDate) {
+          const dObj = parseDate(pubDate)
+          if (dObj) {
+            parsedDate = `${formatDateStandard(dObj)} 00:00:00.000Z`
           }
+        }
 
-          const lastItem = jsonArray[jsonArray.length - 1]
-          lastCursor = {
-            score: lastItem.score,
-            id: lastItem.id,
-            displayDate: lastItem.displayDate || lastItem.pubDate,
+        const scrapedItem = {
+          titulo: title,
+          secao: cleanText(item.secaoDoDiario || ''),
+          orgao: cleanText(item.pubName || item.hierarchyStr || ''),
+          texto_bruto: contentRaw,
+          texto_normalizado: content,
+          url_origem: url,
+          hash_conteudo: hash,
+          fonte_coleta: 'DOU_SCRAPING',
+          data_publicacao: parsedDate,
+          data_coleta: new Date().toISOString().replace('T', ' '),
+          status_processamento: 'processado',
+          editionNumber: cleanText(item.editionNumber || ''),
+          numberPage: cleanText(item.numberPage || ''),
+          hierarchyStr: cleanText(item.hierarchyStr || ''),
+          artType: mapArtType(cleanText(item.artType || '')),
+          organization: orgId,
+        }
+
+        let isDuplicate = false
+        try {
+          const existing = $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash)
+          if (existing) {
+            isDuplicate = true
+            scrapedItems.push({
+              id: existing.id,
+              titulo: existing.getString('titulo'),
+              secao: existing.getString('secao'),
+              orgao: existing.getString('orgao'),
+              texto_normalizado: existing.getString('texto_normalizado'),
+              url_origem: existing.getString('url_origem'),
+              data_publicacao: existing.getString('data_publicacao'),
+              fonte_coleta: 'LOCAL_DB',
+              editionNumber: existing.getString('editionNumber'),
+              numberPage: existing.getString('numberPage'),
+              hierarchyStr: existing.getString('hierarchyStr'),
+              artType: existing.getString('artType'),
+            })
           }
+        } catch (_) {}
 
-          const currentPageLastId = lastItem.urlTitle || lastItem.id || 'unknown'
-
-          if (currentPageLastId === lastPageId && currentPageLastId !== 'unknown') {
-            consecutiveIdenticalId++
-            logAction(
-              'Loop de paginação detectado',
-              { consecutiveIdenticalId, start, currentPageLastId },
-              'warning',
-              'request',
-            )
-
-            if (consecutiveIdenticalId === 1) {
-              start += 1
-              useCursor = false
-              logAction(
-                'Aplicando Estratégia 1: Desabilitar Cursor e Pulo Temporal',
-                { start, useCursor },
-                'warning',
-                'request',
-              )
-            } else if (consecutiveIdenticalId === 2) {
-              delta = 21
-              useCursor = false
-              logAction(
-                'Aplicando Estratégia 2: Quebra de Cache e Delta',
-                { delta, useCursor },
-                'warning',
-                'request',
-              )
-            } else if (consecutiveIdenticalId === 3) {
-              uaIndex++
-              forceNoCache = true
-              activeCookies = []
-              delta = 25
-              start += delta
-              useCursor = false
-              logAction(
-                'Aplicando Estratégia 3: Reset de Sessão e Rotação de UA',
-                { uaIndex, delta, start, useCursor },
-                'warning',
-                'request',
-              )
-            } else {
-              logAction(
-                'Loop irrecuperável, abortando paginação desta partição',
-                {},
-                'error',
-                'request',
-              )
-              keepPaginating = false
-              break
-            }
-          } else {
-            consecutiveIdenticalId = 0
-            lastPageId = currentPageLastId
-            forceNoCache = false
-            delta = 20
-            useCursor = true
-          }
-
-          let pageValidItems = 0
-
-          for (const item of jsonArray) {
-            const title = cleanContent(item.title || '')
-            const urlTitleStr = item.urlTitle || ''
-            const url = urlTitleStr ? `https://www.in.gov.br/web/dou/-/${urlTitleStr}` : ''
-
-            let contentRaw = item.abstractContent || item.content || ''
-            const content = cleanContent(contentRaw)
-
-            const hashInput = title + contentRaw + url
-            const hash = $security.md5(hashInput)
-
-            if (uniqueUrls.has(hash)) {
-              logAction(
-                'Publicação descartada',
-                {
-                  url,
-                  page: pagesCount,
-                  discardReason: 'Duplicate',
-                  discardSnippet: title.substring(0, 150),
-                },
-                'info',
-                'normalization',
-              )
-              continue
-            }
-            uniqueUrls.add(hash)
-
-            const pubDate = item.pubDate || ''
-
-            const matchResult = isMatch(content + ' ' + title, q, searchType)
-
-            if (!matchResult.match) {
-              logAction(
-                'Publicação descartada',
-                {
-                  url,
-                  page: pagesCount,
-                  discardReason: matchResult.reason,
-                  discardSnippet: content.substring(0, 150),
-                },
-                'info',
-                'normalization',
-              )
-              continue
-            }
-
-            let parsedDate = ''
-            let isValidDate = true
-            if (pubDate) {
-              const dObj = parseDate(pubDate)
-              if (dObj) {
-                parsedDate = `${formatDateStandard(dObj)} 00:00:00.000Z`
-                if (publishFrom) {
-                  const pFrom = parseDate(publishFrom)
-                  if (pFrom && dObj < pFrom) isValidDate = false
-                }
-                if (publishTo) {
-                  const pTo = parseDate(publishTo)
-                  if (pTo && dObj > pTo) isValidDate = false
-                }
-              } else {
-                isValidDate = false
-                logAction(
-                  'Aviso de Data Inconsistente',
-                  { url, pubDate },
-                  'warning',
-                  'normalization',
-                )
-              }
-            } else {
-              isValidDate = false
-              logAction('Aviso de Data Ausente', { url }, 'warning', 'normalization')
-            }
-
-            if (!isValidDate) {
-              logAction(
-                'Publicação descartada',
-                {
-                  url,
-                  page: pagesCount,
-                  discardReason: 'Out of Date',
-                  discardSnippet: content.substring(0, 150),
-                },
-                'info',
-                'normalization',
-              )
-              continue
-            }
-
-            pageValidItems++
-
-            const scrapedItem = {
-              titulo: title,
-              secao: cleanContent(item.secaoDoDiario || ''),
-              orgao: cleanContent(item.pubName || item.hierarchyStr || ''),
-              texto_bruto: content,
-              texto_normalizado: normalizeText(content),
-              url_origem: url,
-              hash_conteudo: hash,
-              fonte_coleta: 'DOU_SCRAPING',
-              data_publicacao: parsedDate,
-              data_coleta: new Date().toISOString().replace('T', ' '),
-              status_processamento: 'processado',
-              editionNumber: cleanContent(item.editionNumber || ''),
-              numberPage: cleanContent(item.numberPage || ''),
-              hierarchyStr: cleanContent(item.hierarchyStr || ''),
-              artType: mapArtType(cleanContent(item.artType || '')),
-              organization: orgId,
-            }
-
-            let isDuplicate = false
-            try {
-              const existing = $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash)
-              if (existing) {
-                isDuplicate = true
-                logAction(
-                  'Publicação descartada',
-                  {
-                    url,
-                    page: pagesCount,
-                    discardReason: 'ja_no_banco',
-                    discardSnippet: content.substring(0, 150),
-                  },
-                  'info',
-                  'normalization',
-                )
-                scrapedItems.push({
-                  id: existing.id,
-                  titulo: existing.getString('titulo'),
-                  secao: existing.getString('secao'),
-                  orgao: existing.getString('orgao'),
-                  texto_normalizado: existing.getString('texto_normalizado'),
-                  url_origem: existing.getString('url_origem'),
-                  data_publicacao: existing.getString('data_publicacao'),
-                  fonte_coleta: 'LOCAL_DB',
-                  editionNumber: existing.getString('editionNumber'),
-                  numberPage: existing.getString('numberPage'),
-                  hierarchyStr: existing.getString('hierarchyStr'),
-                  artType: existing.getString('artType'),
-                })
-              }
-            } catch (_) {}
-
-            if (!isDuplicate) {
-              try {
-                const existingGaz = $app.findFirstRecordByData(
-                  'gazette_publications',
-                  'hash_conteudo',
-                  hash,
-                )
-                if (existingGaz) {
-                  isDuplicate = true
-                  logAction(
-                    'Publicação descartada',
-                    {
-                      url,
-                      page: pagesCount,
-                      discardReason: 'ja_no_banco',
-                      discardSnippet: content.substring(0, 150),
-                    },
-                    'info',
-                    'normalization',
-                  )
-                }
-              } catch (_) {}
-            }
-
-            if (!isDuplicate) {
-              try {
-                const record = new Record(col)
-                Object.keys(scrapedItem).forEach((k) => {
-                  if (scrapedItem[k]) record.set(k, scrapedItem[k])
-                })
-                $app.save(record)
-                scrapedItems.push({
-                  id: record.id,
-                  ...scrapedItem,
-                })
-              } catch (saveErr) {
-                logAction(
-                  'Erro ao salvar publicação',
-                  { error: saveErr?.toString(), url },
-                  'error',
-                  'normalization',
-                )
-              }
-            }
-          }
-
-          if (pageValidItems === 0) {
-            consecutiveEmptyPages++
-            if (consecutiveEmptyPages >= 10) {
-              logAction(
-                'Muitas páginas vazias consecutivas, abortando partição',
-                { chunk, pagesCount },
-                'warning',
-                'request',
-              )
-              keepPaginating = false
-              break
-            }
-          } else {
-            consecutiveEmptyPages = 0
-          }
-
-          if (jsonArray.length < 20 && consecutiveIdenticalId === 0) {
-            keepPaginating = false
-          } else {
-            if (consecutiveIdenticalId === 0) {
-              start += delta
-            }
-            sleep(2000)
-          }
-        } else {
-          keepPaginating = false
+        if (!isDuplicate) {
+          try {
+            const record = new Record(col)
+            Object.keys(scrapedItem).forEach((k) => {
+              if (scrapedItem[k]) record.set(k, scrapedItem[k])
+            })
+            $app.save(record)
+            scrapedItems.push({ id: record.id, ...scrapedItem })
+          } catch (saveErr) {}
         }
       }
+
+      if (jsonArray.length < 10) {
+        keepPaginating = false
+      } else {
+        sleep(2000)
+      }
+    }
+
+    if (searchRecord) {
+      try {
+        searchRecord.set('status', 'completed')
+        searchRecord.set('results_count', scrapedItems.length)
+        $app.save(searchRecord)
+      } catch (e) {}
     }
 
     if (hasScrapingSuccess && scrapedItems.length > 0) {
@@ -801,174 +583,9 @@ routerAdd(
         source: 'DOU_SCRAPING',
         items: uniqueItems,
       })
-    } else if (hasScrapingSuccess && scrapedItems.length === 0) {
-      return e.json(200, { success: true, count: 0, source: 'DOU_SCRAPING', items: [] })
     }
 
-    try {
-      logAction('Iniciando fallback Querido Diário', { q }, 'info', 'request')
-      const qdUrl = `https://queridodiario.ok.org.br/api/gazettes?querystring=${encodeURIComponent(q)}`
-
-      let res
-      let attempt = 0
-      let delay = 4000
-
-      while (attempt < 3) {
-        res = $http.send({
-          url: qdUrl,
-          method: 'GET',
-          timeout: 30,
-        })
-        if (res.statusCode === 200) {
-          break
-        } else if ([401, 403, 429].includes(res.statusCode) || res.statusCode >= 500) {
-          attempt++
-          if (attempt >= 3) break
-          sleep(delay)
-          delay *= 2
-        } else {
-          break
-        }
-      }
-
-      if (res && res.statusCode === 200) {
-        const data = res.json
-        if (data && data.gazettes) {
-          for (const item of data.gazettes) {
-            const title = cleanContent(`Diário de ${item.territory_name}`)
-            const url = item.url || ''
-            let contentRaw = item.excerpts ? item.excerpts.join('\n') : ''
-            const content = cleanContent(contentRaw)
-
-            const matchResult = isMatch(content + ' ' + title, q, searchType)
-            if (!matchResult.match) {
-              logAction(
-                'Publicação QD descartada',
-                {
-                  url,
-                  discardReason: matchResult.reason,
-                  discardSnippet: content.substring(0, 150),
-                },
-                'info',
-                'normalization',
-              )
-              continue
-            }
-
-            const pubDate = item.date ? `${item.date} 00:00:00.000Z` : ''
-
-            let parsedDate = ''
-            let isValidDate = true
-            if (item.date) {
-              const dParts = item.date.split('-')
-              if (dParts.length === 3) {
-                const dObj = new Date(dParts[0], dParts[1] - 1, dParts[2])
-                if (publishFrom) {
-                  const pFrom = parseDate(publishFrom)
-                  if (pFrom && dObj < pFrom) isValidDate = false
-                }
-                if (publishTo) {
-                  const pTo = parseDate(publishTo)
-                  if (pTo && dObj > pTo) isValidDate = false
-                }
-              }
-            }
-
-            if (!isValidDate) {
-              logAction(
-                'Publicação QD descartada',
-                {
-                  url,
-                  discardReason: 'Out of Date',
-                  discardSnippet: content.substring(0, 150),
-                },
-                'info',
-                'normalization',
-              )
-              continue
-            }
-
-            const hashInput = title + contentRaw + url
-            const hash = $security.md5(hashInput)
-
-            const qdItem = {
-              titulo: title,
-              secao: '',
-              orgao: cleanContent(item.territory_name || ''),
-              texto_bruto: content,
-              texto_normalizado: normalizeText(content),
-              url_origem: url,
-              hash_conteudo: hash,
-              fonte_coleta: 'QUERIDO_DIARIO',
-              data_publicacao: pubDate,
-              data_coleta: new Date().toISOString().replace('T', ' '),
-              status_processamento: 'processado',
-              organization: orgId,
-            }
-
-            let isDuplicate = false
-            try {
-              const existing = $app.findFirstRecordByData('publicacoes_dou', 'hash_conteudo', hash)
-              if (existing) {
-                isDuplicate = true
-                fallbackItems.push({
-                  id: existing.id,
-                  titulo: existing.getString('titulo'),
-                  secao: existing.getString('secao'),
-                  orgao: existing.getString('orgao'),
-                  texto_normalizado: existing.getString('texto_normalizado'),
-                  url_origem: existing.getString('url_origem'),
-                  data_publicacao: existing.getString('data_publicacao'),
-                  fonte_coleta: 'LOCAL_DB',
-                })
-              }
-            } catch (_) {}
-
-            if (!isDuplicate) {
-              try {
-                const existingGaz = $app.findFirstRecordByData(
-                  'gazette_publications',
-                  'hash_conteudo',
-                  hash,
-                )
-                if (existingGaz) {
-                  isDuplicate = true
-                }
-              } catch (_) {}
-            }
-
-            if (!isDuplicate) {
-              try {
-                const record = new Record(col)
-                Object.keys(qdItem).forEach((k) => {
-                  if (qdItem[k]) record.set(k, qdItem[k])
-                })
-                $app.save(record)
-                fallbackItems.push({
-                  id: record.id,
-                  ...qdItem,
-                })
-              } catch (saveErr) {}
-            }
-          }
-        }
-      }
-    } catch (err) {
-      logAction('Erro fallback QD', { error: err?.toString() }, 'error', 'request')
-    }
-
-    logAction(
-      'Busca finalizada',
-      { count: fallbackItems.length, source: 'QUERIDO_DIARIO' },
-      'info',
-      'request',
-    )
-    return e.json(200, {
-      success: true,
-      count: fallbackItems.length,
-      source: 'QUERIDO_DIARIO',
-      items: fallbackItems,
-    })
+    return e.json(200, { success: true, count: 0, source: 'DOU_SCRAPING', items: [] })
   },
   $apis.requireAuth(),
 )
