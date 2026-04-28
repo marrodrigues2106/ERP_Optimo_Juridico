@@ -216,8 +216,6 @@ routerAdd(
     let keepPaginating = true
     let pagesCount = 0
 
-    let currentDelay = 1500 // Adaptive delay starts at 1.5s
-
     while (keepPaginating && pagesCount < 15) {
       pagesCount++
       logAction(`Lendo Página ${pagesCount}`, { page: pagesCount }, 'info', 'Lendo Página')
@@ -470,9 +468,6 @@ routerAdd(
 
       if (jsonArray.length < 10) {
         keepPaginating = false
-      } else {
-        currentDelay = Math.max(500, currentDelay - 200)
-        sleep(currentDelay)
       }
     }
 
