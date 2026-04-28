@@ -23,7 +23,7 @@ routerAdd(
       return e.badRequestError("Os parâmetros 'publishFrom' e 'publishTo' são obrigatórios.")
     }
 
-    function logAction(mensagem, metadados, status = 'Sucesso', etapa = 'request') {
+    function logAction(mensagem, metadados, status = 'info', etapa = 'request') {
       try {
         const sysCol = $app.findCollectionByNameOrId('logs_processamento')
         const sysR = new Record(sysCol)
@@ -222,22 +222,25 @@ routerAdd(
           timeout: 30,
         })
 
-        if (res && res.headers) {
-          let setCookie = res.headers['set-cookie'] || res.headers['Set-Cookie']
+        if (res?.headers) {
+          let setCookie = res?.headers['set-cookie'] || res?.headers['Set-Cookie']
           if (setCookie) {
             try {
               if (Array.isArray(setCookie)) {
                 setCookie = setCookie.join(',')
               }
               if (typeof setCookie === 'string') {
-                const newCookies = setCookie.split(',').map((c) => c.split(';')[0].trim())
+                const newCookies = setCookie
+                  .split(',')
+                  .map((c) => c?.split(';')[0]?.trim())
+                  .filter(Boolean)
                 activeCookies = [...new Set([...activeCookies, ...newCookies])]
               }
             } catch (cookieErr) {
               logAction(
                 'Erro ao processar cookies',
-                { error: cookieErr.toString() },
-                'Aviso',
+                { error: cookieErr?.toString() },
+                'warning',
                 'request',
               )
             }
@@ -247,8 +250,8 @@ routerAdd(
         if (attempt >= 3) {
           logAction(
             'Falha ao buscar após tentativas máximas (Network/Timeout)',
-            { url, error: err.toString() },
-            'Falha',
+            { url, error: err?.toString() },
+            'error',
             'request',
           )
           return { statusCode: 0, body: null }
@@ -257,7 +260,7 @@ routerAdd(
         logAction(
           `Erro de rede/timeout. Retentando em ${delay}ms (tentativa ${attempt + 1})`,
           { url },
-          'Aviso',
+          'warning',
           'request',
         )
         sleep(delay)
@@ -270,7 +273,7 @@ routerAdd(
         logAction(
           'Falha ao buscar após tentativas máximas (HTTP)',
           { url, statusCode: res ? res.statusCode : 0 },
-          'Falha',
+          'error',
           'request',
         )
         return res || { statusCode: 0, body: null }
@@ -286,25 +289,20 @@ routerAdd(
       logAction(
         `Erro HTTP ${res ? res.statusCode : 0}. Retentando em ${delay}ms (tentativa ${attempt + 1})`,
         { url },
-        'Aviso',
+        'warning',
         'request',
       )
       sleep(delay)
       return fetchWithRetry(url, attempt + 1, uaIndex + 1, forceNoCache)
     }
 
-    logAction(
-      'Iniciando busca DOU',
-      { q, publishFrom, publishTo, searchType },
-      'Sucesso',
-      'request',
-    )
+    logAction('Iniciando busca DOU', { q, publishFrom, publishTo, searchType }, 'info', 'request')
 
     let scrapedItems = []
     let fallbackItems = []
 
     const dateChunks = generateChunks(publishFrom, publishTo)
-    logAction('Partições geradas', { chunksCount: dateChunks.length }, 'Sucesso', 'request')
+    logAction('Partições geradas', { chunksCount: dateChunks.length }, 'info', 'request')
 
     const col = $app.findCollectionByNameOrId('publicacoes_dou')
     const orgId = e.auth?.getString('active_organization') || ''
@@ -355,49 +353,89 @@ routerAdd(
         hasScrapingSuccess = true
         let html = decodeISO(res.body)
 
-        let jsonArrayMatch =
-          html.match(/"jsonArray":\s*(\[.*?\])\s*,\s*"q"/s) ||
-          html.match(/"jsonArray":\s*(\[.*?\])\s*\}/s)
-        if (!jsonArrayMatch) {
-          const scripts = html.match(/<script[^>]*>([\s\S]*?)<\/script>/gi) || []
-          for (const s of scripts) {
-            const m = s.match(/"jsonArray":\s*(\[.*?\])\s*(,|})/s)
-            if (m) {
-              jsonArrayMatch = m
-              break
+        if (
+          html.toLowerCase().includes('captcha') ||
+          html.toLowerCase().includes('acesso negado') ||
+          html.toLowerCase().includes('cloudflare') ||
+          html.toLowerCase().includes('incapsula') ||
+          html.toLowerCase().includes('bloqueio')
+        ) {
+          logAction(
+            'portal_blocked',
+            {
+              message: 'Bloqueio de WAF, Manutenção ou CAPTCHA detectado.',
+              snippet: html.substring(0, 200),
+            },
+            'warning',
+            'request',
+          )
+          keepPaginating = false
+          break
+        }
+
+        let rawJsonStr = null
+        const searchStr = '"jsonArray":'
+        const idx = html.indexOf(searchStr)
+        if (idx !== -1) {
+          const startIdx = html.indexOf('[', idx + searchStr.length)
+          if (startIdx !== -1) {
+            let brackets = 0
+            let inString = false
+            let escapeNext = false
+            let endIdx = -1
+
+            for (let i = startIdx; i < html.length; i++) {
+              const char = html[i]
+              if (escapeNext) {
+                escapeNext = false
+                continue
+              }
+              if (char === '\\') {
+                escapeNext = true
+                continue
+              }
+              if (char === '"') {
+                inString = !inString
+                continue
+              }
+              if (!inString) {
+                if (char === '[') brackets++
+                else if (char === ']') {
+                  brackets--
+                  if (brackets === 0) {
+                    endIdx = i
+                    break
+                  }
+                }
+              }
+            }
+
+            if (endIdx !== -1) {
+              rawJsonStr = html.substring(startIdx, endIdx + 1)
             }
           }
         }
 
-        if (jsonArrayMatch && jsonArrayMatch[1]) {
+        if (rawJsonStr) {
           let jsonArray = []
-          let rawJsonStr = jsonArrayMatch[1]
           try {
             jsonArray = JSON.parse(rawJsonStr)
           } catch (err) {
-            try {
-              let sanitized = rawJsonStr.replace(/,\s*\]$/, ']')
-              const lastBracket = sanitized.lastIndexOf(']')
-              if (lastBracket !== -1) {
-                sanitized = sanitized.substring(0, lastBracket + 1)
-              }
-              jsonArray = JSON.parse(sanitized)
-            } catch (err2) {
-              logAction(
-                'Erro ao fazer parse do jsonArray',
-                {
-                  error: err2.toString(),
-                  snippet:
-                    rawJsonStr.length > 200
-                      ? rawJsonStr.substring(rawJsonStr.length - 200)
-                      : rawJsonStr,
-                },
-                'error',
-                'parse_json',
-              )
-              keepPaginating = false
-              break
-            }
+            logAction(
+              'partial_response',
+              {
+                message: 'Falha ao fazer parse do jsonArray (resposta incompleta ou truncada)',
+                error: err?.toString(),
+                snippet:
+                  rawJsonStr.length > 200
+                    ? rawJsonStr.substring(rawJsonStr.length - 200)
+                    : rawJsonStr,
+              },
+              'warning',
+              'parse_json',
+            )
+            keepPaginating = false
+            break
           }
 
           if (jsonArray.length === 0) {
@@ -415,7 +453,7 @@ routerAdd(
             logAction(
               'Loop de paginação detectado',
               { consecutiveIdenticalId, start, currentPageLastId },
-              'Aviso',
+              'warning',
               'request',
             )
 
@@ -425,7 +463,7 @@ routerAdd(
               logAction(
                 'Aplicando Estratégia 1: Desabilitar Cursor e Pulo Temporal',
                 { start, useCursor },
-                'Aviso',
+                'warning',
                 'request',
               )
             } else if (consecutiveIdenticalId === 2) {
@@ -434,7 +472,7 @@ routerAdd(
               logAction(
                 'Aplicando Estratégia 2: Quebra de Cache e Delta',
                 { delta, useCursor },
-                'Aviso',
+                'warning',
                 'request',
               )
             } else if (consecutiveIdenticalId === 3) {
@@ -447,14 +485,14 @@ routerAdd(
               logAction(
                 'Aplicando Estratégia 3: Reset de Sessão e Rotação de UA',
                 { uaIndex, delta, start, useCursor },
-                'Aviso',
+                'warning',
                 'request',
               )
             } else {
               logAction(
                 'Loop irrecuperável, abortando paginação desta partição',
                 {},
-                'Falha',
+                'error',
                 'request',
               )
               keepPaginating = false
@@ -490,7 +528,7 @@ routerAdd(
                   discardReason: 'Duplicate',
                   discardSnippet: title.substring(0, 150),
                 },
-                'Sucesso',
+                'info',
                 'normalization',
               )
               continue
@@ -510,7 +548,7 @@ routerAdd(
                   discardReason: matchResult.reason,
                   discardSnippet: content.substring(0, 150),
                 },
-                'Sucesso',
+                'info',
                 'normalization',
               )
               continue
@@ -532,11 +570,16 @@ routerAdd(
                 }
               } else {
                 isValidDate = false
-                logAction('Aviso de Data Inconsistente', { url, pubDate }, 'Aviso', 'normalization')
+                logAction(
+                  'Aviso de Data Inconsistente',
+                  { url, pubDate },
+                  'warning',
+                  'normalization',
+                )
               }
             } else {
               isValidDate = false
-              logAction('Aviso de Data Ausente', { url }, 'Aviso', 'normalization')
+              logAction('Aviso de Data Ausente', { url }, 'warning', 'normalization')
             }
 
             if (!isValidDate) {
@@ -548,7 +591,7 @@ routerAdd(
                   discardReason: 'Out of Date',
                   discardSnippet: content.substring(0, 150),
                 },
-                'Sucesso',
+                'info',
                 'normalization',
               )
               continue
@@ -588,7 +631,7 @@ routerAdd(
                     discardReason: 'ja_no_banco',
                     discardSnippet: content.substring(0, 150),
                   },
-                  'Sucesso',
+                  'info',
                   'normalization',
                 )
                 scrapedItems.push({
@@ -625,7 +668,7 @@ routerAdd(
                       discardReason: 'ja_no_banco',
                       discardSnippet: content.substring(0, 150),
                     },
-                    'Sucesso',
+                    'info',
                     'normalization',
                   )
                 }
@@ -646,8 +689,8 @@ routerAdd(
               } catch (saveErr) {
                 logAction(
                   'Erro ao salvar publicação',
-                  { error: saveErr.toString(), url },
-                  'Falha',
+                  { error: saveErr?.toString(), url },
+                  'error',
                   'normalization',
                 )
               }
@@ -660,7 +703,7 @@ routerAdd(
               logAction(
                 'Muitas páginas vazias consecutivas, abortando partição',
                 { chunk, pagesCount },
-                'Aviso',
+                'warning',
                 'request',
               )
               keepPaginating = false
@@ -685,12 +728,7 @@ routerAdd(
     }
 
     if (hasScrapingSuccess && scrapedItems.length > 0) {
-      logAction(
-        'Scraping concluído com sucesso',
-        { count: scrapedItems.length },
-        'Sucesso',
-        'request',
-      )
+      logAction('Scraping concluído com sucesso', { count: scrapedItems.length }, 'info', 'request')
       const uniqueItems = []
       const seenIds = new Set()
       for (const item of scrapedItems) {
@@ -710,7 +748,7 @@ routerAdd(
     }
 
     try {
-      logAction('Iniciando fallback Querido Diário', { q }, 'Sucesso', 'request')
+      logAction('Iniciando fallback Querido Diário', { q }, 'info', 'request')
       const qdUrl = `https://queridodiario.ok.org.br/api/gazettes?querystring=${encodeURIComponent(q)}`
 
       let res
@@ -753,7 +791,7 @@ routerAdd(
                   discardReason: matchResult.reason,
                   discardSnippet: content.substring(0, 150),
                 },
-                'Sucesso',
+                'info',
                 'normalization',
               )
               continue
@@ -786,7 +824,7 @@ routerAdd(
                   discardReason: 'Out of Date',
                   discardSnippet: content.substring(0, 150),
                 },
-                'Sucesso',
+                'info',
                 'normalization',
               )
               continue
@@ -858,13 +896,13 @@ routerAdd(
         }
       }
     } catch (err) {
-      logAction('Erro fallback QD', { error: err.toString() }, 'Falha', 'request')
+      logAction('Erro fallback QD', { error: err?.toString() }, 'error', 'request')
     }
 
     logAction(
       'Busca finalizada',
       { count: fallbackItems.length, source: 'QUERIDO_DIARIO' },
-      'Sucesso',
+      'info',
       'request',
     )
     return e.json(200, {
