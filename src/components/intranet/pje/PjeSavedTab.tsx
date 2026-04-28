@@ -130,7 +130,7 @@ export function PjeSavedTab() {
 
       {!loading && items.length === 0 && (
         <div className="text-center py-16 bg-slate-50 border border-dashed rounded-xl">
-          <p className="text-slate-500 font-medium">Nenhuma comunicação PJe salva no sistema.</p>
+          <p className="text-slate-500 font-medium">Nenhuma comunicação salva no sistema.</p>
         </div>
       )}
     </div>

@@ -62,7 +62,11 @@ routerAdd(
         texto_normalizado: r.getString('texto_normalizado'),
         url_origem: r.getString('url_origem'),
         data_publicacao: r.getString('data_publicacao'),
-        fonte_coleta: 'Local',
+        fonte_coleta: 'LOCAL_DB',
+        editionNumber: r.getString('editionNumber'),
+        numberPage: r.getString('numberPage'),
+        hierarchyStr: r.getString('hierarchyStr'),
+        artType: r.getString('artType'),
       }))
     } catch (err) {
       console.log('Erro busca local', err)
@@ -70,7 +74,7 @@ routerAdd(
 
     if (localResults.length > 0) {
       logAction('Resultados encontrados no banco local', { count: localResults.length })
-      return e.json(200, { source: 'local', items: localResults })
+      return e.json(200, { source: 'LOCAL_DB', items: localResults })
     }
 
     let scrapedItems = []
@@ -108,10 +112,21 @@ routerAdd(
       })
 
       if (res.statusCode === 200) {
-        const html = new TextDecoder().decode(res.body)
+        let html = ''
+        const bytes = res.body
+        for (let i = 0; i < bytes.length; i++) {
+          html += String.fromCharCode(bytes[i])
+        }
+
+        const scriptMatch =
+          html.match(
+            /<script[^>]*id=["']_br_com_seatecnologia_in_buscadou_BuscaDouPortlet_params["'][^>]*>([\s\S]*?)<\/script>/i,
+          ) || []
+        const scriptContent = scriptMatch[1] || html
+
         const match =
-          html.match(/"jsonArray":\s*(\[.*?\])\s*,\s*"q"/s) ||
-          html.match(/"jsonArray":\s*(\[.*?\])\s*\}/s)
+          scriptContent.match(/"jsonArray":\s*(\[.*?\])\s*,\s*"q"/s) ||
+          scriptContent.match(/"jsonArray":\s*(\[.*?\])\s*\}/s)
 
         if (match && match[1]) {
           const jsonArray = JSON.parse(match[1])
@@ -139,12 +154,12 @@ routerAdd(
             const scrapedItem = {
               titulo: title,
               secao: item.secaoDoDiario || '',
-              orgao: item.hierarchyStr || '',
+              orgao: item.pubName || item.hierarchyStr || '',
               texto_bruto: content,
               texto_normalizado: content,
               url_origem: url,
               hash_conteudo: hash,
-              fonte_coleta: 'IN_Scraping',
+              fonte_coleta: 'DOU_SCRAPING',
               data_publicacao: parsedDate,
               data_coleta: new Date().toISOString().replace('T', ' '),
               status_processamento: 'processado',
@@ -181,7 +196,11 @@ routerAdd(
                     texto_normalizado: existing.getString('texto_normalizado'),
                     url_origem: existing.getString('url_origem'),
                     data_publicacao: existing.getString('data_publicacao'),
-                    fonte_coleta: 'Local',
+                    fonte_coleta: 'LOCAL_DB',
+                    editionNumber: existing.getString('editionNumber'),
+                    numberPage: existing.getString('numberPage'),
+                    hierarchyStr: existing.getString('hierarchyStr'),
+                    artType: existing.getString('artType'),
                   })
                 }
               } catch (findErr) {}
@@ -195,7 +214,7 @@ routerAdd(
 
     if (scrapingSuccess && scrapedItems.length > 0) {
       logAction('Scraping concluído com sucesso', { count: scrapedItems.length })
-      return e.json(200, { source: 'scraping', items: scrapedItems })
+      return e.json(200, { source: 'DOU_SCRAPING', items: scrapedItems })
     }
 
     let qdItems = []
@@ -230,7 +249,7 @@ routerAdd(
               texto_normalizado: content,
               url_origem: url,
               hash_conteudo: hash,
-              fonte_coleta: 'Querido_Diario',
+              fonte_coleta: 'QUERIDO_DIARIO',
               data_publicacao: pubDate,
               data_coleta: new Date().toISOString().replace('T', ' '),
               status_processamento: 'processado',
@@ -263,7 +282,11 @@ routerAdd(
                     texto_normalizado: existing.getString('texto_normalizado'),
                     url_origem: existing.getString('url_origem'),
                     data_publicacao: existing.getString('data_publicacao'),
-                    fonte_coleta: 'Local',
+                    fonte_coleta: 'LOCAL_DB',
+                    editionNumber: existing.getString('editionNumber'),
+                    numberPage: existing.getString('numberPage'),
+                    hierarchyStr: existing.getString('hierarchyStr'),
+                    artType: existing.getString('artType'),
                   })
                 }
               } catch (findErr) {}
@@ -275,8 +298,8 @@ routerAdd(
       console.log('Erro fallback QD', err)
     }
 
-    logAction('Busca finalizada', { count: qdItems.length, source: 'fallback' })
-    return e.json(200, { source: 'fallback', items: qdItems })
+    logAction('Busca finalizada', { count: qdItems.length, source: 'QUERIDO_DIARIO' })
+    return e.json(200, { source: 'QUERIDO_DIARIO', items: qdItems })
   },
   $apis.requireAuth(),
 )

@@ -129,7 +129,10 @@ export function PjeSearchTab() {
   }
 
   const handleSave = async (r: any) => {
-    if (!r.numeroProcesso) {
+    const numProcesso = r.numero_processo || r.numeroProcesso
+    const dataDisp = r.data_disponibilizacao || r.dataDisponibilizacao
+
+    if (!numProcesso) {
       toast({
         title: 'Aviso',
         description: 'Número do processo não informado na comunicação. Não é possível salvar.',
@@ -138,7 +141,7 @@ export function PjeSearchTab() {
       return
     }
     try {
-      const commId = r.id?.toString() || r.hash || ''
+      const commId = r.id?.toString() || r.hash || r.numero_comunicacao || r.numeroComunicacao || ''
       if (commId) {
         const existing = await pb.collection('pje_communications').getList(1, 1, {
           filter: `numeroComunicacao = "${commId}"`,
@@ -157,15 +160,15 @@ export function PjeSearchTab() {
       }
 
       await pb.collection('pje_communications').create({
-        numeroProcesso: r.numeroProcesso,
-        dataDisponibilizacao: r.dataDisponibilizacao,
-        texto: r.texto,
-        tipoComunicacao: r.tipoComunicacao,
-        siglaTribunal: r.siglaTribunal,
-        meio: r.meio,
+        numeroProcesso: numProcesso,
+        dataDisponibilizacao: dataDisp,
+        texto: r.texto || r.conteudo || '',
+        tipoComunicacao: r.tipo_comunicacao || r.tipoComunicacao || '',
+        siglaTribunal: r.sigla_tribunal || r.siglaTribunal || '',
+        meio: r.meio || '',
         numeroComunicacao: commId,
-        destinatarios: r.destinatarios,
-        advogados: r.advogados,
+        destinatarios: r.destinatarios || [],
+        advogados: r.advogados || [],
         is_saved: true,
         is_read: false,
         organization: pb.authStore.record?.active_organization,
@@ -256,15 +259,19 @@ export function PjeSearchTab() {
                   <div className="border-b bg-slate-50 p-4 flex justify-between items-center gap-4">
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="bg-white">
-                        {r.siglaTribunal || 'Tribunal'}
+                        {r.sigla_tribunal || r.siglaTribunal || 'Tribunal'}
                       </Badge>
-                      <span className="text-sm font-medium text-slate-700">{r.numeroProcesso}</span>
+                      <span className="text-sm font-medium text-slate-700">
+                        {r.numero_processo || r.numeroProcesso}
+                      </span>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-sm text-slate-500 flex items-center gap-1">
                         <Clock className="w-4 h-4" />
-                        {r.dataDisponibilizacao
-                          ? new Date(r.dataDisponibilizacao).toLocaleDateString('pt-BR')
+                        {r.data_disponibilizacao || r.dataDisponibilizacao
+                          ? new Date(
+                              r.data_disponibilizacao || r.dataDisponibilizacao,
+                            ).toLocaleDateString('pt-BR')
                           : 'Data indisponível'}
                       </div>
                       <Button
@@ -280,14 +287,16 @@ export function PjeSearchTab() {
                   <CardContent className="p-4 space-y-3">
                     <div>
                       <h4 className="font-semibold text-slate-900">
-                        {r.tipoComunicacao || 'Comunicação'}
+                        {r.tipo_comunicacao || r.tipoComunicacao || 'Comunicação'}
                       </h4>
-                      {r.nomeOrgao && <p className="text-sm text-slate-600">{r.nomeOrgao}</p>}
+                      {(r.nome_orgao || r.nomeOrgao) && (
+                        <p className="text-sm text-slate-600">{r.nome_orgao || r.nomeOrgao}</p>
+                      )}
                     </div>
 
-                    {r.texto && (
+                    {(r.texto || r.conteudo) && (
                       <div className="text-sm text-slate-700 bg-slate-50 p-4 rounded-md border border-slate-100 whitespace-pre-wrap max-h-[300px] overflow-y-auto">
-                        {r.texto}
+                        {r.texto || r.conteudo}
                       </div>
                     )}
 

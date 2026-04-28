@@ -7,8 +7,8 @@ import { useToast } from '@/hooks/use-toast'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import pb from '@/lib/pocketbase/client'
 import { format } from 'date-fns'
+import { searchDou } from '@/services/dou'
 
 export function DouSearch() {
   const [loading, setLoading] = useState(false)
@@ -35,10 +35,7 @@ export function DouSearch() {
     setResults([])
     setSource('')
     try {
-      const res = await pb.send('/backend/v1/dou/search', {
-        method: 'POST',
-        body: JSON.stringify({ q, publishFrom, publishTo }),
-      })
+      const res = await searchDou(q, publishFrom, publishTo)
 
       if (res.items && res.items.length > 0) {
         setResults(res.items)
@@ -155,13 +152,26 @@ export function DouSearch() {
                       </div>
                       <Badge variant="secondary" className="text-[10px] uppercase">
                         <Activity className="w-3 h-3 mr-1" />
-                        {r.fonte_coleta || source}
+                        {r.fonte_coleta === 'LOCAL_DB'
+                          ? 'Banco de Dados Local (Cache)'
+                          : r.fonte_coleta === 'DOU_SCRAPING'
+                            ? 'Ingestão Direta do DOU'
+                            : r.fonte_coleta === 'QUERIDO_DIARIO'
+                              ? 'Fallback (Querido Diário)'
+                              : r.fonte_coleta || source}
                       </Badge>
                     </div>
                   </div>
                   <CardContent className="p-4 space-y-4">
+                    <div className="flex flex-wrap gap-2">
+                      {r.artType && <Badge variant="outline">{r.artType}</Badge>}
+                      {r.editionNumber && (
+                        <Badge variant="outline">Edição: {r.editionNumber}</Badge>
+                      )}
+                      {r.numberPage && <Badge variant="outline">Página: {r.numberPage}</Badge>}
+                    </div>
                     <div className="text-sm text-slate-700 bg-slate-50 p-4 rounded-md border border-slate-100 whitespace-pre-wrap max-h-[200px] overflow-y-auto custom-scrollbar">
-                      <div dangerouslySetInnerHTML={{ __html: r.texto_normalizado || '' }} />
+                      {r.texto_normalizado?.replace(/<[^>]*>?/gm, '') || ''}
                     </div>
 
                     {r.url_origem && (
