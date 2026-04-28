@@ -140,7 +140,8 @@ export default function Layout() {
         items: [
           { title: 'Central de Alertas', url: '/intranet/atualizacoes', icon: Activity },
           { title: 'Caixa Postal', url: '/intranet/webmail', icon: Mail },
-          { title: 'Comunica PJe', url: '/intranet/pje-comunica', icon: MessageSquare },
+          { title: 'Comunicações', url: '/intranet/pje-comunica', icon: MessageSquare },
+          { title: 'Motor de Busca DOU', url: '/intranet/busca-dou', icon: Search },
         ],
       },
       {

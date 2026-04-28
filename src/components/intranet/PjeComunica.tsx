@@ -8,10 +8,10 @@ export function PjeComunica() {
     <div className="p-4 md:p-8 max-w-6xl mx-auto flex flex-col h-full overflow-hidden bg-white/50">
       <div className="mb-6 md:mb-8 shrink-0">
         <h1 className="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-3">
-          <Scale className="w-7 h-7 md:w-8 md:h-8 text-indigo-600" /> Comunica PJe
+          <Scale className="w-7 h-7 md:w-8 md:h-8 text-indigo-600" /> Comunicações
         </h1>
         <p className="text-sm md:text-base text-slate-500 mt-2">
-          Busque e gerencie comunicações oficiais do sistema PJe de forma centralizada.
+          Busque e gerencie comunicações oficiais de forma centralizada.
         </p>
       </div>
 

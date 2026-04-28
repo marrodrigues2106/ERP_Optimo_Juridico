@@ -34,6 +34,7 @@ import GlobalSearch from '@/components/intranet/GlobalSearch'
 import CentralAtualizacoes from '@/components/intranet/CentralAtualizacoes'
 import PublicAgenda from '@/pages/PublicAgenda'
 import { PjeComunica } from '@/components/intranet/PjeComunica'
+import { DouSearch } from '@/components/intranet/DouSearch'
 import Productivity from '@/components/intranet/Productivity'
 import IntegrationsManager from '@/components/intranet/IntegrationsManager'
 
@@ -63,6 +64,7 @@ function App() {
                 <Route path="productivity" element={<Productivity />} />
                 <Route path="atualizacoes" element={<CentralAtualizacoes />} />
                 <Route path="pje-comunica" element={<PjeComunica />} />
+                <Route path="busca-dou" element={<DouSearch />} />
                 <Route path="search" element={<GlobalSearch />} />
                 <Route path="webmail" element={<WebmailManager />} />
                 <Route path="processos" element={<ProcessManager />} />

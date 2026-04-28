@@ -129,6 +129,14 @@ export function PjeSearchTab() {
   }
 
   const handleSave = async (r: any) => {
+    if (!r.numeroProcesso) {
+      toast({
+        title: 'Aviso',
+        description: 'Número do processo não informado na comunicação. Não é possível salvar.',
+        variant: 'destructive',
+      })
+      return
+    }
     try {
       const commId = r.id?.toString() || r.hash || ''
       if (commId) {
@@ -172,10 +180,10 @@ export function PjeSearchTab() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Consulta de Comunicações PJe</CardTitle>
+          <CardTitle>Consulta de Comunicações</CardTitle>
           <CardDescription>
-            Consulte comunicações e intimações diretamente na base nacional do PJe
-          </CardDescription>
+            Consulte comunicações e intimações diretamente na base nacional
+          </CardDescription>{' '}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
