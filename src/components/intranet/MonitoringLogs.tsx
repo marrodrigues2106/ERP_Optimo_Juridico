@@ -85,7 +85,6 @@ export function MonitoringLogs() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os Módulos</SelectItem>
-                  <SelectItem value="DOU Ingestion">DOU Ingestion</SelectItem>
                   <SelectItem value="Audit">Auditoria</SelectItem>
                 </SelectContent>
               </Select>

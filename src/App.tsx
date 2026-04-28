@@ -30,7 +30,6 @@ import KanbanManager from '@/components/intranet/KanbanManager'
 import AuditLogs from '@/components/intranet/AuditLogs'
 import AtendimentosManager from '@/components/intranet/AtendimentosManager'
 import LabelsManager from '@/components/intranet/LabelsManager'
-import DouSearch from '@/components/intranet/DouSearch'
 import GlobalSearch from '@/components/intranet/GlobalSearch'
 import CentralAtualizacoes from '@/components/intranet/CentralAtualizacoes'
 import PublicAgenda from '@/pages/PublicAgenda'
@@ -52,11 +51,6 @@ function App() {
               <Route path="reset-password" element={<ResetPassword />} />
               <Route path="public/agenda/:token" element={<PublicAgenda />} />
               <Route
-                path="diarios-oficiais"
-                element={<Navigate to="/intranet/busca-dou" replace />}
-              />
-
-              <Route
                 path="intranet"
                 element={
                   <ProtectedRoute>
@@ -68,11 +62,6 @@ function App() {
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="productivity" element={<Productivity />} />
                 <Route path="atualizacoes" element={<CentralAtualizacoes />} />
-                <Route
-                  path="diarios-oficiais"
-                  element={<Navigate to="/intranet/busca-dou" replace />}
-                />
-                <Route path="busca-dou" element={<DouSearch />} />
                 <Route path="pje-comunica" element={<PjeComunica />} />
                 <Route path="search" element={<GlobalSearch />} />
                 <Route path="webmail" element={<WebmailManager />} />

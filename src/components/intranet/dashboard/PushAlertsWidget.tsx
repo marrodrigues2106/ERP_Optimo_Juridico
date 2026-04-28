@@ -98,7 +98,7 @@ export function PushAlertsWidget() {
     if (a.lawsuitId) {
       navigate(`/intranet/processos/${a.lawsuitId}`)
     } else if (a.type === 'gazette') {
-      navigate('/intranet/diarios-oficiais')
+      navigate('/intranet/atualizacoes')
     } else if (a.type === 'crm') {
       navigate('/intranet/crm')
     }

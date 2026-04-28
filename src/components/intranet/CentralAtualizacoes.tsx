@@ -55,15 +55,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 type UnifiedItem = {
   id: string
   collection: string
-  type:
-    | 'PJe'
-    | 'DOU'
-    | 'Processo Novo'
-    | 'Ocorrência'
-    | 'Movimentação'
-    | 'Tarefa'
-    | 'Agenda'
-    | 'Financeiro'
+  type: 'PJe' | 'Diário' | 'Processo Novo' | 'Movimentação' | 'Tarefa' | 'Agenda' | 'Financeiro'
   title: string
   description: string
   date: string
@@ -214,9 +206,6 @@ export default function CentralAtualizacoes() {
   useRealtime('gazette_publications', () => {
     if (!isProcessingBatchRef.current) loadData()
   })
-  useRealtime('ocorrencias_dou', () => {
-    if (!isProcessingBatchRef.current) loadData()
-  })
   useRealtime('case_movements', () => {
     if (!isProcessingBatchRef.current) loadData()
   })
@@ -241,7 +230,7 @@ export default function CentralAtualizacoes() {
       const isArchivedFilter =
         activeTab === 'arquivados' ? 'is_archived = true' : 'is_archived = false'
 
-      const [pjeRes, douPub, douOcc, moveRes, tasksRes, agendaRes, finRes, notifRes, casesRes] =
+      const [pjeRes, douPub, moveRes, tasksRes, agendaRes, finRes, notifRes, casesRes] =
         await Promise.all([
           pb.collection('pje_communications').getList(1, 300, {
             filter: `${isArchivedFilter}${orgFilter}`,
@@ -252,9 +241,6 @@ export default function CentralAtualizacoes() {
             filter: `${isArchivedFilter}${orgFilter}`,
             sort: '-data_publicacao',
           }),
-          pb
-            .collection('ocorrencias_dou')
-            .getList(1, 300, { filter: isArchivedFilter, sort: '-created' }),
           pb.collection('case_movements').getList(1, 50, {
             filter: `notified_client = false && deleted_at = ""${orgFilter}`,
             sort: '-event_date',
@@ -334,8 +320,8 @@ export default function CentralAtualizacoes() {
         return {
           id: i.id,
           collection: 'gazette_publications',
-          type: isNew ? 'Processo Novo' : 'DOU',
-          title: `Publicação DOU: ${i.orgao || 'Órgão Desconhecido'}`,
+          type: isNew ? 'Processo Novo' : 'Diário',
+          title: `Publicação Diário: ${i.orgao || 'Órgão Desconhecido'}`,
           description: i.texto_normalizado || '',
           date: i.data_publicacao || i.created,
           isRead: !!i.is_read,
@@ -352,18 +338,6 @@ export default function CentralAtualizacoes() {
           raw: i,
         }
       })
-
-      const mappedDouOcc: UnifiedItem[] = douOcc.items.map((i) => ({
-        id: i.id,
-        collection: 'ocorrencias_dou',
-        type: 'Ocorrência',
-        title: `Ocorrência DOU - Termo encontrado`,
-        description: i.trecho_encontrado || '',
-        date: i.data_deteccao || i.created,
-        isRead: i.status_alerta === 'visualizado',
-        isArchived: !!i.is_archived,
-        raw: i,
-      }))
 
       const mappedMovements: UnifiedItem[] = moveRes.items.map((i) => {
         const cObj = casesMap.get(i.case) || i.expand?.case
@@ -482,7 +456,6 @@ export default function CentralAtualizacoes() {
       const all = [
         ...mappedPje,
         ...mappedDouPub,
-        ...mappedDouOcc,
         ...mappedMovements,
         ...mappedTasks,
         ...mappedAgenda,
@@ -558,10 +531,6 @@ export default function CentralAtualizacoes() {
                 await pb.collection('pje_communications').update(item.id, { is_read: true })
               else if (item.collection === 'gazette_publications')
                 await pb.collection('gazette_publications').update(item.id, { is_read: true })
-              else if (item.collection === 'ocorrencias_dou')
-                await pb
-                  .collection('ocorrencias_dou')
-                  .update(item.id, { status_alerta: 'visualizado' })
               else if (item.collection === 'case_movements')
                 await pb.collection('case_movements').update(item.id, { notified_client: true })
               else if (item.collection === 'notifications')
@@ -573,10 +542,6 @@ export default function CentralAtualizacoes() {
                 await pb.collection('pje_communications').update(item.id, { is_read: false })
               else if (item.collection === 'gazette_publications')
                 await pb.collection('gazette_publications').update(item.id, { is_read: false })
-              else if (item.collection === 'ocorrencias_dou')
-                await pb
-                  .collection('ocorrencias_dou')
-                  .update(item.id, { status_alerta: 'pendente' })
               else if (item.collection === 'case_movements')
                 await pb.collection('case_movements').update(item.id, { notified_client: false })
               else if (item.collection === 'notifications')
@@ -587,7 +552,6 @@ export default function CentralAtualizacoes() {
               if (
                 [
                   'gazette_publications',
-                  'ocorrencias_dou',
                   'pje_communications',
                   'finances',
                   'notifications',
@@ -601,7 +565,6 @@ export default function CentralAtualizacoes() {
               if (
                 [
                   'gazette_publications',
-                  'ocorrencias_dou',
                   'pje_communications',
                   'finances',
                   'notifications',
@@ -667,11 +630,7 @@ export default function CentralAtualizacoes() {
           treatment_type: type,
           is_read: true,
         })
-      } else if (
-        item.collection === 'finances' ||
-        item.collection === 'notifications' ||
-        item.collection === 'ocorrencias_dou'
-      ) {
+      } else if (item.collection === 'finances' || item.collection === 'notifications') {
         const isArchived = type === 'discarded' || type === 'concluded' ? true : item.isArchived
         await pb
           .collection(item.collection)
@@ -776,7 +735,8 @@ export default function CentralAtualizacoes() {
     let tpl = 'custom'
     if (item.type === 'Aniversário') tpl = 'aniversario'
     else if (item.type === 'Financeiro') tpl = 'financeiro'
-    else if (['Movimentação', 'PJe', 'DOU', 'Processo Novo'].includes(item.type)) tpl = 'processual'
+    else if (['Movimentação', 'PJe', 'Diário', 'Processo Novo'].includes(item.type))
+      tpl = 'processual'
 
     setShareTemplate(tpl)
     setShareClientId(item.clientId || '')
@@ -800,9 +760,7 @@ export default function CentralAtualizacoes() {
       if (activeTab === 'comunicacoes')
         return (
           !item.isArchived &&
-          (item.collection === 'pje_communications' ||
-            item.collection === 'gazette_publications' ||
-            item.collection === 'ocorrencias_dou')
+          (item.collection === 'pje_communications' || item.collection === 'gazette_publications')
         )
       if (activeTab === 'movimentacoes')
         return !item.isArchived && item.collection === 'case_movements'
