@@ -32,11 +32,7 @@
     "README.md"
   ],
   "deployment": {
-<<<<<<< HEAD
-    "lastDevBuildRef": "2b0c612",
-=======
-    "lastDevBuildRef": "c0b3c69",
->>>>>>> 8e9cdea (Initial sync: Moraes Rodrigues Advocacia)
+    "lastDevBuildRef": "c12e0d5",
     "lastProdBuildRef": "5939f57",
     "publishedAt": "2026-04-27T22:06:22.281Z",
     "lastPublishedRef": "b5dd628"
