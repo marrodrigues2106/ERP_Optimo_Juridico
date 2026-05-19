@@ -95,6 +95,7 @@ routerAdd(
           filter,
           '-data_publicacao',
           100,
+          0,
         )
 
         for (const rec of localRecords) {

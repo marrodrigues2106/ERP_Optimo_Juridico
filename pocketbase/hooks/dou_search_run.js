@@ -21,7 +21,7 @@ routerAdd(
         }
       }
     } catch (err) {
-      // Se não encontrar o registro, falha silenciosamente e continua
+      // Ignore if record is not found
     }
 
     return e.json(200, {
