@@ -5,12 +5,15 @@ import { Button } from '@/components/ui/button'
 import { Check, ExternalLink, RefreshCw, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/hooks/use-auth'
 
 export function PjeSavedTab() {
+  const { user, loading: authLoading } = useAuth()
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   const loadItems = async () => {
+    if (!user) return
     setLoading(true)
     try {
       const records = await pb.collection('pje_communications').getList(1, 50, {
@@ -19,14 +22,18 @@ export function PjeSavedTab() {
         filter: 'is_saved = true',
       })
       setItems(records.items)
+    } catch (error: any) {
+      console.error('Error loading PJE saved items:', error)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    loadItems()
-  }, [])
+    if (!authLoading && user) {
+      loadItems()
+    }
+  }, [authLoading, user])
 
   useRealtime('pje_communications', () => {
     loadItems()
@@ -41,6 +48,23 @@ export function PjeSavedTab() {
     if (!confirm('Deseja realmente excluir esta comunicação salva definitivamente?')) return
     await pb.collection('pje_communications').delete(id)
     loadItems()
+  }
+
+  if (authLoading) {
+    return (
+      <div className="space-y-4 p-8 text-center animate-in fade-in">
+        <RefreshCw className="w-8 h-8 animate-spin mx-auto text-slate-300 mb-4" />
+        <p className="text-slate-500 font-medium">Carregando contexto do usuário...</p>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="space-y-4 p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">
+        <p className="text-slate-500 font-medium">Contexto de usuário não encontrado.</p>
+      </div>
+    )
   }
 
   return (
