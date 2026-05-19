@@ -6,7 +6,6 @@ routerAdd(
     const q = (body.q || '').trim()
     const publishFrom = body.publishFrom || ''
     const publishTo = body.publishTo || ''
-    const orgPrin = body.orgPrin || ''
     const secao = body.secao || 'todos'
     const searchMode = body.searchMode || 'exact'
 
@@ -28,8 +27,9 @@ routerAdd(
 
     const dFrom = new Date(publishFrom)
     const dTo = new Date(publishTo)
-    const diffTime = Math.abs(dTo - dFrom)
+    const diffTime = Math.abs(dTo.getTime() - dFrom.getTime())
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
     if (diffDays > 30) {
       return e.badRequestError('O período de busca não pode ser superior a 30 dias.')
     }
@@ -54,7 +54,7 @@ routerAdd(
     const jobId = searchRecord ? searchRecord.id : 'job_' + $security.randomString(8)
     $app.logger().info('Iniciando busca DOU', 'q', q, 'publishFrom', publishFrom, 'jobId', jobId)
 
-    let cacheItems = []
+    const cacheItems = []
     try {
       if ($app.hasTable('publicacoes_dou')) {
         const orgId = user.getString('active_organization') || ''
