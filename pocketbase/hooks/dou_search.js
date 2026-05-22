@@ -12,20 +12,20 @@ routerAdd(
 
     const user = e.auth
     if (!user) {
-      return e.unauthorizedError('Não autorizado')
+      throw new UnauthorizedError('Não autorizado')
     }
 
     const isAdmin = user.getString('role') === 'admin' || user.getBool('isAdmin')
     const canView = user.getBool('can_view_search_module')
     if (!isAdmin && !canView) {
-      return e.forbiddenError('Sem permissão para acessar o módulo de busca.')
+      throw new ForbiddenError('Sem permissão para acessar o módulo de busca.')
     }
 
     if (!q) {
-      return e.badRequestError("Parâmetro 'q' é obrigatório.")
+      throw new BadRequestError("Parâmetro 'q' é obrigatório.")
     }
     if (!publishFrom || !publishTo) {
-      return e.badRequestError("Os parâmetros 'publishFrom' e 'publishTo' são obrigatórios.")
+      throw new BadRequestError("Os parâmetros 'publishFrom' e 'publishTo' são obrigatórios.")
     }
 
     const dFrom = new Date(publishFrom)
@@ -33,7 +33,7 @@ routerAdd(
     const diffTime = Math.abs(dTo.getTime() - dFrom.getTime())
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
     if (diffDays > 30) {
-      return e.badRequestError('O período de busca não pode ser superior a 30 dias.')
+      throw new BadRequestError('O período de busca não pode ser superior a 30 dias.')
     }
 
     let searchRecord = null
@@ -42,11 +42,12 @@ routerAdd(
     try {
       const searchesCol = $app.findCollectionByNameOrId('searches')
       try {
+        const safeQ = q.replace(/'/g, "''")
         searchRecord = $app.findFirstRecordByFilter(
           'searches',
-          "term='" + q.replace(/'/g, "''") + "' && status='running'",
+          "term='" + safeQ + "' && status='running'",
         )
-      } catch (ignore) {
+      } catch (err2) {
         searchRecord = new Record(searchesCol)
         searchRecord.set('term', q)
         searchRecord.set('search_type', 'Livre')
@@ -67,7 +68,7 @@ routerAdd(
         sysR.set('data_hora', new Date().toISOString().replace('T', ' '))
         sysR.set('metadados', { error: err.toString() })
         $app.saveNoValidate(sysR)
-      } catch (ignoreLog) {}
+      } catch (err3) {}
     }
 
     try {
@@ -168,7 +169,7 @@ routerAdd(
         sysR.set('data_hora', new Date().toISOString().replace('T', ' '))
         sysR.set('metadados', { error: err.toString(), jobId: jobId })
         $app.saveNoValidate(sysR)
-      } catch (ignoreLog) {}
+      } catch (err3) {}
     }
 
     return e.json(200, {

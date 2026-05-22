@@ -1,6 +1,11 @@
 migrate(
   (app) => {
-    const users = app.findCollectionByNameOrId('_pb_users_auth_')
+    let users
+    try {
+      users = app.findCollectionByNameOrId('_pb_users_auth_')
+    } catch (_) {
+      return
+    }
 
     try {
       app.findAuthRecordByEmail('_pb_users_auth_', 'mmr.juridico@gmail.com')

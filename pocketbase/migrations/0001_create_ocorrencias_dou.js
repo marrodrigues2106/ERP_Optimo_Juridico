@@ -1,6 +1,9 @@
 migrate(
   (app) => {
-    if (app.hasTable('ocorrencias_dou')) return
+    try {
+      app.findCollectionByNameOrId('ocorrencias_dou')
+      return
+    } catch (_) {}
 
     const collection = new Collection({
       name: 'ocorrencias_dou',
@@ -11,11 +14,11 @@ migrate(
       updateRule: "@request.auth.id != ''",
       deleteRule: "@request.auth.id != ''",
       fields: [
-        { name: 'status_alerta', type: 'text', required: false },
-        { name: 'is_archived', type: 'bool', required: false },
-        { name: 'trecho_encontrado', type: 'text', required: false },
-        { name: 'data_deteccao', type: 'text', required: false },
-        { name: 'organization', type: 'text', required: false },
+        { name: 'status_alerta', type: 'text' },
+        { name: 'is_archived', type: 'bool' },
+        { name: 'trecho_encontrado', type: 'text' },
+        { name: 'data_deteccao', type: 'text' },
+        { name: 'organization', type: 'text' },
         { name: 'created', type: 'autodate', onCreate: true, onUpdate: false },
         { name: 'updated', type: 'autodate', onCreate: true, onUpdate: true },
       ],
