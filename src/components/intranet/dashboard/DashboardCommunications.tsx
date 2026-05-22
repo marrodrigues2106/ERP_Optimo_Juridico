@@ -65,7 +65,7 @@ export function DashboardCommunications() {
 
       const pjeFilter = `organization="${orgId}" && is_read=${isReadVal} && is_archived=false`
       const gazetteFilter = `organization="${orgId}" && is_read=${isReadVal} && is_archived=false`
-      const douOccFilter = `organization="${orgId}" && status_alerta ${readFilter === 'read' ? '=' : '!='} "visualizado" && is_archived=false`
+      const douOccFilter = `organization="${orgId}" && status_alerta ${readFilter === 'read' ? '=' : '!='} "visualizado" && is_archived = false`
       const movFilter = `organization="${orgId}" && notified_client=${isReadVal} && deleted_at=""`
 
       const [pjeRes, gazetteRes, douOccRes, movRes] = await Promise.all([

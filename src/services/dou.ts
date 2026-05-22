@@ -8,8 +8,7 @@ export const searchDouInit = async (
   secao?: string,
   searchMode?: string,
 ) => {
-  const baseUrl = (import.meta.env.VITE_POCKETBASE_URL || '').replace(/\/$/, '')
-  return pb.send(`${baseUrl}/backend/v1/dou/search`, {
+  return pb.send('/backend/v1/dou/search', {
     method: 'POST',
     body: JSON.stringify({ q, publishFrom, publishTo, orgPrin, secao, searchMode }),
   })
@@ -24,8 +23,7 @@ export const searchDouRun = async (
   secao?: string,
   searchMode?: string,
 ) => {
-  const baseUrl = (import.meta.env.VITE_POCKETBASE_URL || '').replace(/\/$/, '')
-  return pb.send(`${baseUrl}/backend/v1/dou/search/run`, {
+  return pb.send('/backend/v1/dou/search/run', {
     method: 'POST',
     body: JSON.stringify({ jobId, q, publishFrom, publishTo, orgPrin, secao, searchMode }),
   })
