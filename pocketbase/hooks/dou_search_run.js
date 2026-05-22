@@ -3,7 +3,13 @@ routerAdd(
   '/backend/v1/dou/search/run',
   (e) => {
     const body = e.requestInfo().body || {}
-    const { jobId, q, publishFrom, publishTo, orgPrin, secao, searchMode } = body
+    const jobId = body.jobId
+    const q = body.q
+    const publishFrom = body.publishFrom
+    const publishTo = body.publishTo
+    const orgPrin = body.orgPrin
+    const secao = body.secao
+    const searchMode = body.searchMode
 
     if (!jobId) return e.badRequestError('jobId é obrigatório.')
 
@@ -26,13 +32,13 @@ routerAdd(
         const logRecord = new Record(logsCol)
         logRecord.set('etapa', 'Conectando')
         logRecord.set('mensagem', 'Buscando API')
-        logRecord.set('metadados', { jobId })
+        logRecord.set('metadados', { jobId: jobId })
         $app.save(logRecord)
 
         const finishLog = new Record(logsCol)
         finishLog.set('etapa', 'Finalizado')
         finishLog.set('mensagem', 'Busca concluída')
-        finishLog.set('metadados', { jobId })
+        finishLog.set('metadados', { jobId: jobId })
         $app.save(finishLog)
       }
     } catch (err) {
