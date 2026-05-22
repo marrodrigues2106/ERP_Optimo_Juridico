@@ -72,7 +72,7 @@ export function DashboardCommunications() {
           .collection('pje_communications')
           .getList(1, 100, {
             filter: pjeFilter,
-            sort: '-dataDisponibilizacao',
+            sort: '-data_disponibilizacao',
             expand: 'linked_case.client',
           })
           .catch((err) => {
@@ -106,10 +106,10 @@ export function DashboardCommunications() {
         ...c,
         _collection: 'pje_communications',
         _type: 'PJe',
-        _date: c.dataDisponibilizacao || c.created,
-        _title: c.numeroProcesso,
-        _text: c.texto || c.tipoComunicacao,
-        _source: c.siglaTribunal || 'PJe',
+        _date: c.data_disponibilizacao || c.created,
+        _title: c.numero_processo,
+        _text: c.texto || c.tipo_comunicacao,
+        _source: c.sigla_tribunal || 'PJe',
         _caseId: c.linked_case,
         _client: c.expand?.linked_case?.expand?.client,
         is_read: c.is_read,
