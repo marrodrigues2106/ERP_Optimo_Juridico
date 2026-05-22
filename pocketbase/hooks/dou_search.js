@@ -37,6 +37,8 @@ routerAdd(
     }
 
     let searchRecord = null
+    let jobId = 'unknown'
+
     try {
       const searchesCol = $app.findCollectionByNameOrId('searches')
       try {
@@ -54,6 +56,7 @@ routerAdd(
         searchRecord.set('end_date', publishTo)
         $app.save(searchRecord)
       }
+      jobId = searchRecord.id
     } catch (err) {
       try {
         const sysCol = $app.findCollectionByNameOrId('logs_processamento')
@@ -66,8 +69,6 @@ routerAdd(
         $app.saveNoValidate(sysR)
       } catch (ignoreLog) {}
     }
-
-    const jobId = searchRecord ? searchRecord.id : 'unknown'
 
     try {
       const sysCol = $app.findCollectionByNameOrId('logs_processamento')
