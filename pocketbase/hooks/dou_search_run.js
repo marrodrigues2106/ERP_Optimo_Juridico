@@ -12,16 +12,18 @@ routerAdd(
     const searchMode = body.searchMode || 'exact'
 
     const user = e.auth
-    if (!user) return e.unauthorizedError('Não autorizado')
+    if (!user) {
+      throw new UnauthorizedError('Não autorizado')
+    }
 
     const isAdmin = user.getString('role') === 'admin' || user.getBool('isAdmin')
     const canView = user.getBool('can_view_search_module')
     if (!isAdmin && !canView) {
-      return e.forbiddenError('Sem permissão para acessar o módulo de busca.')
+      throw new ForbiddenError('Sem permissão para acessar o módulo de busca.')
     }
 
     if (!jobId) {
-      return e.badRequestError('O parâmetro jobId é obrigatório para execução.')
+      throw new BadRequestError('O parâmetro jobId é obrigatório para execução.')
     }
 
     $app.logger().info('Iniciando busca remota DOU', 'jobId', jobId, 'q', q, 'orgPrin', orgPrin)
@@ -30,17 +32,23 @@ routerAdd(
       if ($app.hasTable('logs_processamento')) {
         const logsCol = $app.findCollectionByNameOrId('logs_processamento')
 
-        const createLog = (etapa, mensagem, page = 1) => {
-          const r = new Record(logsCol)
-          r.set('etapa', etapa)
-          r.set('mensagem', mensagem)
-          r.set('metadados', { jobId, page })
-          $app.save(r)
-        }
+        const r1 = new Record(logsCol)
+        r1.set('etapa', 'Conectando')
+        r1.set('mensagem', 'Iniciando conexão com base do DOU...')
+        r1.set('metadados', { jobId: jobId, page: 1 })
+        $app.save(r1)
 
-        createLog('Conectando', 'Iniciando conexão com base do DOU...')
-        createLog('Lendo Página', 'Analisando publicações...', 1)
-        createLog('Finalizado', 'Busca concluída na API.')
+        const r2 = new Record(logsCol)
+        r2.set('etapa', 'Lendo Página')
+        r2.set('mensagem', 'Analisando publicações...')
+        r2.set('metadados', { jobId: jobId, page: 1 })
+        $app.save(r2)
+
+        const r3 = new Record(logsCol)
+        r3.set('etapa', 'Finalizado')
+        r3.set('mensagem', 'Busca concluída na API.')
+        r3.set('metadados', { jobId: jobId, page: 1 })
+        $app.save(r3)
       }
     } catch (err) {
       $app.logger().error('Erro ao registrar logs de busca remota', 'error', err.toString())

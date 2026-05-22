@@ -11,19 +11,21 @@ routerAdd(
     const searchMode = body.searchMode || 'exact'
 
     const user = e.auth
-    if (!user) return e.unauthorizedError('Não autorizado')
+    if (!user) {
+      throw new UnauthorizedError('Não autorizado')
+    }
 
     const isAdmin = user.getString('role') === 'admin' || user.getBool('isAdmin')
     const canView = user.getBool('can_view_search_module')
     if (!isAdmin && !canView) {
-      return e.forbiddenError('Sem permissão para acessar o módulo de busca.')
+      throw new ForbiddenError('Sem permissão para acessar o módulo de busca.')
     }
 
     if (!q) {
-      return e.badRequestError("Parâmetro 'q' é obrigatório.")
+      throw new BadRequestError("Parâmetro 'q' é obrigatório.")
     }
     if (!publishFrom || !publishTo) {
-      return e.badRequestError("Os parâmetros 'publishFrom' e 'publishTo' são obrigatórios.")
+      throw new BadRequestError("Os parâmetros 'publishFrom' e 'publishTo' são obrigatórios.")
     }
 
     const dFrom = new Date(publishFrom)
@@ -32,7 +34,7 @@ routerAdd(
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
     if (diffDays > 30) {
-      return e.badRequestError('O período de busca não pode ser superior a 30 dias.')
+      throw new BadRequestError('O período de busca não pode ser superior a 30 dias.')
     }
 
     let searchRecord = null
@@ -76,23 +78,30 @@ routerAdd(
             ? terms
                 .map((t) => {
                   const safeT = t.replace(/'/g, "''")
-                  return `(texto_normalizado ~ '${safeT}' || titulo ~ '${safeT}')`
+                  return "(texto_normalizado ~ '" + safeT + "' || titulo ~ '" + safeT + "')"
                 })
                 .join(' || ')
-            : `(texto_normalizado ~ '${qEscaped}' || titulo ~ '${qEscaped}')`
+            : "(texto_normalizado ~ '" + qEscaped + "' || titulo ~ '" + qEscaped + "')"
 
-        let filter = `data_publicacao >= '${publishFrom} 00:00:00.000Z' && data_publicacao <= '${publishTo} 23:59:59.999Z' && (${termsFilters})`
+        let filter =
+          "data_publicacao >= '" +
+          publishFrom +
+          " 00:00:00.000Z' && data_publicacao <= '" +
+          publishTo +
+          " 23:59:59.999Z' && (" +
+          termsFilters +
+          ')'
 
         if (orgId) {
-          filter += ` && organization = '${orgId}'`
+          filter += " && organization = '" + orgId + "'"
         }
 
         if (secao && secao !== 'todos') {
-          filter += ` && secao = '${secao.toUpperCase()}'`
+          filter += " && secao = '" + secao.toUpperCase() + "'"
         }
 
         if (orgPrin) {
-          filter += ` && orgao ~ '${orgPrin.replace(/'/g, "''")}'`
+          filter += " && orgao ~ '" + orgPrin.replace(/'/g, "''") + "'"
         }
 
         const localRecords = $app.findRecordsByFilter(
