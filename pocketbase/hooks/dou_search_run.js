@@ -4,31 +4,30 @@ routerAdd(
   (e) => {
     const body = e.requestInfo().body || {}
     const jobId = body.jobId
-    const q = body.q
-    const publishFrom = body.publishFrom
-    const publishTo = body.publishTo
-    const orgPrin = body.orgPrin
-    const secao = body.secao
-    const searchMode = body.searchMode
 
-    if (!jobId) return e.badRequestError('jobId é obrigatório.')
+    if (!jobId) {
+      return e.badRequestError('jobId é obrigatório.')
+    }
 
     const user = e.auth
-    if (!user) return e.unauthorizedError('Não autorizado')
+    if (!user) {
+      return e.unauthorizedError('Não autorizado')
+    }
 
     try {
-      if ($app.hasTable('searches')) {
-        let searchRecord = $app.findRecordById('searches', jobId)
+      const searchesCol = $app.findCollectionByNameOrId('searches')
+      if (searchesCol) {
+        const searchRecord = $app.findRecordById('searches', jobId)
         searchRecord.set('status', 'completed')
         $app.save(searchRecord)
       }
     } catch (err) {
-      $app.logger().error('Erro ao atualizar searches', 'error', err.toString())
+      $app.logger().error('Erro ao atualizar searches', 'error', String(err))
     }
 
     try {
-      if ($app.hasTable('logs_processamento')) {
-        const logsCol = $app.findCollectionByNameOrId('logs_processamento')
+      const logsCol = $app.findCollectionByNameOrId('logs_processamento')
+      if (logsCol) {
         const logRecord = new Record(logsCol)
         logRecord.set('etapa', 'Conectando')
         logRecord.set('mensagem', 'Buscando API')
@@ -42,7 +41,7 @@ routerAdd(
         $app.save(finishLog)
       }
     } catch (err) {
-      $app.logger().error('Erro logs', 'error', err.toString())
+      $app.logger().error('Erro logs', 'error', String(err))
     }
 
     return e.json(200, {
