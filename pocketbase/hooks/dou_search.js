@@ -3,7 +3,8 @@ routerAdd(
   '/backend/v1/dou/search',
   (e) => {
     const body = e.requestInfo().body || {}
-    const q = (body.q || '').trim()
+    let q = body.q || ''
+    q = q.trim()
     const publishFrom = body.publishFrom || ''
     const publishTo = body.publishTo || ''
     const orgPrin = body.orgPrin || ''
@@ -38,97 +39,101 @@ routerAdd(
     }
 
     let searchRecord = null
+    let jobId = ''
     try {
-      if ($app.hasTable('searches')) {
-        const searchesCol = $app.findCollectionByNameOrId('searches')
-        searchRecord = new Record(searchesCol)
-        searchRecord.set('term', q)
-        searchRecord.set('search_type', 'Livre')
-        searchRecord.set('status', 'running')
-        searchRecord.set('results_count', 0)
-        searchRecord.set('start_date', publishFrom)
-        searchRecord.set('end_date', publishTo)
-        $app.save(searchRecord)
-      }
+      const searchesCol = $app.findCollectionByNameOrId('searches')
+      searchRecord = new Record(searchesCol)
+      searchRecord.set('term', q)
+      searchRecord.set('search_type', 'Livre')
+      searchRecord.set('status', 'running')
+      searchRecord.set('results_count', 0)
+      searchRecord.set('start_date', publishFrom)
+      searchRecord.set('end_date', publishTo)
+      $app.save(searchRecord)
+      jobId = searchRecord.id
     } catch (err) {
       $app.logger().error('Erro ao criar registro em searches', 'error', err.toString())
+      jobId = 'job_' + $security.randomString(8)
     }
 
-    const jobId = searchRecord ? searchRecord.id : 'job_' + $security.randomString(8)
     $app.logger().info('Iniciando busca DOU', 'q', q, 'publishFrom', publishFrom, 'jobId', jobId)
 
     const cacheItems = []
     try {
-      if ($app.hasTable('publicacoes_dou')) {
-        const orgId = user.getString('active_organization') || ''
-        const terms = q
-          .split(' OR ')
-          .map((t) => {
-            let cleanT = t.trim()
-            if (searchMode === 'exact') {
-              cleanT = cleanT.replace(/^"|"$/g, '')
-            }
-            return cleanT
-          })
-          .filter(Boolean)
+      const orgId = user.getString('active_organization') || ''
+      const rawTerms = q.split(' OR ')
+      const terms = []
 
-        const qEscaped = q.replace(/'/g, "''").replace(/^"|"$/g, '')
-        const termsFilters =
-          terms.length > 0
-            ? terms
-                .map((t) => {
-                  const safeT = t.replace(/'/g, "''")
-                  return "(texto_normalizado ~ '" + safeT + "' || titulo ~ '" + safeT + "')"
-                })
-                .join(' || ')
-            : "(texto_normalizado ~ '" + qEscaped + "' || titulo ~ '" + qEscaped + "')"
-
-        let filter =
-          "data_publicacao >= '" +
-          publishFrom +
-          " 00:00:00.000Z' && data_publicacao <= '" +
-          publishTo +
-          " 23:59:59.999Z' && (" +
-          termsFilters +
-          ')'
-
-        if (orgId) {
-          filter += " && organization = '" + orgId + "'"
+      for (let i = 0; i < rawTerms.length; i++) {
+        let cleanT = rawTerms[i].trim()
+        if (searchMode === 'exact') {
+          cleanT = cleanT.replace(new RegExp('^"|"$', 'g'), '')
         }
-
-        if (secao && secao !== 'todos') {
-          filter += " && secao = '" + secao.toUpperCase() + "'"
+        if (cleanT) {
+          terms.push(cleanT)
         }
+      }
 
-        if (orgPrin) {
-          filter += " && orgao ~ '" + orgPrin.replace(/'/g, "''") + "'"
+      const qEscaped = q.replace(/'/g, "''").replace(new RegExp('^"|"$', 'g'), '')
+      let termsFilters = ''
+
+      if (terms.length > 0) {
+        const filterParts = []
+        for (let j = 0; j < terms.length; j++) {
+          const safeT = terms[j].replace(/'/g, "''")
+          filterParts.push("(texto_normalizado ~ '" + safeT + "' || titulo ~ '" + safeT + "')")
         }
+        termsFilters = filterParts.join(' || ')
+      } else {
+        termsFilters = "(texto_normalizado ~ '" + qEscaped + "' || titulo ~ '" + qEscaped + "')"
+      }
 
-        const localRecords = $app.findRecordsByFilter(
-          'publicacoes_dou',
-          filter,
-          '-data_publicacao',
-          100,
-          0,
-        )
+      let filter =
+        "data_publicacao >= '" +
+        publishFrom +
+        " 00:00:00.000Z' && data_publicacao <= '" +
+        publishTo +
+        " 23:59:59.999Z' && (" +
+        termsFilters +
+        ')'
 
-        for (const rec of localRecords) {
-          cacheItems.push({
-            id: rec.id,
-            titulo: rec.getString('titulo'),
-            secao: rec.getString('secao'),
-            orgao: rec.getString('orgao'),
-            texto_normalizado: rec.getString('texto_normalizado'),
-            url_origem: rec.getString('url_origem'),
-            data_publicacao: rec.getString('data_publicacao'),
-            fonte_coleta: 'LOCAL_DB',
-            editionNumber: rec.getString('editionNumber'),
-            numberPage: rec.getString('numberPage'),
-            hierarchyStr: rec.getString('hierarchyStr'),
-            artType: rec.getString('artType'),
-            hash_conteudo: rec.getString('hash_conteudo'),
-          })
-        }
+      if (orgId) {
+        filter += " && organization = '" + orgId + "'"
+      }
+
+      if (secao && secao !== 'todos') {
+        filter += " && secao = '" + secao.toUpperCase() + "'"
+      }
+
+      if (orgPrin) {
+        filter += " && orgao ~ '" + orgPrin.replace(/'/g, "''") + "'"
+      }
+
+      const localRecords = $app.findRecordsByFilter(
+        'publicacoes_dou',
+        filter,
+        '-data_publicacao',
+        100,
+        0,
+      )
+
+      for (let k = 0; k < localRecords.length; k++) {
+        const rec = localRecords[k]
+        cacheItems.push({
+          id: rec.id,
+          titulo: rec.getString('titulo'),
+          secao: rec.getString('secao'),
+          orgao: rec.getString('orgao'),
+          texto_normalizado: rec.getString('texto_normalizado'),
+          url_origem: rec.getString('url_origem'),
+          data_publicacao: rec.getString('data_publicacao'),
+          fonte_coleta: 'LOCAL_DB',
+          editionNumber: rec.getString('editionNumber'),
+          numberPage: rec.getString('numberPage'),
+          hierarchyStr: rec.getString('hierarchyStr'),
+          artType: rec.getString('artType'),
+          hash_conteudo: rec.getString('hash_conteudo'),
+        })
       }
     } catch (err) {
       $app.logger().error('Erro ao buscar cache local', 'error', err.toString(), 'jobId', jobId)
