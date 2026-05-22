@@ -68,20 +68,38 @@ export function DashboardCommunications() {
         : `notified_client=${isReadVal} && deleted_at=""`
 
       const [pjeRes, gazetteRes, douOccRes, movRes] = await Promise.all([
-        pb.collection('pje_communications').getList(1, 100, {
-          filter: pjeFilter,
-          sort: '-dataDisponibilizacao',
-          expand: 'linked_case.client',
-        }),
+        pb
+          .collection('pje_communications')
+          .getList(1, 100, {
+            filter: pjeFilter,
+            sort: '-dataDisponibilizacao',
+            expand: 'linked_case.client',
+          })
+          .catch((err) => {
+            console.warn('pje_communications error', err)
+            return { items: [] }
+          }),
         pb
           .collection('gazette_publications')
-          .getList(1, 100, { filter: gazetteFilter, sort: '-data_publicacao' }),
+          .getList(1, 100, { filter: gazetteFilter, sort: '-data_publicacao' })
+          .catch((err) => {
+            console.warn('gazette_publications error', err)
+            return { items: [] }
+          }),
         pb
           .collection('ocorrencias_dou')
-          .getList(1, 100, { filter: douOccFilter, sort: '-created' }),
+          .getList(1, 100, { filter: douOccFilter, sort: '-created' })
+          .catch((err) => {
+            console.warn('ocorrencias_dou error', err)
+            return { items: [] }
+          }),
         pb
           .collection('case_movements')
-          .getList(1, 100, { filter: movFilter, sort: '-event_date', expand: 'case.client' }),
+          .getList(1, 100, { filter: movFilter, sort: '-event_date', expand: 'case.client' })
+          .catch((err) => {
+            console.warn('case_movements error', err)
+            return { items: [] }
+          }),
       ])
 
       const pjeMapped = pjeRes.items.map((c) => ({
