@@ -6,6 +6,7 @@ routerAdd(
     const q = (body.q || '').trim()
     const publishFrom = body.publishFrom || ''
     const publishTo = body.publishTo || ''
+    const orgPrin = body.orgPrin || ''
     const secao = body.secao || 'todos'
     const searchMode = body.searchMode || 'exact'
 
@@ -88,6 +89,10 @@ routerAdd(
 
         if (secao && secao !== 'todos') {
           filter += ` && secao = '${secao.toUpperCase()}'`
+        }
+
+        if (orgPrin) {
+          filter += ` && orgao ~ '${orgPrin.replace(/'/g, "''")}'`
         }
 
         const localRecords = $app.findRecordsByFilter(

@@ -20,6 +20,7 @@ import { format, differenceInDays, parseISO } from 'date-fns'
 import { searchDouInit, searchDouRun } from '@/services/dou'
 import { useRealtime } from '@/hooks/use-realtime'
 import { Progress } from '@/components/ui/progress'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 
 export function DouSearch() {
   const [loading, setLoading] = useState(false)
@@ -187,7 +188,7 @@ export function DouSearch() {
             } else {
               setLoading(false)
               setProgressMsg('Erro no processamento.')
-              toast({ title: 'Erro', description: err.message, variant: 'destructive' })
+              toast({ title: 'Erro', description: getErrorMessage(err), variant: 'destructive' })
             }
           })
       } else {
@@ -201,7 +202,7 @@ export function DouSearch() {
       setProgressMsg('')
       toast({
         title: 'Erro na busca',
-        description: err.message || 'Falha ao iniciar busca no DOU',
+        description: getErrorMessage(err),
         variant: 'destructive',
       })
     }
