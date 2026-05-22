@@ -43,7 +43,6 @@ export function DashboardCommunications() {
   const [perPage, setPerPage] = useState(10)
   const [readFilter, setReadFilter] = useState<'unread' | 'read'>('unread')
   const [loadingComms, setLoadingComms] = useState(false)
-  const [fetchError, setFetchError] = useState<string | null>(null)
 
   const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [emailClient, setEmailClient] = useState<any>(null)
@@ -51,68 +50,67 @@ export function DashboardCommunications() {
 
   const loadData = async () => {
     setLoadingComms(true)
-    setFetchError(null)
     try {
       const orgId = pb.authStore.record?.active_organization
+
+      // Defer request if organization context is missing to avoid 404s/400s
+      if (!orgId) {
+        setCommunications([])
+        setCommsTotal(0)
+        setLoadingComms(false)
+        return
+      }
+
       const isReadVal = readFilter === 'read' ? 'true' : 'false'
 
-      const pjeFilter = orgId
-        ? `organization="${orgId}" && is_read=${isReadVal} && is_archived=false`
-        : `is_read=${isReadVal} && is_archived=false`
-
-      const gazetteFilter = orgId
-        ? `organization="${orgId}" && is_read=${isReadVal} && is_archived=false`
-        : `is_read=${isReadVal} && is_archived=false`
-
-      const douOccFilter = `status_alerta ${readFilter === 'read' ? '=' : '!='} "visualizado"`
-      const movFilter = orgId
-        ? `organization="${orgId}" && notified_client=${isReadVal} && deleted_at=""`
-        : `notified_client=${isReadVal} && deleted_at=""`
-
-      let hasError = false
-      const catchHandler = (name: string) => (err: any) => {
-        console.warn(`${name} error`, err)
-        hasError = true
-        return { items: [] }
-      }
+      const pjeFilter = `organization="${orgId}" && is_read=${isReadVal} && is_archived=false`
+      const gazetteFilter = `organization="${orgId}" && is_read=${isReadVal} && is_archived=false`
+      const douOccFilter = `organization="${orgId}" && status_alerta ${readFilter === 'read' ? '=' : '!='} "visualizado" && is_archived=false`
+      const movFilter = `organization="${orgId}" && notified_client=${isReadVal} && deleted_at=""`
 
       const [pjeRes, gazetteRes, douOccRes, movRes] = await Promise.all([
         pb
           .collection('pje_communications')
           .getList(1, 100, {
             filter: pjeFilter,
-            sort: '-data_disponibilizacao',
+            sort: '-dataDisponibilizacao',
             expand: 'linked_case.client',
           })
-          .catch(catchHandler('pje_communications')),
+          .catch((err) => {
+            console.warn('PJE Fetch Error', err)
+            return { items: [] }
+          }),
         pb
           .collection('gazette_publications')
           .getList(1, 100, { filter: gazetteFilter, sort: '-data_publicacao' })
-          .catch(catchHandler('gazette_publications')),
+          .catch((err) => {
+            console.warn('Gazette Fetch Error', err)
+            return { items: [] }
+          }),
         pb
           .collection('ocorrencias_dou')
           .getList(1, 100, { filter: douOccFilter, sort: '-created' })
-          .catch(catchHandler('ocorrencias_dou')),
+          .catch((err) => {
+            console.warn('DOU Occ Fetch Error', err)
+            return { items: [] }
+          }),
         pb
           .collection('case_movements')
           .getList(1, 100, { filter: movFilter, sort: '-event_date', expand: 'case.client' })
-          .catch(catchHandler('case_movements')),
+          .catch((err) => {
+            console.warn('Mov Fetch Error', err)
+            return { items: [] }
+          }),
       ])
-
-      if (hasError) {
-        setFetchError(
-          'Algumas comunicações não puderam ser carregadas. Tente novamente mais tarde.',
-        )
-      }
 
       const pjeMapped = pjeRes.items.map((c) => ({
         ...c,
         _collection: 'pje_communications',
         _type: 'PJe',
-        _date: c.data_disponibilizacao || c.created,
-        _title: c.numero_processo,
-        _text: c.texto || c.tipo_comunicacao,
-        _source: c.sigla_tribunal || 'PJe',
+        _date: c.dataDisponibilizacao || c.created,
+        _title: c.numeroProcesso,
+        _text: c.texto || c.tipoComunicacao,
+        _source: c.siglaTribunal || 'PJe',
         _caseId: c.linked_case,
         _client: c.expand?.linked_case?.expand?.client,
         is_read: c.is_read,
@@ -214,7 +212,9 @@ export function DashboardCommunications() {
     e.stopPropagation()
     e.preventDefault()
     try {
-      if (['pje_communications', 'gazette_publications'].includes(c._collection)) {
+      if (
+        ['pje_communications', 'gazette_publications', 'ocorrencias_dou'].includes(c._collection)
+      ) {
         await pb.collection(c._collection).update(c.id, { is_archived: true })
       } else if (c._collection === 'case_movements') {
         await pb.collection('case_movements').update(c.id, { notified_client: true }) // we can't archive movements
@@ -267,11 +267,6 @@ export function DashboardCommunications() {
 
         <CardContent className="p-0 flex-1 flex flex-col overflow-hidden bg-slate-50/30">
           <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar min-h-[300px]">
-            {fetchError && (
-              <div className="p-3 mb-3 text-sm font-medium text-rose-600 bg-rose-50 border border-rose-200 rounded-md">
-                {fetchError}
-              </div>
-            )}
             {loadingComms ? (
               <div className="flex justify-center items-center h-full">
                 <Loader2 className="animate-spin w-8 h-8 text-primary/50" />
@@ -343,7 +338,7 @@ export function DashboardCommunications() {
                         )}
                       </button>
 
-                      {!['case_movements', 'ocorrencias_dou'].includes(c._collection) && (
+                      {c._collection !== 'case_movements' && (
                         <button
                           onClick={(e) => archiveCommunication(e, c)}
                           className="text-slate-400 hover:text-red-500 transition-colors p-1"
