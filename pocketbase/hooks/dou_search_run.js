@@ -2,34 +2,35 @@ routerAdd(
   'POST',
   '/backend/v1/dou/search/run',
   (e) => {
-    const body = e.requestInfo().body || {}
-    const jobId = body.jobId
+    var body = e.requestInfo().body || {}
+    var jobId = body.jobId
 
     if (!jobId) {
       return e.badRequestError('jobId é obrigatório')
     }
 
-    function logAction(mensagem, metadados, status = 'info', etapa = 'request') {
+    function logAction(mensagem, metadados, status, etapa) {
+      status = status || 'info'
+      etapa = etapa || 'request'
       try {
-        const sysCol = $app.findCollectionByNameOrId('logs_processamento')
-        const sysR = new Record(sysCol)
+        var sysCol = $app.findCollectionByNameOrId('logs_processamento')
+        var sysR = new Record(sysCol)
         sysR.set('etapa', etapa)
         sysR.set('status', status)
         sysR.set('mensagem', mensagem)
         sysR.set('data_hora', new Date().toISOString().replace('T', ' '))
-        const meta = metadados || {}
+        var meta = metadados || {}
         meta.jobId = jobId
         sysR.set('metadados', meta)
         $app.saveNoValidate(sysR)
       } catch (err) {}
     }
 
-    // Emulate an external process fetching to correctly report progress in the UI
     logAction('Iniciando processamento em segundo plano', {}, 'info', 'Conectando')
     logAction('Lendo página do DOU', { page: 1 }, 'info', 'Lendo Página')
 
     try {
-      const searchRecord = $app.findRecordById('searches', jobId)
+      var searchRecord = $app.findRecordById('searches', jobId)
       searchRecord.set('status', 'completed')
       searchRecord.set('results_count', 0)
       $app.save(searchRecord)

@@ -1,20 +1,27 @@
 migrate(
   (app) => {
-    let orgColId = ''
+    var orgColId = ''
     try {
-      const orgCol = app.findCollectionByNameOrId('organizations')
+      var orgCol = app.findCollectionByNameOrId('organizations')
       orgColId = orgCol.id
     } catch (e) {
       // Organizations collection might not exist yet
     }
 
-    const ensureFields = (colName, fields) => {
+    function ensureFields(colName, fieldsData) {
       try {
-        const col = app.findCollectionByNameOrId(colName)
-        let changed = false
-        for (const f of fields) {
-          if (!col.fields.getByName(f.name)) {
-            col.fields.add(f)
+        var col = app.findCollectionByNameOrId(colName)
+        var changed = false
+        for (var i = 0; i < fieldsData.length; i++) {
+          var fData = fieldsData[i]
+          if (!col.fields.getByName(fData.name)) {
+            if (fData.type === 'bool') {
+              col.fields.add(new BoolField(fData.props))
+            } else if (fData.type === 'select') {
+              col.fields.add(new SelectField(fData.props))
+            } else if (fData.type === 'relation') {
+              col.fields.add(new RelationField(fData.props))
+            }
             changed = true
           }
         }
@@ -26,38 +33,48 @@ migrate(
       }
     }
 
-    const commonFields = [
-      new BoolField({ name: 'is_archived' }),
-      new BoolField({ name: 'is_read' }),
+    var commonFields = [
+      { type: 'bool', name: 'is_archived', props: { name: 'is_archived' } },
+      { type: 'bool', name: 'is_read', props: { name: 'is_read' } },
     ]
     if (orgColId) {
-      commonFields.push(
-        new RelationField({ name: 'organization', collectionId: orgColId, maxSelect: 1 }),
-      )
+      commonFields.push({
+        type: 'relation',
+        name: 'organization',
+        props: { name: 'organization', collectionId: orgColId, maxSelect: 1 },
+      })
     }
 
     ensureFields('pje_communications', commonFields)
     ensureFields('gazette_publications', commonFields)
 
-    const occFields = [
-      new BoolField({ name: 'is_archived' }),
-      new SelectField({ name: 'status_alerta', values: ['pendente', 'visualizado'], maxSelect: 1 }),
+    var occFields = [
+      { type: 'bool', name: 'is_archived', props: { name: 'is_archived' } },
+      {
+        type: 'select',
+        name: 'status_alerta',
+        props: { name: 'status_alerta', values: ['pendente', 'visualizado'], maxSelect: 1 },
+      },
     ]
     if (orgColId) {
-      occFields.push(
-        new RelationField({ name: 'organization', collectionId: orgColId, maxSelect: 1 }),
-      )
+      occFields.push({
+        type: 'relation',
+        name: 'organization',
+        props: { name: 'organization', collectionId: orgColId, maxSelect: 1 },
+      })
     }
     ensureFields('ocorrencias_dou', occFields)
 
-    const movFields = [
-      new BoolField({ name: 'notified_client' }),
-      new BoolField({ name: 'is_archived' }),
+    var movFields = [
+      { type: 'bool', name: 'notified_client', props: { name: 'notified_client' } },
+      { type: 'bool', name: 'is_archived', props: { name: 'is_archived' } },
     ]
     if (orgColId) {
-      movFields.push(
-        new RelationField({ name: 'organization', collectionId: orgColId, maxSelect: 1 }),
-      )
+      movFields.push({
+        type: 'relation',
+        name: 'organization',
+        props: { name: 'organization', collectionId: orgColId, maxSelect: 1 },
+      })
     }
     ensureFields('case_movements', movFields)
   },

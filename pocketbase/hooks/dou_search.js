@@ -2,18 +2,20 @@ routerAdd(
   'POST',
   '/backend/v1/dou/search',
   (e) => {
-    const body = e.requestInfo().body || {}
-    const q = (body.q || '').trim()
-    const publishFrom = body.publishFrom || ''
-    const publishTo = body.publishTo || ''
-    const orgPrin = body.orgPrin || ''
-    const secao = body.secao || 'todos'
-    const searchMode = body.searchMode || 'exact'
+    var body = e.requestInfo().body || {}
+    var q = (body.q || '').trim()
+    var publishFrom = body.publishFrom || ''
+    var publishTo = body.publishTo || ''
+    var orgPrin = body.orgPrin || ''
+    var secao = body.secao || 'todos'
+    var searchMode = body.searchMode || 'exact'
 
-    const user = e.auth
-    if (!user) return e.unauthorizedError('Não autorizado')
-    const isAdmin = user.getString('role') === 'admin' || user.getBool('isAdmin')
-    const canView = user.getBool('can_view_search_module')
+    var user = e.auth
+    if (!user) {
+      return e.unauthorizedError('Não autorizado')
+    }
+    var isAdmin = user.getString('role') === 'admin' || user.getBool('isAdmin')
+    var canView = user.getBool('can_view_search_module')
     if (!isAdmin && !canView) {
       return e.forbiddenError('Sem permissão para acessar o módulo de busca.')
     }
@@ -25,39 +27,43 @@ routerAdd(
       return e.badRequestError("Os parâmetros 'publishFrom' e 'publishTo' são obrigatórios.")
     }
 
-    const dFrom = new Date(publishFrom)
-    const dTo = new Date(publishTo)
-    const diffTime = Math.abs(dTo - dFrom)
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    var dFrom = new Date(publishFrom)
+    var dTo = new Date(publishTo)
+    var diffTime = Math.abs(dTo.getTime() - dFrom.getTime())
+    var diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
     if (diffDays > 30) {
       return e.badRequestError('O período de busca não pode ser superior a 30 dias.')
     }
 
-    function logAction(mensagem, metadados, status = 'info', etapa = 'request', jobId = null) {
+    function logAction(mensagem, metadados, status, etapa, currentJobId) {
+      status = status || 'info'
+      etapa = etapa || 'request'
       try {
-        const sysCol = $app.findCollectionByNameOrId('logs_processamento')
-        const sysR = new Record(sysCol)
+        var sysCol = $app.findCollectionByNameOrId('logs_processamento')
+        var sysR = new Record(sysCol)
         sysR.set('etapa', etapa)
         sysR.set('status', status)
         sysR.set('mensagem', mensagem)
         sysR.set('data_hora', new Date().toISOString().replace('T', ' '))
-        const meta = metadados || {}
-        if (jobId) meta.jobId = jobId
+        var meta = metadados || {}
+        if (currentJobId) {
+          meta.jobId = currentJobId
+        }
         sysR.set('metadados', meta)
         $app.saveNoValidate(sysR)
       } catch (err) {}
     }
 
-    let searchRecord = null
+    var searchRecord = null
     try {
-      const searchesCol = $app.findCollectionByNameOrId('searches')
+      var searchesCol = $app.findCollectionByNameOrId('searches')
       try {
-        const existing = $app.findFirstRecordByFilter(
+        var existing = $app.findFirstRecordByFilter(
           'searches',
-          `term='${q.replace(/'/g, "''")}' && status='running'`,
+          "term='" + q.replace(/'/g, "''") + "' && status='running'",
         )
         searchRecord = existing
-      } catch (_) {
+      } catch (ignore) {
         searchRecord = new Record(searchesCol)
         searchRecord.set('term', q)
         searchRecord.set('search_type', 'Livre')
@@ -67,60 +73,79 @@ routerAdd(
         searchRecord.set('end_date', publishTo)
         $app.save(searchRecord)
       }
-    } catch (e) {
-      logAction('Erro ao criar registro em searches', { error: e.toString() }, 'error', 'request')
+    } catch (err) {
+      logAction(
+        'Erro ao criar registro em searches',
+        { error: err.toString() },
+        'error',
+        'request',
+        null,
+      )
     }
 
-    const jobId = searchRecord ? searchRecord.id : 'unknown'
+    var jobId = searchRecord ? searchRecord.id : 'unknown'
     logAction(
       'Iniciando busca DOU',
-      { q, publishFrom, publishTo, orgPrin },
+      { q: q, publishFrom: publishFrom, publishTo: publishTo, orgPrin: orgPrin },
       'info',
       'request',
       jobId,
     )
 
-    let cacheItems = []
+    var cacheItems = []
     try {
-      const orgId = user.getString('active_organization') || ''
-      const terms = q
-        .split(' OR ')
-        .map((t) => {
-          let cleanT = t.trim()
-          if (searchMode === 'exact') {
-            cleanT = cleanT.replace(/^"|"$/g, '')
-          }
-          return cleanT
-        })
-        .filter(Boolean)
-      const termsFilters =
-        terms.length > 0
-          ? terms
-              .map((t) => {
-                const safeT = t.replace(/'/g, "''")
-                return `(texto_normalizado ~ '${safeT}' || titulo ~ '${safeT}')`
-              })
-              .join(' || ')
-          : `(texto_normalizado ~ '${q.replace(/'/g, "''").replace(/^"|"$/g, '')}' || titulo ~ '${q.replace(/'/g, "''").replace(/^"|"$/g, '')}')`
+      var orgId = user.getString('active_organization') || ''
+      var termsRaw = q.split(' OR ')
+      var terms = []
+      for (var i = 0; i < termsRaw.length; i++) {
+        var cleanT = termsRaw[i].trim()
+        if (searchMode === 'exact') {
+          cleanT = cleanT.replace(/^"|"$/g, '')
+        }
+        if (cleanT) {
+          terms.push(cleanT)
+        }
+      }
 
-      let filter = `data_publicacao >= '${publishFrom} 00:00:00.000Z' && data_publicacao <= '${publishTo} 23:59:59.999Z' && (${termsFilters})`
+      var termsFilters = ''
+      if (terms.length > 0) {
+        var parts = []
+        for (var j = 0; j < terms.length; j++) {
+          var safeT = terms[j].replace(/'/g, "''")
+          parts.push("(texto_normalizado ~ '" + safeT + "' || titulo ~ '" + safeT + "')")
+        }
+        termsFilters = parts.join(' || ')
+      } else {
+        var singleSafe = q.replace(/'/g, "''").replace(/^"|"$/g, '')
+        termsFilters = "(texto_normalizado ~ '" + singleSafe + "' || titulo ~ '" + singleSafe + "')"
+      }
+
+      var filter =
+        "data_publicacao >= '" +
+        publishFrom +
+        " 00:00:00.000Z' && data_publicacao <= '" +
+        publishTo +
+        " 23:59:59.999Z' && (" +
+        termsFilters +
+        ')'
 
       if (orgId) {
-        filter += ` && organization = '${orgId}'`
+        filter += " && organization = '" + orgId + "'"
       }
 
       if (secao && secao !== 'todos') {
-        filter += ` && secao = '${secao.toUpperCase()}'`
+        filter += " && secao = '" + secao.toUpperCase() + "'"
       }
 
-      const localRecords = $app.findRecordsByFilter(
+      var localRecords = $app.findRecordsByFilter(
         'publicacoes_dou',
         filter,
         '-data_publicacao',
         100,
       )
 
-      for (const rec of localRecords) {
+      for (var k = 0; k < localRecords.length; k++) {
+        var rec = localRecords[k]
         cacheItems.push({
           id: rec.id,
           titulo: rec.getString('titulo'),
