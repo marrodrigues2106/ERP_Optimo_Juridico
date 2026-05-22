@@ -11,9 +11,7 @@ routerAdd(
     const searchMode = body.searchMode || 'exact'
 
     const user = e.auth
-    if (!user) {
-      return e.unauthorizedError('Não autorizado')
-    }
+    if (!user) return e.unauthorizedError('Não autorizado')
 
     const isAdmin = user.getString('role') === 'admin' || user.getBool('isAdmin')
     const canView = user.getBool('can_view_search_module')
@@ -39,8 +37,8 @@ routerAdd(
 
     let searchRecord = null
     try {
-      const searchesCol = $app.findCollectionByNameOrId('searches')
-      if (searchesCol) {
+      if ($app.hasTable('searches')) {
+        const searchesCol = $app.findCollectionByNameOrId('searches')
         searchRecord = new Record(searchesCol)
         searchRecord.set('term', q)
         searchRecord.set('search_type', 'Livre')
@@ -51,7 +49,7 @@ routerAdd(
         $app.save(searchRecord)
       }
     } catch (err) {
-      $app.logger().error('Erro ao criar registro em searches', 'error', String(err))
+      $app.logger().error('Erro ao criar registro em searches', 'error', err.toString())
     }
 
     const jobId = searchRecord ? searchRecord.id : 'job_' + $security.randomString(8)
@@ -59,8 +57,7 @@ routerAdd(
 
     const cacheItems = []
     try {
-      const publicacoesCol = $app.findCollectionByNameOrId('publicacoes_dou')
-      if (publicacoesCol) {
+      if ($app.hasTable('publicacoes_dou')) {
         const orgId = user.getString('active_organization') || ''
         const terms = q
           .split(' OR ')
@@ -125,7 +122,7 @@ routerAdd(
         }
       }
     } catch (err) {
-      $app.logger().error('Erro ao buscar cache local', 'error', String(err), 'jobId', jobId)
+      $app.logger().error('Erro ao buscar cache local', 'error', err.toString(), 'jobId', jobId)
     }
 
     return e.json(200, {
