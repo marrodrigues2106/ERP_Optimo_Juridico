@@ -1,20 +1,25 @@
 migrate(
   (app) => {
-    let orgCol
     try {
-      orgCol = app.findCollectionByNameOrId('organizations')
+      app.findCollectionByNameOrId('pje_communications')
+      return
+    } catch (_) {}
+
+    let orgColId = null
+    try {
+      orgColId = app.findCollectionByNameOrId('organizations').id
     } catch (_) {
       try {
-        orgCol = app.findCollectionByNameOrId('organizacoes')
+        orgColId = app.findCollectionByNameOrId('organizacoes').id
       } catch (_) {}
     }
 
-    let casesCol
+    let casesColId = null
     try {
-      casesCol = app.findCollectionByNameOrId('cases')
+      casesColId = app.findCollectionByNameOrId('cases').id
     } catch (_) {
       try {
-        casesCol = app.findCollectionByNameOrId('processos')
+        casesColId = app.findCollectionByNameOrId('processos').id
       } catch (_) {}
     }
 
@@ -30,17 +35,12 @@ migrate(
       { name: 'updated', type: 'autodate', onCreate: true, onUpdate: true },
     ]
 
-    if (orgCol) {
-      fields.push({ name: 'organization', type: 'relation', collectionId: orgCol.id, maxSelect: 1 })
+    if (orgColId) {
+      fields.push({ name: 'organization', type: 'relation', collectionId: orgColId, maxSelect: 1 })
     }
 
-    if (casesCol) {
-      fields.push({
-        name: 'linked_case',
-        type: 'relation',
-        collectionId: casesCol.id,
-        maxSelect: 1,
-      })
+    if (casesColId) {
+      fields.push({ name: 'linked_case', type: 'relation', collectionId: casesColId, maxSelect: 1 })
     }
 
     const collection = new Collection({
@@ -57,7 +57,9 @@ migrate(
     app.save(collection)
   },
   (app) => {
-    const collection = app.findCollectionByNameOrId('pje_communications')
-    app.delete(collection)
+    try {
+      const collection = app.findCollectionByNameOrId('pje_communications')
+      app.delete(collection)
+    } catch (_) {}
   },
 )
