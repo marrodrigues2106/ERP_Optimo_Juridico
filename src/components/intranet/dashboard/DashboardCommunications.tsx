@@ -43,6 +43,7 @@ export function DashboardCommunications() {
   const [perPage, setPerPage] = useState(10)
   const [readFilter, setReadFilter] = useState<'unread' | 'read'>('unread')
   const [loadingComms, setLoadingComms] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
 
   const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [emailClient, setEmailClient] = useState<any>(null)
@@ -50,6 +51,7 @@ export function DashboardCommunications() {
 
   const loadData = async () => {
     setLoadingComms(true)
+    setFetchError(null)
     try {
       const orgId = pb.authStore.record?.active_organization
       const isReadVal = readFilter === 'read' ? 'true' : 'false'
@@ -62,10 +64,17 @@ export function DashboardCommunications() {
         ? `organization="${orgId}" && is_read=${isReadVal} && is_archived=false`
         : `is_read=${isReadVal} && is_archived=false`
 
-      const douOccFilter = `status_alerta ${readFilter === 'read' ? '=' : '!='} "visualizado" && is_archived=false`
+      const douOccFilter = `status_alerta ${readFilter === 'read' ? '=' : '!='} "visualizado"`
       const movFilter = orgId
         ? `organization="${orgId}" && notified_client=${isReadVal} && deleted_at=""`
         : `notified_client=${isReadVal} && deleted_at=""`
+
+      let hasError = false
+      const catchHandler = (name: string) => (err: any) => {
+        console.warn(`${name} error`, err)
+        hasError = true
+        return { items: [] }
+      }
 
       const [pjeRes, gazetteRes, douOccRes, movRes] = await Promise.all([
         pb
@@ -75,32 +84,26 @@ export function DashboardCommunications() {
             sort: '-data_disponibilizacao',
             expand: 'linked_case.client',
           })
-          .catch((err) => {
-            console.warn('pje_communications error', err)
-            return { items: [] }
-          }),
+          .catch(catchHandler('pje_communications')),
         pb
           .collection('gazette_publications')
           .getList(1, 100, { filter: gazetteFilter, sort: '-data_publicacao' })
-          .catch((err) => {
-            console.warn('gazette_publications error', err)
-            return { items: [] }
-          }),
+          .catch(catchHandler('gazette_publications')),
         pb
           .collection('ocorrencias_dou')
           .getList(1, 100, { filter: douOccFilter, sort: '-created' })
-          .catch((err) => {
-            console.warn('ocorrencias_dou error', err)
-            return { items: [] }
-          }),
+          .catch(catchHandler('ocorrencias_dou')),
         pb
           .collection('case_movements')
           .getList(1, 100, { filter: movFilter, sort: '-event_date', expand: 'case.client' })
-          .catch((err) => {
-            console.warn('case_movements error', err)
-            return { items: [] }
-          }),
+          .catch(catchHandler('case_movements')),
       ])
+
+      if (hasError) {
+        setFetchError(
+          'Algumas comunicações não puderam ser carregadas. Tente novamente mais tarde.',
+        )
+      }
 
       const pjeMapped = pjeRes.items.map((c) => ({
         ...c,
@@ -211,9 +214,7 @@ export function DashboardCommunications() {
     e.stopPropagation()
     e.preventDefault()
     try {
-      if (
-        ['pje_communications', 'gazette_publications', 'ocorrencias_dou'].includes(c._collection)
-      ) {
+      if (['pje_communications', 'gazette_publications'].includes(c._collection)) {
         await pb.collection(c._collection).update(c.id, { is_archived: true })
       } else if (c._collection === 'case_movements') {
         await pb.collection('case_movements').update(c.id, { notified_client: true }) // we can't archive movements
@@ -266,6 +267,11 @@ export function DashboardCommunications() {
 
         <CardContent className="p-0 flex-1 flex flex-col overflow-hidden bg-slate-50/30">
           <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar min-h-[300px]">
+            {fetchError && (
+              <div className="p-3 mb-3 text-sm font-medium text-rose-600 bg-rose-50 border border-rose-200 rounded-md">
+                {fetchError}
+              </div>
+            )}
             {loadingComms ? (
               <div className="flex justify-center items-center h-full">
                 <Loader2 className="animate-spin w-8 h-8 text-primary/50" />
@@ -337,7 +343,7 @@ export function DashboardCommunications() {
                         )}
                       </button>
 
-                      {c._collection !== 'case_movements' && (
+                      {!['case_movements', 'ocorrencias_dou'].includes(c._collection) && (
                         <button
                           onClick={(e) => archiveCommunication(e, c)}
                           className="text-slate-400 hover:text-red-500 transition-colors p-1"
