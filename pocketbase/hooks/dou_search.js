@@ -2,20 +2,21 @@ routerAdd(
   'POST',
   '/backend/v1/dou/search',
   (e) => {
-    var body = e.requestInfo().body || {}
-    var q = (body.q || '').trim()
-    var publishFrom = body.publishFrom || ''
-    var publishTo = body.publishTo || ''
-    var orgPrin = body.orgPrin || ''
-    var secao = body.secao || 'todos'
-    var searchMode = body.searchMode || 'exact'
+    const body = e.requestInfo().body || {}
+    const q = (body.q || '').trim()
+    const publishFrom = body.publishFrom || ''
+    const publishTo = body.publishTo || ''
+    const orgPrin = body.orgPrin || ''
+    const secao = body.secao || 'todos'
+    const searchMode = body.searchMode || 'exact'
 
-    var user = e.auth
+    const user = e.auth
     if (!user) {
       return e.unauthorizedError('Não autorizado')
     }
-    var isAdmin = user.getString('role') === 'admin' || user.getBool('isAdmin')
-    var canView = user.getBool('can_view_search_module')
+
+    const isAdmin = user.getString('role') === 'admin' || user.getBool('isAdmin')
+    const canView = user.getBool('can_view_search_module')
     if (!isAdmin && !canView) {
       return e.forbiddenError('Sem permissão para acessar o módulo de busca.')
     }
@@ -27,42 +28,22 @@ routerAdd(
       return e.badRequestError("Os parâmetros 'publishFrom' e 'publishTo' são obrigatórios.")
     }
 
-    var dFrom = new Date(publishFrom)
-    var dTo = new Date(publishTo)
-    var diffTime = Math.abs(dTo.getTime() - dFrom.getTime())
-    var diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    const dFrom = new Date(publishFrom)
+    const dTo = new Date(publishTo)
+    const diffTime = Math.abs(dTo.getTime() - dFrom.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
     if (diffDays > 30) {
       return e.badRequestError('O período de busca não pode ser superior a 30 dias.')
     }
 
-    function logAction(mensagem, metadados, status, etapa, currentJobId) {
-      status = status || 'info'
-      etapa = etapa || 'request'
-      try {
-        var sysCol = $app.findCollectionByNameOrId('logs_processamento')
-        var sysR = new Record(sysCol)
-        sysR.set('etapa', etapa)
-        sysR.set('status', status)
-        sysR.set('mensagem', mensagem)
-        sysR.set('data_hora', new Date().toISOString().replace('T', ' '))
-        var meta = metadados || {}
-        if (currentJobId) {
-          meta.jobId = currentJobId
-        }
-        sysR.set('metadados', meta)
-        $app.saveNoValidate(sysR)
-      } catch (err) {}
-    }
-
-    var searchRecord = null
+    let searchRecord = null
     try {
-      var searchesCol = $app.findCollectionByNameOrId('searches')
+      const searchesCol = $app.findCollectionByNameOrId('searches')
       try {
-        var existing = $app.findFirstRecordByFilter(
+        searchRecord = $app.findFirstRecordByFilter(
           'searches',
           "term='" + q.replace(/'/g, "''") + "' && status='running'",
         )
-        searchRecord = existing
       } catch (ignore) {
         searchRecord = new Record(searchesCol)
         searchRecord.set('term', q)
@@ -74,31 +55,44 @@ routerAdd(
         $app.save(searchRecord)
       }
     } catch (err) {
-      logAction(
-        'Erro ao criar registro em searches',
-        { error: err.toString() },
-        'error',
-        'request',
-        null,
-      )
+      try {
+        const sysCol = $app.findCollectionByNameOrId('logs_processamento')
+        const sysR = new Record(sysCol)
+        sysR.set('etapa', 'request')
+        sysR.set('status', 'error')
+        sysR.set('mensagem', 'Erro ao criar registro em searches')
+        sysR.set('data_hora', new Date().toISOString().replace('T', ' '))
+        sysR.set('metadados', { error: err.toString() })
+        $app.saveNoValidate(sysR)
+      } catch (ignoreLog) {}
     }
 
-    var jobId = searchRecord ? searchRecord.id : 'unknown'
-    logAction(
-      'Iniciando busca DOU',
-      { q: q, publishFrom: publishFrom, publishTo: publishTo, orgPrin: orgPrin },
-      'info',
-      'request',
-      jobId,
-    )
+    const jobId = searchRecord ? searchRecord.id : 'unknown'
 
-    var cacheItems = []
     try {
-      var orgId = user.getString('active_organization') || ''
-      var termsRaw = q.split(' OR ')
-      var terms = []
-      for (var i = 0; i < termsRaw.length; i++) {
-        var cleanT = termsRaw[i].trim()
+      const sysCol = $app.findCollectionByNameOrId('logs_processamento')
+      const sysR = new Record(sysCol)
+      sysR.set('etapa', 'request')
+      sysR.set('status', 'info')
+      sysR.set('mensagem', 'Iniciando busca DOU')
+      sysR.set('data_hora', new Date().toISOString().replace('T', ' '))
+      sysR.set('metadados', {
+        q: q,
+        publishFrom: publishFrom,
+        publishTo: publishTo,
+        orgPrin: orgPrin,
+        jobId: jobId,
+      })
+      $app.saveNoValidate(sysR)
+    } catch (err) {}
+
+    const cacheItems = []
+    try {
+      const orgId = user.getString('active_organization') || ''
+      const termsRaw = q.split(' OR ')
+      const terms = []
+      for (let i = 0; i < termsRaw.length; i++) {
+        let cleanT = termsRaw[i].trim()
         if (searchMode === 'exact') {
           cleanT = cleanT.replace(/^"|"$/g, '')
         }
@@ -107,20 +101,20 @@ routerAdd(
         }
       }
 
-      var termsFilters = ''
+      let termsFilters = ''
       if (terms.length > 0) {
-        var parts = []
-        for (var j = 0; j < terms.length; j++) {
-          var safeT = terms[j].replace(/'/g, "''")
+        const parts = []
+        for (let j = 0; j < terms.length; j++) {
+          const safeT = terms[j].replace(/'/g, "''")
           parts.push("(texto_normalizado ~ '" + safeT + "' || titulo ~ '" + safeT + "')")
         }
         termsFilters = parts.join(' || ')
       } else {
-        var singleSafe = q.replace(/'/g, "''").replace(/^"|"$/g, '')
+        const singleSafe = q.replace(/'/g, "''").replace(/^"|"$/g, '')
         termsFilters = "(texto_normalizado ~ '" + singleSafe + "' || titulo ~ '" + singleSafe + "')"
       }
 
-      var filter =
+      let filter =
         "data_publicacao >= '" +
         publishFrom +
         " 00:00:00.000Z' && data_publicacao <= '" +
@@ -137,15 +131,16 @@ routerAdd(
         filter += " && secao = '" + secao.toUpperCase() + "'"
       }
 
-      var localRecords = $app.findRecordsByFilter(
+      const localRecords = $app.findRecordsByFilter(
         'publicacoes_dou',
         filter,
         '-data_publicacao',
         100,
+        0,
       )
 
-      for (var k = 0; k < localRecords.length; k++) {
-        var rec = localRecords[k]
+      for (let k = 0; k < localRecords.length; k++) {
+        const rec = localRecords[k]
         cacheItems.push({
           id: rec.id,
           titulo: rec.getString('titulo'),
@@ -163,7 +158,16 @@ routerAdd(
         })
       }
     } catch (err) {
-      logAction('Erro ao buscar cache local', { error: err.toString() }, 'error', 'cache', jobId)
+      try {
+        const sysCol = $app.findCollectionByNameOrId('logs_processamento')
+        const sysR = new Record(sysCol)
+        sysR.set('etapa', 'cache')
+        sysR.set('status', 'error')
+        sysR.set('mensagem', 'Erro ao buscar cache local')
+        sysR.set('data_hora', new Date().toISOString().replace('T', ' '))
+        sysR.set('metadados', { error: err.toString(), jobId: jobId })
+        $app.saveNoValidate(sysR)
+      } catch (ignoreLog) {}
     }
 
     return e.json(200, {

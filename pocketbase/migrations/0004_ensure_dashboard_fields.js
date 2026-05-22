@@ -1,19 +1,19 @@
 migrate(
   (app) => {
-    var orgColId = ''
+    let orgColId = ''
     try {
-      var orgCol = app.findCollectionByNameOrId('organizations')
+      const orgCol = app.findCollectionByNameOrId('organizations')
       orgColId = orgCol.id
-    } catch (e) {
+    } catch (err) {
       // Organizations collection might not exist yet
     }
 
     function ensureFields(colName, fieldsData) {
       try {
-        var col = app.findCollectionByNameOrId(colName)
-        var changed = false
-        for (var i = 0; i < fieldsData.length; i++) {
-          var fData = fieldsData[i]
+        const col = app.findCollectionByNameOrId(colName)
+        let changed = false
+        for (let i = 0; i < fieldsData.length; i++) {
+          const fData = fieldsData[i]
           if (!col.fields.getByName(fData.name)) {
             if (fData.type === 'bool') {
               col.fields.add(new BoolField(fData.props))
@@ -28,15 +28,16 @@ migrate(
         if (changed) {
           app.save(col)
         }
-      } catch (e) {
+      } catch (err) {
         // Collection hasn't been created yet, safely ignore
       }
     }
 
-    var commonFields = [
+    const commonFields = [
       { type: 'bool', name: 'is_archived', props: { name: 'is_archived' } },
       { type: 'bool', name: 'is_read', props: { name: 'is_read' } },
     ]
+
     if (orgColId) {
       commonFields.push({
         type: 'relation',
@@ -48,7 +49,7 @@ migrate(
     ensureFields('pje_communications', commonFields)
     ensureFields('gazette_publications', commonFields)
 
-    var occFields = [
+    const occFields = [
       { type: 'bool', name: 'is_archived', props: { name: 'is_archived' } },
       {
         type: 'select',
@@ -56,6 +57,7 @@ migrate(
         props: { name: 'status_alerta', values: ['pendente', 'visualizado'], maxSelect: 1 },
       },
     ]
+
     if (orgColId) {
       occFields.push({
         type: 'relation',
@@ -65,10 +67,11 @@ migrate(
     }
     ensureFields('ocorrencias_dou', occFields)
 
-    var movFields = [
+    const movFields = [
       { type: 'bool', name: 'notified_client', props: { name: 'notified_client' } },
       { type: 'bool', name: 'is_archived', props: { name: 'is_archived' } },
     ]
+
     if (orgColId) {
       movFields.push({
         type: 'relation',
@@ -79,6 +82,6 @@ migrate(
     ensureFields('case_movements', movFields)
   },
   (app) => {
-    // Graceful degradation structural migrations generally don't need revert unless strictly required
+    // no revert needed
   },
 )

@@ -2,43 +2,52 @@ routerAdd(
   'POST',
   '/backend/v1/dou/search/run',
   (e) => {
-    var body = e.requestInfo().body || {}
-    var jobId = body.jobId
+    const body = e.requestInfo().body || {}
+    const jobId = body.jobId
 
     if (!jobId) {
       return e.badRequestError('jobId é obrigatório')
     }
 
-    function logAction(mensagem, metadados, status, etapa) {
-      status = status || 'info'
-      etapa = etapa || 'request'
-      try {
-        var sysCol = $app.findCollectionByNameOrId('logs_processamento')
-        var sysR = new Record(sysCol)
-        sysR.set('etapa', etapa)
-        sysR.set('status', status)
-        sysR.set('mensagem', mensagem)
-        sysR.set('data_hora', new Date().toISOString().replace('T', ' '))
-        var meta = metadados || {}
-        meta.jobId = jobId
-        sysR.set('metadados', meta)
-        $app.saveNoValidate(sysR)
-      } catch (err) {}
-    }
-
-    logAction('Iniciando processamento em segundo plano', {}, 'info', 'Conectando')
-    logAction('Lendo página do DOU', { page: 1 }, 'info', 'Lendo Página')
+    try {
+      const sysCol = $app.findCollectionByNameOrId('logs_processamento')
+      const sysR = new Record(sysCol)
+      sysR.set('etapa', 'Conectando')
+      sysR.set('status', 'info')
+      sysR.set('mensagem', 'Iniciando processamento em segundo plano')
+      sysR.set('data_hora', new Date().toISOString().replace('T', ' '))
+      sysR.set('metadados', { jobId: jobId })
+      $app.saveNoValidate(sysR)
+    } catch (err) {}
 
     try {
-      var searchRecord = $app.findRecordById('searches', jobId)
+      const sysCol = $app.findCollectionByNameOrId('logs_processamento')
+      const sysR = new Record(sysCol)
+      sysR.set('etapa', 'Lendo Página')
+      sysR.set('status', 'info')
+      sysR.set('mensagem', 'Lendo página do DOU')
+      sysR.set('data_hora', new Date().toISOString().replace('T', ' '))
+      sysR.set('metadados', { page: 1, jobId: jobId })
+      $app.saveNoValidate(sysR)
+    } catch (err) {}
+
+    try {
+      const searchRecord = $app.findRecordById('searches', jobId)
       searchRecord.set('status', 'completed')
       searchRecord.set('results_count', 0)
       $app.save(searchRecord)
-    } catch (err) {
-      // Ignore safely if search record is missing or deleted
-    }
+    } catch (err) {}
 
-    logAction('Busca concluída na origem', {}, 'info', 'Finalizado')
+    try {
+      const sysCol = $app.findCollectionByNameOrId('logs_processamento')
+      const sysR = new Record(sysCol)
+      sysR.set('etapa', 'Finalizado')
+      sysR.set('status', 'info')
+      sysR.set('mensagem', 'Busca concluída na origem')
+      sysR.set('data_hora', new Date().toISOString().replace('T', ' '))
+      sysR.set('metadados', { jobId: jobId })
+      $app.saveNoValidate(sysR)
+    } catch (err) {}
 
     return e.json(200, {
       status: 'completed',
