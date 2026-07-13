@@ -1,0 +1,11 @@
+# backend/requirements.txt
+flask
+flask-cors
+flask-sqlalchemy
+psycopg2-binary
+python-dotenv
+PyJWT
+passlib[bcrypt]
+alembic
+werkzeug
+gunicorn
